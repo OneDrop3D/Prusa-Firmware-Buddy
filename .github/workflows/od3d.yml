@@ -1,0 +1,74 @@
+# Chaîne OneDrop3D : compile le firmware CORE One avec le suffixe -OD3D, lance les tests unitaires de Prusa
+# et, sur un tag od3d-*, publie une release avec notre .bbf et le .bbf officiel de la même version.
+name: od3d
+
+on:
+  push:
+    branches: ['od3d/**']
+    tags: ['od3d-*']
+  workflow_dispatch:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # le numéro de build écrit dans le .bbf compte les commits
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: .dependencies
+          key: deps-${{ hashFiles('utils/bootstrap.py') }}
+      - run: pip install requests
+      - run: sudo apt-get install -y gettext  # msgfmt, pour les traductions
+      - name: Compiler coreone_release_boot
+        # Comme les versions publiées de Prusa (utils/holly/build-pr.jenkins, branches RELEASE-*) : sans les menus de développement.
+        run: python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix=-OD3D --version-suffix-short=-OD3D --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: build/products/*.bbf
+          if-no-files-found: error
+
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: .dependencies
+          key: deps-${{ hashFiles('utils/bootstrap.py') }}
+      - run: pip install -r requirements.txt  # build_tests.py n'utilise pas le venv de build.py
+      - run: python utils/bootstrap.py  # les tests lisent aussi .dependencies (SDK ESP)
+      - run: sudo apt-get install -y gettext  # msgfmt, pour les tests de traduction
+      - name: Tests unitaires de Prusa
+        run: python utils/build_tests.py --run
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/od3d-')
+    needs: [firmware, tests]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: sortie
+      - name: Joindre le firmware officiel de la même version (retour arrière)
+        run: gh release download "v$(cat version.txt)" -R prusa3d/Prusa-Firmware-Buddy -p 'COREONE_COREONE+GEN2_firmware_*.bbf' -D sortie
+      - name: Publier
+        run: |
+          gh release create "$GITHUB_REF_NAME" sortie/*.bbf --title "$GITHUB_REF_NAME" --notes "Firmware OneDrop3D pour Prusa CORE One, CORE One+ et CORE One+ Gen2, basé sur Prusa $(cat version.txt). Non officiel et non signé : il ne s'installe qu'après avoir cassé l'appendice de la carte xBuddy.
+          - \`coreone_release_boot_*-OD3D.bbf\` : le firmware OneDrop3D à flasher ;
+          - \`COREONE_COREONE+GEN2_firmware_*.bbf\` : le firmware officiel Prusa de la même version, pour revenir en arrière.
+          Sources : branche od3d/main, licence GPLv3 (graphismes Prusa : CC BY-NC-SA 4.0). Ce n'est pas un produit Prusa Research."

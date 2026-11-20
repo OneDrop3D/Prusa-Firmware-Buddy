@@ -1,5 +1,6 @@
 /// @file
 #include "screen_menu_od3d.hpp"
+#include "screen_home_od3d.hpp"
 
 #include <config_store/store_instance.hpp>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
@@ -15,6 +16,13 @@ MI_FEATURES::MI_FEATURES()
 
 void MI_FEATURES::click(IWindowMenu &) {
     Screens::Access()->Open(ScreenFactory::Screen<ScreenMenuFeatures>);
+}
+
+MI_HOME_PREVIEW::MI_HOME_PREVIEW()
+    : IWindowMenuItem(_("OneDrop3D Home (preview)"), nullptr, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+
+void MI_HOME_PREVIEW::click(IWindowMenu &) {
+    Screens::Access()->Open(ScreenFactory::Screen<ScreenHome>);
 }
 
 // Pas pendant une impression : le Z changerait d'un coup (jusqu'à 0,05 mm à 280 °C).

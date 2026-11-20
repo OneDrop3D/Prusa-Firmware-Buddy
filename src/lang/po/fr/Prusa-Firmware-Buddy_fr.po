@@ -9868,3 +9868,19 @@ msgstr "Emplacement %i vide"
 #, c-format
 msgid "Slot %i"
 msgstr "Emplacement %i"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "OneDrop3D Home (preview)"
+msgstr "Accueil OneDrop3D (essai)"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Files"
+msgstr "Fichiers"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Temperatures"
+msgstr "Températures"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Workshop"
+msgstr "Atelier"

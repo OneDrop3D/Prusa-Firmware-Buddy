@@ -34,6 +34,7 @@
 #include <option/has_adc_side_fsensor.h>
 #include <option/has_input_shaper_calibration.h>
 #include <option/has_mmu2.h>
+#include <option/has_nozzle_thermal_compensation.h>
 #include <option/has_toolchanger.h>
 #include <option/has_tool_mapping.h>
 #include <option/has_tool_offset_sensor.h>
@@ -426,6 +427,11 @@ struct CurrentStore
     StoreItem<uint16_t, 0, ItemFlag::stats, journal::hash("MMU2 total load fails")> mmu2_total_load_fails;
     StoreItem<uint16_t, 0, ItemFlag::stats, journal::hash("MMU2 general fails")> mmu2_fails;
     StoreItem<uint16_t, 0, ItemFlag::stats, journal::hash("MMU2 total general fails")> mmu2_total_fails;
+#endif
+
+#if HAS_NOZZLE_THERMAL_COMPENSATION()
+    /// OneDrop3D (F2) : compensation de la dilatation de la buse, désactivable
+    StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Nozzle Thermal Compensation")> od3d_nozzle_thermal_compensation;
 #endif
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;

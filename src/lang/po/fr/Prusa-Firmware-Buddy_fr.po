@@ -9842,3 +9842,15 @@ msgstr "veuillez patienter"
 #: src/gui/screen/selftest/screen_manual_belt_tuning.cpp:45
 msgid "tighten"
 msgstr "serrer"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "OneDrop3D Features"
+msgstr "Fonctions OneDrop3D"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "ONEDROP3D FEATURES"
+msgstr "FONCTIONS ONEDROP3D"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Nozzle Expansion"
+msgstr "Dilatation de la buse"

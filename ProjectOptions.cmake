@@ -476,7 +476,8 @@ set_feature_for_printers_master_board(
   "COREONEL"
   )
 # Compensation of the nozzle thermal expansion between bed leveling and printing
-set_feature_for_printers_master_board(HAS_NOZZLE_THERMAL_COMPENSATION "XL")
+# OneDrop3D (F2) : aussi pour la CORE One, qui a la même buse Nextruder que la XL.
+set_feature_for_printers_master_board(HAS_NOZZLE_THERMAL_COMPENSATION "XL" "COREONE")
 set_feature_for_printers_master_board(HAS_SHEET_PROFILES "MK3.5" "MINI")
 set_feature_for_printers_master_board(
   HAS_HEATBREAK_TEMP

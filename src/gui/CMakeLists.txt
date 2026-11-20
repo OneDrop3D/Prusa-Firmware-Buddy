@@ -203,6 +203,9 @@ endif()
 
 add_subdirectory(dialogs)
 add_subdirectory(footer)
+if(HAS_NOZZLE_THERMAL_COMPENSATION AND HAS_MMU2)
+  add_subdirectory(od3d) # OneDrop3D : fonctions de la CORE One
+endif()
 add_subdirectory(screen)
 add_subdirectory(menu_item)
 add_subdirectory(standard_frame)

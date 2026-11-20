@@ -35,6 +35,7 @@
 #include <option/has_input_shaper_calibration.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
+#include <option/has_spool_join.h>
 #include <option/has_toolchanger.h>
 #include <option/has_tool_mapping.h>
 #include <option/has_tool_offset_sensor.h>
@@ -432,6 +433,12 @@ struct CurrentStore
 #if HAS_NOZZLE_THERMAL_COMPENSATION()
     /// OneDrop3D (F2) : compensation de la dilatation de la buse, désactivable
     StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Nozzle Thermal Compensation")> od3d_nozzle_thermal_compensation;
+#endif
+
+#if HAS_SPOOL_JOIN()
+    /// OneDrop3D (F3) : relais de bobine permanents, « emplacement n vide → emplacement k » (0xff : aucun)
+    StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Spool Join")> od3d_spool_join;
+    StoreItemArray<uint8_t, uint8_t(0xff), ItemFlag::features, journal::hash("OD3D Spool Join Target"), 16, VirtualToolIndex::count> od3d_spool_join_target;
 #endif
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;

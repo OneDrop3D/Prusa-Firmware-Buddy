@@ -1,0 +1,441 @@
+#include "marlin_client.hpp"
+#include <common/marlin_vars.hpp>
+
+#include "marlin_client_events.hpp"
+#include "marlin_server_request.hpp"
+#include "marlin_events.h"
+#include "marlin_server.hpp"
+#include "marlin_server_shared.h"
+#include <freertos/mutex.hpp>
+#include <stdio.h>
+#include <string.h>
+#include <cstdint>
+#include "config.h"
+#include "bsod.h"
+#include <buddy/ffconf.h>
+#include <logging/log.hpp>
+#include "../lib/Marlin/Marlin/src/core/macros.h"
+#include <module/motion.h>
+#include "bsod.h"
+#include "utility_extensions.hpp"
+#include "tasks.hpp"
+#include <utils/string_builder.hpp>
+
+#if HAS_SELFTEST()
+    #include <selftest_types.hpp>
+    #include "printer_selftest.hpp"
+#endif
+
+using namespace marlin_server;
+using std::nullopt;
+using std::optional;
+
+namespace marlin_client {
+
+LOG_COMPONENT_DEF(MarlinClient, logging::Severity::info);
+
+static constexpr uint8_t max_retries = 5;
+
+//-----------------------------------------------------------------------------
+// variables
+
+static osThreadId marlin_client_task[MARLIN_MAX_CLIENTS]; // task handles
+freertos::EventGroup marlin_client_events[MARLIN_MAX_CLIENTS];
+
+//-----------------------------------------------------------------------------
+// forward declarations of private functions
+
+static freertos::EventGroup *_client_ptr();
+
+//-----------------------------------------------------------------------------
+// client side public functions
+
+static freertos::Mutex mutex;
+
+static constexpr EventMask event_mask_all = make_mask(Event::_count) - 1;
+static constexpr EventMask event_mask_ack_nack = make_mask(Event::Acknowledge) | make_mask(Event::NotAcknowledge);
+
+void init() {
+    // If the marlin has already been initialized, don't call init again
+    debug_assert(!_client_ptr());
+
+    int client_id;
+    TaskDeps::wait(TaskDeps::Tasks::marlin_client);
+    std::unique_lock lock { mutex };
+    for (client_id = 0; client_id < MARLIN_MAX_CLIENTS; client_id++) {
+        if (marlin_client_task[client_id] == 0) {
+            break;
+        }
+    }
+    debug_assert(client_id < MARLIN_MAX_CLIENTS);
+    if (client_id < MARLIN_MAX_CLIENTS) {
+        marlin_client_events[client_id].clear(event_mask_all);
+        marlin_client_task[client_id] = osThreadGetId();
+    }
+}
+
+static bool try_send(Request &request) {
+    freertos::EventGroup *client = _client_ptr();
+    if (client == nullptr) {
+        bsod("Marlin client used before init");
+    }
+    request.client_id = client - marlin_client_events;
+    request.response_required = 1;
+
+    client->clear(event_mask_ack_nack);
+    request_queue.send(request);
+    return client->wait_for_any(event_mask_ack_nack, true) & make_mask(Event::Acknowledge);
+}
+
+static bool try_send_with_retries(Request &request) {
+    uint8_t retries_left = max_retries;
+    do {
+        if (try_send(request)) {
+            return true;
+        } else {
+            // give marlin server time to process other requests
+            osDelay(10);
+            retries_left--;
+        }
+    } while (retries_left > 0);
+    return false;
+}
+
+static void _send_request_to_server_and_wait(Request &request) {
+    freertos::EventGroup *client = _client_ptr();
+    if (client == nullptr) {
+        bsod("Marlin client used before init");
+    }
+    if (!try_send_with_retries(request)) {
+        fatal_error(ErrCode::ERR_SYSTEM_MARLIN_CLIENT_SERVER_REQUEST_TIMEOUT);
+    }
+}
+
+/// send the request to the marlin server and don't ask for acknowledgement
+static void _send_request_to_server_noreply(Request &request) {
+    freertos::EventGroup *client = _client_ptr();
+    if (client == nullptr) {
+        return;
+    }
+    request.client_id = client - marlin_client_events;
+    request.response_required = 0;
+    request_queue.send(request);
+}
+
+void _send_request_flag_to_server(const RequestFlag type) {
+    marlin_server::send_request_flag(type);
+}
+
+namespace {
+
+    optional<Request> gcode_request(const char *gcode) {
+        Request request;
+        request.type = Request::Type::Gcode;
+        if (strlcpy(request.gcode, gcode, sizeof(request.gcode)) >= sizeof(request.gcode)) {
+            // TODO It would be much better to ensure gcode always points
+            //      to some static buffer and only serialize the pointer.
+            return nullopt;
+        } else {
+            return request;
+        }
+    }
+
+} // namespace
+
+void gcode(const char *gcode) {
+    auto request = gcode_request(gcode);
+    if (!request.has_value()) {
+        set_warning(WarningType::GcodeCropped);
+    } else {
+        _send_request_to_server_and_wait(*request);
+    }
+}
+
+GcodeTryResult gcode_try(const char *gcode) {
+    if (auto request = gcode_request(gcode); request.has_value()) {
+        if (try_send(*request)) {
+            return GcodeTryResult::Submitted;
+        } else {
+            return GcodeTryResult::QueueFull;
+        }
+    } else {
+        log_error(MarlinClient, "ignoring truncated gcode");
+        return GcodeTryResult::GcodeTooLong;
+    }
+}
+void gcode_printf(const char *format, ...) {
+    Request request;
+    request.type = Request::Type::Gcode;
+    va_list ap;
+    va_start(ap, format);
+    auto sb = StringBuilder::from_ptr(request.gcode, sizeof(request.gcode));
+    sb.append_vprintf(format, ap);
+    va_end(ap);
+
+    if (!sb.is_ok()) {
+        // TODO It would be much better to remove gcode_printf() altogether
+        //      and instead craft individual request types.
+        set_warning(WarningType::GcodeCropped);
+    } else {
+        _send_request_to_server_and_wait(request);
+    }
+}
+
+bool inject(InjectQueueRecord record) {
+    Request request;
+    request.type = Request::Type::Inject;
+    request.inject = record;
+    return try_send_with_retries(request);
+}
+
+void gcode_interrupt(GCodeLiteral gcode) {
+    Request request;
+    request.type = Request::Type::GcodeInterrupt;
+    request.gcode_interrupt = gcode;
+    _send_request_to_server_and_wait(request);
+}
+
+int event_clr(Event evt_id) {
+    int ret = 0;
+    freertos::EventGroup *client = _client_ptr();
+    const EventMask msk = make_mask(evt_id);
+    if (client) {
+        ret = (client->clear(msk) & msk) ? 1 : 0;
+    }
+    return ret;
+}
+
+void do_babysteps_Z(float offs) {
+    Request request;
+    request.type = Request::Type::Babystep;
+    request.babystep = offs;
+    _send_request_to_server_and_wait(request);
+}
+
+#if HAS_SELFTEST()
+void test_start_with_data(const uint64_t test_mask, const ::selftest::TestData test_data) {
+    Request request;
+    request.type = Request::Type::TestStart;
+    request.test_start = {
+        .test_mask = test_mask,
+        .test_data = test_data,
+    };
+    _send_request_to_server_and_wait(request);
+}
+
+void test_start(const uint64_t test_mask) {
+    test_start_with_data(test_mask, ::selftest::TestData {});
+}
+
+void test_abort() {
+    _send_request_flag_to_server(RequestFlag::TestAbort);
+}
+#endif
+
+void print_start(const char *filename, marlin_server::PreviewSkipIfAble skip_preview, ResetToolMapping reset_tool_mapping) {
+    Request request;
+    request.type = Request::Type::PrintStart;
+    request.print_start.skip_preview = skip_preview;
+    request.print_start.reset_tool_mapping = reset_tool_mapping;
+    if (strlcpy(request.print_start.filename, filename, sizeof(request.print_start.filename)) >= sizeof(request.print_start.filename)) {
+        log_error(MarlinClient, "ignoring truncated filename");
+    } else {
+        _send_request_to_server_and_wait(request);
+    }
+}
+
+bool is_print_started() {
+    // The above can't really return true/false if the print started, for two reasons:
+    // * There doesn't seem to be a ready-made way to conveniently send a
+    //   yes/no from the server to the client.
+    // * Waiting for the answer could lead to a deadlock when called from the
+    //   GUI thread, because the marlin server prepares the grounds and waits for
+    //   GUI to ACK that everything is OK. But if GUI would be waiting for the
+    //   server to answer, it couldn't answer.
+    //
+    // Therefore, we provide a separate function other threads may call
+    // (connect and link) to find out if starting the print was processed or if
+    // it was rejected.
+    //
+    // We also kind of ignore the possibility of the whole print successfully
+    // happening before we can notice it. That would produce a false negative,
+    // however that would likely result only in unexpected error message to the
+    // user.
+
+    while (true) {
+        switch (marlin_vars().print_state) {
+        // We also need to wait these two out, because they are not considered printing
+        // and if connect want to send JOB_INFO before marlin_server goes through them
+        // it falsely rejects the print. There should be no chance to get an infinit loop
+        // because we only call this function right after calling print_start with skip
+        // preview enabled, so it either starts printing or goes into PrintPreviewQuestions.
+        case State::PrintPreviewInit:
+        case State::PrintPreviewImage:
+            // We are still waiting for GUI to make up its mind. Do another round.
+            osDelay(10);
+            break;
+        case State::Idle:
+        case State::Aborted:
+        case State::Finished:
+            // Went to idle - refused by GUI
+            return false;
+        default:
+            // Doing something else ‒ there's a lot of states where we are printing.
+            return true;
+        }
+    }
+}
+
+bool is_print_exited() {
+    while (true) {
+        switch (marlin_vars().print_state) {
+        case State::Finished:
+        case State::Aborted:
+        case State::Exit:
+            // We are still waiting
+            osDelay(10);
+            break;
+        case State::Idle:
+            return true;
+        default:
+            return false;
+        }
+    }
+}
+
+void print_abort() {
+    _send_request_flag_to_server(RequestFlag::PrintAbort);
+}
+
+void print_exit() {
+    _send_request_flag_to_server(RequestFlag::PrintExit);
+}
+
+void print_pause() {
+    _send_request_flag_to_server(RequestFlag::PrintPause);
+}
+
+void print_resume() {
+    _send_request_flag_to_server(RequestFlag::PrintResume);
+}
+
+void try_recover_from_media_error() {
+    _send_request_flag_to_server(RequestFlag::TryRecoverFromMediaError);
+}
+
+void notify_server_about_encoder_move_up() {
+    _send_request_flag_to_server(RequestFlag::KnobMoveUp);
+}
+
+void notify_server_about_encoder_move_down() {
+    _send_request_flag_to_server(RequestFlag::KnobMoveDown);
+}
+
+void notify_server_about_knob_click() {
+    _send_request_flag_to_server(RequestFlag::KnobClick);
+}
+
+void set_warning(WarningType type) {
+    Request request;
+    request.type = Request::Type::SetWarning;
+    request.warning_type = type;
+    _send_request_to_server_noreply(request);
+}
+
+//-----------------------------------------------------------------------------
+// responses from client finite state machine (like button click)
+void FSM_encoded_response(const EncodedFSMResponse &encoded_fsm_response) {
+    // marlin_server::set_response is thread safe, just use that one
+    marlin_server::set_response(encoded_fsm_response);
+}
+
+bool is_printing() {
+    return marlin_server::is_printing();
+}
+
+bool is_paused() {
+    switch (marlin_vars().print_state) {
+    case State::Paused:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool is_idle() {
+    switch (marlin_vars().print_state) {
+    case State::Idle:
+        return true;
+    default:
+        return false;
+    }
+}
+
+//-----------------------------------------------------------------------------
+// private functions
+
+// returns client pointer for calling client thread (client thread)
+static freertos::EventGroup *_client_ptr() {
+    osThreadId taskHandle = osThreadGetId();
+    int client_id;
+    for (client_id = 0; client_id < MARLIN_MAX_CLIENTS; client_id++) {
+        if (taskHandle == marlin_client_task[client_id]) {
+            return marlin_client_events + client_id;
+        }
+    }
+    return 0;
+}
+
+template <typename T>
+void marlin_set_variable(MarlinVariable<T> &variable, T value) {
+    Request request;
+    request.type = Request::Type::SetVariable;
+    request.set_variable.variable = reinterpret_cast<uintptr_t>(&variable);
+
+    if constexpr (std::is_floating_point<T>::value) {
+        request.set_variable.float_value = static_cast<float>(value);
+    } else if constexpr (std::is_integral<T>::value) {
+        request.set_variable.uint32_value = static_cast<uint32_t>(value);
+    } else {
+        bsod("no conversion");
+    }
+
+    _send_request_to_server_and_wait(request);
+}
+
+void set_target_nozzle(int16_t val, PhysicalToolIndex hotend) {
+    return marlin_set_variable(marlin_vars().hotend(hotend).target_nozzle, val);
+}
+void set_target_bed(int16_t val) {
+    return marlin_set_variable(marlin_vars().target_bed, val);
+}
+void set_fan_speed(uint8_t val) {
+    return marlin_set_variable(marlin_vars().print_fan_speed, val);
+}
+void set_print_speed(uint16_t val) {
+    return marlin_set_variable(marlin_vars().print_speed, val);
+}
+void set_flow_factor(uint16_t val, VirtualToolIndex tool) {
+    return marlin_set_variable(marlin_vars().virtual_tools[tool].flow_factor, val);
+}
+void set_z_offset(float val) {
+    return marlin_set_variable(marlin_vars().z_offset, std::clamp(val, Z_OFFSET_MIN, Z_OFFSET_MAX));
+}
+void set_fan_check(bool val) {
+    return marlin_set_variable(marlin_vars().fan_check_enabled, static_cast<uint8_t>(val));
+}
+
+#if HAS_CANCEL_OBJECT()
+void set_object_cancelled(int object_id, bool set) {
+    Request request;
+    request.type = (set ? Request::Type::CancelObjectID : Request::Type::UncancelObjectID);
+    request.cancel_object_id = object_id;
+    _send_request_to_server_and_wait(request);
+}
+
+void cancel_current_object() {
+    _send_request_flag_to_server(RequestFlag::CancelCurrentObject);
+}
+#endif
+
+} // namespace marlin_client

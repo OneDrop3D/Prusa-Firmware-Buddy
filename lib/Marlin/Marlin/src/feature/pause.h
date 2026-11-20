@@ -1,0 +1,93 @@
+/**
+ * Marlin 3D Printer Firmware
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#pragma once
+
+/**
+ * feature/pause.h - Pause feature support functions
+ * This may be combined with related G-codes if features are consolidated.
+ */
+
+typedef struct {
+  float unload_length, load_length;
+} fil_change_settings_t;
+
+#include "../inc/MarlinConfigPre.h"
+#include <tool_index.hpp>
+#include <utils/storage/strong_index_array.hpp>
+
+#include <option/has_pause.h>
+#if HAS_PAUSE()
+
+enum PauseMode : char {
+  PAUSE_MODE_SAME,
+  PAUSE_MODE_PAUSE_PRINT,
+  PAUSE_MODE_CHANGE_FILAMENT,
+  PAUSE_MODE_LOAD_FILAMENT,
+  PAUSE_MODE_UNLOAD_FILAMENT
+};
+
+enum PauseMessage : char {
+  PAUSE_MESSAGE_PAUSING,
+  PAUSE_MESSAGE_CHANGING,
+  PAUSE_MESSAGE_WAITING,
+  PAUSE_MESSAGE_UNLOAD,
+  PAUSE_MESSAGE_INSERT,
+  PAUSE_MESSAGE_LOAD,
+  PAUSE_MESSAGE_PURGE,
+  PAUSE_MESSAGE_OPTION,
+  PAUSE_MESSAGE_RESUME,
+  PAUSE_MESSAGE_STATUS,
+  PAUSE_MESSAGE_HEAT,
+  PAUSE_MESSAGE_HEATING
+};
+
+enum PauseMenuResponse : char {
+  PAUSE_RESPONSE_WAIT_FOR,
+  PAUSE_RESPONSE_EXTRUDE_MORE,
+  PAUSE_RESPONSE_RESUME_PRINT
+};
+
+extern PauseMode pause_mode;
+extern PauseMenuResponse pause_menu_response;
+
+extern StrongIndexArray<fil_change_settings_t, EXTRUDERS, VirtualToolIndex, VirtualToolIndex::to_raw_static, strong_index_array::AllowWeakIndexing::yes> fc_settings;
+
+extern uint8_t did_pause_print;
+
+#define DXC_PARAMS
+#define DXC_ARGS
+#define DXC_PASS
+
+void do_pause_e_move(const float &length, const feedRate_t &fr_mm_s);
+
+bool pause_print(const float &retract, const xyz_pos_t &park_point, const float &unload_length=0, const bool show_lcd=false DXC_PARAMS);
+
+void wait_for_confirmation(const bool is_reload=false, const int8_t max_beep_count=0 DXC_PARAMS);
+
+void resume_print(const float &slow_load_length=0, const float &fast_load_length=0, const float &extrude_length=ADVANCED_PAUSE_PURGE_LENGTH, const int8_t max_beep_count=0 DXC_PARAMS);
+
+bool load_filament(const float &slow_load_length=0, const float &fast_load_length=0, const float &extrude_length=0, const int8_t max_beep_count=0, const bool show_lcd=false,
+                          const bool pause_for_user=false, const PauseMode mode=PAUSE_MODE_PAUSE_PRINT DXC_PARAMS);
+
+bool unload_filament(const float &unload_length, const bool show_lcd=false, const PauseMode mode=PAUSE_MODE_PAUSE_PRINT);
+
+#endif

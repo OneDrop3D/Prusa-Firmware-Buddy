@@ -1,0 +1,64 @@
+#pragma once
+
+#include <option/has_input_shaper_calibration.h>
+#include <Marlin/src/feature/input_shaper/input_shaper_config.hpp>
+#include <Marlin/src/feature/input_shaper/input_shaper.hpp>
+#include "WindowMenuItems.hpp"
+#include <gui/menu_item/menu_item_select_menu.hpp>
+#include <meta_utils.hpp>
+
+enum class InputShaperMenuItemChildClickParam {
+    request_gui_update,
+};
+
+class MI_IS_TYPE : public MenuItemSelectMenu {
+
+public:
+    MI_IS_TYPE(AxisEnum axis);
+
+    void update();
+
+    int item_count() const final;
+    string_view_utf8 build_item_text(int index, StringViewUtf8ParamBase &params) const final;
+
+protected:
+    bool on_item_selected(const OnItemSelectedArgs &args) override;
+
+private:
+    const AxisEnum axis_;
+};
+
+using MI_IS_X_TYPE = WithConstructorArgs<MI_IS_TYPE, X_AXIS>;
+using MI_IS_Y_TYPE = WithConstructorArgs<MI_IS_TYPE, Y_AXIS>;
+
+class MI_IS_X_FREQUENCY : public WiSpin {
+public:
+    MI_IS_X_FREQUENCY();
+
+    virtual void OnClick() override;
+};
+
+class MI_IS_Y_FREQUENCY : public WiSpin {
+public:
+    MI_IS_Y_FREQUENCY();
+    virtual void OnClick() override;
+};
+
+/// Resets input shaper config to defaults on click
+class MI_IS_RESTORE_DEFAULTS : public IWindowMenuItem {
+public:
+    MI_IS_RESTORE_DEFAULTS();
+
+protected:
+    virtual void click(IWindowMenu &window_menu) override;
+};
+
+#if HAS_INPUT_SHAPER_CALIBRATION()
+class MI_IS_CALIB : public IWindowMenuItem {
+public:
+    MI_IS_CALIB();
+
+protected:
+    virtual void click(IWindowMenu &window_menu) override;
+};
+#endif

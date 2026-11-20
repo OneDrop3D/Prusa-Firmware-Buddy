@@ -1,0 +1,98 @@
+/**
+ * Marlin 3D Printer Firmware
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#pragma once
+
+#include "inc/MarlinConfig.h"
+
+#ifdef DEBUG_GCODE_PARSER
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #include "gcode/parser.h"
+#endif
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+void idle(bool waiting);
+void manage_inactivity();
+
+#if ENABLED(G38_PROBE_TARGET)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  extern uint8_t G38_move;          // Flag to tell the ISR that G38 is in progress, and the type
+  extern bool G38_did_trigger;      // Flag from the ISR to indicate the endstop changed
+#endif
+
+/**
+ * The axis order in all axis related arrays is X, Y, Z, E
+ */
+void enable_e_steppers();
+void enable_all_steppers();
+void disable_e_stepper(const uint8_t e);
+void disable_e_steppers();
+void disable_xy_steppers();
+void disable_all_steppers();
+
+#if BOARD_IS_DWARF()
+void kill(PGM_P const lcd_error, PGM_P const lcd_component=nullptr, const bool steppers_off=false);
+#else
+[[noreturn]] void kill(PGM_P const lcd_error, PGM_P const lcd_component=nullptr, const bool steppers_off=false);
+#endif
+
+void quickstop_stepper();
+
+bool printingIsActive();
+bool printingIsPaused();
+bool anyHeatherIsActive();
+
+extern bool wait_for_heatup;
+
+#if HAS_RESUME_CONTINUE
+  extern bool wait_for_user;
+#endif
+
+#if HAS_AUTO_REPORTING || ENABLED(HOST_KEEPALIVE_FEATURE)
+  extern bool suspend_auto_report;
+  #define TEMPORARY_AUTO_REPORT_OFF(name) REMEMBER(name, suspend_auto_report, true)
+#else
+  #define TEMPORARY_AUTO_REPORT_OFF(name)
+#endif
+
+extern uint16_t job_id;
+
+#if HAS_POWER_SWITCH
+  extern bool powersupply_on;
+  #define PSU_PIN_ON()  do{ OUT_WRITE(PS_ON_PIN,  PSU_ACTIVE_HIGH); powersupply_on = true; }while(0)
+  #define PSU_PIN_OFF() do{ OUT_WRITE(PS_ON_PIN, !PSU_ACTIVE_HIGH); powersupply_on = false; }while(0)
+  #if ENABLED(AUTO_POWER_CONTROL)
+    #define PSU_ON()  powerManager.power_on()
+    #define PSU_OFF() powerManager.power_off()
+  #else
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define PSU_ON()  PSU_PIN_ON()
+    #define PSU_OFF() PSU_PIN_OFF()
+  #endif
+#endif
+
+#if HAS_SUICIDE
+  // #error dead code found by automatic analyses (see BFW-5461)
+  inline void suicide() { OUT_WRITE(SUICIDE_PIN, LOW); }
+#endif

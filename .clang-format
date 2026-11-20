@@ -1,0 +1,25 @@
+---
+Language: Cpp
+AccessModifierOffset: -4
+AlignAfterOpenBracket: DontAlign
+AlignConsecutiveMacros:
+  Enabled: true
+  PadOperators: true
+AlignOperands: DontAlign
+AlignTrailingComments:
+  Kind: Never
+BreakBeforeBinaryOperators: All
+BreakBeforeBraces: Custom
+BreakConstructorInitializers: BeforeComma
+ColumnLimit: 0
+Cpp11BracedListStyle: false
+IndentPPDirectives: BeforeHash
+IndentWidth: 4
+InsertBraces: true
+NamespaceIndentation: Inner
+ObjCBlockIndentWidth: 4
+ObjCSpaceAfterProperty: true
+SortIncludes: Never
+SpaceBeforeCpp11BracedList: true
+BreakAfterAttributes: Leave
+...

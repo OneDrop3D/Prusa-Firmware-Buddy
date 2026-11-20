@@ -1,0 +1,70 @@
+/**
+ * @file window_menu_adv.hpp
+ * @brief advanced window representing menu, containing additional widgets like scrollbar
+ */
+
+#pragma once
+
+#include <window_menu_bar.hpp>
+#include <window_frame.hpp>
+
+namespace window_menu_frame_ns {
+constexpr inline Rect16 calc_menu_rect(Rect16 rc) {
+    rc.CutPadding(GuiDefaults::MenuPadding);
+    rc -= GuiDefaults::MenuScrollbarWidth;
+    return rc;
+}
+
+constexpr inline Rect16 calc_scroll_bar_rect(Rect16 rc) {
+    Rect16 ret = rc;
+    ret += Rect16::Left_t(ret.Width() - GuiDefaults::MenuScrollbarWidth);
+    ret = GuiDefaults::MenuScrollbarWidth;
+    ret = Rect16::Height_t(rc.Height());
+    return ret;
+}
+} // namespace window_menu_frame_ns
+
+/// Wrapper for window menu with scrollbar and such
+template <typename Menu>
+class WindowExtendedMenu : public window_frame_t {
+
+public:
+    template <typename... Args>
+    WindowExtendedMenu(window_t *parent, Rect16 rect, Args &&...args)
+        : window_frame_t(parent, rect)
+        , menu(this, window_menu_frame_ns::calc_menu_rect(rect), std::forward<Args>(args)...)
+        , scroll_bar(this, window_menu_frame_ns::calc_scroll_bar_rect(rect), menu) {
+        CaptureNormalWindow(menu);
+        menu.SetFocus();
+    }
+
+protected:
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override {
+        switch (event) {
+
+        case GUI_event_t::RESIZED:
+            menu.SetRect(window_menu_frame_ns::calc_menu_rect(GetRect()));
+            scroll_bar.SetRect(window_menu_frame_ns::calc_scroll_bar_rect(GetRect()));
+            break;
+
+        case GUI_event_t::KNOB:
+        case GUI_event_t::CLICK:
+            // This is a HACK for situations where we want the system to be able to change focus between menus and something else
+            // - the parent window_frame_t has a capture
+            // - the focus is then "rotated" between the frame children - radio buttons, menus, ...
+            // - Because the ExtendedMenu is the child of the frame instead of the menu itself, it is the extended menu that gets the focus
+            // - That means that the Extended menu is getting the knob events instead of underlying menu. So we need to pass the events to it.
+            menu.WindowEvent(sender, event, param);
+            return;
+
+        default:
+            break;
+        }
+
+        window_frame_t::windowEvent(sender, event, param);
+    }
+
+public:
+    Menu menu;
+    MenuScrollbar scroll_bar;
+};

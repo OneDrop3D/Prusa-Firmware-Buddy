@@ -1,0 +1,150 @@
+/**
+ * Marlin 3D Printer Firmware
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#pragma once
+
+#include "../inc/MarlinConfig.h"
+#include <option/has_gui.h>
+
+#define HAS_DIGITAL_BUTTONS (BUTTONS_EXIST(EN1, EN2) || ANY_BUTTON(ENC, BACK, UP, DWN, LFT, RT))
+#define HAS_ENCODER_WHEEL   (BUTTONS_EXIST(EN1, EN2))
+
+#if HAS_DIGITAL_BUTTONS
+  // #error dead code found by automatic analyses (see BFW-5461)
+
+  // Wheel spin pins where BA is 00, 10, 11, 01 (1 bit always changes)
+  #define BLEN_A 0
+  #define BLEN_B 1
+
+  #define EN_A _BV(BLEN_A)
+  #define EN_B _BV(BLEN_B)
+
+  #define BUTTON_PRESSED(BN) !READ(BTN_## BN)
+
+  #if BUTTON_EXISTS(ENC)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define BLEN_C 2
+    #define EN_C _BV(BLEN_C)
+  #endif
+
+#else
+
+  #undef BUTTON_EXISTS
+  #define BUTTON_EXISTS(...) false
+
+  // Shift register bits correspond to buttons:
+  #define BL_LE 7   // Left
+  #define BL_UP 6   // Up
+  #define BL_MI 5   // Middle
+  #define BL_DW 4   // Down
+  #define BL_RI 3   // Right
+  #define BL_ST 2   // Red Button
+  #define B_LE (_BV(BL_LE))
+  #define B_UP (_BV(BL_UP))
+  #define B_MI (_BV(BL_MI))
+  #define B_DW (_BV(BL_DW))
+  #define B_RI (_BV(BL_RI))
+  #define B_ST (_BV(BL_ST))
+
+  #ifndef BUTTON_CLICK
+    #define BUTTON_CLICK() (buttons & (B_MI|B_ST))
+  #endif
+
+#endif
+
+#if BUTTON_EXISTS(BACK)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define BLEN_D 3
+  #define EN_D _BV(BLEN_D)
+  #define LCD_BACK_CLICKED() (buttons & EN_D)
+#else
+  #define LCD_BACK_CLICKED() false
+#endif
+
+#ifndef BUTTON_CLICK
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #ifdef EN_C
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define BUTTON_CLICK() (buttons & EN_C)
+  #else
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define BUTTON_CLICK() false
+  #endif
+#endif
+
+////////////////////////////////////////////
+//////////// MarlinUI Singleton ////////////
+////////////////////////////////////////////
+
+class MarlinUI {
+public:
+
+  MarlinUI() {
+  }
+
+  #if ENABLED(LCD_HAS_STATUS_INDICATORS)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    static void update_indicators();
+  #endif
+
+  #if HAS_GUI()
+
+    static void set_alert_status_P(PGM_P const message);
+
+    static char status_message[];
+    static bool has_status();
+
+    static uint8_t alert_level; // Higher levels block lower levels
+    static inline void reset_alert_level() { alert_level = 0; }
+
+    static void set_status(const char* const message, const bool persist=false);
+    static void set_status_P(PGM_P const message, const int8_t level=0);
+    static void status_printf_P(const uint8_t level, PGM_P const fmt, ...);
+    static void reset_status();
+
+  #else // HAS_GUI()
+
+    static inline void refresh() {}
+    static inline void return_to_status() {}
+    static inline void set_alert_status_P(PGM_P const) {}
+    static inline void set_status(const char* const, const bool=false) {}
+    static inline void set_status_P(PGM_P const, const int8_t=0) {}
+    static inline void status_printf_P(const uint8_t, PGM_P const, ...) {}
+    static inline void reset_status() {}
+    static inline void reset_alert_level() {}
+    static constexpr bool has_status() { return false; }
+
+  #endif
+
+private:
+  #if ENABLED(EXTENSIBLE_UI)
+    static void finish_status(const bool persist);
+  #endif
+};
+
+extern MarlinUI ui;
+
+#define LCD_MESSAGEPGM_P(x)      ui.set_status_P(x)
+#define LCD_ALERTMESSAGEPGM_P(x) ui.set_alert_status_P(x)
+
+#define LCD_MESSAGE(x)           LCD_MESSAGEPGM_P(GET_TEXT(x))
+#define LCD_MESSAGEPGM(x)        LCD_MESSAGEPGM_P(GET_TEXT(x))
+#define LCD_ALERTMESSAGEPGM(x)   LCD_ALERTMESSAGEPGM_P(GET_TEXT(x))

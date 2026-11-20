@@ -1,0 +1,176 @@
+/*
+ * window_file_list.cpp
+ *
+ *  Created on: 23. 7. 2019
+ *      Author: mcbig
+ *  Refactoring by DRracer 2020-04-08
+ */
+#include <algorithm>
+#include "window_file_list.hpp"
+#include "WindowMenuItems.hpp"
+#include "gui.hpp"
+#include "config.h"
+#include "sound.hpp"
+#include "i18n.h"
+#include "ScreenHandler.hpp"
+#include "cmath_ext.h"
+#include "gui_invalidate.hpp"
+#include "img_resources.hpp"
+#include <config_store/store_instance.hpp>
+#if _DEBUG
+    #include "bsod.h"
+#endif
+
+GuiFileSort::GuiFileSort() {
+    sort = static_cast<WF_Sort_t>(config_store().file_sort.get());
+}
+
+GuiFileSort &GuiFileSort::instance() {
+    static GuiFileSort ret;
+    return ret;
+}
+
+WF_Sort_t GuiFileSort::Get() {
+    return instance().sort;
+}
+
+void GuiFileSort::Set(WF_Sort_t val) {
+    if (instance().sort == val) {
+        return;
+    }
+
+    config_store().file_sort.set(static_cast<uint8_t>(val));
+    instance().sort = val;
+}
+
+void window_file_list_t::set_scroll_offset(int set) {
+    if (scroll_offset() == set) {
+        return;
+    }
+
+    // -1/+1 because ldv counts ".." as index -1
+    // The ldv window is sized to match the screen, so it can reach any scroll_offset
+    // within the menu's max_scroll_offset. Adopt the offset it actually set to stay
+    // in sync even if the request was out of bounds (e.g. a stale restored position
+    // after the directory content changed).
+    const int actual = ldv.set_window_offset(set - 1) + 1;
+
+    // This must be called AFTER ldv.set_window_offset, as it updates the texts based on the newly shifted window
+    WindowMenuVirtualBase::set_scroll_offset(actual);
+}
+
+bool window_file_list_t::IsPathRoot(const char *path) {
+    return (path[0] == 0 || (strcmp(path, root) == 0));
+}
+
+void window_file_list_t::Load(WF_Sort_t sort, const char *canonical_at_cursor, const char *top_canonical) {
+    ldv.ChangeDirectory(
+        canonical_path,
+        (sort == WF_SORT_BY_NAME) ? LDV::SortPolicy::BY_NAME : LDV::SortPolicy::BY_CRMOD_DATETIME,
+        top_canonical ?: canonical_at_cursor);
+
+    // Now, ldv has adjusted its window offset and we need to synchronize scroll_offset with it properly.
+    {
+        // +1 because ldv counts ".." as index -1
+        const int anchor_index = ldv.window_offset() + 1;
+
+        int target_scroll_offset = std::min(anchor_index, max_scroll_offset());
+
+        // If !top_canonical -> we're trying to just focus canonical_at_cursor.
+        // In this case, it doesn't necessarily have to be on the top and we can be a bit smarter.
+        // If the item is within the first visible window, we won't scroll on it, keep the scroll offset on 0
+        if (!top_canonical && anchor_index < max_items_on_screen_count()) {
+            target_scroll_offset = 0;
+        }
+
+        // We might have changed the target_scroll_offset, so update ldv to match it
+        ldv.set_window_offset(target_scroll_offset - 1);
+
+        // And hard set the scroll offset for the menu itself
+        IWindowMenu::set_scroll_offset(target_scroll_offset);
+    }
+
+    WindowMenuVirtualSized::setup_items();
+
+    // Focus item if appropriate
+    {
+        std::optional<int> target_focused_index;
+
+        // If we've been given canonical_at_cursor, try looking it up in the ldv window
+        if (canonical_at_cursor && canonical_at_cursor[0]) {
+            for (int i = 0, e = ldv.WindowSize(); i < e; i++) {
+                if (!strcmp(canonical_at_cursor, ldv.canonical_name_at(i).first)) {
+                    target_focused_index = scroll_offset() + i;
+                    break;
+                }
+            }
+        }
+
+        if (!target_focused_index && should_focus_item_on_init()) {
+            // Try avoid highlighting ".." if there's any file in the dir
+            target_focused_index = (item_count() > 1) ? 1 : 0;
+        }
+
+        move_focus_to_index(target_focused_index);
+    }
+}
+
+const char *window_file_list_t::current_display(bool *isFile) const {
+    const auto focused_slot = this->focused_slot();
+    debug_assert(focused_slot);
+
+    auto i = ldv.display_name_at(*focused_slot);
+    if (isFile) {
+        *isFile = (i.second == LDV::EntryType::FILE);
+    }
+
+    return i.first;
+}
+
+const char *window_file_list_t::current_canonical(bool *isFile) const {
+    const char *result = nullptr;
+    bool is_file = false;
+
+    if (const auto focused_slot = this->focused_slot()) {
+        auto i = ldv.canonical_name_at(*focused_slot);
+        is_file = (i.second == LDV::EntryType::FILE);
+        result = i.first;
+    }
+
+    if (isFile) {
+        *isFile = is_file;
+    }
+
+    return result;
+}
+
+const char *window_file_list_t::top_item_canonical() {
+    return ldv.canonical_name_at(0).first;
+}
+
+window_file_list_t::window_file_list_t(window_t *parent, Rect16 rc)
+    : WindowMenuVirtualSized(parent, rc, CloseScreenReturnBehavior::no)
+    , ldv(max_items_on_screen_count()) {
+
+    debug_assert(max_items_on_screen_count() <= item_buffer_size);
+
+    DisableLongHoldScreenAction();
+    Enable();
+    strlcpy(canonical_path, root, filename_defs::path_buffer_size);
+}
+
+void window_file_list_t::setup_item(ItemVariant &variant, int index) {
+    debug_assert(index_to_slot(index));
+
+    const auto &entry = ldv.display_name_at(*index_to_slot(index));
+
+    if (index == 0 && IsPathRoot(canonical_path) && strcmp(entry.first, "..") == 0) {
+        variant.emplace<MI_RETURN>();
+
+    } else {
+        // This is ok - file list keeps the address of the item same & valid while the item is in the window
+        const auto label = string_view_utf8::MakeRAM(entry.first);
+        const auto icon = (entry.second == LDV::EntryType::DIR) ? &img::folder_full_16x16 : nullptr;
+        variant.emplace<WindowMenuItem>(label, icon);
+    }
+}

@@ -1,0 +1,67 @@
+/**
+ * Marlin 3D Printer Firmware
+ * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+#include "../gcode.h"
+#include "../../module/planner.h"
+#include "../../lcd/ultralcd.h"
+#include <feature/print_status_message/print_status_message_guard.hpp>
+
+/** \addtogroup G-Codes
+ * @{
+ */
+
+/**
+ * ### G4: Dwell <a href="https://reprap.org/wiki/G-code#G4:_Dwell">G4: Dwell</a>
+ * Pause the machine for a period of time.
+ *
+ * #### Usage
+ *
+ *     G4 [ P | S ]
+ *
+ * #### Parameters
+ *
+ *  - `P` - Time to wait, in milliseconds
+ *  - `S` - Time to wait, in seconds
+ */
+void GcodeSuite::G4() {
+  millis_t dwell_ms = 0;
+
+  if (parser.seenval('P')) dwell_ms = parser.value_millis(); // milliseconds to wait
+  if (parser.seenval('S')) dwell_ms = parser.value_millis_from_seconds(); // seconds to wait
+
+  planner.synchronize();
+  #if ENABLED(NANODLP_Z_SYNC)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    SERIAL_ECHOLNPGM(STR_Z_MOVE_COMP);
+  #endif
+
+  PrintStatusMessageGuard psmg(false);
+
+  while(dwell_ms > 0) {
+    psmg.update<PrintStatusMessage::dwelling>({.current = static_cast<float>(dwell_ms / 1000), .target = 0});
+    const auto step = std::min<millis_t>(dwell_ms, 1000);
+    dwell(step);
+    dwell_ms -= step;
+  }
+}
+
+/** @}*/

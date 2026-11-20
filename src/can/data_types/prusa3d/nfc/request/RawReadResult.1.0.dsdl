@@ -1,0 +1,6 @@
+@union
+
+uint8[<=114] data
+prusa3d.nfc.util.ReaderError.1.0 error
+
+@sealed

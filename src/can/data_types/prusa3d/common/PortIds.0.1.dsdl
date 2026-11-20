@@ -1,0 +1,54 @@
+#
+# @brief This file is misused to provide port IDs for Prusa specific unregulated ports.
+#        The message is empty
+#
+# @note This info is available via "uavcan.pub.PORT_NAME.id" registers where there were resources for it.
+#
+# @note Messages and services have each their own namespace, but separated to be clear.
+#       Services can use ports [0 - 255].
+#       Messages can use ports [0 - 6143].
+#
+# @note Do not change the ids just for the fun. Try to keep them stable.
+#
+
+
+#
+# Services
+#
+
+# Ac Controller
+# Used to be GET_CONFIG = 20, can be reused
+uint16 SRV_AC_CONTROLLER_SET_CONFIG = 21
+# Used to be GET_STATUS = 22, can be reused
+
+# Tool offset sensor (PUB6)
+uint16 SRV_TOOL_OFFSET_SENSOR_CONFIG = 90
+
+# NFC (PUB6)
+uint16 SRV_NFC_ACCEPT_EVENT = 100
+uint16 SRV_NFC_REQUEST = 101
+uint16 SRV_NFC_SET_CONFIG = 102
+
+#
+# Messages
+#
+
+# Common
+uint16 MSG_COMMON_METRICS = 500
+uint16 MSG_COMMON_STATS = 501 # CAN measurements, uses raw data, see CyphalStats
+uint16 MSG_AUTO_BOOT_CANCEL = 502
+
+# AC Controller
+uint16 MSG_AC_CONTROLLER_STATUS = 600
+uint16 MSG_AC_CONTROLLER_LEDS = 601 # This is broadcast by master, would need changes if we had two AC Controllers
+
+# Tool offset sensor (PUB6)
+uint16 MSG_TOOL_OFFSET_SENSOR_DATA_CH0 = 900
+uint16 MSG_TOOL_OFFSET_SENSOR_STATUS = 901
+uint16 MSG_TOOL_OFFSET_SENSOR_DATA_CH1 = 902
+
+# NFC (PUB6)
+uint16 MSG_NFC_EVENT = 1000
+uint16 MSG_NFC_STATUS = 1001
+
+@sealed

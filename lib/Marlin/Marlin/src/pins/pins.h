@@ -1,0 +1,441 @@
+/**
+ * Marlin 3D Printer Firmware
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#pragma once
+
+/**
+ * Include pins definitions
+ *
+ * Pins numbering schemes:
+ *
+ *  - Digital I/O pin number if used by READ/WRITE macros. (e.g., X_STEP_DIR)
+ *    The FastIO headers map digital pins to their ports and functions.
+ *
+ *  - Analog Input number if used by analogRead or DAC. (e.g., TEMP_n_PIN)
+ *    These numbers are the same in any pin mapping.
+ */
+
+#define MAX_EXTRUDERS 6
+
+#if BOARD_IS_BUDDY() || BOARD_IS_XBUDDY()
+  #include "stm32/pins_BUDDY_2209_02.h"
+#elif BOARD_IS_XLBUDDY()
+  #include "stm32/pins_XLBUDDY.h"
+#elif BOARD_IS_DWARF()
+  #include "stm32/pins_DWARF.h"
+#else
+  #error
+#endif
+
+// Define certain undefined pins
+#ifndef X_MS1_PIN
+  #define X_MS1_PIN -1
+#endif
+#ifndef X_MS2_PIN
+  #define X_MS2_PIN -1
+#endif
+#ifndef X_MS3_PIN
+  #define X_MS3_PIN -1
+#endif
+#ifndef Y_MS1_PIN
+  #define Y_MS1_PIN -1
+#endif
+#ifndef Y_MS2_PIN
+  #define Y_MS2_PIN -1
+#endif
+#ifndef Y_MS3_PIN
+  #define Y_MS3_PIN -1
+#endif
+#ifndef Z_MS1_PIN
+  #define Z_MS1_PIN -1
+#endif
+#ifndef Z_MS2_PIN
+  #define Z_MS2_PIN -1
+#endif
+#ifndef Z_MS3_PIN
+  #define Z_MS3_PIN -1
+#endif
+#ifndef E0_MS1_PIN
+  #define E0_MS1_PIN -1
+#endif
+#ifndef E0_MS2_PIN
+  #define E0_MS2_PIN -1
+#endif
+#ifndef E0_MS3_PIN
+  #define E0_MS3_PIN -1
+#endif
+#ifndef E1_MS1_PIN
+  #define E1_MS1_PIN -1
+#endif
+#ifndef E1_MS2_PIN
+  #define E1_MS2_PIN -1
+#endif
+#ifndef E1_MS3_PIN
+  #define E1_MS3_PIN -1
+#endif
+#ifndef E2_MS1_PIN
+  #define E2_MS1_PIN -1
+#endif
+#ifndef E2_MS2_PIN
+  #define E2_MS2_PIN -1
+#endif
+#ifndef E2_MS3_PIN
+  #define E2_MS3_PIN -1
+#endif
+#ifndef E3_MS1_PIN
+  #define E3_MS1_PIN -1
+#endif
+#ifndef E3_MS2_PIN
+  #define E3_MS2_PIN -1
+#endif
+#ifndef E3_MS3_PIN
+  #define E3_MS3_PIN -1
+#endif
+#ifndef E4_MS1_PIN
+  #define E4_MS1_PIN -1
+#endif
+#ifndef E4_MS2_PIN
+  #define E4_MS2_PIN -1
+#endif
+#ifndef E4_MS3_PIN
+  #define E4_MS3_PIN -1
+#endif
+#ifndef E5_MS1_PIN
+  #define E5_MS1_PIN -1
+#endif
+#ifndef E5_MS2_PIN
+  #define E5_MS2_PIN -1
+#endif
+#ifndef E5_MS3_PIN
+  #define E5_MS3_PIN -1
+#endif
+
+#ifndef E0_STEP_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define E0_STEP_PIN -1
+#endif
+#ifndef E0_DIR_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define E0_DIR_PIN -1
+#endif
+#ifndef E0_ENABLE_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define E0_ENABLE_PIN -1
+#endif
+#ifndef E1_STEP_PIN
+  #define E1_STEP_PIN -1
+#endif
+#ifndef E1_DIR_PIN
+  #define E1_DIR_PIN -1
+#endif
+#ifndef E1_ENABLE_PIN
+  #define E1_ENABLE_PIN -1
+#endif
+#ifndef E2_STEP_PIN
+  #define E2_STEP_PIN -1
+#endif
+#ifndef E2_DIR_PIN
+  #define E2_DIR_PIN -1
+#endif
+#ifndef E2_ENABLE_PIN
+  #define E2_ENABLE_PIN -1
+#endif
+#ifndef E3_STEP_PIN
+  #define E3_STEP_PIN -1
+#endif
+#ifndef E3_DIR_PIN
+  #define E3_DIR_PIN -1
+#endif
+#ifndef E3_ENABLE_PIN
+  #define E3_ENABLE_PIN -1
+#endif
+#ifndef E4_STEP_PIN
+  #define E4_STEP_PIN -1
+#endif
+#ifndef E4_DIR_PIN
+  #define E4_DIR_PIN -1
+#endif
+#ifndef E4_ENABLE_PIN
+  #define E4_ENABLE_PIN -1
+#endif
+#ifndef E5_STEP_PIN
+  #define E5_STEP_PIN -1
+#endif
+#ifndef E5_DIR_PIN
+  #define E5_DIR_PIN -1
+#endif
+#ifndef E5_ENABLE_PIN
+  #define E5_ENABLE_PIN -1
+#endif
+
+#ifndef X_CS_PIN
+  #define X_CS_PIN -1
+#endif
+#ifndef Y_CS_PIN
+  #define Y_CS_PIN -1
+#endif
+#ifndef Z_CS_PIN
+  #define Z_CS_PIN -1
+#endif
+#ifndef E0_CS_PIN
+  #define E0_CS_PIN -1
+#endif
+#ifndef E1_CS_PIN
+  #define E1_CS_PIN -1
+#endif
+#ifndef E2_CS_PIN
+  #define E2_CS_PIN -1
+#endif
+#ifndef E3_CS_PIN
+  #define E3_CS_PIN -1
+#endif
+#ifndef E4_CS_PIN
+  #define E4_CS_PIN -1
+#endif
+#ifndef E5_CS_PIN
+  #define E5_CS_PIN -1
+#endif
+
+#ifndef FAN_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define FAN_PIN -1
+#endif
+#define FAN0_PIN FAN_PIN
+#ifndef FAN1_PIN
+  #define FAN1_PIN -1
+#endif
+#ifndef FAN2_PIN
+  #define FAN2_PIN -1
+#endif
+
+#ifndef HEATER_0_PIN
+  #define HEATER_0_PIN -1
+#endif
+
+#ifndef TEMP_0_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define TEMP_0_PIN -1
+#endif
+
+#if DISABLED(PSU_CONTROL) || !defined(PS_ON_PIN)
+  #undef PS_ON_PIN
+  #define PS_ON_PIN -1
+#endif
+#ifndef KILL_PIN
+  #define KILL_PIN -1
+#endif
+#ifndef SUICIDE_PIN
+  #define SUICIDE_PIN -1
+#endif
+
+#ifndef NUM_SERVO_PLUGS
+  #define NUM_SERVO_PLUGS 4
+#endif
+
+//
+// Assign endstop pins for boards with only 3 connectors
+//
+#ifdef X_STOP_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #if X_HOME_DIR < 0
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define X_MIN_PIN X_STOP_PIN
+    #define X_MAX_PIN -1
+  #else
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define X_MIN_PIN -1
+    #define X_MAX_PIN X_STOP_PIN
+  #endif
+#elif X_HOME_DIR < 0
+  #define X_STOP_PIN X_MIN_PIN
+#else
+  #define X_STOP_PIN X_MAX_PIN
+#endif
+
+#ifdef Y_STOP_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #if Y_HOME_DIR < 0
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Y_MIN_PIN Y_STOP_PIN
+    #define Y_MAX_PIN -1
+  #else
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Y_MIN_PIN -1
+    #define Y_MAX_PIN Y_STOP_PIN
+  #endif
+#elif Y_HOME_DIR < 0
+  #define Y_STOP_PIN Y_MIN_PIN
+#else
+  #define Y_STOP_PIN Y_MAX_PIN
+#endif
+
+#ifdef Z_STOP_PIN
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #if Z_HOME_DIR < 0
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z_MIN_PIN Z_STOP_PIN
+    #define Z_MAX_PIN -1
+  #else
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z_MIN_PIN -1
+    #define Z_MAX_PIN Z_STOP_PIN
+  #endif
+#elif Z_HOME_DIR < 0
+  #define Z_STOP_PIN Z_MIN_PIN
+#else
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define Z_STOP_PIN Z_MAX_PIN
+#endif
+
+//
+// Disable unused endstop / probe pins
+//
+#if !HAS_CUSTOM_PROBE_PIN
+  #undef Z_MIN_PROBE_PIN
+  #define Z_MIN_PROBE_PIN    -1
+#endif
+
+#if DISABLED(USE_XMAX_PLUG)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #undef X_MAX_PIN
+  #define X_MAX_PIN          -1
+#endif
+
+#if DISABLED(USE_YMAX_PLUG)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #undef Y_MAX_PIN
+  #define Y_MAX_PIN          -1
+#endif
+
+#if DISABLED(USE_ZMAX_PLUG)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #undef Z_MAX_PIN
+  #define Z_MAX_PIN          -1
+#endif
+
+#if DISABLED(USE_XMIN_PLUG)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #undef X_MIN_PIN
+  #define X_MIN_PIN          -1
+#endif
+
+#if DISABLED(USE_YMIN_PLUG)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #undef Y_MIN_PIN
+  #define Y_MIN_PIN          -1
+#endif
+
+#if DISABLED(USE_ZMIN_PLUG)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #undef Z_MIN_PIN
+  #define Z_MIN_PIN          -1
+#endif
+
+/**
+ * Auto-Assignment for Triple-Z Steppers
+ *
+ * By default Z2 is assigned to the next open E plug
+ * on the board, then in order, Z3. These can be
+ * overridden in Configuration.h or Configuration_adv.h.
+ */
+
+#define __EPIN(p,q) E##p##_##q##_PIN
+#define _EPIN(p,q) __EPIN(p,q)
+
+#if ENABLED(Z_TRIPLE_STEPPER_DRIVERS)
+  // #error dead code found by automatic analyses (see BFW-5461)
+  #define Z2_E_INDEX E_STEPPERS
+  #ifndef Z2_STEP_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z2_STEP_PIN   _EPIN(Z2_E_INDEX, STEP)
+    #define Z2_DIR_PIN    _EPIN(Z2_E_INDEX, DIR)
+    #define Z2_ENABLE_PIN _EPIN(Z2_E_INDEX, ENABLE)
+    #if Z2_E_INDEX >= MAX_EXTRUDERS || !PIN_EXISTS(Z2_STEP)
+      #error "No E stepper plug left for Z2!"
+    #endif
+  #endif
+  #ifndef Z2_CS_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z2_CS_PIN     _EPIN(Z2_E_INDEX, CS)
+  #endif
+  #ifndef Z2_MS1_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z2_MS1_PIN    _EPIN(Z2_E_INDEX, MS1)
+  #endif
+  #ifndef Z2_MS2_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z2_MS2_PIN    _EPIN(Z2_E_INDEX, MS2)
+  #endif
+  #ifndef Z2_MS3_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z2_MS3_PIN    _EPIN(Z2_E_INDEX, MS3)
+  #endif
+  #if AXIS_DRIVER_TYPE_Z2(TMC2208) || AXIS_DRIVER_TYPE_Z2(TMC2209)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #ifndef Z2_SERIAL_TX_PIN
+      // #error dead code found by automatic analyses (see BFW-5461)
+      #define Z2_SERIAL_TX_PIN _EPIN(Z2_E_INDEX, SERIAL_TX)
+    #endif
+    #ifndef Z2_SERIAL_RX_PIN
+      // #error dead code found by automatic analyses (see BFW-5461)
+      #define Z2_SERIAL_RX_PIN _EPIN(Z2_E_INDEX, SERIAL_RX)
+    #endif
+  #endif
+  #define Z3_E_INDEX INCREMENT(Z2_E_INDEX)
+  #ifndef Z3_STEP_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z3_STEP_PIN   _EPIN(Z3_E_INDEX, STEP)
+    #define Z3_DIR_PIN    _EPIN(Z3_E_INDEX, DIR)
+    #define Z3_ENABLE_PIN _EPIN(Z3_E_INDEX, ENABLE)
+    #if Z3_E_INDEX >= MAX_EXTRUDERS || !PIN_EXISTS(Z3_STEP)
+      #error "No E stepper plug left for Z3!"
+    #endif
+  #endif
+  #ifndef Z3_CS_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z3_CS_PIN     _EPIN(Z3_E_INDEX, CS)
+  #endif
+  #ifndef Z3_MS1_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z3_MS1_PIN    _EPIN(Z3_E_INDEX, MS1)
+  #endif
+  #ifndef Z3_MS2_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z3_MS2_PIN    _EPIN(Z3_E_INDEX, MS2)
+  #endif
+  #ifndef Z3_MS3_PIN
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define Z3_MS3_PIN    _EPIN(Z3_E_INDEX, MS3)
+  #endif
+  #if AXIS_DRIVER_TYPE_Z3(TMC2208) || AXIS_DRIVER_TYPE_Z3(TMC2209)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #ifndef Z3_SERIAL_TX_PIN
+      // #error dead code found by automatic analyses (see BFW-5461)
+      #define Z3_SERIAL_TX_PIN _EPIN(Z3_E_INDEX, SERIAL_TX)
+    #endif
+    #ifndef Z3_SERIAL_RX_PIN
+      // #error dead code found by automatic analyses (see BFW-5461)
+      #define Z3_SERIAL_RX_PIN _EPIN(Z3_E_INDEX, SERIAL_RX)
+    #endif
+  #endif
+#endif
+
+#undef HAS_FREE_AUX2_PINS

@@ -1,0 +1,5 @@
+add_subdirectory(ac_controller)
+add_subdirectory(anfc)
+add_subdirectory(modbus)
+add_subdirectory(tool_offset_sensor)
+add_subdirectory(xbuddy_extension)

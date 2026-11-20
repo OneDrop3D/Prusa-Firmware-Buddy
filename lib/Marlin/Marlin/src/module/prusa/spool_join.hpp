@@ -1,0 +1,121 @@
+#pragma once
+
+#include "inc/MarlinConfig.h"
+#include <freertos/mutex.hpp>
+#include <array>
+#include <optional>
+#include <mutex>
+#include <option/has_spool_join.h>
+#include <option/has_tool_mapping.h>
+#include <tool_index.hpp>
+
+static_assert(HAS_SPOOL_JOIN());
+static_assert(HAS_TOOL_MAPPING());
+
+/**
+ * @brief Feature that allows spools to join together. When filament runs out in
+          one tool, printer can continue with other tool, if spool join is configured.
+ */
+class SpoolJoin {
+public:
+    /// Spool join configuration structure
+    struct __attribute__((packed)) join_config_t {
+        uint8_t spool_1; // when this spool runs-out, spool2 will continue
+        uint8_t spool_2;
+    };
+
+    static constexpr uint8_t reset_value { std::numeric_limits<uint8_t>::max() };
+
+    SpoolJoin() { reset(); }
+
+    SpoolJoin &operator=(const SpoolJoin &other);
+
+    /// Reset spool join (remove all joins)
+    void reset();
+
+    [[deprecated("Use the overload with ToolIndex")]]
+    bool add_join(uint8_t spool_1, uint8_t spool_2);
+
+    /// Add join, when spool_1 runs out, spool_2 will continue
+    inline bool add_join(VirtualToolIndex spool_1, VirtualToolIndex spool_2) {
+        return add_join(spool_1.to_raw(), spool_2.to_raw());
+    }
+
+    [[deprecated("Use the overload with ToolIndex")]]
+    bool reroute_joins_containing(uint8_t spool);
+
+    // reroutes all succeeding joins to previous ones
+    bool reroute_joins_containing(VirtualToolIndex spool) {
+        return reroute_joins_containing(spool.to_raw());
+    }
+
+    // removes whole join chain that contains given spool
+    [[deprecated("Use the overload with ToolIndex")]]
+    bool remove_join_chain_containing(uint8_t spool);
+
+    bool remove_join_chain_containing(VirtualToolIndex tool) {
+        return remove_join_chain_containing(tool.to_raw());
+    }
+
+    [[deprecated("Use the overload with ToolIndex")]]
+    uint8_t get_first_spool_1_from_chain(uint8_t spool_2) const;
+
+    // gets the first spool that will be printed with in the spool join chain, returns spool_2 if not in chain
+    inline VirtualToolIndex get_first_spool_1_from_chain(VirtualToolIndex spool_2) const {
+        return VirtualToolIndex::from_raw(get_first_spool_1_from_chain(spool_2.to_raw()));
+    }
+
+    [[deprecated("Use the overload with ToolIndex")]]
+    uint8_t get_last_spool_2_from_chain(uint8_t spool_1) const;
+
+    inline VirtualToolIndex get_last_spool_2_from_chain(VirtualToolIndex spool_1) const {
+        return VirtualToolIndex::from_raw(get_last_spool_2_from_chain(spool_1.to_raw()));
+    }
+
+    [[deprecated("Use the overload with ToolIndex")]]
+    std::optional<uint8_t> get_spool_2(uint8_t spool_1) const;
+
+    // gets the spool_2 of the given spool_1
+    inline std::optional<VirtualToolIndex> get_spool_2(VirtualToolIndex spool_1) const {
+        return get_spool_2(spool_1.to_raw()).transform(VirtualToolIndex::from_raw);
+    }
+
+    // return number of configured joins
+    inline uint8_t get_num_joins() const {
+        std::unique_lock lock(mutex);
+        return num_joins;
+    }
+
+    /// Get join configuration with number
+    inline join_config_t get_join_nr(uint8_t join_nr) const {
+        std::unique_lock lock(mutex);
+        return joins[join_nr];
+    }
+
+    /// Execute join
+    bool do_join(VirtualToolIndex current_virtual_tool);
+
+    struct __attribute__((packed)) serialized_state_t {
+        join_config_t joins[EXTRUDERS];
+    };
+
+    /// Serialize data to packed serialized_state_t structure (for power panic)
+    void serialize(serialized_state_t &to);
+
+    /// deserialize data from packed serialized_state_t (recovery from power panic)
+    void deserialize(serialized_state_t &from);
+
+private:
+    bool remove_join_chain_containing_unlocked(uint8_t spool);
+    uint8_t get_last_spool_2_from_chain_unlocked(uint8_t spool_1) const;
+    uint8_t get_first_spool_1_from_chain_unlocked(uint8_t spool_2) const;
+    std::optional<uint8_t> get_spool_2_unlocked(uint8_t spool_1) const;
+    /// Removes join at idx from joins array and moves the last element into the idx position, so that new element can be inserted at the end again
+    void remove_join_at(size_t idx);
+
+    mutable freertos::Mutex mutex;
+    uint8_t num_joins; ///< Total number of joins
+    std::array<join_config_t, EXTRUDERS - 1> joins; /// Configured joins, guaranteed that 0 ... num_joins - 1 are valid joins (but not any type of sort)
+};
+
+extern SpoolJoin spool_join;

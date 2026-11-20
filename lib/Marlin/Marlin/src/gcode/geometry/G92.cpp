@@ -1,0 +1,131 @@
+/**
+ * Marlin 3D Printer Firmware
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#include "../gcode.h"
+#include "../../module/motion.h"
+#include "../../module/stepper.h"
+
+/** \addtogroup G-Codes
+ * @{
+ */
+
+/**
+ *### G90: Set to Absolute Positioning <a href="https://reprap.org/wiki/G-code#G90:_Set_to_Absolute_Positioning">G90: Set to Absolute Positioning</a>
+ *
+ *#### Usage
+ *
+ *    G90
+ */
+
+/**
+ *### G91: Set to Relative Positioning <a href="https://reprap.org/wiki/G-code#G91:_Set_to_Relative_Positioning">G91: Set to Relative Positioning</a>
+ *
+ *#### Usage
+ *
+ *    G91
+ */
+
+/**
+ *### G92: Get/Set current position <a href="https://reprap.org/wiki/G-code#G92:_Set_Position">G92: Set Position</a>
+ *
+ * Allows programming of absolute zero point, by reseting the current position to the values specified.
+ *
+ *#### Usage
+ *
+ *    G92 [ X | Y | Z | E ]
+ *
+ *#### Parameters
+ *
+ * - `X` - Set current position on X axis
+ * - `Y` - Set current position on Y axis
+ * - `Z` - Set current position on Z axis
+ * - `E` - Set current position on E axis
+ *
+ *#### Examples
+ *
+ *    G92         ; without any parameters or without any values behind the parameters reports current xyze position
+ *    G92 X10 E90 ; set the machine's X coordinate to 10, and the extrude coordinate to 90. No physical motion will occur.
+ *
+ */
+void GcodeSuite::G92() {
+
+  bool didE = false;
+  #if !HAS_POSITION_SHIFT
+    // #error dead code found by automatic analyses (see BFW-5461)
+    bool didXYZ = false;
+  #else
+    constexpr bool didXYZ = false;
+  #endif
+
+  #if USE_GCODE_SUBCODES
+    const uint8_t subcode_G92 = parser.subcode;
+  #else
+    // #error dead code found by automatic analyses (see BFW-5461)
+    constexpr uint8_t subcode_G92 = 0;
+  #endif
+
+  switch (subcode_G92) {
+    default: break;
+    case 0: {
+      XYZEval<float, LogicalPosTag> logical;
+      LOOP_XYZE(i) {
+        if (parser.seenval(axis_codes[i])) {
+          logical[i] = parser.value_axis_units((AxisEnum)i);
+        } else {
+          logical[i] = NAN;
+        }
+      }
+
+      const auto native = logical.asNative();
+      
+      LOOP_XYZE(i) {
+        if (!std::isnan(logical[i])) {
+          const float v = native[i],
+                      d = v - current_position[i];
+          if (!NEAR_ZERO(d)) {
+            #if !HAS_POSITION_SHIFT
+              // #error dead code found by automatic analyses (see BFW-5461)
+              if (i == E_AXIS) didE = true; else didXYZ = true;
+              current_position[i] = v;        // Without workspaces revert to Marlin 1.0 behavior
+            #elif HAS_POSITION_SHIFT
+              if (i == E_AXIS) {
+                didE = true;
+                current_position.e = v; // When using coordinate spaces, only E is set directly
+              }
+              else {
+                position_shift[i] += d;       // Other axes simply offset the coordinate space
+                update_workspace_offset((AxisEnum)i);
+              }
+            #endif
+          }
+        }
+      }
+    } break;
+  }
+
+  if    (didXYZ) sync_plan_position();
+  else if (didE) sync_plan_position_e();
+
+  report_current_position();
+}
+
+/** @}*/

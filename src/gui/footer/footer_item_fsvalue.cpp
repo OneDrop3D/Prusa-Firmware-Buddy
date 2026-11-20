@@ -1,0 +1,62 @@
+#include "footer_item_fsvalue.hpp"
+
+#include <feature/filament_sensor/filament_sensors_handler.hpp>
+#include "img_resources.hpp"
+
+FooterItemFSValue::FooterItemFSValue(window_t *parent)
+    : FooterIconText_IntVal(parent, &img::filament_sensor_17x16, static_makeView, static_readValue) {
+}
+
+int FooterItemFSValue::static_readValue() {
+    IFSensor *sensor = FSensors_instance().sensor(LogicalFilamentSensor::extruder);
+    if (auto tool = physical_tool_override()) {
+        sensor = GetExtruderFSensor(*tool);
+    }
+
+    if (sensor) {
+        return sensor->GetFilteredValue();
+    } else {
+        return no_tool_value;
+    }
+}
+
+string_view_utf8 FooterItemFSValue::static_makeView(int value) {
+    // Show --- if no tool is picked
+    if (value == no_tool_value) {
+        return string_view_utf8::MakeCPUFLASH(no_tool_str);
+    }
+
+    static char buff[16];
+    snprintf(buff, sizeof(buff), "%d", value);
+    return string_view_utf8::MakeRAM(buff);
+}
+
+#if HAS_SIDE_FSENSOR()
+FooterItemFSValueSide::FooterItemFSValueSide(window_t *parent)
+    : FooterIconText_IntVal(parent, &img::side_filament_sensor_17x16, static_makeView, static_readValue) {
+}
+
+int FooterItemFSValueSide::static_readValue() {
+    IFSensor *sensor = FSensors_instance().sensor(LogicalFilamentSensor::side);
+    if (auto tool = physical_tool_override()) {
+        sensor = GetSideFSensor(*tool);
+    }
+
+    if (sensor) {
+        return sensor->GetFilteredValue();
+    } else {
+        return no_tool_value;
+    }
+}
+
+string_view_utf8 FooterItemFSValueSide::static_makeView(int value) {
+    // Show --- if no tool is picked
+    if (value == no_tool_value) {
+        return string_view_utf8::MakeCPUFLASH(no_tool_str);
+    }
+
+    static char buff[16];
+    snprintf(buff, sizeof(buff), "%d", value);
+    return string_view_utf8::MakeRAM(buff);
+}
+#endif

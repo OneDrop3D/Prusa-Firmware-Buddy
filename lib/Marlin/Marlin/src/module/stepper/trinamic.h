@@ -1,0 +1,236 @@
+/**
+ * Marlin 3D Printer Firmware
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#pragma once
+
+/**
+ * stepper/trinamic.h
+ * Stepper driver indirection for Trinamic
+ */
+
+#include "../../inc/MarlinConfigPre.h"
+#include "../../feature/tmc_util.h"
+
+#define ____TMC_CLASS(MODEL, A, I, E) TMCMarlin<TMC##MODEL##Stepper>
+#define ___TMC_CLASS(MODEL, A, I, E)  ____TMC_CLASS(MODEL, A, I, E)
+#define __TMC_CLASS(MODEL, A, I, E)   ___TMC_CLASS(_##MODEL, A, I, E)
+#define _TMC_CLASS(MODEL, L, E)       __TMC_CLASS(MODEL, L, E)
+#define TMC_CLASS(ST, A)              _TMC_CLASS(ST##_DRIVER_TYPE, TMC_##ST##_LABEL, A##_AXIS)
+#if ENABLED(DISTINCT_E_FACTORS)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define TMC_CLASS_E(I) TMC_CLASS(E##I, E##I)
+#else
+    #define TMC_CLASS_E(I) TMC_CLASS(E##I, E)
+#endif
+
+// To simplify code structure, we want to have only drivers of the same type in the same
+// configuration. Pick the first declared DRV driver type to be set it as the common type
+#if AXIS_IS_TMC(X)
+    #define TMC_DRIVER_TYPE X_DRIVER_TYPE
+#elif AXIS_IS_TMC(Y)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define TMC_DRIVER_TYPE Y_DRIVER_TYPE
+#elif AXIS_IS_TMC(Z)
+    // #error dead code found by automatic analyses (see BFW-5461)
+    #define TMC_DRIVER_TYPE Y_DRIVER_TYPE
+#elif AXIS_IS_TMC(E0)
+    #define TMC_DRIVER_TYPE E0_DRIVER_TYPE
+#else
+    #error "Common TMC type not detected"
+#endif
+
+#if ((AXIS_IS_TMC(X) && !AXIS_DRIVER_TYPE(X, TMC_DRIVER_TYPE))   \
+    || (AXIS_IS_TMC(Y) && !AXIS_DRIVER_TYPE(Y, TMC_DRIVER_TYPE)) \
+    || (AXIS_IS_TMC(Z) && !AXIS_DRIVER_TYPE(Z, TMC_DRIVER_TYPE)) \
+    || (AXIS_IS_TMC(E0) && !AXIS_DRIVER_TYPE(E0, TMC_DRIVER_TYPE)))
+    #error "TMC drivers of different type on the same configuration are not supported"
+#endif
+
+typedef struct {
+    uint8_t toff;
+    int8_t hend;
+    uint8_t hstrt;
+} chopper_timing_t;
+
+static constexpr chopper_timing_t chopper_timing = CHOPPER_TIMING;
+
+#if HAS_TMC220x
+void tmc_serial_begin();
+#endif
+
+void restore_trinamic_drivers();
+void reset_trinamic_drivers();
+
+#define AXIS_HAS_SQUARE_WAVE(A) (AXIS_IS_TMC(A) && ENABLED(SQUARE_WAVE_STEPPING))
+
+// X Stepper
+#if AXIS_IS_TMC(X)
+extern TMC_CLASS(X, X) stepperX;
+    #if AXIS_HAS_SQUARE_WAVE(X)
+        #define X_STEP_WRITE(STATE)     \
+            do {                        \
+                if (STATE)              \
+                    TOGGLE(X_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// Y Stepper
+#if AXIS_IS_TMC(Y)
+extern TMC_CLASS(Y, Y) stepperY;
+    #if AXIS_HAS_SQUARE_WAVE(Y)
+        #define Y_STEP_WRITE(STATE)     \
+            do {                        \
+                if (STATE)              \
+                    TOGGLE(Y_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// Z Stepper
+#if AXIS_IS_TMC(Z)
+extern TMC_CLASS(Z, Z) stepperZ;
+    #if AXIS_HAS_SQUARE_WAVE(Z)
+        #define Z_STEP_WRITE(STATE)     \
+            do {                        \
+                if (STATE)              \
+                    TOGGLE(Z_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// Z2 Stepper
+#if HAS_Z2_ENABLE && AXIS_IS_TMC(Z2)
+// #error dead code found by automatic analyses (see BFW-5461)
+extern TMC_CLASS(Z2, Z) stepperZ2;
+    #if AXIS_HAS_SQUARE_WAVE(Z2)
+        // #error dead code found by automatic analyses (see BFW-5461)
+        #define Z2_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(Z2_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// Z3 Stepper
+#if HAS_Z3_ENABLE && AXIS_IS_TMC(Z3)
+// #error dead code found by automatic analyses (see BFW-5461)
+extern TMC_CLASS(Z3, Z) stepperZ3;
+    #if AXIS_HAS_SQUARE_WAVE(Z3)
+        // #error dead code found by automatic analyses (see BFW-5461)
+        #define Z3_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(Z3_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// E0 Stepper
+#if AXIS_IS_TMC(E0)
+extern TMC_CLASS_E(0) stepperE0;
+    #if AXIS_HAS_SQUARE_WAVE(E0)
+        #define E0_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(E0_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// E1 Stepper
+#if AXIS_IS_TMC(E1)
+// #error dead code found by automatic analyses (see BFW-5461)
+extern TMC_CLASS_E(1) stepperE1;
+    #if AXIS_HAS_SQUARE_WAVE(E1)
+        // #error dead code found by automatic analyses (see BFW-5461)
+        #define E1_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(E1_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// E2 Stepper
+#if AXIS_IS_TMC(E2)
+// #error dead code found by automatic analyses (see BFW-5461)
+extern TMC_CLASS_E(2) stepperE2;
+    #if AXIS_HAS_SQUARE_WAVE(E2)
+        // #error dead code found by automatic analyses (see BFW-5461)
+        #define E2_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(E2_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// E3 Stepper
+#if AXIS_IS_TMC(E3)
+// #error dead code found by automatic analyses (see BFW-5461)
+extern TMC_CLASS_E(3) stepperE3;
+    #if AXIS_HAS_SQUARE_WAVE(E3)
+        // #error dead code found by automatic analyses (see BFW-5461)
+        #define E3_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(E3_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// E4 Stepper
+#if AXIS_IS_TMC(E4)
+// #error dead code found by automatic analyses (see BFW-5461)
+extern TMC_CLASS_E(4) stepperE4;
+    #if AXIS_HAS_SQUARE_WAVE(E4)
+        // #error dead code found by automatic analyses (see BFW-5461)
+        #define E4_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(E4_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// E5 Stepper
+#if AXIS_IS_TMC(E5)
+// #error dead code found by automatic analyses (see BFW-5461)
+extern TMC_CLASS_E(5) stepperE5;
+    #if AXIS_HAS_SQUARE_WAVE(E5)
+        // #error dead code found by automatic analyses (see BFW-5461)
+        #define E5_STEP_WRITE(STATE)     \
+            do {                         \
+                if (STATE)               \
+                    TOGGLE(E5_STEP_PIN); \
+            } while (0)
+    #endif
+#endif
+
+// Common type for all stepper types
+#define __TMCMARLIN_CLASS(DRIVER_TYPE) TMCMarlin<DRIVER_TYPE##Stepper>
+#define _TMCMARLIN_CLASS(DRIVER_TYPE)  __TMCMARLIN_CLASS(DRIVER_TYPE)
+using TMCStepperType = _TMCMARLIN_CLASS(TMC_DRIVER_TYPE);
+
+// Return the stepper instance of an axis
+TMCStepperType &stepper_axis(const AxisEnum axis);

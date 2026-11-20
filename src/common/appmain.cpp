@@ -1,0 +1,333 @@
+#include "appmain.hpp"
+
+#include "app_metrics.h"
+#include <logging/log.hpp>
+#include "cmsis_os.h"
+#include "config.h"
+#include "adc.hpp"
+#include <option/has_gui.h>
+#if HAS_GUI()
+    #include "Jogwheel.hpp"
+#endif
+#include "hwio.h"
+#include "gpio.h"
+#include "metric.h"
+#include "cpu_utils.hpp"
+#include "sound.hpp"
+#include "language_eeprom.hpp"
+#include <device/board.h>
+#include <buddy/usb_device.hpp>
+
+#include <option/has_advanced_power.h>
+#if HAS_ADVANCED_POWER()
+    #include "advanced_power.hpp"
+#endif // HAS_ADVANCED_POWER()
+
+#include "marlin_server.hpp"
+#include "bsod.h"
+#include "safe_state.h"
+#include "crc32.h"
+#include <crash_dump/dump.hpp>
+#include "hwio_pindef.h"
+#include <Arduino.h>
+#include "../Marlin/src/module/configuration_store.h"
+#include <buddy/main.h>
+#include <stdint.h>
+#include "fanctl.hpp"
+#include "printers.h"
+#include "MarlinPin.h"
+#include "timing.h"
+#include "tasks.hpp"
+#include "Marlin/src/module/planner.h"
+#include <option/filament_sensor.h>
+
+#include <option/has_power_panic.h>
+#include <option/has_usb_device.h>
+#if HAS_USB_DEVICE()
+    #include <tusb.h>
+#endif
+
+#if BOARD_IS_XLBUDDY()
+    #include <puppies/Dwarf.hpp>
+    #include <Marlin/src/module/prusa/toolchanger.h>
+    #include <feature/filament_sensor/filament_sensors_handler.hpp>
+#endif
+
+#include <option/has_side_fsensor_remap.h>
+#if HAS_SIDE_FSENSOR_REMAP()
+    #include <feature/filament_sensor/filament_sensors_handler_remap.hpp>
+#endif
+
+#include <option/has_loadcell.h>
+#if HAS_LOADCELL()
+    #include "loadcell.hpp"
+    #include "feature/prusa/e-stall_detector.h"
+#endif
+
+#include <option/has_loadcell_hx717.h>
+#if HAS_LOADCELL_HX717()
+    #include "hx717mux.hpp"
+#endif
+
+#include <option/has_mmu2.h>
+#if HAS_MMU2()
+    #include <Marlin/src/feature/prusa/MMU2/mmu2_mk4.h>
+#endif
+
+#include <option/has_touch.h>
+#if HAS_TOUCH()
+    #include <hw/touchscreen/touchscreen.hpp>
+#endif
+
+LOG_COMPONENT_REF(MMU2);
+LOG_COMPONENT_REF(Marlin);
+
+#if HAS_POWER_PANIC()
+    #include "power_panic.hpp"
+#endif
+
+#include <option/has_emergency_stop.h>
+#if HAS_EMERGENCY_STOP()
+    #include <feature/emergency_stop/emergency_stop.hpp>
+#endif
+
+#include "position_lookback.hpp"
+#include <config_store/store_instance.hpp>
+#include <utils/serial_logging_disabler.hpp>
+
+LOG_COMPONENT_DEF(Buddy, logging::Severity::debug);
+LOG_COMPONENT_DEF(Core, logging::Severity::info);
+LOG_COMPONENT_DEF(MMU2, logging::Severity::info);
+
+METRIC_DEF(metric_app_start, "app_start", METRIC_VALUE_EVENT, 0, METRIC_ENABLED);
+METRIC_DEF(metric_maintask_event, "maintask_loop", METRIC_VALUE_EVENT, 0, METRIC_DISABLED);
+METRIC_DEF(metric_cpu_usage, "cpu_usage", METRIC_VALUE_INTEGER, 1000, METRIC_ENABLED);
+
+void app_marlin_serial_output_write_hook(const uint8_t *buffer, int size) {
+    if (SerialLoggingDisabler::is_logging_disabled()) {
+        return;
+    }
+
+    while (size && (buffer[size - 1] == '\n' || buffer[size - 1] == '\r')) {
+        size--;
+    }
+    logging::Severity severity = logging::Severity::info;
+    bool MMU = false;
+    if (size == 2 && memcmp("ok", buffer, 2) == 0) {
+        // Do not log "ok" messages
+        return;
+    } else if (size >= 10 && memcmp("echo:MMU2:", buffer, 10) == 0) { //@@TODO this is ugly and suboptimal
+        buffer = buffer + 10;
+        size -= 10;
+        MMU = true;
+    } else if (size >= 5 && memcmp("echo:", buffer, 5) == 0) {
+        buffer = buffer + 5;
+        size -= 5;
+    } else if (size >= 11 && memcmp("Error:MMU2:", buffer, 11) == 0) { //@@TODO this is ugly and suboptimal
+        buffer = buffer + 11;
+        size -= 11;
+        severity = logging::Severity::error;
+        MMU = true;
+    } else if (size >= 6 && memcmp("Error:", buffer, 6) == 0) {
+        buffer = buffer + 6;
+        size -= 6;
+        severity = logging::Severity::error;
+    }
+    if (MMU) {
+        log_event(severity, MMU2, "%.*s", size, buffer);
+    } else {
+        log_event(severity, Marlin, "%.*s", size, buffer);
+    }
+}
+
+#if HAS_USB_DEVICE()
+static void app_setup_marlin_logging() {
+    SerialUSB.lineBufferHook = app_marlin_serial_output_write_hook;
+}
+
+static void wait_for_serial() {
+    // wait for usb thread to be ready, then continue waiting only if something was seen
+    TaskDeps::wait(TaskDeps::Tasks::usb_device_start);
+    if (!usb_device_seen()) {
+        return;
+    }
+
+    // If a device was seen, keep trying to connect irregardless of the current connection state, as
+    // a re-negotiation could temporarily break out of this loop a cause messages to be lost
+    log_info(Buddy, "device seen: waiting for serial");
+    uint32_t start_ts = ticks_ms();
+    while (ticks_diff(ticks_ms(), start_ts) < 3000) {
+        if (tud_cdc_n_connected(0)) {
+            log_info(Buddy, "serial successfully attached");
+            break;
+        }
+        osDelay(10);
+    }
+}
+#endif
+
+static void app_startup() {
+#if HAS_USB_DEVICE()
+    // Attempt to wait for CDC to initialize to get the full Marlin startup output
+    wait_for_serial();
+
+    // Finally link SerialUSB/marlin
+    app_setup_marlin_logging();
+#endif
+
+    log_info(Buddy, "marlin task waiting for dependencies");
+    TaskDeps::wait(TaskDeps::Tasks::default_start);
+    log_info(Buddy, "marlin task is starting");
+}
+
+static void app_setup(void) {
+    metric_record_event(&metric_app_start);
+
+#if HAS_MMU2()
+    if (config_store().mmu2_enabled.get()) {
+        MMU2::mmu2.Start();
+    }
+#endif
+
+#if HAS_LOADCELL()
+    if (config_store().stuck_filament_detection.get()) {
+        EMotorStallDetector::Instance().SetEnabled();
+    } // else keep it disabled (which is the default)
+
+    if (config_store().loadcell_scale.get() != config_store_ns::defaults::loadcell_scale) {
+        loadcell.SetScale(config_store().loadcell_scale.get());
+    }
+
+    #if HAS_LOADCELL_HX717()
+    buddy::hw::hx717mux.init();
+    #endif
+#endif
+
+    setup();
+}
+
+void app_run(void) {
+    app_startup();
+
+#if HAS_GUI()
+    LangEEPROM::getInstance();
+    Translations::Instance().gettext_hook = []([[maybe_unused]] const char *f) {
+        debug_assert(IS_FLASH_ADDRESS(reinterpret_cast<uintptr_t>(f)));
+    };
+#endif
+
+    app_setup();
+    marlin_server::init();
+
+    TaskDeps::provide(TaskDeps::Dependency::default_task_ready);
+
+    while (1) {
+        metric_record_event(&metric_maintask_event);
+        metric_record_integer(&metric_cpu_usage, osGetCPUUsage());
+        marlin_server::loop();
+    }
+}
+
+#if HAS_ADVANCED_POWER()
+static uint8_t cnt_advanced_power_update = 0;
+
+void advanced_power_irq() {
+    if (++cnt_advanced_power_update >= 40) { // update Advanced power variables = 25Hz
+        advancedpower.Update();
+    #ifdef ADC_MULTIPLEXER
+        PowerHWIDAndTempMux.switch_channel();
+    #endif
+        cnt_advanced_power_update = 0;
+    }
+}
+#endif // #if HAS_ADVANCED_POWER()
+
+#if (BOARD_IS_XLBUDDY() && FILAMENT_SENSOR_IS_ADC())
+// update filament sensor irq = 76Hz
+static void filament_sensor_irq() {
+
+    static uint8_t cnt_filament_sensor_update = 0;
+
+    if (++cnt_filament_sensor_update >= 13) {
+        for (buddy::puppies::Dwarf &dwarf : buddy::puppies::dwarfs) {
+            if (!dwarf.is_enabled()) {
+                continue;
+            }
+
+            // Main filament sensor
+            fs_process_sample(dwarf.get_tool_filament_sensor(), dwarf.tool_index());
+
+            // Side filament sensor
+            auto mapping = side_fsensor_remap::get_mapping();
+            debug_assert(static_cast<size_t>(dwarf.tool_index().to_raw()) < std::size(mapping));
+            const uint8_t remapped = mapping[dwarf.tool_index().to_raw()];
+            debug_assert(remapped < HOTENDS);
+
+            /**
+             * @brief Mapping of ADC channels to each extruder side filament sensor.
+             * ADC channels are laid left top to bottom and right bottom to top.
+             * Left    Right
+             * sfs1    sfs6
+             * sfs2    sfs5
+             * sfs3    sfs4
+             */
+            static const constexpr std::array<AdcChannel::SideFilamnetSensorsAndTempMux, HOTENDS> adc_channel_mapping = {
+                AdcChannel::SideFilamnetSensorsAndTempMux::sfs1, // T0    - left top
+                AdcChannel::SideFilamnetSensorsAndTempMux::sfs2, // T1    - left middle
+                AdcChannel::SideFilamnetSensorsAndTempMux::sfs3, // T2    - left bottom
+                AdcChannel::SideFilamnetSensorsAndTempMux::sfs6, // T3    - right top
+                AdcChannel::SideFilamnetSensorsAndTempMux::sfs5, // T4    - right middle
+                AdcChannel::SideFilamnetSensorsAndTempMux::sfs4, // Empty - right bottom
+            };
+
+            // ensure AdcGet::undefined_value is representable within FSensor::value_type
+            static_assert(static_cast<IFSensor::value_type>(AdcGet::undefined_value) == AdcGet::undefined_value);
+
+            // widen the type to match the main sensor data type and translate the undefined value
+            IFSensor::value_type fs_raw_value = AdcGet::side_filament_sensor(adc_channel_mapping[remapped]);
+            if (fs_raw_value == AdcGet::undefined_value) {
+                fs_raw_value = IFSensor::undefined_value;
+            }
+            side_fs_process_sample(fs_raw_value, dwarf.tool_index());
+        }
+        cnt_filament_sensor_update = 0;
+    }
+}
+#endif
+
+void adc_tick_1ms(void) {
+#if HAS_ADVANCED_POWER()
+    advanced_power_irq();
+#endif
+
+#ifdef ADC_MULTIPLEXER
+    SFSAndTempMux.switch_channel();
+#endif
+
+#if HAS_LOADCELL()
+    buddy::positionLookback.update();
+#endif
+}
+
+void app_tim14_tick(void) {
+    // run sound first, so it is more synchronized
+    sound::update_1ms();
+
+    Fans::tick();
+
+#if HAS_GUI()
+    jogwheel.Update1msFromISR();
+#endif
+
+#if HAS_EMERGENCY_STOP()
+    buddy::emergency_stop().check_z_limits();
+#endif
+
+    adc_tick_1ms();
+
+#if (BOARD_IS_XLBUDDY() && FILAMENT_SENSOR_IS_ADC())
+    filament_sensor_irq();
+#endif
+}
+
+// cpp code

@@ -1,0 +1,15 @@
+#pragma once
+
+#include <fifo_coder/fifo_coder.hpp>
+#include <accelerometer/record.hpp>
+#include <cstddef>
+
+namespace dwarf::accelerometer {
+
+bool accelerometer_get_sample(AccelerometerRecord &sample);
+size_t get_num_samples();
+float measured_sampling_rate();
+void enable();
+void disable();
+void irq();
+} // namespace dwarf::accelerometer

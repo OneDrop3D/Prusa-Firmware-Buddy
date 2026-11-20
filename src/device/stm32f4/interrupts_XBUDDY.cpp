@@ -1,0 +1,79 @@
+#include "interrupts_helper.hpp"
+#include <device/board.h>
+#include <device/peripherals.hpp>
+#include <device/peripherals_uart.hpp>
+#include <hw/buffered_serial.hpp>
+#include <option/buddy_enable_wui.h>
+#include <option/has_puppies.h>
+#include <printers.h>
+#include <option/has_esp.h>
+
+#if HAS_ESP() && BUDDY_ENABLE_WUI()
+    #include "espif.h"
+#endif
+
+static_assert(BOARD_IS_XBUDDY());
+
+// TODO Document ADC peripherals
+TRACED_ISR(DMA2_Stream4_IRQHandler, HAL_DMA_IRQHandler, hadc1.DMA_Handle);
+TRACED_ISR(DMA2_Stream0_IRQHandler, HAL_DMA_IRQHandler, hadc3.DMA_Handle);
+extern "C" void ADC_IRQHandler() {
+    traceISR_ENTER();
+    HAL_ADC_IRQHandler(&hadc1);
+    HAL_ADC_IRQHandler(&hadc3);
+    traceISR_EXIT();
+}
+
+// SPI for trinamic driver
+TRACED_ISR(SPI3_IRQHandler, HAL_SPI_IRQHandler, spi_handle_tmc);
+TRACED_ISR(DMA1_Stream5_IRQHandler, HAL_DMA_IRQHandler, spi_handle_tmc->hdmatx);
+
+// SPI for flash memory
+TRACED_ISR(DMA2_Stream3_IRQHandler, HAL_DMA_IRQHandler, spi_handle_flash->hdmarx);
+TRACED_ISR(DMA2_Stream6_IRQHandler, HAL_DMA_IRQHandler, spi_handle_flash->hdmatx);
+
+// SPI for LCD
+TRACED_ISR(DMA2_Stream5_IRQHandler, HAL_DMA_IRQHandler, spi_handle_lcd->hdmatx);
+
+// TIM for accelerometer polling
+TRACED_ISR(TIM1_BRK_TIM9_IRQHandler, HAL_TIM_IRQHandler, &htim9);
+
+// DMA for accelerometer
+TRACED_ISR(DMA1_Stream3_IRQHandler, HAL_DMA_IRQHandler, spi_handle_accelerometer->hdmarx);
+TRACED_ISR(DMA1_Stream4_IRQHandler, HAL_DMA_IRQHandler, spi_handle_accelerometer->hdmatx);
+
+#if HAS_PUPPIES()
+
+// UART for puppies on iX
+void uart_for_puppies_idle_isr() {
+    uart_for_puppies.IdleISR();
+}
+
+// These interrupts for puppy communication must not be tracked by Segger SysView, because they need higher priority than SysView lock
+BARE_ISR(USART6_IRQHandler, HAL_UART_IRQHandler_with_idle, &uart_handle_for_puppies, uart_for_puppies_idle_isr);
+BARE_ISR(DMA2_Stream2_IRQHandler, HAL_DMA_IRQHandler, uart_handle_for_puppies.hdmarx);
+BARE_ISR(DMA2_Stream7_IRQHandler, HAL_DMA_IRQHandler, uart_handle_for_puppies.hdmatx);
+
+#endif
+
+#if HAS_MMU2_OVER_UART()
+
+// UART for MMU in case there are no puppies
+void uart_for_mmu_idle_isr() {
+    uart_for_mmu.IdleISR();
+}
+// These interrupts for puppy communication must not be tracked by Segger SysView, because they need higher priority than SysView lock
+BARE_ISR(USART6_IRQHandler, HAL_UART_IRQHandler_with_idle, &uart_handle_for_mmu, uart_for_mmu_idle_isr);
+BARE_ISR(DMA2_Stream2_IRQHandler, HAL_DMA_IRQHandler, uart_handle_for_mmu.hdmarx);
+BARE_ISR(DMA2_Stream7_IRQHandler, HAL_DMA_IRQHandler, uart_handle_for_mmu.hdmatx);
+
+#endif
+
+#if HAS_ESP() && BUDDY_ENABLE_WUI()
+
+// UART for ESP network interface card
+TRACED_ISR(UART8_IRQHandler, HAL_UART_IRQHandler_with_idle, &uart_handle_for_esp, espif_receive_data);
+TRACED_ISR(DMA1_Stream6_IRQHandler, HAL_DMA_IRQHandler_with_idle, uart_handle_for_esp.hdmarx, espif_receive_data);
+TRACED_ISR(DMA1_Stream0_IRQHandler, HAL_DMA_IRQHandler, uart_handle_for_esp.hdmatx);
+
+#endif

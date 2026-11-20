@@ -1,0 +1,174 @@
+#include "accelerometer.h"
+
+#include "toolchanger.h"
+#include "accelerometer_utils.h"
+#include <option/has_dwarf.h>
+#include <option/has_indx.h>
+#if HAS_INDX()
+    #include <puppies/INDX.hpp>
+#elif HAS_DWARF()
+    #include <puppies/Dwarf.hpp>
+#endif
+#include "bsod.h"
+#include "../../core/serial.h"
+#include <mutex>
+#include <option/has_remote_accelerometer.h>
+#include <fifo_coder/fifo_coder.hpp>
+
+static_assert(HAS_REMOTE_ACCELEROMETER());
+
+using namespace accelerometer;
+
+freertos::Mutex PrusaAccelerometer::s_buffer_mutex;
+PrusaAccelerometer::SampleBuffer *PrusaAccelerometer::s_sample_buffer = nullptr;
+float PrusaAccelerometer::m_sampling_rate = 0;
+
+/**
+ * If this is the first instance of PrusaAccelerometer
+ * assign address of our m_sample_buffer to s_sample_buffer
+ * and enable active Dwarf/INDX accelerometer.
+ * Do nothing otherwise.
+ */
+PrusaAccelerometer::PrusaAccelerometer() {
+    {
+        std::lock_guard lock(s_buffer_mutex);
+        if (s_sample_buffer) {
+            m_sample_buffer.error.set(Error::busy);
+            return;
+        }
+
+        s_sample_buffer = &m_sample_buffer;
+    }
+
+#if HAS_DWARF()
+    auto *tool = prusa_toolchanger.get_marlin_picked_tool();
+#elif HAS_INDX()
+    // INDX is set up directly through buddy::puppies::indx (INDX_HEAD)
+    auto *tool = std::holds_alternative<NoTool>(PhysicalToolIndex::currently_selected()) ? nullptr : &buddy::puppies::indx;
+#endif
+    if (!tool) {
+        std::lock_guard lock(s_buffer_mutex);
+        m_sample_buffer.error.set(Error::no_active_tool);
+        return;
+    }
+
+    /// TODO do not access puppyModbus outside of puppy task
+    /// BFW-8185
+    if (!tool->set_accelerometer(buddy::puppies::puppyModbus, true)) {
+        std::lock_guard lock(s_buffer_mutex);
+        m_sample_buffer.error.set(Error::communication);
+        return;
+    }
+}
+/**
+ * If there is address of our m_sample_buffer in s_sample_buffer
+ * remove it and disable Dwarf/INDX accelerometer.
+ * Do nothing otherwise.
+ */
+PrusaAccelerometer::~PrusaAccelerometer() {
+    {
+        std::lock_guard lock(s_buffer_mutex);
+
+        if (&m_sample_buffer != s_sample_buffer) {
+            return;
+        }
+
+        s_sample_buffer = nullptr;
+    }
+    /// @note We need to exit mutex before calling Dwarf methods to prevent deadlock.
+
+    switch (m_sample_buffer.error.get()) {
+    case Error::none:
+    case Error::communication:
+    case Error::overflow_sensor:
+    case Error::overflow_buddy:
+    case Error::overflow_dwarf:
+    case Error::overflow_possible: {
+#if HAS_DWARF()
+        auto *tool = prusa_toolchanger.get_marlin_picked_tool();
+#elif HAS_INDX()
+        // INDX is set up directly through buddy::puppies::indx (INDX_HEAD)
+        auto *tool = &buddy::puppies::indx;
+#endif
+        if (!tool) {
+            break;
+        }
+        /// TODO do not access puppyModbus outside of puppy task
+        /// BFW-8185
+        if (!tool->set_accelerometer(buddy::puppies::puppyModbus, false)) {
+            SERIAL_ERROR_MSG("Failed to disable accelerometer, communication error");
+        }
+        break;
+    }
+    case Error::no_active_tool:
+        break;
+
+    case Error::busy:
+    case Error::_cnt:
+        bsod("Unexpected");
+    }
+}
+
+void PrusaAccelerometer::clear() {
+    // todo wait for for so many samples that it is assured
+    // that even if all buffers were full we went through
+    // all samples and reflect possible delay in steps_to_do_max
+    std::lock_guard lock(s_buffer_mutex);
+    m_sample_buffer.buffer.clear();
+    m_sample_buffer.error.clear_overflow();
+}
+
+PrusaAccelerometer::GetSampleResult PrusaAccelerometer::get_sample(RawAcceleration &raw_acceleration) {
+    std::lock_guard lock(s_buffer_mutex);
+    if (get_error() != Error::none) {
+        return GetSampleResult::error;
+    }
+
+    fifo_coder::AccelerometerXyzSample sample;
+    if (!m_sample_buffer.buffer.try_get(sample)) {
+        return GetSampleResult::buffer_empty;
+    }
+
+    AccelerometerUtils::SampleStatus sample_status;
+    raw_acceleration = AccelerometerUtils::unpack_sample(sample_status, sample);
+
+    if (sample_status.buffer_overflow) {
+        m_sample_buffer.error.set(Error::overflow_dwarf);
+        return GetSampleResult::error;
+    }
+
+    if (sample_status.sample_overrun) {
+        m_sample_buffer.error.set(Error::overflow_sensor);
+        return GetSampleResult::error;
+    }
+
+    return GetSampleResult::ok;
+}
+
+void PrusaAccelerometer::put_sample(fifo_coder::AccelerometerXyzSample sample) {
+    std::lock_guard lock(s_buffer_mutex);
+    if (s_sample_buffer) {
+        if (!s_sample_buffer->buffer.try_put(sample)) {
+            s_sample_buffer->error.set(Error::overflow_buddy);
+        }
+    }
+}
+
+accelerometer::Error PrusaAccelerometer::get_error() const {
+    return m_sample_buffer.error.get();
+}
+
+void PrusaAccelerometer::set_possible_overflow() {
+    std::lock_guard lock(s_buffer_mutex);
+    if (s_sample_buffer) {
+        s_sample_buffer->error.set(Error::overflow_possible);
+    }
+}
+
+float PrusaAccelerometer::get_sampling_rate() const {
+    return m_sampling_rate;
+}
+
+void PrusaAccelerometer::set_rate(float rate) {
+    m_sampling_rate = rate;
+}

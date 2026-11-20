@@ -1,0 +1,69 @@
+#pragma once
+
+#include <static_alocation_ptr.hpp>
+#include <screen.hpp>
+#include <array>
+#include <config.h>
+#include <common/primitive_any.hpp>
+#include <option/has_indx.h>
+
+class ScreenFactory {
+    ScreenFactory() = delete;
+    ScreenFactory(const ScreenFactory &) = delete;
+
+#if PRINTER_IS_PRUSA_XL()
+    using Storage = std::array<uint8_t, 4280>;
+#elif PRINTER_IS_PRUSA_MINI()
+    using Storage = std::array<uint8_t, 3368>;
+#elif HAS_INDX()
+    using Storage = std::array<uint8_t, 4400>;
+#else
+    using Storage = std::array<uint8_t, 4192>;
+#endif
+    alignas(std::max_align_t) static Storage storage;
+
+public:
+    using UniquePtr = static_unique_ptr<screen_t>;
+
+    struct Creator {
+        using Arg = PrimitiveAny<4>;
+        using Func = UniquePtr (*)(const Arg &arg);
+
+        constexpr Creator() = default;
+
+        constexpr Creator(Func func, const Arg &arg = {})
+            : func(func)
+            , arg(arg) {}
+
+        template <typename Screen>
+        inline bool is_screen() const {
+            return *this == Creator(ScreenFactory::Screen<Screen>);
+        }
+
+        constexpr inline UniquePtr operator()() const {
+            return func(arg);
+        }
+
+        constexpr inline bool operator==(const Creator &) const = default;
+        constexpr inline bool operator!=(const Creator &) const = default;
+
+        Func func = nullptr;
+        Arg arg;
+    };
+
+    template <class T, auto... args>
+    static UniquePtr Screen(const Creator::Arg & = {}) {
+        // Note: the Arg must be in the function so that the function prototype matches Creator::Func
+        return make_static_unique_ptr<T>(storage, args...);
+    }
+
+    template <class T, typename Arg>
+    constexpr static inline Creator::Func screen_with_arg_creator_f = +[](const Creator::Arg &arg_variant) -> UniquePtr {
+        return make_static_unique_ptr<T>(storage, arg_variant.value<Arg>());
+    };
+
+    template <class T, typename Arg>
+    constexpr static inline Creator ScreenWithArg(Arg arg) {
+        return Creator(screen_with_arg_creator_f<T, Arg>, Creator::Arg::make(arg));
+    }
+};

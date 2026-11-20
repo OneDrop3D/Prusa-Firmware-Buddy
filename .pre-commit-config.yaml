@@ -1,0 +1,112 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+- repo: https://github.com/cheshirekow/cmake-format-precommit
+  rev: v0.6.13
+  hooks:
+    - id: cmake-format
+- repo: https://github.com/google/yapf
+  rev: v0.43.0
+  hooks:
+    - id: yapf
+- repo: local
+  hooks:
+    - id: clang-format
+      name: clang-format
+      description: This hook automatically checks and reformats changed files using clang-format formatter.
+      entry: './.dependencies/clang-format-16-83817c2f/clang-format'
+      language: script
+      files: \.(h\+\+|h|hh|hxx|hpp|cuh|c|cc|cpp|cu|c\+\+|cxx|tpp|txx)$
+      args: ['-i', '-style=file']
+    - id: generate-cmake-presets
+      name: generate-cmake-presets
+      description: This hook generates CMakePresets.json file based on utils/presets/presets.json
+      entry: python utils/build.py --generate-cmake-presets
+      files: (^|/)(.*.json)$
+      pass_filenames: false
+      language: python
+      language_version: python3
+    - id: forbid-libc-assert
+      name: forbid-libc-assert
+      description: This hook forbids libc assert() in first-party code, use asserts from <bsod/bsod.h> instead.
+      entry: python utils/forbid_libc_assert.py
+      pass_filenames: false
+      always_run: true
+      language: python
+      language_version: python3
+    - id: generate-log-components-overview
+      name: log-components-doc-generate
+      description: This hook generate an overview of currently defined Log Components.
+      entry: python utils/logging/generate_overview.py
+      language: python
+      language_version: python3
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: 'v2.4.0'
+  hooks:
+    - id: trailing-whitespace
+      args: [--markdown-linebreak-ext=md]
+    - id: end-of-file-fixer
+    - id: mixed-line-ending
+exclude: |
+  (?x)^(
+    lib/CMSIS-DSP/|
+    lib/Catch2/|
+    lib/CrashCatcher/|
+    lib/Drivers/|
+    lib/fpm/|
+    lib/Marlin/LICENSE|
+    lib/Marlin/Marlin/Version.h|
+    lib/Marlin/Marlin/src/(?!
+       # FILES TO BE FORMATTED
+       core/vector\.hpp$|
+       (gcode/)?feature/prusa/|
+       (gcode/)?feature/input_shaper/|
+       (gcode/)?feature/pressure_advance/|
+       (gcode/)?feature/precise_stepping/|
+       (gcode/)?feature/phase_stepping/|
+       (gcode/)?feature/contactless_offset/|
+       gcode/feature/tool_offset/|
+       (gcode/)?feature/motordriver_util\.|
+       gcode/calibrate/M958\.|
+       module/prusa/|
+       module/stepper/indirection\.cpp$|
+       module/stepper/trinamic\.|
+       module/stepper\.|
+       gcode/temperature/M106_M107\.cpp$|
+       bedlevel/ubl/G29\.cpp$|
+       module/temperature/|
+       $ # LAST LINE OF THE GROUP, DON'T FORGET TO ADD "OR" AT THE END OF YOURS
+     )|
+    lib/Middlewares/Third_Party/FatFs/|
+    lib/Middlewares/Third_Party/FreeRTOS/|
+    lib/Middlewares/Third_Party/LwIP/|
+    lib/Middlewares/Third_Party/littlefs/|
+    lib/Middlewares/Third_Party/mbedtls/|
+    lib/OpenPrintTag/|
+    lib/Prusa-Error-Codes/|
+    lib/Prusa-Firmware-MMU/|
+    lib/QR/|
+    lib/Segger|
+    lib/TMCStepper/|
+    lib/cpp-std-extensions/|
+    lib/esp-serial-flasher/|
+    lib/heatshrink/|
+    lib/inih/|
+    lib/jsmn/|
+    lib/libcanard/|
+    lib/libbgcode/|
+    lib/liblightmodbus/|
+    lib/libsysbase/|
+    lib/nanocbor/|
+    lib/o1heap/|
+    lib/printf|
+    lib/sfl-library|
+    lib/tinyusb/|
+    lib/magic_enum/|
+    lib/SG14/|
+    src/can/data_types/public_regulated_data_types/|
+    tests/stubs/FreeRTOS|
+    tests/unit/common/gcode/.*\.gcode$|
+    tests/unit/lang/translator/(keys|cs|es|fr|de|pl|it)\.txt$|
+    $ # LAST LINE OF THE GROUP, DON'T FORGET TO ADD "OR" AT THE END OF YOURS
+  )

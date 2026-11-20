@@ -1,0 +1,5 @@
+add_subdirectory(string_view_utf8)
+add_subdirectory(translator)
+add_subdirectory(eeprom)
+add_subdirectory(format_print_will_end)
+add_subdirectory(text_fit)

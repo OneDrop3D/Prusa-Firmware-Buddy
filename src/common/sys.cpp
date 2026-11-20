@@ -1,0 +1,48 @@
+/// @file
+#include <common/sys.hpp>
+#include <core_cm4.h>
+
+[[noreturn]] void __RAM_FUNC sys_reset() {
+    // This needs to be RAM function as it is called when erasing the flash.
+    // Also, we manually inline HAL_NVIC_SystemReset() here to ensure every
+    // part of this function really lives in RAM.
+
+    // this code is Cortex-M4 specific
+    static_assert(__CORTEX_M == 4);
+
+    // disable interrupts
+    asm volatile("cpsid i"
+                 :
+                 :
+                 : "memory");
+
+    // data synchronization barrier
+    asm volatile("dsb"
+                 :
+                 :
+                 : "memory");
+
+    // request reset
+    SCB->AIRCR = (uint32_t)((0x5FAUL << SCB_AIRCR_VECTKEY_Pos) | (SCB->AIRCR & SCB_AIRCR_PRIGROUP_Msk) | SCB_AIRCR_SYSRESETREQ_Msk);
+
+    // data synchronization barrier
+    asm volatile("dsb"
+                 :
+                 :
+                 : "memory");
+
+    // wait for reset
+    for (;;) {
+        asm volatile("nop");
+    }
+}
+
+bool sys_debugger_attached() {
+    // NOTE: After disconnecting debugger, do power cycle because
+    // software reset does not seem to clear DHCSR.C_DEBUGEN!
+    return CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk;
+}
+
+bool sys_is_interrupt() {
+    return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
+}

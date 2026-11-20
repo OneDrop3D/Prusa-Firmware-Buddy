@@ -1,0 +1,448 @@
+{
+    "$schema": "./presets_schema.json",
+    "presets": [
+        {
+            "name": "coreone",
+            "description": "Original Prusa CORE One",
+            "cacheVariables": {
+                "PRINTER": "COREONE",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY",
+                "XBUDDY_EXTENSION_VARIANT": "STANDARD"
+            }
+        },
+        {
+            "name": "coreone_oak",
+            "description": "Original Prusa CORE One Signature Oak Edition",
+            "cacheVariables": {
+                "PRINTER": "COREONE",
+                "SIGNATURE_OAK": "ON",
+                "BOARD": "XBUDDY",
+                "XBUDDY_EXTENSION_VARIANT": "STANDARD"
+            }
+        },
+        {
+            "name": "coreone_indx",
+            "description": "Original Prusa CORE One with INDX",
+            "cacheVariables": {
+                "PRINTER": "COREONE_INDX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY",
+                "XBUDDY_EXTENSION_VARIANT": "STANDARD"
+            }
+        },
+        {
+            "name": "coreonel",
+            "description": "Original Prusa CORE One L",
+            "cacheVariables": {
+                "PRINTER": "COREONEL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY",
+                "XBUDDY_EXTENSION_VARIANT": "STANDARD"
+            }
+        },
+        {
+            "name": "coreonel_indx",
+            "description": "Original Prusa CORE One L",
+            "cacheVariables": {
+                "PRINTER": "COREONEL_INDX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY",
+                "XBUDDY_EXTENSION_VARIANT": "STANDARD"
+            }
+        },
+        {
+            "name": "mini",
+            "description": "Original Prusa MINI",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY"
+            }
+        },
+        {
+            "name": "mini-en-cs",
+            "description": "Original Prusa MINI (EN & CS translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "cs"
+            }
+        },
+        {
+            "name": "mini-en-de",
+            "description": "Original Prusa MINI (EN & DE translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "de"
+            }
+        },
+        {
+            "name": "mini-en-es",
+            "description": "Original Prusa MINI (EN & ES translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "es"
+            }
+        },
+        {
+            "name": "mini-en-fr",
+            "description": "Original Prusa MINI (EN & FR translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "fr"
+            }
+        },
+        {
+            "name": "mini-en-it",
+            "description": "Original Prusa MINI (EN & IT translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "it"
+            }
+        },
+        {
+            "name": "mini-en-pl",
+            "description": "Original Prusa MINI (EN & PL translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "pl"
+            }
+        },
+        {
+            "name": "mini-en-ja",
+            "description": "Original Prusa MINI (EN & JA translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "ja"
+            }
+        },
+        {
+            "name": "mini-en-uk",
+            "description": "Original Prusa MINI (EN & UK translation)",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "TRANSLATIONS_LIST": "uk"
+            }
+        },
+        {
+            "name": "mini_big_flash",
+            "description": "Special board with a 2MB-flash MCU (STM32F429/F439) and possibly blank OTP for debugging purposes",
+            "cacheVariables": {
+                "PRINTER": "MINI",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "BUDDY",
+                "MCU": "STM32F429VI",
+                "ALLOW_MISSING_OTP": true
+            }
+        },
+        {
+            "name": "mk4",
+            "description": "Original Prusa MK4 with xBuddy 0.2.7c or newer fw compatible, 400-step motors and planetary gearbox",
+            "cacheVariables": {
+                "PRINTER": "MK4",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY"
+            }
+        },
+        {
+            "name": "mk4-burst",
+            "description": "Original Prusa MK4 with xBuddy 0.2.7c or newer fw compatible, 400-step motors and planetary gearbox",
+            "cacheVariables": {
+                "PRINTER": "MK4",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY",
+                "ENABLE_BURST": true
+            }
+        },
+        {
+            "name": "mk3.5",
+            "description": "Original Prusa MK3.5 with xBuddy 0.2.7c or newer fw compatible, 200-step motors and MK3 extruder",
+            "cacheVariables": {
+                "PRINTER": "MK3.5",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY"
+            }
+        },
+        {
+            "name": "ix",
+            "description": "Original Prusa iX",
+            "cacheVariables": {
+                "PRINTER": "iX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY",
+                "XBUDDY_EXTENSION_VARIANT": "iX"
+            }
+        },
+        {
+            "name": "xl",
+            "description": "Original Prusa XL",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XLBUDDY"
+            }
+        },
+        {
+            "name": "xl-burst",
+            "description": "Original Prusa XL with Burst Stepping",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XLBUDDY",
+                "ENABLE_BURST": true
+            }
+        },
+        {
+            "name": "xl-minimal",
+            "description": "Original Prusa XL with optional features removed",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XLBUDDY",
+                "CONNECT": false,
+                "MDNS": false,
+                "HAS_CANCEL_OBJECT": false,
+                "HAS_E2EE_SUPPORT": false,
+                "HAS_GEARBOX_ALIGNMENT": false,
+                "HAS_INPUT_SHAPER_CALIBRATION": false,
+                "HAS_PHASE_STEPPING_CALIBRATION": false,
+                "HAS_SELFTEST": false
+            }
+        },
+        {
+            "name": "xl_dev_kit",
+            "description": "Original Prusa xl_dev_kit",
+            "cacheVariables": {
+                "PRINTER": "XL_DEV_KIT",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XL_DEV_KIT_XLB"
+            }
+        },
+        {
+            "name": "xl-dwarf",
+            "description": "Original Prusa XL's Dwarf (the extruder puppy)",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "DWARF"
+            }
+        },
+        {
+            "name": "xl-modularbed",
+            "description": "Original Prusa XL's Modular Bed",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "MODULARBED"
+            }
+        },
+        {
+            "name": "xl-can",
+            "description": "Original Prusa XLS XL-CAN (xBuddy Extension variant; hosts tool offset sensor sub-puppy)",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY_EXTENSION",
+                "HAS_TOOL_OFFSET_SENSOR": "YES"
+            }
+        },
+        {
+            "name": "ix-modularbed",
+            "description": "Original Prusa iX's Modular Bed",
+            "cacheVariables": {
+                "PRINTER": "iX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "MODULARBED"
+            }
+        },
+        {
+            "name": "ix-xbuddy_extension",
+            "description": "Original Prusa iX Extension Board",
+            "cacheVariables": {
+                "PRINTER": "iX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY_EXTENSION"
+            }
+        },
+        {
+            "name": "coreone-xbuddy_extension",
+            "description": "Original Prusa CORE One Extension Board",
+            "cacheVariables": {
+                "PRINTER": "COREONE",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY_EXTENSION"
+            }
+        },
+        {
+            "name": "coreone_indx-xbuddy_extension",
+            "description": "Original Prusa CORE One INDX Extension Board",
+            "cacheVariables": {
+                "PRINTER": "COREONE_INDX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY_EXTENSION"
+            }
+        },
+        {
+            "name": "coreonel-xbuddy_extension",
+            "description": "Original Prusa CORE One L Extension Board",
+            "cacheVariables": {
+                "PRINTER": "COREONEL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY_EXTENSION"
+            }
+        },
+        {
+            "name": "coreonel_indx-xbuddy_extension",
+            "description": "Original Prusa CORE One L INDX Extension Board",
+            "cacheVariables": {
+                "PRINTER": "COREONEL_INDX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "XBUDDY_EXTENSION"
+            }
+        },
+        {
+            "name": "anfc",
+            "description": "Firmware for NFC addon (dev-kit)",
+            "cacheVariables": {
+                "PRINTER": "NONE",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "ANFC",
+                "CAN_BUS_TYPE": "PUB6",
+                "NFC_BOARD_HAS_LEFT_RIGHT_DETECTION_PIN": "YES",
+                "NFC_BOARD_HAS_FILAMENT_SENSORS": "YES",
+                "HAS_CYPHAL_LOGGING": "YES"
+            }
+        },
+        {
+            "name": "anfc-uart",
+            "description": "Firmware for NFC addon (with UART-CAN bridge)",
+            "cacheVariables": {
+                "PRINTER": "NONE",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "ANFC",
+                "CAN_BUS_TYPE": "UART"
+            }
+        },
+        {
+            "name": "slx-anfc",
+            "description": "Firmware for NFC addon for SLX printer",
+            "cacheVariables": {
+                "PRINTER": "NONE",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "ANFC",
+                "CAN_BUS_TYPE": "SLX"
+            }
+        },
+        {
+            "name": "coreone-anfc",
+            "description": "Firmware for NFC addon for CoreOne printer",
+            "cacheVariables": {
+                "PRINTER": "COREONE",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "ANFC",
+                "CAN_BUS_TYPE": "PUB6",
+                "NFC_ST25R3919B_ENABLED_ANTENNAS": "ANTENNA_2"
+            }
+        },
+        {
+            "name": "coreone_indx-anfc",
+            "description": "Firmware for NFC addon for CoreOne printer with INDX",
+            "cacheVariables": {
+                "PRINTER": "COREONE_INDX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "ANFC",
+                "CAN_BUS_TYPE": "PUB6",
+                "NFC_ST25R3919B_ENABLED_ANTENNAS": "ANTENNA_2"
+            }
+        },
+        {
+            "name": "coreonel-anfc",
+            "description": "Firmware for NFC addon for CoreOneL printer",
+            "cacheVariables": {
+                "PRINTER": "COREONEL",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "ANFC",
+                "CAN_BUS_TYPE": "PUB6",
+                "NFC_ST25R3919B_ENABLED_ANTENNAS": "ANTENNA_2"
+            }
+        },
+        {
+            "name": "coreonel_indx-anfc",
+            "description": "Firmware for NFC addon for CoreOneL printer with INDX",
+            "cacheVariables": {
+                "PRINTER": "COREONE_INDX",
+                "SIGNATURE_OAK": "OFF",
+                "BOARD": "ANFC",
+                "CAN_BUS_TYPE": "PUB6",
+                "NFC_ST25R3919B_ENABLED_ANTENNAS": "ANTENNA_2"
+            }
+        },
+        {
+            "name": "coreone_indx-tool_offset_sensor",
+            "description": "Firmware for Tool Offset Sensor for CoreOne printer with INDX",
+            "cacheVariables": {
+                "PRINTER": "COREONE_INDX",
+                "BOARD": "TOOL_OFFSET_SENSOR",
+                "CAN_BUS_TYPE": "PUB6"
+            }
+        },
+        {
+            "name": "coreonel_indx-tool_offset_sensor",
+            "description": "Firmware for Tool Offset Sensor for CoreOneL printer with INDX",
+            "cacheVariables": {
+                "PRINTER": "COREONEL_INDX",
+                "BOARD": "TOOL_OFFSET_SENSOR",
+                "CAN_BUS_TYPE": "PUB6"
+            }
+        },
+        {
+            "name": "xl-tool_offset_sensor",
+            "description": "Firmware for Tool Offset Sensor for XLS (hosted by the XL-CAN)",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "BOARD": "TOOL_OFFSET_SENSOR",
+                "CAN_BUS_TYPE": "PUB6"
+            }
+        },
+        {
+            "name": "xl-htcontroller",
+            "description": "Firmware for HT controller for XL",
+            "cacheVariables": {
+                "PRINTER": "XL",
+                "BOARD": "HTCONTROLLER"
+            }
+        },
+        {
+            "name": "coreone_indx-indx_head",
+            "description": "Firmware for INDX head",
+            "cacheVariables": {
+                "PRINTER": "COREONE_INDX",
+                "BOARD": "INDX_HEAD"
+            }
+        },
+        {
+            "name": "coreonel_indx-indx_head",
+            "description": "Firmware for INDX head",
+            "cacheVariables": {
+                "PRINTER": "COREONEL_INDX",
+                "BOARD": "INDX_HEAD"
+            }
+        }
+    ]
+}

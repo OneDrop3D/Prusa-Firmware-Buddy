@@ -86,4 +86,9 @@ constexpr float reference_temperature_c = 170.0f;
 /// Marlin server thread only.
 [[nodiscard]] float current_elongation_vs_reference_mm();
 
+/// OneDrop3D (F2) : réglage « Dilatation de la buse » (config_store, activé par défaut). Désactivée, la
+/// compensation vaut 0 pour le palpage comme pour le G-code, qui restent donc cohérents entre eux.
+[[nodiscard]] bool is_enabled();
+void set_enabled(bool enabled);
+
 } // namespace buddy::nozzle_thermal_compensation

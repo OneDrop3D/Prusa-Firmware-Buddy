@@ -26,7 +26,10 @@ jobs:
       - run: sudo apt-get install -y gettext  # msgfmt, pour les traductions
       - name: Compiler coreone_release_boot
         # Comme les versions publiées de Prusa (utils/holly/build-pr.jenkins, branches RELEASE-*) : sans les menus de développement.
-        run: python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix=-OD3D --version-suffix-short=-OD3D --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO
+        # Français et anglais seulement. Le tag od3d-8.0.2.N s'affiche « 8.0.2-OD3D.N » ; l'en-tête du .bbf ne garde que 5 caractères (« OD3D »).
+        run: |
+          case "$GITHUB_REF_NAME" in od3d-*.*.*.*) suffixe="-OD3D.${GITHUB_REF_NAME##*.}" ;; *) suffixe=-OD3D ;; esac
+          python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix=$suffixe --version-suffix-short=-OD3D --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
       - uses: actions/upload-artifact@v4
         with:
           name: firmware
@@ -69,6 +72,6 @@ jobs:
       - name: Publier
         run: |
           gh release create "$GITHUB_REF_NAME" sortie/*.bbf --title "$GITHUB_REF_NAME" --notes "Firmware OneDrop3D pour Prusa CORE One, CORE One+ et CORE One+ Gen2, basé sur Prusa $(cat version.txt). Non officiel et non signé : il ne s'installe qu'après avoir cassé l'appendice de la carte xBuddy.
-          - \`coreone_release_boot_*-OD3D.bbf\` : le firmware OneDrop3D à flasher ;
+          - \`coreone_release_boot_*-OD3D*.bbf\` : le firmware OneDrop3D à flasher ;
           - \`COREONE_COREONE+GEN2_firmware_*.bbf\` : le firmware officiel Prusa de la même version, pour revenir en arrière.
           Sources : branche od3d/main, licence GPLv3 (graphismes Prusa : CC BY-NC-SA 4.0). Ce n'est pas un produit Prusa Research."

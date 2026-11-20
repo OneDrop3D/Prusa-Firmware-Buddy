@@ -6,6 +6,14 @@
 #include <print_utils.hpp>
 
 #include <unistd.h>
+#include <buddy/filename_defs.hpp>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
+#include <filename_type.hpp>
+#include <lfn.h>
+#include <marlin_client.hpp>
+#include <state/printer_state.hpp>
 
 namespace nhttp::link_content {
 
@@ -134,6 +142,23 @@ StatusPage print_file(std::span<char> filename, const RequestParser &parser) {
     // if not exists
     if (access(filename.data(), R_OK) != 0) {
         return StatusPage(Status::NotFound, StatusPage::CloseHandling::ErrorClose, parser.accepts_json);
+    }
+
+    // OneDrop3D : un POST sur un .bbf l'installe (PrintForge). M997 redémarre aussitôt : seulement au repos.
+    if (filename_is_firmware(filename.data())) {
+        get_SFN_path(filename);
+        char gcode[filename_defs::path_buffer_size + 8];
+        snprintf(gcode, sizeof(gcode), "M997 %s", filename.data());
+        // Un « S » suivi d'un chiffre dans le nom serait lu comme le numéro de module de M997, qui ne flasherait rien.
+        bool s_digit = false;
+        for (const char *c = filename.data(); *c; ++c) {
+            s_digit |= (c[0] == 'S' && isdigit(static_cast<unsigned char>(c[1])));
+        }
+        const bool in_root = strncmp(filename.data(), "/usb/", 5) == 0 && !strchr(filename.data() + 5, '/'); // M997 ne garde que 12 caractères
+        if (s_digit || !in_root || !printer_state::remote_print_ready(false) || marlin_client::gcode_try(gcode) != marlin_client::GcodeTryResult::Submitted) {
+            return StatusPage(Status::Conflict, StatusPage::CloseHandling::ErrorClose, parser.accepts_json);
+        }
+        return StatusPage(Status::NoContent, StatusPage::CloseHandling::ErrorClose, parser.accepts_json);
     }
 
     if (wui_start_print(filename, true) == StartPrintResult::PrintStarted) {

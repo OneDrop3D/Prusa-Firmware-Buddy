@@ -18,6 +18,7 @@
 
 #include <lfn.h>
 #include <buddy/filename_defs.hpp>
+#include <filename_type.hpp>
 #include <state/printer_state.hpp>
 
 #include <ctime>
@@ -307,6 +308,9 @@ StartPrintResult wui_start_print(std::span<char> filename, bool autostart_if_abl
 }
 
 bool wui_uploaded_gcode(std::span<char> filename, bool start_print) {
+    if (filename_is_firmware(filename.data())) {
+        return !start_print; // OneDrop3D : pas d'aperçu pour un firmware, il s'installe par un POST (print_file)
+    }
     StartPrintResult res = wui_start_print(filename, start_print);
 
     return (res != StartPrintResult::Failed);

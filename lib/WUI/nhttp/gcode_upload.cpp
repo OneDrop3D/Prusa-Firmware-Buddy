@@ -338,7 +338,8 @@ namespace {
 } // namespace
 
 GcodeUpload::Result GcodeUpload::check_filename(const char *filename) const {
-    if (!filename_is_printable(filename)) {
+    // OneDrop3D : un firmware (.bbf) passe aussi, pour que PrintForge l'installe par le réseau
+    if (!filename_is_printable(filename) && !filename_is_firmware(filename)) {
         return make_tuple(Status::UnsupportedMediaType, "Not a GCODE");
     }
 

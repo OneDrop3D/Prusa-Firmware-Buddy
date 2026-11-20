@@ -84,6 +84,7 @@
 #include <option/has_spool_join.h>
 #if HAS_SPOOL_JOIN()
     #include "module/prusa/spool_join.hpp"
+    #include <feature/od3d/spool_join_od3d.hpp>
 #endif
 
 #include "hwio.h"
@@ -2367,6 +2368,9 @@ static void _server_print_loop(void) {
 
         server.print_is_serial = (server.print_state == State::SerialPrintInit);
         server.was_print_time_saved = false;
+#if HAS_SPOOL_JOIN()
+        od3d::apply_persistent_spool_joins(); // OneDrop3D (F3)
+#endif
 #if HAS_WASTEBIN_FILL_TRACKING()
         // Fresh print: reset the per-print pellet/toolchange progress counter.
         WastebinWatcher::instance().reset_print_progress();

@@ -9854,3 +9854,17 @@ msgstr "FONCTIONS ONEDROP3D"
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Nozzle Expansion"
 msgstr "Dilatation de la buse"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Spool Join"
+msgstr "Relais de bobine"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+#, c-format
+msgid "Slot %i empty"
+msgstr "Emplacement %i vide"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+#, c-format
+msgid "Slot %i"
+msgstr "Emplacement %i"

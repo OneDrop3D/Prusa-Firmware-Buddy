@@ -469,7 +469,7 @@ struct CurrentStore
     /// toutes coupées par défaut ; paliers de la descente douce du plateau (°C, minutes, seuil °C)
     StoreItem<uint32_t, 0, ItemFlag::features, journal::hash("OD3D Climate Preset Recipes")> od3d_climate_preset_recipes;
     StoreItem<uint16_t, 0, ItemFlag::features, journal::hash("OD3D Climate User Recipes")> od3d_climate_user_recipes;
-    StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Cooldown Step")> od3d_cooldown_step;
+    StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Soft Cooldown Step")> od3d_cooldown_step;
     StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Cooldown Interval")> od3d_cooldown_interval;
     StoreItem<uint8_t, 50, ItemFlag::features, journal::hash("OD3D Cooldown Floor")> od3d_cooldown_floor;
     // Should we verify gcode (CRC & similar)?

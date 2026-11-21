@@ -414,7 +414,6 @@ void ScreenMMUMotors::show() {
         idler_note.SetText(string_view_utf8::MakeNULLSTR());
     } else if (idler_at == park) {
         idler_note.SetText(_("idler free"));
-    } else {
     } else if (seconds_left >= 0) {
         idler_note.SetText(_("pressed on %d (free %d s)").formatted(idler_params, idler_at + 1, seconds_left));
     } else {

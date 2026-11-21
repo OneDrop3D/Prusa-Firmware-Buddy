@@ -3,6 +3,7 @@
 
 #include "print_info_od3d.hpp"
 #include "screen_files_od3d.hpp"
+#include "value_editor_od3d.hpp"
 
 #include <algorithm>
 #include <common/gcode/gcode_info.hpp>
@@ -91,105 +92,6 @@ namespace {
         }
         return true;
     }
-
-    /// Éditeur de valeur (SPEC_G.md §1.8) : feuille en bas de l'écran ; molette = ± un pas, clic = OK ;
-    /// au toucher − / + / OK. La valeur est appliquée à chaque pas, comme dans la maquette.
-    class ValueEditor final : public IDialog {
-    public:
-        using Apply = void (*)(int value);
-
-        static void exec(const string_view_utf8 &label, int value, int min, int max, int step, Apply apply) {
-            ValueEditor editor(label, value, min, max, step, apply);
-            Screens::Access()->gui_loop_until_dialog_closed();
-        }
-
-    private:
-        static constexpr Rect16 sheet = { 0, 120, style::screen_w, 200 };
-        static constexpr Rect16 minus = { 22, 160, 52, 52 };
-        static constexpr Rect16 plus = { 406, 160, 52, 52 };
-        static constexpr Rect16 value_rect = { 80, 159, 320, 53 };
-        static constexpr Rect16 track = { 40, 234, 400, 6 };
-        static constexpr Rect16 slider_rect = { 30, 228, 420, 18 }; ///< piste et pastille Ø18
-        static constexpr Rect16 ok = { 140, 262, 200, 40 };
-
-        ValueEditor(const string_view_utf8 &label, int value, int min, int max, int step, Apply apply)
-            : IDialog(sheet)
-            , label(label)
-            , value(value)
-            , min(min)
-            , max(max)
-            , step(step)
-            , apply(apply) {}
-
-        void change(int steps) {
-            // Sur la grille du pas, bornée
-            const int v = std::clamp((value + steps * step) / step * step, min, max);
-            if (v != value) {
-                value = v;
-                apply(value);
-                draw_value();
-            }
-        }
-
-        void draw_value() {
-            char text[12];
-            snprintf(text, sizeof(text), "%d %%", value);
-            draw_text(value_rect, string_view_utf8::MakeRAM(text), Font::large, style::text_strong, style::surface, Align_t::Center());
-
-            display::fill_rect(slider_rect, style::surface);
-            const int fill = track.Width() * (value - min) / std::max(max - min, 1);
-            display::draw_rounded_rect(track, style::surface, style::line, 3, MIC_ALL_CORNERS);
-            if (fill > 0) {
-                display::draw_rounded_rect(Rect16(track.Left(), track.Top(), fill, track.Height()), style::line, style::accent, 3, MIC_ALL_CORNERS);
-            }
-            display::draw_rounded_rect(Rect16(track.Left() + fill - 9, slider_rect.Top(), 18, 18), style::surface, style::text_strong, 9, MIC_ALL_CORNERS);
-        }
-
-        void unconditionalDraw() override {
-            // Pas de transparence : le haut de l'écran reste tel quel au-dessus de la feuille
-            display::draw_rounded_rect(sheet, style::screen, style::surface, 18, MIC_TOP_LEFT | MIC_TOP_RIGHT);
-            draw_text(Rect16(0, 134, style::screen_w, height(Font::small)), label, Font::small, style::text_muted, style::surface, Align_t::Center());
-            for (const auto &[rect, sign] : { std::pair { minus, "-" }, std::pair { plus, "+" } }) {
-                display::draw_rounded_rect(rect, style::surface, style::line, rect.Width() / 2, MIC_ALL_CORNERS);
-                draw_text(Rect16(rect.Left() + 4, rect.Top() + (rect.Height() - height(Font::big)) / 2, rect.Width() - 8, height(Font::big)), string_view_utf8::MakeCPUFLASH(sign), Font::big, style::text_strong, style::line, Align_t::Center());
-            }
-            display::draw_rounded_rect(ok, style::surface, style::accent, style::radius, MIC_ALL_CORNERS);
-            draw_text(Rect16(ok.Left() + 4, ok.Top() + (ok.Height() - height(Font::small)) / 2, ok.Width() - 8, height(Font::small)), string_view_utf8::MakeCPUFLASH("OK"), Font::small, style::on_accent, style::accent, Align_t::Center());
-            draw_value();
-        }
-
-        void windowEvent(window_t *sender, GUI_event_t event, void *param) override {
-            switch (event) {
-            case GUI_event_t::KNOB: {
-                auto &ctx = *static_cast<GuiEventContext *>(param);
-                change(ctx.event.value<gui_event::KnobEvent>().diff);
-                ctx.accept();
-                return;
-            }
-            case GUI_event_t::CLICK:
-                close_dialog();
-                return;
-            case GUI_event_t::TOUCH_CLICK: {
-                const point_ui16_t p = event_conversion_union { .pvoid = param }.point;
-                if (minus.Contain(p)) {
-                    change(-1);
-                } else if (plus.Contain(p)) {
-                    change(1);
-                } else if (ok.Contain(p)) {
-                    close_dialog();
-                }
-                return;
-            }
-            default:
-                IDialog::windowEvent(sender, event, param);
-                return;
-            }
-        }
-
-        string_view_utf8 label;
-        int value, min, max, step;
-        Apply apply;
-    };
 
 } // namespace
 
@@ -647,8 +549,15 @@ void ScreenPrinting::reprint() {
 }
 
 void ScreenPrinting::on_speed() {
-    ValueEditor::exec(_("Speed"), marlin_vars().print_speed, 50, 200, 5, [](int v) {
-        marlin_client::set_print_speed(uint16_t(v));
+    // Éditeur de valeur commun (value_editor_od3d.hpp), appliqué à chaque pas comme dans la maquette
+    static constexpr NumericInputConfig config = {
+        .min_value = 50,
+        .max_value = 200,
+        .step = 5,
+        .unit = Unit::percent,
+    };
+    ValueEditor::exec(_("Speed"), marlin_vars().print_speed, config, [](float v) {
+        marlin_client::set_print_speed(static_cast<uint16_t>(v));
     });
 }
 

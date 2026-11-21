@@ -117,16 +117,36 @@ void LocalHotend::manage() {
 
         if (curr_nozzle_temp > base_config_.min_nozzle_temp && curr_nozzle_temp < base_config_.max_nozzle_temp) {
             static_assert(PhysicalToolIndex::count == 1);
-            regulation_result = nozzle_regulator_.get_pid_output_hotend(HotendRegulatorArgs {
-                .pid = nozzle_pid_config(),
-                .hotend_index = tool_.to_raw(),
-                .fan_speed = t.print_fan_speed, // FIXME: Bit of a cockup if we have multiple hotends.
-                    .current_temp = curr_nozzle_temp,
+#if ENABLED(OD3D_MPCTEMP)
+            // OneDrop3D (F7) : le MPC (ou la calibration M306 T) remplace le PID quand il est choisi ; même garde de
+            // température, même écrêtage ci-dessous, mêmes protections (BaseHotend::manage) dans les deux cas
+            const auto od3d_mpc = od3d_mpc_.step(od3d::mpc::HotendHook::Args {
+                .current_temp = curr_nozzle_temp,
                 .target_temp = nozzle_target_temp(),
-#if ENABLED(PID_EXTRUSION_SCALING)
-                .e_volume_delta = (thermalManager.extrusion_scaling_enabled && is_current_tool) ? e_volume_delta : 0,
-#endif
+                .max_target_temp = static_cast<int16_t>(base_config_.max_nozzle_temp - HEATER_MAXTEMP_SAFETY_MARGIN),
+                .fan_speed = t.print_fan_speed,
+                .applied_pwm = nozzle_heater_pwm_.load(),
+                .is_current_tool = stdext::holds_value(PhysicalToolIndex::currently_selected(), tool_),
             });
+            if (od3d_mpc.handled) {
+                regulation_result.pid_output = od3d_mpc.pwm;
+            } else
+#endif
+            {
+                regulation_result = nozzle_regulator_.get_pid_output_hotend(HotendRegulatorArgs {
+                    .pid = nozzle_pid_config(),
+                    .hotend_index = tool_.to_raw(),
+                    .fan_speed = t.print_fan_speed, // FIXME: Bit of a cockup if we have multiple hotends.
+                        .current_temp = curr_nozzle_temp,
+                    .target_temp = nozzle_target_temp(),
+#if ENABLED(OD3D_MPCTEMP)
+                    .reset_pid = od3d_mpc.reset_pid,
+#endif
+#if ENABLED(PID_EXTRUSION_SCALING)
+                    .e_volume_delta = (thermalManager.extrusion_scaling_enabled && is_current_tool) ? e_volume_delta : 0,
+#endif
+                });
+            }
         }
 
         nozzle_heater_pwm_ = static_cast<uint8_t>(std::clamp<float>(std::round(regulation_result.pid_output), 0, 255));

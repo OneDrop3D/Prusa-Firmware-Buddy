@@ -56,6 +56,7 @@
 #include <option/has_esp.h>
 #include <option/has_auto_retract.h>
 #include <feature/od3d/spool_usage_math_od3d.hpp>
+#include <feature/od3d/mpc_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -454,6 +455,10 @@ struct CurrentStore
     /// (« OD3D Spool Usage » entre en collision avec « Adhoc Filament Parameters 4 »).
     StoreItemArray<od3d::spool_usage::Record, AnyDefaultConstructor {}, ItemFlag::printer_state, journal::hash("OD3D Spool Weight"), 8, VirtualToolIndex::count> od3d_spool_usage;
 #endif
+    /// OneDrop3D (F7) : régulation de la buse, false = PID de Prusa (par défaut), true = MPC (seulement avec une
+    /// calibration valable) ; paramètres du modèle MPC (M306 T ou M306 P C R A F H), non valables tant que non calibrés
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D MPC Enabled")> od3d_mpc_enabled;
+    StoreItem<od3d::mpc::Params, od3d::mpc::Params {}, ItemFlag::calibrations, journal::hash("OD3D MPC Model")> od3d_mpc_params;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

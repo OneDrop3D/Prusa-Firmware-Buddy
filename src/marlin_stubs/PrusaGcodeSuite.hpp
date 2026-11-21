@@ -195,6 +195,7 @@ void M1987(); //< Heater selftest
 void M1990(); //< OneDrop3D : déplacer X ou Y sans origine, arrêt au contact
 void M852(); //< OneDrop3D (F15) : correction d'équerrage XY
 void M1991(); //< OneDrop3D : musique des moteurs (fichier .mid de la clé)
+void M306(); //< OneDrop3D (F7) : régulation MPC de la buse, calibration (T), mode (M), paramètres
 void M9140(); //< Set normal (non-stealth) mode
 void M9141(); //< Get stealth mode status
 void M9150(); //< Set stealth mode

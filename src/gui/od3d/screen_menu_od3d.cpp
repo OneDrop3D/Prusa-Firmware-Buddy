@@ -26,7 +26,7 @@ void MI_FEATURES::click(IWindowMenu &) {
 }
 
 MI_NOZZLE_TEMPERATURE::MI_NOZZLE_TEMPERATURE()
-    : IWindowMenuItem(_("Nozzle temperature\nCompensates the nozzle growing when hot"), &img::temperature_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(_("Nozzle temperature\nExpansion, PID or MPC control"), &img::temperature_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_NOZZLE_TEMPERATURE::click(IWindowMenu &) {
     open_screen<ScreenNozzleTemperature>();

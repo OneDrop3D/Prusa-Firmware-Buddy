@@ -27,6 +27,10 @@ using HotendRegulator = StandardHotendRegulator;
     #include <module/temperature/heater_watch.hpp>
 #endif
 
+#if ENABLED(OD3D_MPCTEMP)
+    #include <feature/od3d/mpc_control_od3d.hpp> // OneDrop3D (F7)
+#endif
+
 /// Represents a hotend that is controlled on the current processor (not on a dwarf)
 class LocalHotend final : public BaseHotend {
 
@@ -92,6 +96,11 @@ protected:
 #endif
 
     HotendRegulator nozzle_regulator_;
+
+#if ENABLED(OD3D_MPCTEMP)
+    /// OneDrop3D (F7) : MPC au choix à la place de nozzle_regulator_, et calibration M306 T
+    od3d::mpc::HotendHook od3d_mpc_;
+#endif
 
     /// Additional filter for low temperature nozzle values
     /// Increases oversampling to improve accuracy

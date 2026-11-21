@@ -229,6 +229,12 @@
     #define STEADY_STATE_HOTEND_LINEAR_COOLING_TERM 0.322f
     #define STEADY_STATE_HOTEND_QUADRATIC_COOLING_TERM 0.0002f
     #define STEADY_STATE_HOTEND_FAN_COOLING_TERM 9.24f
+
+    #if !HAS_INDX()
+        // OneDrop3D (F7) : régulation MPC de la buse, expérimentale, au choix à la place du PID (PID par défaut).
+        // Calibration M306 T. Les protections thermiques restent celles de Prusa (src/feature/od3d/mpc_control_od3d.hpp).
+        #define OD3D_MPCTEMP
+    #endif
 #endif // PIDTEMP
 
 //===========================================================================

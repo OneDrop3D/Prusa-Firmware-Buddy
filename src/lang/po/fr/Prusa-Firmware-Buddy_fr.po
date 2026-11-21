@@ -10839,3 +10839,88 @@ msgstr "Emplacement %d : PA à mesurer (valeur du trancheur)"
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Printer PA wins\nMeasured slot PA replaces the slicer's M572"
 msgstr "Le PA de l'imprimante prime\nLe PA mesuré remplace le M572 du trancheur"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Nozzle temperature\nExpansion, PID or MPC control"
+msgstr "Température de la buse\nDilatation, régulation PID ou MPC"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Control\nPID (Prusa) or MPC, experimental"
+msgstr "Régulation\nPID (Prusa) ou MPC, expérimental"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Calibrate MPC model\nAbout 10 min, nozzle up to 200 °C"
+msgstr "Calibrer le modèle MPC\nEnviron 10 min, buse jusqu'à 200 °C"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Calibrate the MPC model first."
+msgstr "Calibrez d'abord le modèle MPC."
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Calibration in progress."
+msgstr "Calibration en cours."
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "MPC calibration"
+msgstr "Calibration MPC"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Thermal model"
+msgstr "Modèle thermique"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Cooling"
+msgstr "Refroidissement"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Free heating"
+msgstr "Chauffe libre"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Measuring losses (fan)"
+msgstr "Mesure des pertes (ventilateur)"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Computing the model"
+msgstr "Calcul du modèle"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+#, c-format
+msgid "In progress: %d %%"
+msgstr "En cours : %d %%"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Model saved: MPC can now be chosen"
+msgstr "Modèle enregistré : le MPC peut être choisi"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Keep the bed clear; the fan runs at times"
+msgstr "Dégagez le plateau ; ventilateur par moments"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Cancelled"
+msgstr "Annulée"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Interrupted: nozzle target changed"
+msgstr "Interrompue : consigne de la buse changée"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "The nozzle does not cool down steadily"
+msgstr "La buse ne refroidit pas régulièrement"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Calibration temperature not reached"
+msgstr "Température de calibration non atteinte"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Nozzle too hot: stopped"
+msgstr "Buse trop chaude : arrêt"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "The temperature does not settle"
+msgstr "La température ne se stabilise pas"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Inconsistent measurements, try again"
+msgstr "Mesures incohérentes, recommencez"

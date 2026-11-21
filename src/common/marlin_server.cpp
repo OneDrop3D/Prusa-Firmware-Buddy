@@ -8,6 +8,7 @@
 #include <freertos/critical_section.hpp>
 #include <marlin_stubs/skippable_gcode.hpp>
 #include <feature/od3d/skew_od3d.hpp> // OneDrop3D (F15)
+#include <feature/od3d/mpc_control_od3d.hpp> // OneDrop3D (F7)
 #include <mapi/parking.hpp>
 #include <mapi/feedrates/standard_feedrates.hpp>
 #include "marlin_client_events.hpp"
@@ -1427,6 +1428,9 @@ static void settings_load() {
 
 #if ENABLED(OD3D_SKEW_CORRECTION_XY)
     od3d::skew::load(); // OneDrop3D (F15) : équerrage XY enregistré
+#endif
+#if ENABLED(OD3D_MPCTEMP)
+    od3d::mpc::load(); // OneDrop3D (F7) : régulation PID / MPC et modèle MPC enregistrés
 #endif
 }
 

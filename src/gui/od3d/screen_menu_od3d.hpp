@@ -1,11 +1,13 @@
 /// @file
 /// OneDrop3D : le groupe « Fonctions OneDrop3D », en tête des réglages (SPEC_G.md §3.22), et ses écrans
-/// « Température de la buse » (§3.23, ce qui existe : la compensation de dilatation) et « Relais de bobine » (§3.24) ;
+/// « Température de la buse » (§3.23 : régulation PID / MPC et sa calibration (F7, screen_mpc_od3d.*), compensation de
+/// dilatation (F2)) et « Relais de bobine » (§3.24) ;
 /// « Équerrage XY » (F15) est dans screen_skew_od3d.*, « Tension des courroies » (F14) dans screen_belts_od3d.*,
 /// « Vitesses critiques » (F22) dans screen_speed_map_od3d.*.
 /// Chaque fonction a une ligne d'explication sous son nom (libellé sur deux lignes, séparées par « \n »).
 #pragma once
 
+#include "screen_mpc_od3d.hpp"
 #include "screen_skew_od3d.hpp"
 #include "menu_items_od3d.hpp"
 
@@ -111,7 +113,7 @@ public:
     ScreenMenuFeatures();
 };
 
-class ScreenNozzleTemperature final : public BasicScreenMenu<MI_NOZZLE_THERMAL_COMPENSATION, MI_NOZZLE_THERMAL_CORRECTION> {
+class ScreenNozzleTemperature final : public BasicScreenMenu<MI_NOZZLE_CONTROL, MI_MPC_CALIBRATE, MI_NOZZLE_THERMAL_COMPENSATION, MI_NOZZLE_THERMAL_CORRECTION> {
 public:
     ScreenNozzleTemperature();
 };

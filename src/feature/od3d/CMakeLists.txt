@@ -12,3 +12,9 @@ if(HAS_MANUAL_BELT_TUNING AND HAS_INPUT_SHAPER_CALIBRATION)
     firmware PRIVATE belt_tension_math_od3d.cpp belt_tension_od3d.cpp speed_map_math_od3d.cpp speed_map_od3d.cpp
     )
 endif()
+if(HAS_LOADCELL AND HAS_MMU2)
+  # F4 : outil de mesure par la cellule de charge et pressure advance par emplacement
+  target_sources(
+    firmware PRIVATE force_probe_od3d.cpp force_trace_od3d.cpp pa_math_od3d.cpp pa_od3d.cpp
+    )
+endif()

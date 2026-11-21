@@ -6,6 +6,11 @@
 #include "../../gcode.h"
 #include "../../../module/stepper.h"
 #include "../../../feature/pressure_advance/pressure_advance_config.hpp"
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_LOADCELL() && HAS_MMU2()
+  #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4)
+#endif
 
 static void dump_current_config() {
     if (const pressure_advance::Config &config = pressure_advance::get_axis_e_config(); config.pressure_advance <= 0.f) {
@@ -85,6 +90,12 @@ void GcodeSuite::M572() {
 /** @}*/
 
 void GcodeSuite::M572_internal(float pressure_advance, float smooth_time) {
+#if HAS_LOADCELL() && HAS_MMU2()
+  // OneDrop3D (F4) : « le PA de l'imprimante prime » — K mesuré de l'emplacement à la place de la valeur du trancheur
+  if (const auto k = od3d::pa::override_slicer_pa(pressure_advance)) {
+    pressure_advance = *k;
+  }
+#endif
     const pressure_advance::Config new_axis_e_config = { .pressure_advance = pressure_advance, .smooth_time = smooth_time };
     if (pressure_advance::get_axis_e_config() != new_axis_e_config) {
         // For now, we must ensure that all queues are empty before changing pressure advance parameters.

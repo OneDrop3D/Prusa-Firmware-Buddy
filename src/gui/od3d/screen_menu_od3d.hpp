@@ -62,6 +62,13 @@ public:
     MI_NOZZLE_THERMAL_CORRECTION();
 };
 
+/// F4 : « le PA de l'imprimante prime » : le K mesuré de l'emplacement remplace le M572 du trancheur
+class MI_PA_PRINTER_WINS final : public WI_ICON_SWITCH_OFF_ON_t {
+public:
+    MI_PA_PRINTER_WINS();
+    void OnChange(size_t) override;
+};
+
 /// F3 : relais de bobine permanents, interrupteur général
 class MI_SPOOL_JOIN final : public WI_ICON_SWITCH_OFF_ON_t {
 public:
@@ -99,7 +106,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

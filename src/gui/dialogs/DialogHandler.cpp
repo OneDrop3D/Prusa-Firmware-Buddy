@@ -28,6 +28,7 @@
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     #include <gui/od3d/screen_printing_od3d.hpp> // OneDrop3D : interface G
     #include <gui/od3d/screen_progress_od3d.hpp>
+    #include <gui/od3d/island_od3d.hpp>
 #else
     #include <gui/screen/screen_filament_change.hpp>
 #endif
@@ -270,6 +271,44 @@ struct FSMPrintDef {
     }
 };
 
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+/// OneDrop3D : l'écran de progression peut être réduit dans l'en-tête (island_od3d.hpp). Réduit, il n'est plus sur la
+/// pile : les nouvelles données vont à la pastille, et l'écran revient dès que Prusa attend l'utilisateur.
+struct FSMLoadUnloadDef : public FSMScreenDef<ClientFSM::Load_unload, od3d::ScreenLoadUnload> {
+    using Base = FSMScreenDef<ClientFSM::Load_unload, od3d::ScreenLoadUnload>;
+
+    [[nodiscard]] static bool open(fsm::BaseData data) {
+        od3d::island::end(); // nouvelle opération : à l'écran
+        return Base::open(data);
+    }
+
+    static void close() {
+        if (od3d::island::minimized()) {
+            od3d::island::end(); // l'écran n'est pas sur la pile : il n'y a que la pastille à retirer
+            return;
+        }
+        Base::close();
+    }
+
+    [[nodiscard]] static bool change(fsm::BaseData data) {
+        if (od3d::island::minimized()) {
+            if (!od3d::ScreenLoadUnload::needs_user(data)) {
+                od3d::island::update(data);
+                return true;
+            }
+            if (gui_get_nesting()) {
+                return false; // rouvert au prochain tour, hors de la boucle de l'interface
+            }
+            od3d::island::prepare_reopen();
+            if (!open_base(screen, data)) {
+                return false;
+            }
+        }
+        return Base::change(data);
+    }
+};
+#endif
+
 // Just so that we have something at the end of the list and don't have to care about commas
 struct FSMEndDef {
     static constexpr ClientFSM fsm = ClientFSM::_count;
@@ -296,7 +335,7 @@ using FSMDisplayConfig = FSMDisplayConfigDef<
     FSMPrintDef<ClientFSM::Serial_printing>,
 #endif
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
-    FSMScreenDef<ClientFSM::Load_unload, od3d::ScreenLoadUnload>, // OneDrop3D : même machine, apparence G
+    FSMLoadUnloadDef, // OneDrop3D : même machine, apparence G, réductible dans l'en-tête
 #else
     FSMScreenDef<ClientFSM::Load_unload, ScreenFilamentChange>,
 #endif

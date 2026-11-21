@@ -228,15 +228,40 @@ protected:
 /// Retour de l'en-tête : disque de 32 px, zone tactile style::back_touch (46 × 44)
 class BackButton : public IconButton {
 public:
-    explicit BackButton(window_t *parent);
+    /// action : retour à l'écran précédent sans action donnée (l'écran de progression s'en sert pour se réduire)
+    explicit BackButton(window_t *parent, Action action = nullptr);
 
     Rect16 get_rect_for_touch() const override;
 };
 
-/// En-tête de tous nos écrans : retour (sous-écrans), titre, bouton des températures, réseau, heure, trait
+/// Pastille de l'opération du filament mise en arrière-plan (island_od3d.hpp) : anneau qui tourne, emplacement et
+/// avancement ; entre le titre et les températures, qu'elle raccourcit. La toucher rouvre l'écran de progression.
+class IslandPill : public Card {
+public:
+    IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short);
+
+protected:
+    void draw_content(Rect16 body) override;
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+private:
+    void sync(); ///< visible si une opération est réduite ; le titre se raccourcit pour lui laisser la place
+    window_text_t &title;
+    Rect16 title_full;
+    Rect16 title_short;
+    uint16_t drawn_revision = 0;
+    uint32_t last_spin_ms = 0;
+};
+
+/// En-tête de tous nos écrans : retour (sous-écrans), titre, pastille de l'opération en arrière-plan, bouton des
+/// températures, réseau, heure, trait
 class Header {
 public:
-    Header(window_t *parent, const string_view_utf8 &title, bool has_back);
+    /// back_action : action du retour à la place de la fermeture de l'écran
+    Header(window_t *parent, const string_view_utf8 &title, bool has_back, Card::Action back_action = nullptr);
+
+    /// Montre ou cache le retour
+    void show_back(bool show);
 
     /// Change le titre, même s'il est dans le même tampon (menus Prusa)
     void set_title(const string_view_utf8 &text);
@@ -247,6 +272,7 @@ public:
 private:
     BackButton back; ///< caché et inactif sur l'accueil
     window_text_t title;
+    IslandPill island;
     TempsButton temps;
     NetworkIcon network;
     Clock clock;

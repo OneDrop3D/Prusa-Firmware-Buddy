@@ -5,10 +5,12 @@
 #include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
 #include "screen_temperatures_od3d.hpp"
+#include "island_od3d.hpp"
 #include "thumbnail_od3d.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
@@ -480,22 +482,102 @@ namespace {
         return Rect16(x, 0, temps_body().Left() - style::ring - header_gap - x, style::header.Height());
     }
 
+    // Pastille de l'opération en arrière-plan, collée au bouton des températures : anneau, « 2 · 100 % »
+    constexpr uint16_t island_w = 116;
+    constexpr uint16_t island_h = 28;
+    constexpr uint8_t island_spinner = 16;
+    constexpr uint32_t island_spin_ms = 1200; ///< un tour
+    constexpr Color island_black = COLOR_BLACK;
+    Rect16 island_body() {
+        return Rect16(temps_body().Left() - 2 * style::ring - header_gap - island_w, (style::header.Height() - island_h) / 2, island_w, island_h);
+    }
+    Rect16 title_short_rect(bool has_back) {
+        const Rect16 full = title_rect(has_back);
+        return Rect16(full.Left(), full.Top(), std::max<int>(island_body().Left() - style::ring - header_gap - full.Left(), 0), full.Height());
+    }
+
     void go_back() {
         Screens::Access()->close_screen();
     }
 
 } // namespace
 
-BackButton::BackButton(window_t *parent)
-    : IconButton(parent, style::with_ring(back_body), go_back, img::arrow_left_16x16, {}, style::secondary, back_d / 2) {}
+BackButton::BackButton(window_t *parent, Action action)
+    : IconButton(parent, style::with_ring(back_body), action ? action : go_back, img::arrow_left_16x16, {}, style::secondary, back_d / 2) {}
 
 Rect16 BackButton::get_rect_for_touch() const {
     return style::back_touch;
 }
 
-Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_back)
-    : back(parent)
+IslandPill::IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short)
+    : Card(parent, style::with_ring(body), island::restore, island_black, style::screen, body.Height() / 2)
+    , title(title)
+    , title_full(title_full)
+    , title_short(title_short) {
+    set_visible(false);
+    set_enabled(false);
+    sync();
+}
+
+void IslandPill::sync() {
+    const bool show = island::minimized();
+    if (show == IsVisible()) {
+        return;
+    }
+    set_visible(show);
+    set_enabled(show);
+    title.SetRect(show ? title_short : title_full);
+    title.Invalidate();
+    // Cachée, sa place revient au titre, dont le rect complet la couvre (il repeint tout son fond)
+    drawn_revision = island::revision();
+}
+
+void IslandPill::draw_content(Rect16 body) {
+    const Color bg = fill();
+    // Anneau de 3 px dont le quart orange tourne, puis « 2 · 45 % » (emplacement de l'atelier) ou « 45 % »
+    const Rect16 ring_rect(body.Left() + 8, body.Top() + (body.Height() - island_spinner) / 2, island_spinner, island_spinner);
+    const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % island_spin_ms) / island_spin_ms;
+    constexpr int d = island_spinner, outer = d * d, inner = (d - 6) * (d - 6);
+    draw_pixels(ring_rect, [&](int x, int y) {
+        const int dx = 2 * x + 1 - d, dy = 2 * y + 1 - d, q = dx * dx + dy * dy;
+        if (q >= outer || q < inner) {
+            return bg;
+        }
+        float a = std::atan2(float(dx), float(-dy)) - start;
+        while (a < 0) {
+            a += 2 * std::numbers::pi_v<float>;
+        }
+        return a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
+    });
+    char text[16];
+    if (const auto slot = island::slot()) {
+        snprintf(text, sizeof(text), "%d\xC2\xB7%d %%", *slot + 1, std::min<int>(island::progress(), 100));
+    } else {
+        snprintf(text, sizeof(text), "%d %%", std::min<int>(island::progress(), 100));
+    }
+    const int16_t x = ring_rect.Right() + 1 + 6;
+    draw_text(Rect16(x, body.Top() + (body.Height() - height(Font::small)) / 2, body.Left() + body.Width() - 8 - x, height(Font::small)), string_view_utf8::MakeRAM(text), Font::small, style::text_strong, bg, Align_t::Center());
+}
+
+void IslandPill::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::LOOP) {
+        sync();
+        if (IsVisible()) {
+            const uint32_t now = ticks_ms();
+            if (drawn_revision != island::revision() || ticks_diff(now, last_spin_ms) >= 100) {
+                drawn_revision = island::revision();
+                last_spin_ms = now;
+                invalidate_content(); // l'anneau et le texte seulement, sans repeindre la pastille
+            }
+        }
+    }
+    Card::windowEvent(sender, event, param);
+}
+
+Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_back, Card::Action back_action)
+    : back(parent, back_action)
     , title(parent, title_rect(has_back), is_multiline::no, is_closed_on_click_t::no, title_text)
+    , island(parent, island_body(), title, title_rect(has_back), title_short_rect(has_back))
     , temps(parent, temps_body())
     , network(parent, { network_x(), int16_t((style::header.Height() - 16) / 2) })
     , clock(parent, Rect16(clock_x(), 0, clock_w(), style::header.Height()))
@@ -508,6 +590,11 @@ Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_ba
     title.SetBackColor(style::screen);
     title.SetPadding({ 0, 0, 0, 0 });
     line.SetBackColor(style::line);
+}
+
+void Header::show_back(bool show) {
+    back.set_visible(show);
+    back.set_enabled(show);
 }
 
 void Header::set_title(const string_view_utf8 &text) {

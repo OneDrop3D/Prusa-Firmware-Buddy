@@ -1,6 +1,8 @@
 /// @file
 #include "screen_progress_od3d.hpp"
 
+#include "island_od3d.hpp"
+
 #include "print_info_od3d.hpp"
 #include "thumbnail_od3d.hpp"
 
@@ -497,9 +499,56 @@ void ScreenLoadUnload::Bar::unconditionalDraw() {
 
 // ---- Écran ----
 
+namespace {
+
+    void minimize_current() {
+        if (auto *screen = Screens::Access()->get<ScreenLoadUnload>()) {
+            screen->minimize();
+        }
+    }
+
+    bool is_notice_phase(Phase phase) {
+        switch (phase) {
+        case Phase::MMU_ERRWaitingForUser:
+        case Phase::FilamentStuck:
+        case Phase::LoadingObstruction_stoppable:
+        case Phase::LoadingObstruction_unstoppable:
+#if HAS_ANFC()
+        case Phase::OPT_UncommitedUsage:
+#endif
+            return true;
+        default:
+            return false;
+        }
+    }
+
+} // namespace
+
+bool ScreenLoadUnload::needs_user(fsm::BaseData data) {
+    const Phase phase = GetEnumFromPhaseIndex<Phase>(data.GetPhase());
+    if (is_notice_phase(phase)) {
+        return true;
+    }
+    // Comme enter_phase() : une question dès qu'une réponse n'est pas « Stop »
+    const PhaseResponses &available = ClientResponses::get_available_responses(FSMAndPhase(phase));
+    return std::ranges::any_of(available, [](Response r) { return r != Response::_none && r != Response::Stop; });
+}
+
+void ScreenLoadUnload::minimize() {
+    if (kind != Kind::progress || !has_data) {
+        return; // une question ou une erreur attend une réponse : elle reste à l'écran
+    }
+    std::optional<island::Origin> origin;
+    if (request) {
+        origin = island::Origin { uint8_t(request->op), request->slot };
+    }
+    island::minimize(data, origin);
+    Screens::Access()->close_screen(); // la machine continue ; DialogHandler alimente la pastille
+}
+
 ScreenLoadUnload::ScreenLoadUnload()
     : request(atelier::take_request())
-    , header(this, _("Filament"), false)
+    , header(this, _("Filament"), true, minimize_current) // la flèche réduit l'opération, elle ne ferme rien
     , box(this)
     , body(&box, *this)
     , spool_mark(&box, *this)
@@ -635,6 +684,7 @@ void ScreenLoadUnload::enter_phase() {
 
     play_phase_sound(phase, mode);
     bar.set_visible(kind == Kind::progress);
+    header.show_back(kind == Kind::progress); // réduire seulement pendant une étape, pas devant une question
     setup_buttons();
     box.Invalidate();
 }

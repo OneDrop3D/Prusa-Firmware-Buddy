@@ -297,6 +297,13 @@ namespace atelier {
         }
     }
 
+    void restore_request(Request r) {
+        request = r;
+        request_valid = true;
+        served = true;
+        valid_until_ms = ticks_ms() + open_ms;
+    }
+
     bool request_served(Op op, uint8_t slot) {
         return served && request.op == op && request.slot == slot;
     }

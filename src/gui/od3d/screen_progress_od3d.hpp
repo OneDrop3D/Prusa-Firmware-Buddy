@@ -24,6 +24,12 @@ public:
     /// Nouvelle phase ou nouvelles données de la machine à états (DialogHandler)
     void Change(fsm::BaseData data);
 
+    /// Prusa attend l'utilisateur dans cette phase (question, erreur) : l'écran ne reste pas réduit dans l'en-tête
+    static bool needs_user(fsm::BaseData data);
+
+    /// La flèche de l'en-tête : l'opération continue, réduite en pastille dans l'en-tête (island_od3d.hpp)
+    void minimize();
+
     void InitState(screen_init_variant var) override;
     screen_init_variant GetCurrentState() const override;
 

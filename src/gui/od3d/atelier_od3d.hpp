@@ -114,6 +114,9 @@ namespace atelier {
     /// l'écran entre deux commandes du MMU) garde son nom quelques secondes de plus
     void release_request();
 
+    /// L'écran de progression se rouvre depuis la pastille de l'en-tête (island) : il retrouve le nom de l'opération
+    void restore_request(Request request);
+
     /// Une demande de cette opération a été montrée par l'écran de progression (donc lancée)
     bool request_served(Op op, uint8_t slot);
 

@@ -102,6 +102,10 @@
 #include <gcode/gcode_reader_restore_info.hpp>
 #include <feature/safety_timer/safety_timer.hpp>
 #include <option/xbuddy_extension_variant.h>
+#include <option/has_pause.h>
+#if HAS_PAUSE()
+    #include <feature/od3d/clean_resume_od3d.hpp> // OneDrop3D (F30)
+#endif
 
 namespace {
 
@@ -512,7 +516,16 @@ void resume_loop() {
 
         // unpark only if the position was known
         if (state_buf.crash.axes_home_level.is_homed({ X_AXIS, Y_AXIS }, AxisHomeLevel::imprecise)) {
+#if HAS_PAUSE()
+            // OneDrop3D (F30) : reprise sans cicatrice (option) : purge hors pièce avant le retour, Z plus lent ;
+            // rien si coupée. Prusa désrétracte ensuite STANDARD_RETRACT_LENGTH comme d'habitude
+            if (power_panic_deretracts && PhysicalToolIndex::currently_selected_opt().has_value()) {
+                od3d::clean_resume::before_power_panic_unpark(state_buf.crash.crash_native_position[Z_AXIS], STANDARD_RETRACT_LENGTH);
+            }
+            plan_park_move_to_xyz(state_buf.crash.crash_native_position.xyz(), NOZZLE_PARK_XY_FEEDRATE, od3d::clean_resume::power_panic_z_feedrate(NOZZLE_PARK_Z_FEEDRATE), Segmented::yes);
+#else
             plan_park_move_to_xyz(state_buf.crash.crash_native_position.xyz(), NOZZLE_PARK_XY_FEEDRATE, NOZZLE_PARK_Z_FEEDRATE, Segmented::yes);
+#endif
         }
 
         // Unretract paired with the retract in PPState::Prepared.

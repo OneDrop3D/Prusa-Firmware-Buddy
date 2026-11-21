@@ -245,6 +245,9 @@
 #if HAS_CHAMBER_API()
     #include <feature/od3d/chamber_climate_od3d.hpp> // OneDrop3D (F29)
 #endif
+#if HAS_PAUSE()
+    #include <feature/od3d/clean_resume_od3d.hpp> // OneDrop3D (F30)
+#endif
 
 #include <option/buddy_enable_wui.h>
 #if BUDDY_ENABLE_WUI()
@@ -2724,6 +2727,17 @@ static void _server_print_loop(void) {
     #endif // #else // HAS_CRASH_DETECTION()
 #endif // HAS_NOZZLE_CLEANER()
 
+#if HAS_PAUSE()
+        // OneDrop3D (F30) : reprise sans cicatrice (option) : purge hors pièce, rétraction, essuyage ; rien si coupée.
+        // Comme unpark_prime : seulement à la reprise d'une pause (pas pendant une reprise après collision)
+    #if HAS_CRASH_DETECTION()
+        if (crash_s.get_state() == Crash_s::PRINTING)
+    #endif
+        {
+            od3d::clean_resume::before_unpark(server.resume.pos.e);
+        }
+#endif
+
         unpark_head_XY();
         server.print_state = State::Resuming_UnparkHead_XY;
         break;
@@ -3511,6 +3525,17 @@ void unpark_head_ZE(void) {
     if (!all_axes_homed()) {
         return;
     }
+
+#if HAS_PAUSE()
+    // OneDrop3D (F30) : après la purge hors pièce, descente lente avec la désrétraction (calibrée) pendant la
+    // descente : la buse n'est pas immobile sur la pièce pendant que la pression revient
+    if (const auto approach_mm_s = od3d::clean_resume::take_approach(NOZZLE_PARK_Z_FEEDRATE)) {
+        destination = current_position.with_z(server.resume.pos.z);
+        destination.e = server.resume.pos.e;
+        prepare_internal_move_to_destination(*approach_mm_s);
+        return;
+    }
+#endif
 
     // Move Z
     destination = current_position.with_z(server.resume.pos.z);

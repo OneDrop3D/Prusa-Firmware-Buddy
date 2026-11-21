@@ -1,6 +1,7 @@
 /// @file
 #include "chamber_climate_od3d.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <variant>
 

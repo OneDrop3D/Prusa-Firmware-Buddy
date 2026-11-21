@@ -165,6 +165,25 @@ void PaintButton::unconditionalDraw() {
     draw_spool({ int16_t(r.Left() + 5), int16_t(r.Top() + 5) }, spool::Look { atelier::paints[index].color, 100 }, 40);
 }
 
+void DoneButton::unconditionalDraw() {
+    if (wizard.step != 3) {
+        Button::unconditionalDraw();
+        return;
+    }
+    const Colors c = colors();
+    const Rect16 b = body();
+    draw_frame(b, c);
+    // La bobine de la couleur choisie (ou de la matière), puis le texte, centrés ensemble (SPEC_G.md §3.6)
+    constexpr uint8_t d = 24;
+    constexpr int16_t gap = 10;
+    const uint16_t text_w = label.computeNumUtf8Chars() * width(Font::small);
+    const uint16_t total = std::min<uint16_t>(d + gap + text_w, b.Width() - 12);
+    const int16_t x = b.Left() + (b.Width() - total) / 2;
+    const Color color = wizard.paint >= 0 ? atelier::paints[wizard.paint].color : spool::default_color(material_names[wizard.material]);
+    draw_spool({ x, int16_t(b.Top() + (b.Height() - d) / 2) }, spool::Look { color, 100 }, d);
+    draw_text(Rect16(x + d + gap, b.Top() + (b.Height() - height(Font::small)) / 2, total - d - gap, height(Font::small)), label, Font::small, c.fg, c.fill);
+}
+
 ScreenChangeSpool::ScreenChangeSpool()
     : Screen(true)
     , header(this,
@@ -279,6 +298,8 @@ void ScreenChangeSpool::windowEvent(window_t *sender, GUI_event_t event, void *p
         if (wizard.step == 2 && atelier::request_served(Op::preload, wizard.slot)) {
             wizard.step = 3;
             layout();
+        } else if (wizard.step == 2) {
+            primary.enable(atelier::mmu_active() && atelier::can_run()); // le MMU peut redémarrer entre-temps
         }
         break;
 

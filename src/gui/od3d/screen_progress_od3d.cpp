@@ -6,6 +6,7 @@
 #include <common/error_code_mangle.hpp>
 #include <cstdio>
 #include <cstring>
+#include <span>
 #include <display.hpp>
 #include <display_helper.h>
 #include <filament_to_load.hpp>
@@ -230,6 +231,64 @@ namespace {
         return N_("Loading slot %d");
     }
 
+    /// Étapes prévues d'une opération lancée depuis l'atelier : tables de Prusa (src/mmu2/mmu2_progress.cpp) et
+    /// séquences du firmware du MMU (logic/*.cpp), filament hors de la tête (sinon l'atelier ne les propose pas)
+    std::span<const Phase> plan_for(Op op) {
+        static constexpr Phase load[] = { Phase::WaitingTemp_unstoppable, Phase::MMU_FeedingToFinda, Phase::MMU_FeedingToBondtech,
+            Phase::MMU_FeedingToFSensor, Phase::MMU_DisengagingIdler, Phase::Loading_unstoppable };
+        static constexpr Phase unload[] = { Phase::WaitingTemp_unstoppable, Phase::Ramming_unstoppable, Phase::MMU_UnloadingToFinda, Phase::MMU_DisengagingIdler };
+        static constexpr Phase preload[] = { Phase::MMU_EngagingIdler, Phase::MMU_FeedingToFinda, Phase::MMU_RetractingFromFinda, Phase::MMU_DisengagingIdler };
+        static constexpr Phase eject[] = { Phase::MMU_ParkingSelector, Phase::MMU_EngagingIdler, Phase::MMU_EjectingFilament };
+        static constexpr Phase cut[] = { Phase::MMU_SelectingFilamentSlot, Phase::MMU_FeedingToFinda, Phase::MMU_RetractingFromFinda, Phase::MMU_PreparingBlade,
+            Phase::MMU_PushingFilament, Phase::MMU_DisengagingIdler, Phase::MMU_PerformingCut, Phase::MMU_Homing, Phase::MMU_ReturningSelector };
+        switch (op) {
+        case Op::load:
+            return load;
+        case Op::unload:
+            return unload;
+        case Op::preload:
+        case Op::preload_all:
+            return preload;
+        case Op::eject:
+            return eject;
+        case Op::cut:
+            return cut;
+        }
+        return {};
+    }
+
+    /// Même étape à l'écran (les variantes « arrêtable » et « non arrêtable » ont le même texte)
+    bool same_step(Phase a, Phase b) {
+        const char *ta = phase_text(a);
+        const char *tb = phase_text(b);
+        return ta && tb && strcmp(ta, tb) == 0;
+    }
+
+    enum class Mark : uint8_t {
+        done,
+        current,
+        upcoming,
+    };
+
+    /// Repère d'une étape (SPEC_G.md §3.4) : ✓ orange (le caractère n'est pas dans la police), ● blanc, ○ gris
+    void draw_mark(int16_t x, int16_t y, Mark mark) {
+        switch (mark) {
+        case Mark::done:
+            for (int16_t t = 0; t < 2; ++t) { // trait de 2 px
+                display::draw_line(point_ui16(x, y + 5 + t), point_ui16(x + 3, y + 8 + t), style::accent);
+                display::draw_line(point_ui16(x + 3, y + 8 + t), point_ui16(x + 9, y + 2 + t), style::accent);
+            }
+            break;
+        case Mark::current:
+            display::draw_rounded_rect(Rect16(x + 1, y + 2, 8, 8), style::surface, style::text, 4, MIC_ALL_CORNERS);
+            break;
+        case Mark::upcoming:
+            display::draw_rounded_rect(Rect16(x + 1, y + 2, 8, 8), style::surface, style::text_faint, 4, MIC_ALL_CORNERS);
+            display::draw_rounded_rect(Rect16(x + 3, y + 4, 4, 4), style::text_faint, style::surface, 2, MIC_ALL_CORNERS);
+            break;
+        }
+    }
+
     /// Sons de ScreenFilamentChange : un bip quand Prusa attend l'utilisateur
     void play_phase_sound(Phase phase, LoadUnloadMode mode) {
         switch (phase) {
@@ -336,13 +395,31 @@ void ScreenLoadUnload::Body::unconditionalDraw() {
         return;
     }
 
-    // Étapes : celles que Prusa a déjà annoncées (faites, pastille orange), la dernière en cours (blanche)
-    for (int i = 0; i < owner.history_count; ++i) {
+    // Étapes annoncées par Prusa (faites, la dernière en cours), puis celles qui restent au plan de l'opération
+    constexpr int lines = 6;
+    const std::span<const Phase> plan = owner.request ? plan_for(owner.request->op) : std::span<const Phase> {};
+    int reached = -1; ///< dernière étape du plan déjà vue
+    for (int h = owner.history_count - 1; h >= 0 && reached < 0; --h) {
+        for (int i = int(plan.size()) - 1; i >= 0; --i) {
+            if (same_step(plan[i], owner.history[h])) {
+                reached = i;
+                break;
+            }
+        }
+    }
+    const int remaining = int(plan.size()) - (reached + 1);
+    const int upcoming = std::min(remaining, lines - std::min<int>(owner.history_count, lines / 2));
+    const int past = std::min<int>(owner.history_count, lines - upcoming);
+    const uint16_t text_w = r.Left() + r.Width() - 68;
+    int16_t y = 108;
+    for (int i = owner.history_count - past; i < owner.history_count; ++i, y += 19) {
         const bool current = i == owner.history_count - 1;
-        const int16_t y = 108 + 19 * i;
-        display::draw_rounded_rect(Rect16(content_x + 3, y + 4, 8, 8), style::surface, current ? style::text : style::accent, 4, MIC_ALL_CORNERS);
-        draw_text(Rect16(68, y, r.Left() + r.Width() - 68, height(Font::small)), _(phase_text(owner.history[i])), Font::small,
-            current ? style::text : style::text_muted, style::surface);
+        draw_mark(content_x + 2, y, current ? Mark::current : Mark::done);
+        draw_text(Rect16(68, y, text_w, height(Font::small)), _(phase_text(owner.history[i])), Font::small, current ? style::text : style::text_muted, style::surface);
+    }
+    for (int i = 0; i < upcoming; ++i, y += 19) {
+        draw_mark(content_x + 2, y, Mark::upcoming);
+        draw_text(Rect16(68, y, text_w, height(Font::small)), _(phase_text(plan[reached + 1 + i])), Font::small, style::text_faint, style::surface);
     }
 }
 

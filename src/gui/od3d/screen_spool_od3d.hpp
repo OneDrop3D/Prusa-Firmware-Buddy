@@ -49,6 +49,15 @@ protected:
     void unconditionalDraw() override;
 };
 
+/// Bouton principal de l'assistant ; à l'étape 3, la bobine Ø24 du choix devant « Terminé · … »
+class DoneButton : public Button {
+public:
+    using Button::Button;
+
+protected:
+    void unconditionalDraw() override;
+};
+
 class ScreenChangeSpool final : public Screen {
 public:
     ScreenChangeSpool();
@@ -76,7 +85,7 @@ private:
     PaintButton paints[8];
     window_text_t weight_note;
     Button cancel;
-    Button primary;
+    DoneButton primary;
     TabBar tabs;
 };
 

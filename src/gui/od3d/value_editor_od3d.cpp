@@ -30,24 +30,37 @@ namespace {
 
     static_assert(style::inside(sheet_rect, view_rect) && style::inside(view_rect, value_rect) && style::inside(view_rect, bar_zone));
 
+    /// Texte centré dans rect, sur une case juste à sa taille (draw_text repeint toute sa case : pas les coins arrondis)
+    void draw_centered(Rect16 rect, const string_view_utf8 &text, Font font, uint16_t text_w, Color fg, Color bg) {
+        const uint16_t h = font == Font::big ? height(Font::big) : height(Font::small);
+        draw_text(Rect16(rect.Left() + (rect.Width() - text_w) / 2, rect.Top() + (rect.Height() - h) / 2, text_w, h), text, font, fg, bg);
+    }
+
     void draw_round_button(Rect16 rect, const char *sign) {
         display::draw_rounded_rect(rect, style::surface, style::line, rect.Width() / 2, MIC_ALL_CORNERS);
-        draw_text(rect, string_view_utf8::MakeCPUFLASH(sign), Font::big, style::text_strong, style::line, Align_t::Center());
+        draw_centered(rect, string_view_utf8::MakeCPUFLASH(sign), Font::big, width(Font::big), style::text_strong, style::line);
     }
 
 } // namespace
 
-std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config) {
-    ValueEditor editor(label, value, config);
+std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply) {
+    ValueEditor editor(label, value, config, apply);
     Screens::Access()->gui_loop_until_dialog_closed();
-    return editor.accepted ? std::optional<float>(editor.value) : std::nullopt;
+    if (editor.accepted) {
+        return editor.value;
+    }
+    if (apply && editor.value != value) {
+        apply(value); // annulé : on revient à la valeur de départ
+    }
+    return std::nullopt;
 }
 
-ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config)
+ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply)
     : IDialog(sheet_rect)
     , label(label)
     , config(config)
     , value(config.clamp(value))
+    , apply(apply)
     , view(*this) {
     SetBackColor(style::surface);
 }
@@ -59,7 +72,8 @@ void ValueEditor::unconditionalDraw() {
     draw_round_button(minus_rect, "-");
     draw_round_button(plus_rect, "+");
     display::draw_rounded_rect(ok_rect, style::surface, style::accent, style::radius, MIC_ALL_CORNERS);
-    draw_text(ok_rect, _("OK"), Font::small, style::on_accent, style::accent, Align_t::Center());
+    const string_view_utf8 ok = _("OK");
+    draw_centered(ok_rect, ok, Font::small, ok.computeNumUtf8Chars() * width(Font::small), style::on_accent, style::accent);
 }
 
 void ValueEditor::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -117,6 +131,9 @@ void ValueEditor::set(float set) {
     }
     sound::play(SoundType::encoder_move);
     view.Invalidate();
+    if (apply) {
+        apply(value);
+    }
 }
 
 float ValueEditor::fraction() const {

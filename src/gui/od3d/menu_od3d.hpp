@@ -7,6 +7,7 @@
 #include "widgets_od3d.hpp"
 
 #include <array>
+#include <utility>
 #include <i_window_menu.hpp>
 #include <i_window_menu_container.hpp>
 #include <window_frame.hpp>
@@ -17,10 +18,11 @@ namespace od3d {
 inline constexpr Rect16 list_rect = { style::margin, 34, 470, 200 };
 static_assert(style::inside(style::content, list_rect));
 
-/// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible
+/// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible.
+/// has_back = false dans un dialogue : le retour de l'en-tête fermerait l'écran dessous.
 class MenuHeader {
 public:
-    MenuHeader(window_t *parent, const string_view_utf8 &title);
+    MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true);
 
     void SetText(const string_view_utf8 &title);
     void SetIcon(const img::Resource *) {} ///< pas d'icône dans l'en-tête G
@@ -49,9 +51,10 @@ private:
 template <class Menu>
 class MenuList : public MenuListBase {
 public:
-    MenuList(window_t *parent, Rect16 rect)
+    template <typename... Args>
+    MenuList(window_t *parent, Rect16 rect, Args &&...args)
         : MenuListBase(parent, rect)
-        , menu(this, rect) {
+        , menu(this, rect, std::forward<Args>(args)...) {
         attach(menu);
     }
 

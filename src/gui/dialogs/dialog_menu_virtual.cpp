@@ -3,8 +3,7 @@
 
 #include <ScreenHandler.hpp>
 #include <IDialog.hpp>
-#include <window_header.hpp>
-#include <window_menu_adv.hpp>
+#include <gui/od3d/menu_od3d.hpp>
 #include <WindowMenuItems.hpp>
 #include <img_resources.hpp>
 
@@ -52,9 +51,10 @@ class Dialog final : public IDialog {
 public:
     Dialog(const Config &config)
         : IDialog(GuiDefaults::RectScreen)
-        , header_(this, config.title)
-        , menu_(this, GuiDefaults::RectScreenNoHeader, config) //
+        , header_(this, config.title, false)
+        , menu_(this, od3d::list_rect, config) //
     {
+        SetBackColor(od3d::style::screen); // OneDrop3D (interface G) : en-tête et liste G
         CaptureNormalWindow(menu_);
     }
 
@@ -63,8 +63,8 @@ public:
     }
 
 private:
-    window_header_t header_;
-    WindowExtendedMenu<Menu> menu_;
+    od3d::MenuHeader header_;
+    od3d::MenuList<Menu> menu_;
 };
 
 void MenuItem::click(IWindowMenu &menu) {

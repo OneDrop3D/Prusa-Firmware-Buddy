@@ -149,8 +149,8 @@ namespace {
 
 // ---- En-tête ----
 
-MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title)
-    : header(parent, string_view_utf8::MakeRAM(title_text.data()), true) {
+MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back)
+    : header(parent, string_view_utf8::MakeRAM(title_text.data()), has_back) {
     SetText(title);
 }
 

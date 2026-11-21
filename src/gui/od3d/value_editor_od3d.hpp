@@ -13,11 +13,15 @@ namespace od3d {
 /// Molette : un pas par cran, clic = OK. Toucher : −, +, la barre (valeur à l'endroit touché), OK. Glisser = annuler.
 class ValueEditor final : public IDialog {
 public:
+    using Apply = void (*)(float value);
+
+    /// @param apply si donnée, appliquée à chaque pas (comme la maquette) et remise à la valeur de départ si
+    ///              l'éditeur est fermé sans OK ; sinon c'est à l'appelant d'appliquer la valeur rendue
     /// @returns la valeur choisie, ou nullopt si l'éditeur a été fermé sans OK
-    static std::optional<float> exec(const string_view_utf8 &label, float value, const NumericInputConfig &config);
+    static std::optional<float> exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply = nullptr);
 
 private:
-    ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config);
+    ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply);
 
     void unconditionalDraw() override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
@@ -42,6 +46,7 @@ private:
     string_view_utf8 label;
     const NumericInputConfig &config;
     float value;
+    Apply apply;
     bool accepted = false;
     ValueView view;
 };

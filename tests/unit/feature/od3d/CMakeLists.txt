@@ -61,3 +61,9 @@ add_executable(
   )
 target_include_directories(belt_tension_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(belt_tension_od3d_tests)
+add_executable(
+  speed_map_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/speed_map_test.cpp
+                       ${CMAKE_SOURCE_DIR}/src/feature/od3d/speed_map_math_od3d.cpp
+  )
+target_include_directories(speed_map_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(speed_map_od3d_tests)

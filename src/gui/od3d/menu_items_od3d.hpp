@@ -27,4 +27,11 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Réglages › Fonctions OneDrop3D › « Vitesses critiques » (F22) : ouvre la carte des vitesses critiques
+class MI_SPEED_MAP final : public IWindowMenuItem {
+public:
+    MI_SPEED_MAP();
+    void click(IWindowMenu &) override;
+};
+
 } // namespace od3d

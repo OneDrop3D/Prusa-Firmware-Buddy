@@ -88,6 +88,8 @@
     #include <feature/od3d/spool_join_od3d.hpp>
 #endif
 
+#include <feature/od3d/music_player_od3d.hpp> // OneDrop3D (F18)
+
 #include "hwio.h"
 #include "wdt.hpp"
 #include "../marlin_stubs/M123.hpp"
@@ -2893,6 +2895,7 @@ static void _server_print_loop(void) {
             server.print_state = State::Finished;
             // Don't clean up here - it will be done in State::Exit
             finalize_print(true);
+            od3d::music::on_print_finished(); // OneDrop3D (F18) : musique en fin d'impression, si demandée
         }
         break;
     case State::Exit:

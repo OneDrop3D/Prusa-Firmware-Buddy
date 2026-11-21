@@ -10432,3 +10432,71 @@ msgstr "Correction XY enregistrée : %s (écart mesuré ajouté à la correction
 #: src/gui/od3d/screen_skew_od3d.cpp
 msgid "Reset to zero"
 msgstr "Remettre à zéro"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Motor music"
+msgstr "Musique des moteurs"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "File"
+msgstr "Fichier"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Playback"
+msgstr "Lecture"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "X and Y"
+msgstr "X et Y"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "X only"
+msgstr "X seul"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Play"
+msgstr "Lire"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "After print: on"
+msgstr "Après impression : oui"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "After print: off"
+msgstr "Après impression : non"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Starting..."
+msgstr "Démarrage..."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Playing..."
+msgstr "Lecture en cours..."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Finished"
+msgstr "Terminé"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Stopped"
+msgstr "Arrêté"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "File not found"
+msgstr "Fichier introuvable"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Unreadable MIDI file"
+msgstr "Fichier MIDI illisible"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "No notes to play"
+msgstr "Aucune note à jouer"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "No room on this axis"
+msgstr "Pas assez de course"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "No .mid file"
+msgstr "Aucun fichier .mid"

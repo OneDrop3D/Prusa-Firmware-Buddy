@@ -442,6 +442,11 @@ struct CurrentStore
 #endif
     /// OneDrop3D (F15) : facteur d'équerrage XY (M852 I), 0 = aucune correction ; appliqué au démarrage
     StoreItem<float, 0.0f, ItemFlag::calibrations, journal::hash("OD3D Skew XY")> od3d_skew_xy;
+    /// OneDrop3D (F18) : musique des moteurs. Fichier .mid choisi (nom court 8.3, à la racine de la clé), moteurs
+    /// (0 : X et Y, 1 : X seul, 2 : Z) et lecture à la fin de chaque impression réussie (coupée par défaut)
+    StoreItem<std::array<char, 13>, std::array<char, 13> {}, ItemFlag::features, journal::hash("OD3D Music File")> od3d_music_file;
+    StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Music Motors")> od3d_music_motors;
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Music At Print End")> od3d_music_at_print_end;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

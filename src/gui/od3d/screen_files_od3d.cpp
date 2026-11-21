@@ -3,12 +3,14 @@
 
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <common/marlin_vars.hpp>
 #include <common/thumbnail_sizes.hpp>
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
+#include <feature/od3d/spool_usage_od3d.hpp>
 #include <gcode/gcode_reader_any.hpp>
 #include <gui/event/gui_event.hpp>
 #include <gui/event/knob_event.hpp>
@@ -640,8 +642,10 @@ void ScreenPreview::unconditionalDraw() {
     summary(info, true, text);
     draw_text(Rect16(info_x, style::top + 23, w, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::screen);
 
-    // Une ligne par emplacement utilisé : bobine, « n · matière chargée », grammes du fichier
-    int row = 0, mismatch = -1;
+    // Une ligne par emplacement utilisé : bobine, « n · matière chargée », grammes du fichier (en jaune s'ils
+    // dépassent le reste de la bobine, F13)
+    int row = 0, mismatch = -1, shortage = -1;
+    float shortage_left = 0;
     Slot mismatch_slot;
     for (uint8_t t = 0; t < print_info::max_tools; ++t) {
         if (!info.is_used(t)) {
@@ -652,19 +656,39 @@ void ScreenPreview::unconditionalDraw() {
         draw_spool({ info_x, y }, slot.look, 16, style::screen);
         snprintf(text.data(), text.size(), "%d%s%s", t + 1, dot, slot.material.data());
         draw_text(Rect16(info_x + 22, y, 160, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
+        const auto usage = spool_usage::report(t);
+        const bool too_little = usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g);
+        if (too_little && shortage < 0) {
+            shortage = t;
+            shortage_left = usage->remaining_g;
+        }
         snprintf(text.data(), text.size(), "%.0f g", double(info.grams[t]));
-        draw_text(Rect16(info_x + 182, y, w - 182, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::screen, Align_t::RightCenter());
+        draw_text(Rect16(info_x + 182, y, w - 182, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, too_little ? style::warning : style::text_muted, style::screen, Align_t::RightCenter());
         if (mismatch < 0 && info.types[t][0] && slot.look.filament && strcasecmp(info.types[t].data(), slot.material.data()) != 0) {
             mismatch = t;
             mismatch_slot = slot;
         }
     }
 
-    // Alerte (§3.10) : la matière chargée n'est pas celle du fichier ; Prusa la vérifie aussi au départ
+    // Alertes (§3.10) : la bobine n'a pas assez de filament pour le fichier (F13 ; la fin d'une bobine n'arrête pas
+    // l'impression, le capteur la met en pause) ; la matière chargée n'est pas celle du fichier (Prusa la vérifie aussi
+    // au départ). Une alerte prend les deux lignes ; deux alertes, une ligne chacune.
+    StringViewUtf8Parameters<24> shortage_params, mismatch_params;
+    string_view_utf8 warnings[2];
+    int count = 0;
+    if (shortage >= 0) {
+        warnings[count++] = _("Slot %d: %d g needed, about %d g left").formatted(shortage_params, shortage + 1, int(std::lround(info.grams[shortage])), int(shortage_left));
+    }
     if (mismatch >= 0) {
-        StringViewUtf8Parameters<24> params;
-        const string_view_utf8 warning = _("Slot %d: %s in the file, %s loaded").formatted(params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
-        render_text_align(Rect16(style::margin, warning_y, style::screen_w - 2 * style::margin, 2 * height(Font::small)), warning, Font::small, style::screen, style::warning, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
+        warnings[count++] = _("Slot %d: %s in the file, %s loaded").formatted(mismatch_params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
+    }
+    const uint16_t warning_w = style::screen_w - 2 * style::margin;
+    if (count == 1) {
+        render_text_align(Rect16(style::margin, warning_y, warning_w, 2 * height(Font::small)), warnings[0], Font::small, style::screen, style::warning, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
+    } else {
+        for (int i = 0; i < count; ++i) {
+            draw_text(Rect16(style::margin, warning_y + i * height(Font::small), warning_w, height(Font::small)), warnings[i], Font::small, style::warning, style::screen);
+        }
     }
 }
 

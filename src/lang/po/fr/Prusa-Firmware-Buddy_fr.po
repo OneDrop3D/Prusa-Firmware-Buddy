@@ -10500,3 +10500,60 @@ msgstr "Pas assez de course"
 #: src/gui/od3d/screen_music_od3d.cpp
 msgid "No .mid file"
 msgstr "Aucun fichier .mid"
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid "Spool %d is running low: about %d g left."
+msgstr "Bobine %d presque vide : il reste environ %d g."
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+#, c-format
+msgid "Left %d g"
+msgstr "Reste %d g"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Other"
+msgstr "Autre"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "New spool net weight"
+msgstr "Poids net de la bobine neuve"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Running low"
+msgstr "Bientôt vide"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Net weight (new)"
+msgstr "Poids net (neuve)"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Low-spool alert"
+msgstr "Alerte de fin"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Full spool (100%)"
+msgstr "Bobine pleine (100 %)"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Data from the NFC tag (OpenPrintTag)."
+msgstr "Données de l'étiquette NFC (OpenPrintTag)."
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Used since loaded: %d g"
+msgstr "Utilisé depuis la pose : %d g"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Last print: %d g"
+msgstr "Dernière impression : %d g"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Set the net weight of the spool to start tracking it."
+msgstr "Réglez le poids net de la bobine pour commencer son suivi."
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %d g needed, about %d g left"
+msgstr "Emplacement %d : %d g prévus, il reste ~%d g"

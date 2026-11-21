@@ -18,11 +18,13 @@ public:
 
     /// @param apply si donnée, appliquée à chaque pas (comme la maquette) et remise à la valeur de départ si
     ///              l'éditeur est fermé sans OK ; sinon c'est à l'appelant d'appliquer la valeur rendue
+    /// @param unit si donnée, affichée après la valeur à la place de l'unité de config (« g » : Prusa n'a pas d'unité
+    ///             de masse)
     /// @returns la valeur choisie, ou nullopt si l'éditeur a été fermé sans OK
-    static std::optional<float> exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply = nullptr);
+    static std::optional<float> exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply = nullptr, const char *unit = nullptr);
 
 private:
-    ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply);
+    ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit);
 
     void unconditionalDraw() override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
@@ -49,6 +51,7 @@ private:
     const NumericInputConfig &config;
     float value;
     Apply apply;
+    const char *unit;
     bool accepted = false;
     bool dragged = false; ///< le doigt a glissé sur la barre : le balayage qui suit n'annule pas
     ValueView view;

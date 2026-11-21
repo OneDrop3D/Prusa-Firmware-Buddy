@@ -108,7 +108,8 @@ void SpoolCard::draw_content(Rect16 body) {
 
     char label[12];
     snprintf(label, sizeof(label), "%d %s", index + 1, slot.material.data());
-    const Color color = slot.loaded ? style::accent : (IsEnabled() ? style::text_soft : style::text_faint);
+    // Bientôt vide (F13) : en jaune, même chargée (l'anneau orange dit déjà qu'elle est dans la buse)
+    const Color color = slot.low && IsEnabled() ? style::warning : (slot.loaded ? style::accent : (IsEnabled() ? style::text_soft : style::text_faint));
     draw_text(Rect16(body.Left(), body.Top() + 45, body.Width(), height(Font::small)), string_view_utf8::MakeRAM(label), Font::small, color, fill(), Align_t::Center());
 }
 

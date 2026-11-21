@@ -483,6 +483,11 @@ struct CurrentStore
     StoreItem<uint8_t, 8, ItemFlag::features, journal::hash("OD3D Clean Resume Purge")> od3d_clean_resume_purge;
     StoreItem<uint8_t, 8, ItemFlag::features, journal::hash("OD3D Clean Resume Retract")> od3d_clean_resume_retract;
     StoreItem<uint8_t, 2, ItemFlag::features, journal::hash("OD3D Clean Resume Approach")> od3d_clean_resume_approach;
+    /// OneDrop3D (F8) : température selon le débit, seulement avec le MPC (coupée par défaut) ; seuil [mm³/s] et
+    /// hausse maximale [°C]
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Flow Temp Enabled")> od3d_flow_temp_enabled;
+    StoreItem<uint8_t, od3d::mpc::default_flow_threshold, ItemFlag::features, journal::hash("OD3D Flow Temp Threshold")> od3d_flow_temp_threshold;
+    StoreItem<uint8_t, od3d::mpc::default_flow_max_boost, ItemFlag::features, journal::hash("OD3D Flow Temp Max Boost")> od3d_flow_temp_max_boost;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

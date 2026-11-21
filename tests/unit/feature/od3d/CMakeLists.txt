@@ -98,3 +98,9 @@ add_executable(
   )
 target_include_directories(spool_calib_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(spool_calib_od3d_tests)
+add_executable(
+  lookahead_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/lookahead_od3d_test.cpp
+                       ${CMAKE_SOURCE_DIR}/src/feature/od3d/lookahead_math_od3d.cpp
+  )
+target_include_directories(lookahead_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(lookahead_od3d_tests)

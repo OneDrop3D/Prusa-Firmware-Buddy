@@ -5,10 +5,15 @@
 /// pertes (ventilateur), Calcul du modèle), avec « Annuler ». La calibration est faite par M306 T
 /// (feature/od3d/mpc_control_od3d.hpp) ; l'écran (ScreenMpcCalibration, dans le .cpp) ne fait que la lancer, l'annuler
 /// et montrer son état. Ce fichier est inclus par screen_menu_od3d.hpp : rien des écrans de l'atelier ici.
+/// F8 (température selon le débit, seulement avec le MPC) : marche / arrêt (grisé hors MPC), seuil, hausse maximale
+/// et hausse en cours, dans le même menu.
 #pragma once
 
 #include <gui/menu_item/menu_item_select_menu.hpp>
 #include <i_window_menu_item.hpp>
+#include <numeric_input_config.hpp>
+#include <WindowItemFormatableLabel.hpp>
+#include <WindowMenuItems.hpp>
 
 namespace od3d {
 
@@ -35,6 +40,57 @@ public:
 
 protected:
     void Loop() override;
+};
+
+/// Réglage entier : la valeur et son unité à droite ; un clic ouvre l'éditeur de valeur (interface G)
+class MI_OD3D_NUMBER : public WI_LAMBDA_LABEL_t {
+public:
+    using Get = uint8_t (*)();
+    using Set = void (*)(uint8_t);
+
+    /// @param editor_label titre de l'éditeur (une ligne), marqué N_()
+    MI_OD3D_NUMBER(const string_view_utf8 &label, const img::Resource *icon, const char *editor_label, const NumericInputConfig &config, const char *unit, Get get, Set set);
+    void click(IWindowMenu &) override;
+
+protected:
+    void Loop() override; ///< valeur changée ailleurs (G-code, autre écran)
+
+private:
+    const char *editor_label;
+    const NumericInputConfig &config;
+    const char *unit;
+    Get get;
+    Set set;
+    uint8_t shown;
+};
+
+/// F8 : « Température selon le débit », marche / arrêt (coupé par défaut) ; grisé tant que la régulation n'est pas
+/// le MPC (le réglage n'a d'effet qu'avec le MPC)
+class MI_FLOW_TEMP final : public WI_ICON_SWITCH_OFF_ON_t {
+public:
+    MI_FLOW_TEMP();
+    void OnChange(size_t) override;
+
+protected:
+    void Loop() override;
+};
+
+/// F8 : seuil de débit [mm³/s]
+class MI_FLOW_TEMP_THRESHOLD final : public MI_OD3D_NUMBER {
+public:
+    MI_FLOW_TEMP_THRESHOLD();
+};
+
+/// F8 : hausse maximale [°C]
+class MI_FLOW_TEMP_MAX_BOOST final : public MI_OD3D_NUMBER {
+public:
+    MI_FLOW_TEMP_MAX_BOOST();
+};
+
+/// F8 : hausse appliquée maintenant, en lecture seule
+class MI_FLOW_TEMP_BOOST final : public MenuItemAutoUpdatingLabel<int> {
+public:
+    MI_FLOW_TEMP_BOOST();
 };
 
 } // namespace od3d

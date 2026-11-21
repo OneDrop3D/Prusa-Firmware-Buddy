@@ -1439,7 +1439,7 @@ static void settings_load() {
     od3d::skew::load(); // OneDrop3D (F15) : équerrage XY enregistré
 #endif
 #if ENABLED(OD3D_MPCTEMP)
-    od3d::mpc::load(); // OneDrop3D (F7) : régulation PID / MPC et modèle MPC enregistrés
+    od3d::mpc::load(); // OneDrop3D (F7, F8) : régulation PID / MPC, modèle MPC, température selon le débit
 #endif
 }
 

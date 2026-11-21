@@ -396,3 +396,203 @@ TEST_CASE("mpc : calibration, arrêts et erreurs") {
         CHECK(run.max_seen < max_tune_temp + overheat_margin);
     }
 }
+
+// ---- F8 : température selon le débit ----
+
+TEST_CASE("mpc F8 : hausse demandée selon le débit, bornée") {
+    constexpr float nan = std::numeric_limits<float>::quiet_NaN();
+    constexpr float inf = std::numeric_limits<float>::infinity();
+
+    CHECK(flow_boost_request(0, 12, 12) == 0);
+    CHECK(flow_boost_request(-30, 12, 12) == 0);
+    CHECK(flow_boost_request(12, 12, 12) == 0); // au seuil : rien
+    CHECK_THAT(flow_boost_request(17, 12, 12), WithinAbs(5 * flow_boost_gain, 1e-4f));
+    CHECK(flow_boost_request(200, 12, 12) == 12); // plafond
+    CHECK(flow_boost_request(200, 12, 40) == flow_max_boost_range.max); // plafond ramené à 15 °C
+    CHECK(flow_boost_request(200, 12, 0) == flow_max_boost_range.min);
+    CHECK(flow_boost_request(nan, 12, 12) == 0);
+    CHECK(flow_boost_request(inf, 12, 12) == 0);
+    CHECK(flow_boost_request(20, nan, 12) == 0);
+    CHECK(flow_boost_request(20, 12, nan) == 0);
+
+    std::mt19937 rng { 7 };
+    std::uniform_real_distribution<float> flow(-50, 300);
+    std::uniform_real_distribution<float> setting(-10, 100);
+    for (int i = 0; i < 10000; ++i) {
+        const float cap = setting(rng);
+        const float b = flow_boost_request(flow(rng), setting(rng), cap);
+        REQUIRE(b >= 0);
+        REQUIRE(b <= flow_max_boost_range.max);
+        REQUIRE(b <= std::max(cap, flow_max_boost_range.min));
+    }
+}
+
+TEST_CASE("mpc F8 : consigne relevée toujours sous la consigne maximale") {
+    constexpr float nan = std::numeric_limits<float>::quiet_NaN();
+
+    CHECK(boosted_target(215, 12, max_target) == 227);
+    CHECK(boosted_target(285, 12, max_target) == max_target);
+    CHECK(boosted_target(max_target, 12, max_target) == max_target);
+    CHECK(boosted_target(300, 12, max_target) == max_target); // consigne déjà trop haute : jamais plus haut
+    CHECK(boosted_target(215, 100, max_target) == 215 + flow_max_boost_range.max);
+    CHECK(boosted_target(215, -5, max_target) == 215);
+    CHECK(boosted_target(215, nan, max_target) == 215);
+    CHECK(boosted_target(215, 12, nan) == 215);
+
+    SECTION("chauffe coupée : rien ne change") {
+        CHECK(boosted_target(0, 12, max_target) == 0);
+        CHECK(boosted_target(-10, 12, max_target) == -10);
+    }
+
+    SECTION("propriétés sur des valeurs au hasard") {
+        std::mt19937 rng { 11 };
+        std::uniform_real_distribution<float> target(1, 400);
+        std::uniform_real_distribution<float> boost(-20, 40);
+        for (int i = 0; i < 10000; ++i) {
+            const float t = target(rng);
+            const float r = boosted_target(t, boost(rng), max_target);
+            REQUIRE(r <= max_target);
+            REQUIRE(r <= t + flow_max_boost_range.max);
+            if (t <= max_target) {
+                REQUIRE(r >= t);
+            }
+        }
+    }
+}
+
+TEST_CASE("mpc F8 : la hausse monte d'un coup et redescend en rampe") {
+    FlowBoost b;
+    CHECK(b.value() == 0);
+    CHECK(b.step(12, dt) == 12); // anticipation : tout de suite
+
+    // Débit retombé : 1 °C/s
+    CHECK_THAT(b.step(0, 1.0f), WithinAbs(12 - flow_boost_fall_rate, 1e-4f));
+    for (int i = 0; i < 100; ++i) {
+        b.step(0, 0.16f);
+        REQUIRE(b.value() >= 0);
+    }
+    CHECK(b.value() == 0);
+
+    SECTION("demande plus basse : la rampe s'arrête à la demande") {
+        b.step(12, dt);
+        CHECK_THAT(b.step(10, 1.0f), WithinAbs(11, 1e-4f));
+        CHECK_THAT(b.step(10, 1.0f), WithinAbs(10, 1e-4f));
+        CHECK_THAT(b.step(10, 5.0f), WithinAbs(10, 1e-4f));
+        CHECK(b.step(13, dt) == 13); // nouvelle hausse : tout de suite
+    }
+
+    SECTION("valeurs aberrantes") {
+        CHECK(b.step(100, dt) == flow_max_boost_range.max);
+        CHECK(b.step(std::numeric_limits<float>::quiet_NaN(), 0) == flow_max_boost_range.max); // pas de temps : pas de descente
+        CHECK(b.step(0, -1) == flow_max_boost_range.max);
+        CHECK(b.step(0, std::numeric_limits<float>::quiet_NaN()) == flow_max_boost_range.max);
+        CHECK(b.step(-5, 100) == 0);
+        b.step(10, dt);
+        b.reset();
+        CHECK(b.value() == 0);
+    }
+}
+
+namespace {
+
+/// Buse simulée et MPC, avec la vitesse du filament à venir donnée à part (puissance anticipée)
+struct FfLoop {
+    Plant plant;
+    Model model;
+    float pwm = 0;
+
+    FfLoop() {
+        plant.noise = 0;
+        model.set_params(good_params());
+    }
+
+    void step(float target, float fan, float e_now, float e_ahead) {
+        pwm = model.step(StepArgs { dt, plant.measure(), target, max_target, fan, e_now, pwm, pwm_max, e_ahead });
+        REQUIRE(pwm >= 0);
+        REQUIRE(pwm <= pwm_max);
+        plant.step(dt, pwm, fan, e_now);
+    }
+};
+
+/// Chute de température quand l'extrusion passe de 0 à 8 mm/s (19 mm³/s), avec ou sans le débit connu 0,5 s avant
+float dip_at_flow_step(bool anticipate, float &highest_before) {
+    FfLoop l;
+    constexpr float target = 215;
+    constexpr float e = 8;
+    for (float t = 0; t < 200; t += dt) {
+        l.step(target, 0.5f, 0, anticipate ? 0.0f : -1.0f);
+    }
+    highest_before = 0;
+    for (float t = 0; t < 0.5f; t += dt) {
+        l.step(target, 0.5f, 0, anticipate ? e : -1.0f);
+        highest_before = std::max(highest_before, l.plant.t_sensor);
+    }
+    float lowest = target;
+    for (float t = 0; t < 30; t += dt) {
+        l.step(target, 0.5f, e, anticipate ? e : -1.0f);
+        lowest = std::min(lowest, l.plant.t_sensor);
+    }
+    return target - lowest;
+}
+
+} // namespace
+
+TEST_CASE("mpc F8 : puissance anticipée") {
+    SECTION("sans débit à venir (< 0) : exactement F7") {
+        Model a, b;
+        a.set_params(good_params());
+        b.set_params(good_params());
+        Plant p;
+        p.noise = 0;
+        float pwm_a = 0, pwm_b = 0;
+        for (int i = 0; i < 500; ++i) {
+            const float e = (i / 50) % 2 ? 5.0f : 0.0f;
+            const float m = p.measure();
+            pwm_a = a.step({ dt, m, 215, max_target, 0.3f, e, pwm_a, pwm_max });
+            pwm_b = b.step({ dt, m, 215, max_target, 0.3f, e, pwm_b, pwm_max, -1.0f });
+            REQUIRE(pwm_a == pwm_b);
+            p.step(dt, pwm_a, 0.3f, e);
+        }
+    }
+
+    SECTION("débit connu 0,5 s avant : chute plus petite, sans dépassement notable avant") {
+        float before_ff = 0, before_plain = 0;
+        const float with_ff = dip_at_flow_step(true, before_ff);
+        const float without = dip_at_flow_step(false, before_plain);
+        CHECK(without > 0.1f); // l'essai voit bien une chute
+        CHECK(with_ff < without);
+        CHECK(before_ff < 215 + 1.0f);
+    }
+
+    SECTION("sortie bornée avec n'importe quel débit à venir") {
+        Model m;
+        m.set_params(good_params());
+        std::mt19937 rng { 5 };
+        std::uniform_real_distribution<float> temp(-40, 450);
+        std::uniform_real_distribution<float> e(-200, 200);
+        float pwm = 0;
+        for (int i = 0; i < 10000; ++i) {
+            pwm = m.step({ dt, temp(rng), 215, max_target, 0.5f, 3, pwm, pwm_max, e(rng) });
+            REQUIRE(pwm >= 0);
+            REQUIRE(pwm <= pwm_max);
+        }
+        CHECK(m.step({ dt, 200, 215, max_target, 0, 0, 0, pwm_max, std::numeric_limits<float>::infinity() }) == 0);
+    }
+}
+
+TEST_CASE("mpc F8 : la buse simulée suit la hausse sans dépasser la consigne maximale") {
+    FfLoop l;
+    FlowBoost boost;
+    constexpr float e = 5; // 12 mm³/s ; seuil 0 : hausse maximale demandée (la cartouche simulée de 40 W suit)
+    float highest = 0;
+    for (const float target : { 215.0f, 285.0f }) {
+        boost.reset();
+        for (float t = 0; t < 240; t += dt) {
+            boost.step(flow_boost_request(e * 2.405f, 0, 12), dt);
+            l.step(boosted_target(target, boost.value(), max_target), 0, e, e);
+            highest = std::max(highest, l.plant.t_sensor);
+        }
+        CHECK_THAT(l.plant.t_sensor, WithinAbs(std::min(target + 12, max_target), 1.0f));
+    }
+    CHECK(highest <= max_target + 1.0f);
+}

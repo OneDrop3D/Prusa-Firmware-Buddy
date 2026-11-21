@@ -9,8 +9,23 @@
 /// - Mode PID / MPC (config_store od3d_mpc_enabled, PID par défaut) et paramètres (od3d_mpc_params).
 /// - Calibration M306 T, son état pour l'écran et son « Annuler ».
 ///
-/// F8 (température selon le débit) se branchera dans HotendHook::step : consigne relevée d'après le débit des
-/// mouvements à venir (planificateur) et puissance anticipée, seulement quand le MPC régule.
+/// F8 (température selon le débit), dans HotendHook::step, seulement quand le MPC régule et si le réglage est mis :
+/// - débit des ~500 ms à venir lu dans la file du planificateur (lookahead_od3d.hpp) ;
+/// - (a) puissance anticipée : le terme « filament » des pertes compensées par le MPC prend ce débit à venir ;
+/// - (b) hausse de consigne : le MPC vise consigne + hausse (flow_boost_request, FlowBoost : rampe de descente),
+///   toujours bornée sous la consigne maximale de Prusa (boosted_target).
+/// La consigne de Prusa (nozzle_target_temp(), affichée et vue par les protections) ne change jamais. Ainsi :
+/// - MAXTEMP (BaseHotend::manage) : inchangé ; la consigne visée reste <= max_nozzle_temp − HEATER_MAXTEMP_SAFETY_MARGIN,
+///   comme toute consigne posée par set_nozzle_target_temp, et le MPC coupe au-delà de cette borne + 5 K ;
+/// - MINTEMP : inchangé ;
+/// - emballement (thermal_runaway_) : il compare la mesure à la consigne de Prusa, qui ne bouge pas, donc il n'est
+///   jamais réarmé par la hausse (un réarmement à chaque pas le neutraliserait) ; la hausse met la buse au-dessus de
+///   la consigne, du côté sûr de la règle « pas plus de 15 °C sous la consigne pendant plus de 80 s », qui reste la
+///   même ; la hausse est plafonnée à 15 °C (flow_max_boost_range), l'hystérésis de cette règle ;
+/// - surveillance de la chauffe (heater_watch_) : armée par un changement de la consigne de Prusa, seul cas où elle
+///   travaille ; la hausse ne l'arme pas et ne change pas sa règle (+2 °C en 20 s tant que la buse est à plus de
+///   6 °C sous la consigne de Prusa) ; viser plus haut ne peut que chauffer plus fort ;
+/// - garde de la régulation (current < max_nozzle_temp) et contrôle des valeurs brutes dans l'ISR : inchangés.
 #pragma once
 
 #include "mpc_od3d.hpp"
@@ -49,6 +64,7 @@ private:
     };
 
     Model model_;
+    FlowBoost boost_; ///< F8 : hausse de consigne en cours
     uint32_t params_version_ = 0;
     uint32_t last_ms_ = 0;
     int32_t last_e_steps_ = 0;
@@ -88,6 +104,23 @@ void set_params(const Params &params);
 
 /// Paramètres en service (fil de Marlin)
 const Params &params();
+
+// ---- F8 : température selon le débit (lisible depuis tous les fils ; réglée depuis l'interface) ----
+
+/// Réglage marche / arrêt (coupé par défaut). Sans effet tant que le MPC ne régule pas.
+bool flow_temp_enabled();
+void set_flow_temp_enabled(bool enabled);
+
+/// Seuil [mm³/s], ramené dans flow_threshold_range
+uint8_t flow_temp_threshold();
+void set_flow_temp_threshold(uint8_t mm3s);
+
+/// Hausse maximale [°C], ramenée dans flow_max_boost_range
+uint8_t flow_temp_max_boost();
+void set_flow_temp_max_boost(uint8_t celsius);
+
+/// Hausse appliquée maintenant [°C, arrondie] (0 si le MPC ne régule pas)
+uint8_t flow_temp_current_boost();
 
 /// Écrit les paramètres, la calibration et le mode sur la console (M306 sans paramètre). Fil de Marlin.
 void report();

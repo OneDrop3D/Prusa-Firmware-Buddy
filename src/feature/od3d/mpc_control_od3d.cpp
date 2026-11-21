@@ -1,10 +1,12 @@
 /// @file
 #include "mpc_control_od3d.hpp"
+#include "lookahead_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <numbers>
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
@@ -23,6 +25,10 @@ static_assert(PID_MAX == 255, "sortie du MPC et du PID sur la même échelle");
 // Avec ces options, Prusa compare la sortie à son propre modèle : le MPC ne les a pas, pour ne rien affaiblir
 static_assert(DISABLED(MODEL_DETECT_STUCK_THERMISTOR), "MPC OneDrop3D : protection par modèle de Prusa non prise en charge");
 static_assert(DISABLED(MODEL_BASED_HOTEND_REGULATOR), "MPC OneDrop3D : seulement à côté du StandardHotendRegulator");
+// F8 : la hausse de consigne ne dépasse jamais l'hystérésis de l'emballement thermique de Prusa
+static_assert(ENABLED(THERMAL_PROTECTION_HOTENDS) && od3d::mpc::flow_max_boost_range.max <= THERMAL_PROTECTION_HYSTERESIS,
+    "F8 : hausse maximale au plus THERMAL_PROTECTION_HYSTERESIS");
+static_assert(od3d::mpc::flow_max_boost_range.max <= HEATER_MAXTEMP_SAFETY_MARGIN, "F8 : bornée de toute façon sous la consigne maximale");
 
 namespace od3d::mpc {
 
@@ -52,6 +58,19 @@ namespace {
     std::atomic<uint8_t> tune_progress = 0;
     std::atomic<uint16_t> tune_runs = 0;
 
+    // F8 : réglages (écrits par l'interface, lus par la régulation) et hausse en cours (pour l'affichage)
+    std::atomic<bool> flow_temp_on = false;
+    std::atomic<uint8_t> flow_threshold = default_flow_threshold;
+    std::atomic<uint8_t> flow_max_boost = default_flow_max_boost;
+    std::atomic<uint8_t> current_boost = 0;
+
+    /// Section du filament [mm²] : vitesse du filament → débit volumique (comme PID_EXTRUSION_SCALING de Prusa)
+    constexpr float filament_area = std::numbers::pi_v<float> * (DEFAULT_NOMINAL_FILAMENT_DIA / 2) * (DEFAULT_NOMINAL_FILAMENT_DIA / 2);
+
+    uint8_t clamp_setting(uint8_t v, Range r) {
+        return static_cast<uint8_t>(std::clamp<float>(v, r.min, r.max));
+    }
+
     bool in_range(float v, Range r) {
         return std::isfinite(v) && v >= r.min && v <= r.max;
     }
@@ -70,6 +89,11 @@ void report() {
         double(p.heater_power), double(p.block_heat_capacity), double(p.sensor_responsiveness),
         double(p.ambient_xfer_coeff), double(p.fan_xfer_coeff), double(p.filament_heat_capacity_permm),
         calibration_valid ? "calibrated" : "not calibrated", mpc_selected ? "MPC" : "PID");
+    echo(buf);
+    // F8
+    snprintf(buf, sizeof(buf), "Flow temperature: %s, +%.1f C per mm3/s above %u mm3/s, max +%u C, now +%u C",
+        flow_temp_on ? "on (MPC only)" : "off", double(flow_boost_gain), unsigned(flow_threshold.load()),
+        unsigned(flow_max_boost.load()), unsigned(current_boost.load()));
     echo(buf);
 }
 
@@ -128,24 +152,46 @@ HotendHook::Result HotendHook::step(const Args &args) {
         model_.reset(args.current_temp);
     }
 
+    const Override override_now = tune_override.load();
+    const bool mpc_regulates = override_now == Override::none && valid && mpc_selected.load();
+
+    // F8 : seulement quand le MPC régule la buse active avec une consigne posée. Le débit à venir sert à la
+    // puissance anticipée (réglage mis) ; la hausse suit la demande, puis redescend en rampe (aussi après l'arrêt du
+    // réglage). Dans tous les autres cas : aucune hausse, tout de suite. La consigne de Prusa ne change pas.
+    float target = float(args.target_temp);
+    float ff_e_speed = -1.0f; // comme F7
+    if (mpc_regulates && args.is_current_tool && args.target_temp > 0 && (flow_temp_on.load() || boost_.value() > 0)) {
+        float request = 0;
+        if (flow_temp_on.load()) {
+            ff_e_speed = lookahead::planner_e_speed_ahead(max_melt_e_speed);
+            request = flow_boost_request(ff_e_speed * filament_area, flow_threshold.load(), flow_max_boost.load());
+        }
+        boost_.step(request, dt);
+        target = boosted_target(target, boost_.value(), float(args.max_target_temp));
+    } else {
+        boost_.reset();
+    }
+    current_boost = static_cast<uint8_t>(std::lround(target > args.target_temp ? target - args.target_temp : 0.0f));
+
     // Le modèle suit la buse même quand le PID régule (sortie appliquée), pour une bascule sans à-coup
     float mpc_pwm = 0;
     if (valid) {
         mpc_pwm = model_.step(StepArgs {
             .dt_s = dt,
             .measured_temp = args.current_temp,
-            .target_temp = float(args.target_temp),
+            .target_temp = target,
             .max_target_temp = float(args.max_target_temp),
             .fan = args.fan_speed / 255.0f,
             .e_speed = e_speed,
             .applied_pwm = float(args.applied_pwm),
             .pwm_max = float(PID_MAX),
+            .ff_e_speed = ff_e_speed,
         });
     }
 
     Source source = Source::pid;
     float pwm = 0;
-    switch (tune_override.load()) {
+    switch (override_now) {
     case Override::heater_off:
         source = Source::tune;
         break;
@@ -157,7 +203,7 @@ HotendHook::Result HotendHook::step(const Args &args) {
     case Override::force_pid:
         break;
     case Override::none:
-        if (valid && mpc_selected.load()) {
+        if (mpc_regulates) {
             source = Source::mpc;
             pwm = mpc_pwm;
         }
@@ -181,6 +227,44 @@ void load() {
     calibration_valid = valid;
     mpc_selected = valid && config_store().od3d_mpc_enabled.get();
     ++params_version;
+    flow_temp_on = config_store().od3d_flow_temp_enabled.get();
+    flow_threshold = clamp_setting(config_store().od3d_flow_temp_threshold.get(), flow_threshold_range);
+    flow_max_boost = clamp_setting(config_store().od3d_flow_temp_max_boost.get(), flow_max_boost_range);
+}
+
+// ---- F8 ----
+
+bool flow_temp_enabled() {
+    return flow_temp_on.load();
+}
+
+void set_flow_temp_enabled(bool enabled) {
+    flow_temp_on = enabled;
+    config_store().od3d_flow_temp_enabled.set(enabled);
+}
+
+uint8_t flow_temp_threshold() {
+    return flow_threshold.load();
+}
+
+void set_flow_temp_threshold(uint8_t mm3s) {
+    const uint8_t v = clamp_setting(mm3s, flow_threshold_range);
+    flow_threshold = v;
+    config_store().od3d_flow_temp_threshold.set(v);
+}
+
+uint8_t flow_temp_max_boost() {
+    return flow_max_boost.load();
+}
+
+void set_flow_temp_max_boost(uint8_t celsius) {
+    const uint8_t v = clamp_setting(celsius, flow_max_boost_range);
+    flow_max_boost = v;
+    config_store().od3d_flow_temp_max_boost.set(v);
+}
+
+uint8_t flow_temp_current_boost() {
+    return current_boost.load();
 }
 
 bool has_valid_calibration() {

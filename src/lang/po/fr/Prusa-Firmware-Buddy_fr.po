@@ -11111,3 +11111,27 @@ msgstr "La buse chauffe, puis extrude jusqu'à 1 g de filament à débit croissa
 #: src/gui/od3d/screen_spool_calib_od3d.cpp
 msgid "The nozzle heats up, then cools down step by step while extruding a little filament above the front of the bed (3 to 6 min). Clear the bed. Start?"
 msgstr "La buse chauffe, puis refroidit par paliers en extrudant un peu de filament au-dessus de l'avant du plateau (3 à 6 min). Dégagez le plateau. Commencer ?"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Flow temperature\nHotter before fast moves, MPC only"
+msgstr "Température selon le débit\nPlus chaud avant les passages rapides, MPC"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Flow threshold\nThe temperature rises above it"
+msgstr "Seuil de débit\nLa température monte au-delà"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Flow threshold"
+msgstr "Seuil de débit"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Maximum rise\n+1 °C per mm3/s above the threshold"
+msgstr "Hausse maximale\n+1 °C par mm3/s au-delà du seuil"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Maximum rise"
+msgstr "Hausse maximale"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Current rise"
+msgstr "Hausse actuelle"

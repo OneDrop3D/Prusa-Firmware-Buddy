@@ -99,6 +99,10 @@
   #include "../feature/prusa/crash_recovery.hpp"
 #endif
 
+#if ENABLED(OD3D_FAN_LEAD)
+  #include <feature/od3d/lookahead_od3d.hpp> // OneDrop3D (F26)
+#endif
+
 #include <option/has_phase_stepping.h>
 #if HAS_PHASE_STEPPING()
 #include "../feature/phase_stepping/phase_stepping.hpp"
@@ -886,7 +890,13 @@ void Planner::check_axes_activity() {
   // In the current implementation of PreciseStepping, a sync position block can spend some time at the top of the block queue in contrast with the original Marlin.
   // So we have to ignore sync position blocks because they always have zero fan speeds.
   if (const block_t *block = get_first_move_block(); block != nullptr) {
+    #if ENABLED(OD3D_FAN_LEAD)
+      // OneDrop3D (F26) : une hausse du ventilateur portée par les blocs à venir est appliquée en avance (avance 0 :
+      // block->print_fan_speed, comme Prusa)
+      thermalManager.apply_print_fan_speed(od3d::lookahead::fan_speed_ahead(block->print_fan_speed));
+    #else
       thermalManager.apply_print_fan_speed(block->print_fan_speed);
+    #endif
 
     #if ANY(DISABLE_X, DISABLE_Y, DISABLE_Z, DISABLE_E)
       // #error dead code found by automatic analyses (see BFW-5461)

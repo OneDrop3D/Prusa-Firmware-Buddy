@@ -3,6 +3,7 @@
 /// « Température de la buse » (§3.23 : régulation PID / MPC et sa calibration (F7), température selon le débit (F8)
 /// (screen_mpc_od3d.*), compensation de
 /// dilatation (F2)) et « Relais de bobine » (§3.24) ;
+/// « Ventilation anticipée » (F26) ;
 /// « Équerrage XY » (F15) est dans screen_skew_od3d.*, « Tension des courroies » (F14) dans screen_belts_od3d.*,
 /// « Vitesses critiques » (F22) dans screen_speed_map_od3d.*, « Climat de la chambre » (F29) dans screen_climate_od3d.*,
 /// « Reprise sans cicatrice » (F30) dans screen_resume_od3d.*.
@@ -45,6 +46,14 @@ using MI_PRINTER_INFO = MI_SCREEN<N_("Printer info"), ::ScreenMenuInfo, &img::in
 class MI_NOZZLE_TEMPERATURE final : public IWindowMenuItem {
 public:
     MI_NOZZLE_TEMPERATURE();
+    void click(IWindowMenu &) override;
+};
+
+/// F26 : « Ventilation anticipée » : une hausse du ventilateur pièce (M106) est appliquée jusqu'à 1 s plus tôt ;
+/// « Arrêt » (par défaut) : comme Prusa. Un clic ouvre l'éditeur de valeur.
+class MI_FAN_LEAD final : public WI_LAMBDA_LABEL_t {
+public:
+    MI_FAN_LEAD();
     void click(IWindowMenu &) override;
 };
 
@@ -119,7 +128,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

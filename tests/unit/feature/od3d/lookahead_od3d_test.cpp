@@ -1,4 +1,4 @@
-// OneDrop3D (F8) : lecture des mouvements à venir sur une file du planificateur simulée (tampon circulaire de
+// OneDrop3D (F8, F26) : lecture des mouvements à venir sur une file du planificateur simulée (tampon circulaire de
 // 32 cases, comme BLOCK_BUFFER_SIZE de la CORE One).
 #include <feature/od3d/lookahead_math_od3d.hpp>
 
@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <random>
 #include <vector>
 
@@ -20,6 +21,10 @@ constexpr float max_e = 20; ///< max_melt_e_speed de F7
 
 BlockInfo move(float duration_s, float e_mm) {
     return BlockInfo { .duration_s = duration_s, .e_mm = e_mm, .is_move = true };
+}
+
+BlockInfo fan_move(float duration_s, uint8_t fan) {
+    return BlockInfo { .duration_s = duration_s, .e_mm = 0, .fan = fan, .is_move = true };
 }
 
 BlockInfo sync_block() {
@@ -49,6 +54,15 @@ struct Ring {
             return cells[i];
         });
         return scan.mean_e_speed();
+    }
+
+    std::optional<uint8_t> fan_ahead(float lead_s) {
+        FanScan scan(lead_s);
+        scan_ring(tail, head, size, scan, [this](uint8_t i) {
+            visited.push_back(i);
+            return cells[i];
+        });
+        return scan.fan();
     }
 };
 
@@ -161,5 +175,68 @@ TEST_CASE("lookahead : parcours de la file circulaire") {
         // Un bloc plus tard, le remplissage remplit la fenêtre (0,4 s) et la file s'arrête
         Ring r2(31, { move(40.0f / 200, 1.6f), move(40.0f / 200, 1.6f) });
         CHECK_THAT(r2.e_speed_ahead(), WithinAbs(8.0f, 1e-4f));
+    }
+}
+
+TEST_CASE("lookahead F26 : ventilateur appliqué en avance") {
+    SECTION("avance 0 : le ventilateur du premier bloc de mouvement, comme Prusa") {
+        Ring r(0, { sync_block(), fan_move(0.2f, 50), fan_move(0.01f, 255) });
+        CHECK(r.fan_ahead(0) == 50);
+        CHECK(r.visited.size() == 2); // rien n'est lu après le premier bloc
+    }
+
+    SECTION("une hausse qui commence dans l'avance est prise") {
+        // Débuts : 0 ; 0,2 ; 0,4 s
+        Ring r(0, { fan_move(0.2f, 0), fan_move(0.2f, 0), fan_move(0.2f, 255) });
+        CHECK(r.fan_ahead(0.5f) == 255);
+        Ring r2(0, { fan_move(0.2f, 0), fan_move(0.2f, 0), fan_move(0.2f, 255) });
+        CHECK(r2.fan_ahead(0.3f) == 0); // commence à 0,4 s : trop tard
+        CHECK(r2.visited.size() == 2); // le 2e bloc finit après l'avance : le 3e n'est pas lu
+    }
+
+    SECTION("le plus fort l'emporte ; une baisse n'est pas avancée") {
+        Ring r(0, { fan_move(0.1f, 255), fan_move(0.1f, 0), fan_move(0.1f, 128) });
+        CHECK(r.fan_ahead(1.0f) == 255);
+        Ring r2(0, { fan_move(0.1f, 64), fan_move(0.1f, 200), fan_move(0.1f, 128) });
+        CHECK(r2.fan_ahead(1.0f) == 200);
+    }
+
+    SECTION("blocs de synchronisation ignorés (ventilateur à 0) ; aucun mouvement : rien") {
+        Ring r(0, { sync_block(), fan_move(0.1f, 100), sync_block(), fan_move(0.1f, 90) });
+        CHECK(r.fan_ahead(1.0f) == 100);
+        Ring empty(0, { sync_block(), sync_block() });
+        CHECK_FALSE(empty.fan_ahead(1.0f).has_value());
+        Ring none(4, {});
+        CHECK_FALSE(none.fan_ahead(1.0f).has_value());
+    }
+
+    SECTION("durées inconnues : comptent pour 0 s") {
+        Ring r(0, { fan_move(0, 10), fan_move(0, 20), fan_move(0.5f, 30), fan_move(0.1f, 40) });
+        CHECK(r.fan_ahead(0.4f) == 30); // le 4e commence à 0,5 s
+    }
+
+    SECTION("pont dans une file qui fait le tour du tampon") {
+        // Remplissage (fan 35 %), puis un pont à 100 % qui commence 0,3 s plus tard
+        Ring r(30, { fan_move(0.15f, 90), fan_move(0.15f, 90), fan_move(0.6f, 255), fan_move(0.2f, 90) });
+        CHECK(r.fan_ahead(0.2f) == 90);
+        Ring r2(30, { fan_move(0.15f, 90), fan_move(0.15f, 90), fan_move(0.6f, 255), fan_move(0.2f, 90) });
+        CHECK(r2.fan_ahead(0.4f) == 255);
+        CHECK(r2.visited == std::vector<uint8_t> { 30, 31, 0 });
+    }
+
+    SECTION("index incohérents : au plus 32 cases, résultat parmi les valeurs de la file") {
+        std::mt19937 rng { 9 };
+        std::uniform_int_distribution<int> idx(0, 255);
+        for (int i = 0; i < 2000; ++i) {
+            Ring r(0, {});
+            for (auto &c : r.cells) {
+                c = fan_move(0.01f, 77);
+            }
+            r.tail = uint8_t(idx(rng));
+            r.head = uint8_t(idx(rng));
+            const auto f = r.fan_ahead(1.0f);
+            REQUIRE(r.visited.size() <= size);
+            REQUIRE((!f.has_value() || *f == 77));
+        }
     }
 }

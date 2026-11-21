@@ -1,12 +1,15 @@
 /// @file
 #include "screen_menu_od3d.hpp"
 
+#include "value_editor_od3d.hpp"
 #include "widgets_od3d.hpp"
 
+#include <cmath>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <cstdio>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+#include <feature/od3d/lookahead_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/pairing_od3d.hpp>
 #include <feature/od3d/spool_calib_od3d.hpp>
@@ -59,6 +62,42 @@ void MI_PAIR_PRINTFORGE::click(IWindowMenu &) {
 
 ScreenMenuFeatures::ScreenMenuFeatures()
     : BasicScreenMenu(_("OneDrop3D Features")) {}
+
+// ---- Ventilation anticipée (F26) ----
+
+namespace {
+
+    constexpr NumericInputConfig fan_lead_config {
+        .min_value = 0,
+        .max_value = 1,
+        .step = 0.1f,
+        .special_value = 0, ///< « Arrêt » : comme Prusa
+        .max_decimal_places = 1,
+        .unit = Unit::second,
+    };
+
+} // namespace
+
+// Vaut tout de suite, impression comprise (seules les hausses du ventilateur sont avancées)
+MI_FAN_LEAD::MI_FAN_LEAD()
+    // Sans icône au constructeur : WI_LAMBDA_LABEL_t réserverait alors à la valeur la place d'une icône
+    : WI_LAMBDA_LABEL_t(_("Fan lead\nPart fan speeds up to 1 s early"), nullptr, is_enabled_t::yes, is_hidden_t::no, [](const std::span<char> &buffer) {
+        const unsigned ds = lookahead::fan_lead_ds();
+        if (ds == 0) {
+            _("Off").copyToRAM(buffer.data(), buffer.size());
+        } else {
+            snprintf(buffer.data(), buffer.size(), "%u.%u s", ds / 10, ds % 10);
+        }
+    }) {
+    SetIconId(&img::fan_16x16);
+}
+
+void MI_FAN_LEAD::click(IWindowMenu &) {
+    if (const auto v = ValueEditor::exec(_("Fan lead"), lookahead::fan_lead_ds() / 10.0f, fan_lead_config)) {
+        lookahead::set_fan_lead_ds(static_cast<uint8_t>(std::lround(*v * 10)));
+        InValidateExtension();
+    }
+}
 
 // ---- PA de l'imprimante (F4) ----
 

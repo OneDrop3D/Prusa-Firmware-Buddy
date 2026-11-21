@@ -1,6 +1,8 @@
 /// @file
 #include "menu_od3d.hpp"
 
+#include "screen_files_od3d.hpp"
+#include "screen_printing_od3d.hpp"
 #include "text_od3d.hpp"
 
 #include <algorithm>
@@ -59,21 +61,21 @@ namespace {
 
     /// Libellé sur une ligne, ou deux si le texte en a deux (nom, puis explication en gris)
     void draw_label(Rect16 rect, const string_view_utf8 &label, Color fg, Color bg) {
-        std::array<char, 160> text;
-        label.copyToRAM(text.data(), text.size());
-        char *second = strchr(text.data(), '\n');
+        std::array<char, 160> buf;
+        label.copyToRAM(buf.data(), buf.size());
+        char *second = strchr(buf.data(), '\n');
         if (second) {
             *second++ = '\0';
         }
         const size_t chars = rect.Width() / width(Font::small);
-        text::ellipsize(text.data(), chars);
+        text::ellipsize(buf.data(), chars);
         const uint16_t h = height(Font::small);
         if (!second) {
-            draw_text(Rect16(rect.Left(), rect.Top() + (rect.Height() - h) / 2, rect.Width(), h), string_view_utf8::MakeRAM(text.data()), Font::small, fg, bg);
+            draw_text(Rect16(rect.Left(), rect.Top() + (rect.Height() - h) / 2, rect.Width(), h), string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
             return;
         }
         text::ellipsize(second, chars);
-        draw_text(Rect16(rect.Left(), rect.Top() + 1, rect.Width(), h), string_view_utf8::MakeRAM(text.data()), Font::small, fg, bg);
+        draw_text(Rect16(rect.Left(), rect.Top() + 1, rect.Width(), h), string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
         draw_text(Rect16(rect.Left(), rect.Top() + 18, rect.Width(), h), string_view_utf8::MakeRAM(second), Font::small, style::text_muted, bg);
     }
 
@@ -235,6 +237,9 @@ TabBar::Tab section_tab() {
     }
     if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMenuFilamentMMU>() || n.creator.is_screen<ScreenMenuFilament>(); })) {
         return TabBar::Tab::workshop;
+    }
+    if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenFiles>() || n.creator.is_screen<ScreenPrinting>(); })) {
+        return TabBar::Tab::print; // par exemple « Ajuster » (menu Prusa) ouvert depuis l'écran Impression
     }
     return TabBar::Tab::home;
 }

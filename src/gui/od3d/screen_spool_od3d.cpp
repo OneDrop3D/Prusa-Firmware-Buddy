@@ -116,9 +116,10 @@ void StepBand::unconditionalDraw() {
     for (int i = 0; i < 3; ++i) {
         const int step = i + 1;
         const Rect16 pill(r.Left() + 157 * i, r.Top(), 150, r.Height());
-        // En cours : orange ; faite : #303337 ; à venir : #26282B ; « Matière et couleur » seule : 1 et 2 éteintes
+        // En cours : orange ; faite : #303337 ; à venir : #26282B ; étapes sautées éteintes (« Matière et couleur » seule :
+        // 1 et 2 ; emplacement vide : rien à retirer)
         const bool current = step == wizard.step;
-        const bool skipped = wizard.mode == SpoolChange::material && step < 3;
+        const bool skipped = (wizard.mode == SpoolChange::material && step < 3) || (wizard.mode == SpoolChange::insert && step == 1);
         const Color fill = current ? style::accent : (step < wizard.step && !skipped ? style::secondary : style::surface);
         const Color fg = current ? style::on_accent : (skipped ? style::text_faint : style::text_muted);
         display::draw_rounded_rect(pill, style::screen, fill, 12, MIC_ALL_CORNERS);

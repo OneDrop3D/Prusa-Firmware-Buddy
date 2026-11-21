@@ -1,7 +1,8 @@
 /// @file
 /// OneDrop3D (F15) : écran « Équerrage XY » (SPEC_G.md, Mécanique › Équerrage XY), ouvert depuis « Fonctions OneDrop3D ».
 /// On imprime un carré de 100 mm, on saisit ses diagonales AC, BD et son côté AD (éditeur de valeur commun), l'écran
-/// affiche l'écart calculé, puis « Appliquer » l'enregistre (M852 I<k>) ou « Remettre à zéro » l'annule.
+/// affiche l'écart calculé, puis « Appliquer » l'ajoute à la correction actuelle (M852 I<k>) ou « Remettre à zéro »
+/// l'annule.
 /// Mesures et facteur : src/feature/od3d/skew_od3d.hpp.
 #pragma once
 
@@ -54,7 +55,8 @@ private:
     uint8_t revision; ///< révision des mesures déjà affichée : la valeur se redessine quand une mesure change
 };
 
-/// Enregistre et applique l'écart mesuré (pas pendant une impression)
+/// Ajoute l'écart mesuré à la correction actuelle (la pièce a été imprimée avec elle), l'enregistre et l'applique
+/// (pas pendant une impression)
 class MI_SKEW_APPLY final : public IWindowMenuItem {
 public:
     MI_SKEW_APPLY();

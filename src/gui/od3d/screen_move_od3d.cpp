@@ -27,26 +27,28 @@ namespace {
     // ---- Géométrie (SPEC_G.md §3.17) ----
     // Colonnes ajustées à la police de l'imprimante : « Rétracter » (81 px) tient dans la colonne E,
     // pris sur la croix et la carte, qui garde presque les proportions du plateau.
-    constexpr Rect16 cross_rect = { 8, 32, 140, 152 };
-    constexpr Rect16 x_minus_body = { 12, 85, 40, 46 };
-    constexpr Rect16 x_plus_body = { 104, 85, 40, 46 };
-    constexpr Rect16 y_plus_body = { 54, 36, 48, 44 };
-    constexpr Rect16 y_minus_body = { 54, 136, 48, 44 };
-    constexpr Rect16 origin_xy_body = { 56, 86, 44, 44 };
-    constexpr Rect16 z_value_rect = { 148, 32, 66, 16 };
-    constexpr Rect16 z_plus_body = { 154, 50, 54, 62 };
-    constexpr Rect16 z_minus_body = { 154, 118, 54, 62 };
-    constexpr Rect16 e_value_rect = { 214, 32, 84, 16 };
-    constexpr Rect16 extrude_body = { 214, 50, 84, 62 };
-    constexpr Rect16 retract_body = { 214, 118, 84, 62 };
-    constexpr Rect16 map_rect = { 304, 32, 168, 152 };
-    constexpr Rect16 step_title_rect = { 8, 199, 36, 16 };
-    constexpr Rect16 position_rect = { 296, 199, 176, 16 };
-    constexpr Rect16 origin_all_body = { 8, 230, 228, 36 };
-    constexpr Rect16 motors_body = { 244, 230, 228, 36 };
+    // Sous l'en-tête de 40 px : croix et carte de 144 px (152 avant), touches un peu moins hautes.
+    constexpr Rect16 cross_rect = { 8, style::content.Top(), 140, 144 };
+    constexpr Rect16 x_minus_body = { 12, 94, 40, 44 };
+    constexpr Rect16 x_plus_body = { 104, 94, 40, 44 };
+    constexpr Rect16 y_plus_body = { 54, 48, 48, 42 };
+    constexpr Rect16 y_minus_body = { 54, 142, 48, 42 };
+    constexpr Rect16 origin_xy_body = { 56, 94, 44, 44 };
+    constexpr Rect16 z_value_rect = { 148, style::content.Top(), 66, 16 };
+    constexpr Rect16 z_plus_body = { 154, 62, 54, 60 };
+    constexpr Rect16 z_minus_body = { 154, 127, 54, 60 };
+    constexpr Rect16 e_value_rect = { 214, style::content.Top(), 84, 16 };
+    constexpr Rect16 extrude_body = { 214, 62, 84, 60 };
+    constexpr Rect16 retract_body = { 214, 127, 84, 60 };
+    constexpr Rect16 map_rect = { 304, style::content.Top(), 168, 144 };
+    constexpr Rect16 step_title_rect = { 8, 203, 36, 16 };
+    constexpr Rect16 position_rect = { 296, 203, 176, 16 };
+    constexpr Rect16 origin_all_body = { 8, 236, 228, 36 };
+    constexpr Rect16 motors_body = { 244, 236, 228, 36 };
 
+    /// 58 px : « 0.1 mm » (54 px) tient dans le contour de 2 px du pas choisi
     constexpr Rect16 step_body(int i) {
-        return Rect16(46 + 62 * i, 192, 56, 30);
+        return Rect16(46 + 62 * i, 196, 58, 30);
     }
 
     static_assert(style::inside(style::content, cross_rect) && style::inside(style::content, map_rect) && style::inside(style::content, style::with_ring(motors_body)));
@@ -54,6 +56,8 @@ namespace {
     static_assert(z_value_rect.Bottom() < style::with_ring(z_plus_body).Top() && cross_rect.Right() < z_value_rect.Left() && z_value_rect.Right() < e_value_rect.Left());
     static_assert(style::with_ring(retract_body).Right() < map_rect.Left() && cross_rect.Bottom() < style::with_ring(step_body(0)).Top());
     static_assert(style::with_ring(step_body(3)).Right() < position_rect.Left() && style::with_ring(step_body(0)).Bottom() < style::with_ring(origin_all_body).Top());
+    static_assert(style::with_ring(y_plus_body).Bottom() < style::with_ring(origin_xy_body).Top() && style::with_ring(origin_xy_body).Bottom() < style::with_ring(y_minus_body).Top());
+    static_assert(style::with_ring(z_plus_body).Bottom() < style::with_ring(z_minus_body).Top() && step_title_rect.Right() < style::with_ring(step_body(0)).Left());
 
     // Carte : le centre du point (Ø14) reste à 11 px du trait (rayon des coins) pour que son carré, effacé
     // quand il bouge, ne touche jamais un coin arrondi ; le réticule s'arrête à 2 px du bord
@@ -259,14 +263,14 @@ MoveKey::MoveKey(window_t *parent, Rect16 body, Action action, Color back, Arrow
 void MoveKey::set_dimmed(bool set) {
     if (set != dimmed) {
         dimmed = set;
-        Invalidate();
+        invalidate_content(); // chevron et libellé seuls, sans repeindre la touche
     }
 }
 
 void MoveKey::draw_content(Rect16 body) {
     const int16_t cx = body.Left() + body.Width() / 2;
     if (arrow == Arrow::none) {
-        draw_icon({ int16_t(cx - 8), int16_t(body.Top() + (body.Height() - 16) / 2) }, img::home_full_16x16, body_color);
+        draw_icon({ int16_t(cx - 8), int16_t(body.Top() + (body.Height() - 16) / 2) }, img::home_full_16x16, fill());
         return;
     }
     // Chevron (18 px) et libellé (16 px) centrés ensemble, 4 px entre eux
@@ -274,7 +278,7 @@ void MoveKey::draw_content(Rect16 body) {
     const int16_t arrow_top = arrow_below ? top + 20 : top;
     const int16_t label_top = arrow_below ? top : top + 22;
     draw_chevron({ cx, int16_t(arrow_top + 9) }, arrow, dimmed ? style::text_faint : arrow_color);
-    draw_text(Rect16(body.Left() + 1, label_top, body.Width() - 2, height(Font::small)), label, Font::small, dimmed ? style::text_faint : style::text_strong, body_color, Align_t::Center());
+    draw_text(Rect16(body.Left() + 1, label_top, body.Width() - 2, height(Font::small)), label, Font::small, dimmed ? style::text_faint : style::text_strong, fill(), Align_t::Center());
 }
 
 StepChip::StepChip(window_t *parent, uint8_t index)
@@ -282,17 +286,13 @@ StepChip::StepChip(window_t *parent, uint8_t index)
     , index(index) {}
 
 void StepChip::unconditionalDraw() {
-    body_color = index == step_index ? style::accent : style::surface; // le contour orange du choix est le bord du corps
-    Card::unconditionalDraw();
-}
-
-void StepChip::draw_content(Rect16 body) {
-    Color bg = body_color;
-    if (index == step_index) {
-        bg = selected_back;
-        display::draw_rounded_rect(Rect16(body.Left() + 2, body.Top() + 2, body.Width() - 4, body.Height() - 4), style::accent, bg, radius - 2, MIC_ALL_CORNERS);
-    }
-    draw_text(Rect16(body.Left() + 1, body.Top() + (body.Height() - height(Font::small)) / 2, body.Width() - 2, height(Font::small)), string_view_utf8::MakeCPUFLASH(step_labels[index]), Font::small, style::text_strong, bg, Align_t::Center());
+    // Choisi : fond brun et contour orange de 2 px (SPEC_G.md §1.5), d'une passe ; ciblé : un ton plus clair
+    const bool chosen = index == step_index;
+    const Color base = chosen ? selected_back : style::surface;
+    const Color bg = IsFocused() ? style::focused(base) : base;
+    draw_frame(GetRect(), back, style::accent, bg, radius, chosen ? 2 : 0);
+    const Rect16 b = body();
+    draw_text(Rect16(b.Left() + 2, b.Top() + (b.Height() - height(Font::small)) / 2, b.Width() - 4, height(Font::small)), string_view_utf8::MakeCPUFLASH(step_labels[index]), Font::small, style::text_strong, bg, Align_t::Center());
 }
 
 // ---- Textes ----
@@ -368,8 +368,8 @@ void BedMap::paint(Rect16 r) const {
 
 void BedMap::unconditionalDraw() {
     if (!HasValidBackground()) {
-        display::draw_rounded_rect(map_rect, style::screen, style::line, 12, MIC_ALL_CORNERS);
-        display::draw_rounded_rect(map_inner, style::line, map_back, map_radius, MIC_ALL_CORNERS);
+        // Trait et fond d'une passe : les coins du trait suivent l'arrondi (map_radius à l'intérieur)
+        draw_rounded_frame(map_rect, style::screen, style::line, map_back, map_radius + 1, 1);
         draw_grid(map_inner);
     } else if (drawn) {
         // Seuls l'ancien point et les traits du réticule qui ont bougé s'effacent : pas de clignotement

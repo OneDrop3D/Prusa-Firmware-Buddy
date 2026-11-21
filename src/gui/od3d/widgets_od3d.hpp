@@ -39,8 +39,11 @@ void draw_margin(Rect16 outer, Color back);
 /// Corps arrondi dans outer moins la marge de 2 px, marge comprise, au fond back
 void draw_body(Rect16 outer, Color body, Color back, uint8_t radius);
 
-/// Corps arrondi avec un contour de border_w px (puces, choix, danger), d'une seule passe : les coins du contour suivent
-/// l'arrondi (deux rectangles arrondis emboîtés débordaient aux coins)
+/// Rectangle arrondi avec un contour de border_w px, d'une seule passe : les coins du contour suivent l'arrondi (deux
+/// rectangles arrondis emboîtés débordaient aux coins) ; hors de l'arrondi, la couleur back
+void draw_rounded_frame(Rect16 rect, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w);
+
+/// draw_rounded_frame() d'un élément (puces, choix, danger) : outer comprend sa marge de 2 px, peinte au fond back
 void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w);
 
 /// Une ligne de texte dans rect, fond repeint ; ce qui dépasse est coupé

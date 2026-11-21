@@ -79,16 +79,14 @@ void draw_body(Rect16 outer, Color body, Color back, uint8_t radius) {
     display::draw_rounded_rect(inner(outer), back, body, radius, MIC_ALL_CORNERS);
 }
 
-void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w) {
+void draw_rounded_frame(Rect16 rect, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w) {
     if (!border_w) {
-        draw_body(outer, fill, back, radius);
+        display::draw_rounded_rect(rect, back, fill, radius, MIC_ALL_CORNERS);
         return;
     }
-    draw_margin(outer, back);
-    const Rect16 b = inner(outer);
-    const int w = b.Width(), h = b.Height(), bw = border_w;
+    const int w = rect.Width(), h = rect.Height(), bw = border_w;
     int row = -1, out = 0, in = 0; // retraits du bord et du contour pour la ligne row, comme display::draw_rounded_rect
-    draw_pixels(b, [&](int x, int y) {
+    draw_pixels(rect, [&](int x, int y) {
         if (y != row) {
             row = y;
             out = print_info::corner_inset(y, h, radius);
@@ -99,6 +97,11 @@ void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radi
         }
         return (x < in || x >= w - in) ? border : fill;
     });
+}
+
+void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w) {
+    draw_margin(outer, back);
+    draw_rounded_frame(inner(outer), back, border, fill, radius, border_w);
 }
 
 void draw_text(Rect16 rect, const string_view_utf8 &text, Font font, Color fg, Color bg, Align_t align) {

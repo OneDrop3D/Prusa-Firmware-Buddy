@@ -47,7 +47,6 @@ public:
 
 protected:
     void unconditionalDraw() override;
-    void draw_content(Rect16 body) override;
 
 private:
     uint8_t index;

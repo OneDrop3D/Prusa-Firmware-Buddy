@@ -8,6 +8,11 @@
 #include "marlin_client.hpp"
 #include <screen_error.hpp>
 #include "screen_home.hpp"
+#include <option/has_mmu2.h>
+#include <option/has_nozzle_thermal_compensation.h>
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    #include <gui/od3d/screen_home_od3d.hpp> // OneDrop3D : interface G
+#endif
 #include "screen_move_z.hpp"
 #include "ScreenFactory.hpp"
 #include "ScreenHandler.hpp"
@@ -130,7 +135,12 @@ namespace {
 void init_screens() {
     Screens::Init(ScreenFactory::Screen<ScreenSplash>);
 
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    // OneDrop3D : notre accueil (interface G) remplace celui de Prusa au bas de la pile
+    Screens::Access()->PushBeforeCurrent(ScreenFactory::Screen<od3d::ScreenHome>);
+#else
     Screens::Access()->PushBeforeCurrent(ScreenFactory::Screen<screen_home_data_t>);
+#endif
 
 #if HAS_POWER_PANIC()
     // don't present any screen or wizard if there is a powerpanic pending

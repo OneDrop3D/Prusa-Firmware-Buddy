@@ -55,6 +55,10 @@ private:
 
 public:
     static bool EverBeenOpened() { return ever_been_opened; }
+    static void SetEverBeenOpened() { ever_been_opened = true; } // OneDrop3D : notre accueil remplace celui-ci
+    /// OneDrop3D : publiques et statiques pour notre accueil (src/gui/od3d/screen_home_od3d.cpp)
+    static bool find_latest_gcode(char *fpath, int fpath_len);
+    static void handle_wifi_credentials();
     screen_home_data_t();
     ~screen_home_data_t();
 
@@ -68,6 +72,4 @@ private:
     void printBtnEna();
     void printBtnDis();
     void filamentBtnSetState();
-
-    void handle_wifi_credentials();
 };

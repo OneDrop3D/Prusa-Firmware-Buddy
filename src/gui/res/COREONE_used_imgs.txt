@@ -1,6 +1,7 @@
 arrow_down_12x12.png
 arrow_down_orange_12x12.png
 arrow_left_10x16.png
+arrow_left_16x16.png
 arrow_right_10x16.png
 arrow_up_12x12.png
 arrow_up_orange_12x12.png
@@ -54,6 +55,7 @@ heatbreak_dark_16x16.png
 home_80x80_disabled.png
 home_80x80_focused.png
 home_80x80.png
+home_full_16x16.png
 home_shape_16x16.png
 hourglass0_26x39.png
 hourglass1_26x39.png

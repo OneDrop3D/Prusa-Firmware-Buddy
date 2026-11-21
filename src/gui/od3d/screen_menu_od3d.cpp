@@ -1,6 +1,5 @@
 /// @file
 #include "screen_menu_od3d.hpp"
-#include "screen_home_od3d.hpp"
 
 #include <config_store/store_instance.hpp>
 #include <cstdio>
@@ -35,13 +34,6 @@ void MI_PAIR_PRINTFORGE::click(IWindowMenu &) {
     StringViewUtf8Parameters<8> params;
     MsgBoxInfo(_("Type this code in PrintForge:\n\n%s\n\nValid for 5 minutes.").formatted(params, code), Responses_Ok);
     od3d::pairing::stop();
-}
-
-MI_HOME_PREVIEW::MI_HOME_PREVIEW()
-    : IWindowMenuItem(_("OneDrop3D Home (preview)"), nullptr, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
-
-void MI_HOME_PREVIEW::click(IWindowMenu &) {
-    Screens::Access()->Open(ScreenFactory::Screen<ScreenHome>);
 }
 
 // Pas pendant une impression : le Z changerait d'un coup (jusqu'à 0,05 mm à 280 °C).

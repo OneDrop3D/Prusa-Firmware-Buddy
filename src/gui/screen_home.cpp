@@ -145,7 +145,7 @@ const char *labels[] = {
 bool screen_home_data_t::usbWasAlreadyInserted = false;
 bool screen_home_data_t::need_check_wifi_credentials = true;
 
-[[maybe_unused]] static bool find_latest_gcode(char *fpath, int fpath_len) {
+bool screen_home_data_t::find_latest_gcode(char *fpath, int fpath_len) {
     auto sb = StringBuilder::from_ptr(fpath, fpath_len);
     sb.append_string("/usb/");
 

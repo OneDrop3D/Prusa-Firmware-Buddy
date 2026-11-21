@@ -1,24 +1,119 @@
 /// @file
-/// OneDrop3D (F1, interface G) : l'accueil. Étape 1 : en-tête, trois cartes et la barre d'onglets.
+/// OneDrop3D (F1, interface G) : l'accueil, écran de démarrage et bas de la pile (SPEC_G.md §3.1).
+/// Bande des 5 bobines du MMU, dernier fichier avec sa vignette et « Imprimer », cartes Fichiers,
+/// Températures et Contrôle. Il reprend ce que faisait l'accueil Prusa (screen_home_data_t) : clé USB,
+/// impression en un clic, .ini du Wi-Fi, NFC, état du MMU.
 #pragma once
 
-#include <screen.hpp>
-#include <window_header.hpp>
-#include <window_text.hpp>
+#include "thumbnail_od3d.hpp"
+#include "widgets_od3d.hpp"
+
+#include <array>
+#include <buddy/filename_defs.hpp>
+#include <media_state.hpp>
+#include <optional>
+#include <option/has_nfc.h>
+
+#if HAS_NFC()
+    #include <nfc.hpp>
+#endif
 
 namespace od3d {
 
-class ScreenHome final : public screen_t {
+/// Bobine de la bande de l'accueil : disque Ø40 et « n MATIÈRE », en orange si elle est chargée dans la buse
+class SpoolCard : public Card {
+public:
+    SpoolCard(window_t *parent, uint8_t index);
+
+    /// Relit l'emplacement et le redessine s'il a changé ; mmu_ready est faux pendant que le MMU démarre
+    void update(bool mmu_ready);
+
+protected:
+    void draw_content(Rect16 body) override;
+
+private:
+    Slot slot;
+    uint8_t index;
+};
+
+/// Carte du dernier fichier : vignette, « Dernier fichier », nom. « Imprimer » est un élément à part,
+/// pour que le focus ne fasse pas relire la vignette sur la clé.
+class FileCard : public window_t {
+public:
+    explicit FileCard(window_t *parent);
+
+    /// @param latest chemin du dernier fichier, nullptr s'il n'y en a pas
+    void set(bool usb, const char *latest);
+
+    void print() const;
+
+protected:
+    void unconditionalDraw() override;
+
+private:
+    bool draw_thumbnail(Rect16 box);
+
+    enum class State : uint8_t {
+        no_usb,
+        no_file,
+        file,
+    };
+
+    State state = State::no_usb;
+    std::array<char, filename_defs::path_buffer_size> path {};
+    std::array<char, 64> name {}; ///< nom affiché, sans extension, coupé à la largeur de la carte
+    std::optional<ScaledQoiReader> scaler; ///< dans l'écran plutôt que sur la pile de l'interface (6 Ko)
+};
+
+/// « Imprimer » de la carte du fichier ; le toucher marche sur toute la carte
+class PrintButton : public Card {
+public:
+    PrintButton(window_t *parent, FileCard &file);
+
+    Rect16 get_rect_for_touch() const override;
+
+protected:
+    void draw_content(Rect16 body) override;
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+private:
+    FileCard &file;
+};
+
+class ScreenHome final : public Screen {
 public:
     ScreenHome();
+    ~ScreenHome();
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
-    window_header_t header;
-    WindowButton cards[3]; ///< Fichiers, Températures, Contrôle
-    WindowButton tabs[4]; ///< Accueil, Imprimer, Atelier, Réglages
+    void refresh_file();
+    void update_spools();
+#if HAS_NFC()
+    void update_nfc_state();
+#endif
+
+    Header header;
+    SpoolCard spools[5];
+    IconButton mmu;
+    FileCard file;
+    PrintButton print;
+    IconCard files;
+    TempsCard temps;
+    IconCard control;
+    TabBar tabs;
+
+    bool usb_inserted;
+    bool event_in_progress = false;
+    MediaState_t media_event = MediaState_t::unknown;
+    static bool usb_was_already_inserted; ///< une clé a déjà été vue depuis le démarrage
+    static bool need_check_wifi_credentials;
+
+#if HAS_NFC()
+    std::optional<nfc::SharedEnabler> nfc_enable { std::in_place };
+#endif
 };
 
 } // namespace od3d

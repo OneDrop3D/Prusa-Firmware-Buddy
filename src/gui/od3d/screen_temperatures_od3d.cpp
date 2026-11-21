@@ -14,6 +14,7 @@
 #include <cstring>
 #include <display.hpp>
 #include <feature/chamber/chamber.hpp>
+#include <feature/od3d/chamber_climate_od3d.hpp>
 #include <feature/xbuddy_extension/xbuddy_extension.hpp>
 #include <i18n.h>
 #include <img_resources.hpp>
@@ -265,6 +266,10 @@ void HeaterCard::draw_content(Rect16 body) {
         }
     } else if (heater != Heater::chamber && reading.current > 45) {
         state = _("cooling"); // chauffe arrêtée, encore chaud
+    }
+    if (heater == Heater::bed && chamber_climate::status().active) {
+        state = _("slow cool-down"); // F29 : paliers de la descente douce (Refroidir l'arrête)
+        state_color = style::accent;
     }
     draw_text(Rect16(x, body.Top() + 79, w, height(Font::small)), state, Font::small, state_color, bg);
 

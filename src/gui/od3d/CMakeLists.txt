@@ -5,6 +5,7 @@ target_sources(
           menu_od3d.cpp
           print_info_od3d.cpp
           screen_belts_od3d.cpp
+          screen_climate_od3d.cpp
           screen_files_od3d.cpp
           screen_home_od3d.cpp
           screen_menu_od3d.cpp

@@ -2,6 +2,10 @@ target_sources(
   firmware PRIVATE mpc_control_od3d.cpp mpc_od3d.cpp music_od3d.cpp music_player_od3d.cpp pairing_od3d.cpp
                    skew_od3d.cpp
   )
+if(HAS_CHAMBER_API)
+  # F29 : climat de la chambre (recettes par matière) et descente douce du plateau
+  target_sources(firmware PRIVATE chamber_climate_math_od3d.cpp chamber_climate_od3d.cpp)
+endif()
 if(HAS_SPOOL_JOIN)
   target_sources(firmware PRIVATE spool_join_od3d.cpp)
 endif()

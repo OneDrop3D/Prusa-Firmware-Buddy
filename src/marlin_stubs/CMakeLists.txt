@@ -18,6 +18,7 @@ target_sources(
           M852_od3d.cpp
           M1991_od3d.cpp
           M1994_od3d.cpp
+          M1998_od3d.cpp
           M306_od3d.cpp
           M9140_M9150.cpp
           M9200.cpp

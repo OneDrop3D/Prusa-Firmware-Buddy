@@ -79,3 +79,9 @@ add_executable(
   )
 target_include_directories(mpc_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(mpc_od3d_tests)
+add_executable(
+  chamber_climate_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/chamber_climate_test.cpp
+                             ${CMAKE_SOURCE_DIR}/src/feature/od3d/chamber_climate_math_od3d.cpp
+  )
+target_include_directories(chamber_climate_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(chamber_climate_od3d_tests)

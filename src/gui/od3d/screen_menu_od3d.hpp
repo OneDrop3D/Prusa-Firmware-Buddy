@@ -3,10 +3,11 @@
 /// « Température de la buse » (§3.23 : régulation PID / MPC et sa calibration (F7, screen_mpc_od3d.*), compensation de
 /// dilatation (F2)) et « Relais de bobine » (§3.24) ;
 /// « Équerrage XY » (F15) est dans screen_skew_od3d.*, « Tension des courroies » (F14) dans screen_belts_od3d.*,
-/// « Vitesses critiques » (F22) dans screen_speed_map_od3d.*.
+/// « Vitesses critiques » (F22) dans screen_speed_map_od3d.*, « Climat de la chambre » (F29) dans screen_climate_od3d.*.
 /// Chaque fonction a une ligne d'explication sous son nom (libellé sur deux lignes, séparées par « \n »).
 #pragma once
 
+#include "screen_climate_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
 #include "screen_skew_od3d.hpp"
 #include "menu_items_od3d.hpp"
@@ -108,7 +109,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_CHAMBER_CLIMATE, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

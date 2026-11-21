@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <client_response_texts.hpp>
 #include <common/error_code_mangle.hpp>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <span>
@@ -16,6 +17,7 @@
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
 #include <mmu2/mmu2_error_converter.h>
+#include <numbers>
 #include <option/has_anfc.h>
 #include <option/has_auto_retract.h>
 #include <option/has_extruder_fsensor.h>
@@ -24,6 +26,7 @@
 #include <option/has_nozzle_cleaner.h>
 #include <option/has_side_fsensor.h>
 #include <sound.hpp>
+#include <timing.h>
 
 namespace od3d {
 
@@ -41,10 +44,13 @@ namespace {
     constexpr int16_t content_x = 46;
     constexpr uint16_t content_w = 388;
     constexpr int16_t text_x = 102; ///< titre et sous-titre, à droite de la bobine Ø44
+    constexpr Rect16 mark_rect = { content_x, 52, 48, 48 }; ///< bobine Ø44 (46,54) ou icône d'erreur 48 × 48
+    constexpr uint8_t spinner_d = 44;
+    constexpr uint32_t spinner_turn_ms = 1600; ///< un tour (SPEC_G.md §3.4)
     constexpr uint8_t box_radius = 18;
     constexpr Color veil = Color::from_raw(0x0C0C0D); ///< le fond × 0,45, pour ce qui se repeint autour du dialogue
 
-    static_assert(style::inside(box_rect, body_rect) && style::inside(box_rect, bar_rect));
+    static_assert(style::inside(box_rect, body_rect) && style::inside(box_rect, bar_rect) && style::inside(body_rect, mark_rect));
     static_assert(style::inside(box_rect, style::with_ring(Rect16(content_x, buttons_y, content_w, buttons_h))));
     static_assert(body_rect.Bottom() < bar_rect.Top() && bar_rect.Bottom() < buttons_y - style::ring);
 
@@ -340,18 +346,15 @@ void ScreenLoadUnload::Body::draw_header(Rect16 r) const {
     StringViewUtf8Parameters<4> params;
     string_view_utf8 title;
     char subtitle[24] = "";
-    spool::Look look {}; // bobine vide : opération sans emplacement connu
     if (owner.request) {
         title = _(request_title(owner.request->op)).formatted(params, owner.request->slot + 1);
         atelier::spool_name(subtitle, FilamentType::for_tool(VirtualToolIndex::from_raw(owner.request->slot)));
-        look = Slot::read(owner.request->slot).look;
     } else {
         title = _(mode_name(owner.mode));
         if (owner.mode == LoadUnloadMode::Load) {
             atelier::spool_name(subtitle, filament::get_type_to_load());
         }
     }
-    draw_spool({ content_x, int16_t(r.Top() + 4) }, look, 44);
 
     const uint16_t w = r.Left() + r.Width() - text_x;
     const Font font = title.computeNumUtf8Chars() * width(Font::normal) <= w ? Font::normal : Font::small;
@@ -361,12 +364,14 @@ void ScreenLoadUnload::Body::draw_header(Rect16 r) const {
 
 void ScreenLoadUnload::Body::unconditionalDraw() {
     const Rect16 r = GetRect();
-    display::fill_rect(r, style::surface);
+    // Le fond, sauf la case de la bobine (SpoolMark, dessinée par-dessus : pas de clignotement)
+    const Rect16 m = mark_rect;
+    display::fill_rect(Rect16(r.Left(), r.Top(), r.Width(), m.Top() - r.Top()), style::surface);
+    display::fill_rect(Rect16(r.Left(), m.Top(), m.Left() - r.Left(), m.Height()), style::surface);
+    display::fill_rect(Rect16(m.Left() + m.Width(), m.Top(), r.Left() + r.Width() - m.Left() - m.Width(), m.Height()), style::surface);
+    display::fill_rect(Rect16(r.Left(), m.Top() + m.Height(), r.Width(), r.Top() + r.Height() - m.Top() - m.Height()), style::surface);
 
     if (owner.kind == Kind::notice) {
-        const img::Resource *icon = owner.notice_type == std::to_underlying(ErrType::ERROR) ? &img::error_48x48
-            : (owner.notice_type == std::to_underlying(ErrType::WARNING) ? &img::warning_48x48 : &img::info_48x48);
-        draw_icon({ content_x, int16_t(r.Top() + 2) }, *icon, style::surface);
         const uint16_t w = r.Left() + r.Width() - text_x;
         if (owner.notice_title) {
             render_text_align(Rect16(text_x, r.Top() + 2, w, 2 * height(Font::normal)), _(owner.notice_title), Font::normal, style::surface, style::text_strong,
@@ -423,6 +428,65 @@ void ScreenLoadUnload::Body::unconditionalDraw() {
     }
 }
 
+ScreenLoadUnload::SpoolMark::SpoolMark(window_t *parent, const ScreenLoadUnload &owner)
+    : window_t(parent, mark_rect)
+    , owner(owner) {}
+
+bool ScreenLoadUnload::SpoolMark::spinning() const {
+    return owner.kind != Kind::notice && !owner.request;
+}
+
+void ScreenLoadUnload::SpoolMark::unconditionalDraw() {
+    const Rect16 r = GetRect();
+    if (owner.kind == Kind::notice) {
+        const img::Resource *icon = owner.notice_type == std::to_underlying(ErrType::ERROR) ? &img::error_48x48
+            : (owner.notice_type == std::to_underlying(ErrType::WARNING) ? &img::warning_48x48 : &img::info_48x48);
+        draw_icon({ r.Left(), r.Top() }, *icon, style::surface);
+        return;
+    }
+    display::fill_rect(r, style::surface);
+    const point_i16_t at { r.Left(), int16_t(r.Top() + 2) };
+    if (owner.request) {
+        draw_spool(at, Slot::read(owner.request->slot).look, spinner_d);
+        return;
+    }
+    // Anneau de 4 px, son quart orange tourne (un tour en 1,6 s) : par segments de même couleur, ligne par ligne
+    const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % spinner_turn_ms) / spinner_turn_ms;
+    constexpr int outer = spinner_d * spinner_d; // distances en demi-pixels, comme spool::Disc
+    constexpr int inner = (spinner_d - 8) * (spinner_d - 8);
+    for (int y = 0; y < spinner_d; ++y) {
+        int run_start = 0;
+        std::optional<Color> run;
+        for (int x = 0; x <= spinner_d; ++x) {
+            std::optional<Color> c;
+            if (x < spinner_d) {
+                const int dx = 2 * x + 1 - spinner_d, dy = 2 * y + 1 - spinner_d, q = dx * dx + dy * dy;
+                if (q < outer && q >= inner) {
+                    float a = std::atan2(float(dx), float(-dy)) - start; // 0 = en haut, sens horaire
+                    while (a < 0) {
+                        a += 2 * std::numbers::pi_v<float>;
+                    }
+                    c = a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
+                }
+            }
+            if (c != run) {
+                if (run) {
+                    display::fill_rect(Rect16(at.x + run_start, at.y + y, x - run_start, 1), *run);
+                }
+                run = c;
+                run_start = x;
+            }
+        }
+    }
+}
+
+void ScreenLoadUnload::SpoolMark::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::LOOP && spinning()) {
+        Invalidate();
+    }
+    window_t::windowEvent(sender, event, param);
+}
+
 ScreenLoadUnload::Bar::Bar(window_t *parent, const ScreenLoadUnload &owner)
     : window_t(parent, bar_rect)
     , owner(owner) {}
@@ -443,6 +507,7 @@ ScreenLoadUnload::ScreenLoadUnload()
     , header(this, _("Filament"), false)
     , box(this)
     , body(&box, *this)
+    , spool_mark(&box, *this)
     , bar(&box, *this)
     , buttons {
         { &box, Rect16(content_x, buttons_y, content_w, buttons_h), 0, Button::Look::outline, {} },

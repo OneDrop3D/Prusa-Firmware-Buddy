@@ -60,6 +60,20 @@ private:
         const ScreenLoadUnload &owner;
     };
 
+    /// Bobine de l'emplacement, icône de l'erreur, ou anneau tournant quand l'opération ne vient pas de l'atelier
+    class SpoolMark : public window_t {
+    public:
+        SpoolMark(window_t *parent, const ScreenLoadUnload &owner);
+
+    protected:
+        void unconditionalDraw() override;
+        void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+    private:
+        bool spinning() const;
+        const ScreenLoadUnload &owner;
+    };
+
     class Bar : public window_t {
     public:
         Bar(window_t *parent, const ScreenLoadUnload &owner);
@@ -99,6 +113,7 @@ private:
     Header header; ///< températures en direct pendant la chauffe (le pied de page de Prusa les montrait)
     Box box;
     Body body;
+    SpoolMark spool_mark; ///< après le contenu : il se dessine par-dessus sa case
     Bar bar;
     Button buttons[3];
 };

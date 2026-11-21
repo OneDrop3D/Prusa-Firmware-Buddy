@@ -71,6 +71,13 @@ public:
     void OnChange(size_t) override;
 };
 
+/// F5 : « limiter au débit mesuré » : le planificateur ralentit ce qui dépasserait le débit maximal de la bobine
+class MI_FLOW_LIMIT final : public WI_ICON_SWITCH_OFF_ON_t {
+public:
+    MI_FLOW_LIMIT();
+    void OnChange(size_t) override;
+};
+
 /// F3 : relais de bobine permanents, interrupteur général
 class MI_SPOOL_JOIN final : public WI_ICON_SWITCH_OFF_ON_t {
 public:
@@ -108,7 +115,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

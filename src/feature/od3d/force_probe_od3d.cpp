@@ -1,6 +1,7 @@
 /// @file
 #include "force_probe_od3d.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 
@@ -24,6 +25,13 @@ namespace {
     uint8_t summed = 0;
     uint32_t first_us = 0;
     std::atomic<uint32_t> last_us = 0;
+
+    // Fenêtre de mesure : écrite par l'interruption seulement quand window_on est vrai
+    std::atomic<bool> window_on = false;
+    uint32_t window_count = 0;
+    float window_shift = 0; ///< premier point de la fenêtre : sommes des écarts à lui (précision des flottants)
+    float window_sum = 0;
+    float window_sum_sq = 0;
 
 } // namespace
 
@@ -50,9 +58,19 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm) {
     if (++summed < decimation) {
         return;
     }
+    const float point_force = sum_force / float(summed) - base_force;
+    if (window_on.load(std::memory_order_acquire)) {
+        if (window_count == 0) {
+            window_shift = point_force;
+        }
+        const float d = point_force - window_shift;
+        window_sum += d;
+        window_sum_sq += d * d;
+        ++window_count;
+    }
     const uint16_t n = count.load(std::memory_order_relaxed);
     if (n < capacity) {
-        buffer[n] = force::make_point(sum_force / float(summed) - base_force, sum_x / float(summed) - base_x);
+        buffer[n] = force::make_point(point_force, sum_x / float(summed) - base_x);
         last_us.store(time_us, std::memory_order_relaxed);
         count.store(n + 1, std::memory_order_release);
     } else {
@@ -65,6 +83,7 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm) {
 
 void start() {
     armed.store(false, std::memory_order_release);
+    window_on.store(false, std::memory_order_release);
     // L'interruption ne touche plus à son état (armed faux) : on peut le remettre à zéro
     have_base = false;
     sum_force = 0;
@@ -78,6 +97,30 @@ void start() {
 
 void stop() {
     armed.store(false, std::memory_order_release);
+    window_on.store(false, std::memory_order_release);
+}
+
+void window_begin() {
+    window_on.store(false, std::memory_order_release);
+    // L'interruption ne touche plus aux sommes (window_on faux) : on peut les remettre à zéro
+    window_count = 0;
+    window_sum = 0;
+    window_sum_sq = 0;
+    window_on.store(true, std::memory_order_release);
+}
+
+void window_end() {
+    window_on.store(false, std::memory_order_release);
+}
+
+WindowStats window() {
+    if (window_on.load(std::memory_order_acquire) || window_count == 0) {
+        return {};
+    }
+    const float n = float(window_count);
+    const float mean = window_sum / n;
+    const float var = window_sum_sq / n - mean * mean;
+    return { .count = window_count, .mean_g = window_shift + mean, .sd_g = std::sqrt(std::max(var, 0.f)) };
 }
 
 bool recording() {

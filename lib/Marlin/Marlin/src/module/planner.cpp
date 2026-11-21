@@ -129,6 +129,12 @@
   #include <feature/indx_tool_lock_hack/indx_tool_lock_hack.hpp>
 #endif
 
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_LOADCELL() && HAS_MMU2()
+  #include <feature/od3d/flow_limit_od3d.hpp> // OneDrop3D (F5)
+#endif
+
 #include <option/has_indx.h>
 
 #include <feature/safety_timer/safety_timer.hpp>
@@ -1536,6 +1542,17 @@ bool Planner::_populate_block(block_t * const block,
         NOMORE(speed_factor, low_sf);
       }
     #endif // XY_FREQUENCY_LIMIT
+
+    #if HAS_LOADCELL() && HAS_MMU2()
+      // OneDrop3D (F5) : « limiter au débit mesuré » — un mouvement d'impression (E en avant avec XY) dont le filament
+      // irait plus vite que la limite de la bobine est ralenti ; jamais accéléré (speed_factor ne fait que baisser)
+      if (de > 0 && (block->msteps.a || block->msteps.b)) {
+        if (const float e_limit = od3d::flow_limit::planner_limit(); e_limit > 0.f) {
+          const float e_speed = ABS(current_speed[E_AXIS]);
+          if (e_speed > e_limit) NOMORE(speed_factor, e_limit / e_speed);
+        }
+      }
+    #endif
 
     // Correct the speed
     if (speed_factor < 1.0f) {

@@ -1,5 +1,6 @@
 /// @file
 #include "screen_pa_od3d.hpp"
+#include "screen_spool_calib_od3d.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -22,17 +23,21 @@ namespace {
     constexpr Rect16 note_rect = { style::margin, 180, 464, 16 };
     constexpr Rect16 wins_body = { style::margin, 202, 228, 30 };
     constexpr Rect16 csv_body = { 244, 202, 228, 30 };
-    constexpr Rect16 measure_body = { style::margin, 238, 228, 34 };
-    constexpr Rect16 second_body = { 244, 238, 228, 34 };
+    // Rangée du bas : trois boutons de 148 px
+    constexpr Rect16 measure_body = { style::margin, 238, 148, 34 };
+    constexpr Rect16 second_body = { 166, 238, 148, 34 };
+    constexpr Rect16 calib_body = { 324, 238, 148, 34 };
     static_assert(card_rect.Bottom() < note_rect.Top() && note_rect.Bottom() < style::with_ring(wins_body).Top());
     static_assert(style::with_ring(wins_body).Bottom() < style::with_ring(measure_body).Top());
-    static_assert(style::inside(style::content, style::with_ring(second_body)) && style::inside(style::content, graph_rect));
+    static_assert(style::inside(style::content, style::with_ring(calib_body)) && style::inside(style::content, graph_rect));
+    static_assert(style::with_ring(measure_body).Right() < style::with_ring(second_body).Left() && style::with_ring(second_body).Right() < style::with_ring(calib_body).Left());
 
     enum Tag : uint8_t {
         tag_wins,
         tag_csv,
         tag_measure,
         tag_second,
+        tag_calib,
     };
 
     constexpr Color color_low = Color::from_raw(0x4A90D9); ///< K le plus bas : bleu
@@ -60,6 +65,14 @@ namespace {
 
 void open_pa(uint8_t slot) {
     Screens::Access()->Open(ScreenFactory::ScreenWithArg<ScreenPa>(slot));
+}
+
+bool usb_curves() {
+    return csv_on;
+}
+
+void set_usb_curves(bool set) {
+    csv_on = set;
 }
 
 // ---- Carte de la valeur ----
@@ -178,6 +191,7 @@ ScreenPa::ScreenPa(uint8_t slot)
     , csv(this, csv_body, tag_csv, Button::Look::secondary, {}, nullptr, style::screen)
     , measure_button(this, measure_body, tag_measure, Button::Look::primary, _("Measure"), &img::nozzle_16x16, style::screen)
     , second(this, second_body, tag_second, Button::Look::outline, _("Clear"), nullptr, style::screen)
+    , calib(this, calib_body, tag_calib, Button::Look::secondary, _("Flow, temp."), nullptr, style::screen)
     , tabs(this, TabBar::Tab::workshop) {
     ClrMenuTimeoutClose(); // l'écran reste ouvert pendant la mesure
     note.set_font(Font::small);
@@ -307,6 +321,7 @@ void ScreenPa::update() {
     second.enable(busy || pa::record(slot).has_k());
     wins.enable(true);
     csv.enable(!busy);
+    calib.enable(true); // on y regarde les valeurs même pendant une mesure ou une impression
 
     // Un élément désactivé ne garde pas le focus
     if (window_t *focused = get_focused_child_window(); !focused || !focused->IsEnabled()) {
@@ -365,6 +380,9 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
                 card.Invalidate();
             }
             break;
+        case tag_calib:
+            open_spool_calib(slot);
+            return;
         }
         update();
         return;

@@ -2,6 +2,8 @@
 /// Méthode : PrusaPATuner (CNC Kitchen, AGPL-3.0), réimplémentée d'après sa description (voir pa_math_od3d.hpp).
 #include "pa_od3d.hpp"
 #include "force_probe_od3d.hpp"
+#include "measure_session_od3d.hpp"
+#include "spool_calib_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -16,15 +18,11 @@
 #include <loadcell.hpp>
 #include <Marlin.h>
 #include <feature/pressure_advance/pressure_advance_config.hpp>
-#include <feature/prusa/e-stall_detector.h>
-#include <gcode/gcode.h>
 #include <metric.h>
 #include <module/motion.h>
 #include <module/planner.h>
 #include <module/temperature.h>
 #include <raii/scope_guard.hpp>
-#include <timing.h>
-#include <tool/hotend/hotend.hpp>
 #include <tool_index.hpp>
 
 METRIC_DEF(metric_od3d_pa, "od3d_pa", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
@@ -103,6 +101,7 @@ namespace {
 } // namespace
 
 void on_tool_change() {
+    calib::refresh_flow_limit(); // F5 : limite de débit de l'emplacement chargé
     if (!printer_wins()) {
         return;
     }
@@ -121,6 +120,7 @@ void on_print_start() {
     // Pas de changement du PA ici (boucle du serveur : on ne vide pas les files) ; le T du début du G-code ou le
     // premier M572 posent le K de l'emplacement
     slicer_requested = NAN;
+    calib::refresh_flow_limit(); // F5
 }
 
 std::optional<float> override_slicer_pa(float requested) {
@@ -154,55 +154,16 @@ namespace {
 
     LastRun last;
 
-    constexpr uint8_t queue_depth = 5; ///< mouvements en file au plus : un arrêt prend effet en ~3 s
-    constexpr uint32_t heat_timeout_ms = 6 * 60 * 1000;
-    constexpr float edge_margin = 10.f; ///< mm gardés aux bords de la course
-    constexpr float travel_speed_xy = 100.f;
-    constexpr float travel_speed_z = 10.f;
+    using session::must_stop;
+    using session::wait_moves;
+    using session::wait_ms;
+    using session::wait_queue;
+
     constexpr float accel_xy = 5000.f; ///< comme PrusaPATuner ; la limite d'accélération du filament de Prusa reste
     constexpr float prime_mm = 8.f; ///< purge avant la mesure [mm de filament]
     constexpr float prime_speed = 2.f; ///< [mm/s de filament]
-    constexpr float retract_mm = 0.8f; ///< après la mesure, contre le suintement
     constexpr uint8_t min_confidence = 30; ///< en dessous, rien n'est enregistré
-    constexpr int16_t max_temperature = 300; ///< demande bornée ; la protection de Prusa reste la seule limite réelle
-
-    bool must_stop() {
-        return stop_requested.load() || planner.draining() || marlin_server::is_printing() || !marlin_server::printer_idle();
-    }
-
-    /// Attend ms millisecondes (marche de Marlin assurée) ; false s'il faut s'arrêter
-    bool wait_ms(uint32_t ms) {
-        const uint32_t start = ticks_ms();
-        while (ticks_ms() - start < ms) {
-            if (must_stop()) {
-                return false;
-            }
-            idle(true);
-        }
-        return true;
-    }
-
-    /// Attend la fin des mouvements en file ; false s'il faut s'arrêter
-    bool wait_moves() {
-        while (planner.processing()) {
-            if (must_stop()) {
-                return false;
-            }
-            idle(true);
-        }
-        return !must_stop();
-    }
-
-    /// Attend une place dans la file des mouvements ; false s'il faut s'arrêter
-    bool wait_queue() {
-        while (planner.movesplanned() >= queue_depth) {
-            if (must_stop()) {
-                return false;
-            }
-            idle(true);
-        }
-        return !must_stop();
-    }
+    constexpr float travel_speed_xy = session::travel_speed_xy;
 
     /// Un mouvement en X avec extrusion proportionnelle (le PA de Prusa n'agit qu'avec du XY) ; false s'il faut s'arrêter
     bool extrude_x(float dx, float speed, float e_per_mm) {
@@ -275,6 +236,22 @@ namespace {
             fprintf(csv, "R,%.4f,%.5f,%.5f,%.3f,%.3f,%.2f,%.3f,%u\n", double(k), double(r.lag_s), double(r.cost), double(r.overshoot),
                 double(r.undershoot), double(r.amplitude_g), double(r.noise), unsigned(r.cycles));
         }
+    }
+
+    Error error_of(session::Result r) {
+        switch (r) {
+        case session::Result::ok:
+            return Error::none;
+        case session::Result::stopped:
+            return Error::stopped;
+        case session::Result::homing:
+            return Error::homing;
+        case session::Result::no_room:
+            return Error::no_room;
+        case session::Result::heating:
+            return Error::heating;
+        }
+        return Error::stopped;
     }
 
     Error error_of(Fit fit) {
@@ -352,38 +329,16 @@ void calibrate(const Request &rq) {
         return;
     }
     // La consigne est encore bornée par Prusa (température maximale de la buse) : on attend la consigne réelle
-    const int16_t temperature = std::clamp<int16_t>(rq.temperature > 0 ? rq.temperature : type.parameters().nozzle_temperature, EXTRUDE_MINTEMP + 10, max_temperature);
+    const int16_t temperature = std::clamp<int16_t>(rq.temperature > 0 ? rq.temperature : type.parameters().nozzle_temperature, EXTRUDE_MINTEMP + 10, session::max_temperature);
     st_temperature = temperature;
 
     running = true;
     ScopeGuard not_running = [] { running = false; };
     st_steps = uint8_t(coarse + rq.refine);
 
-    // Réglages remis à la fin, même sur un arrêt de Marlin : PA, mouvements, consigne de la buse
-    planner.synchronize();
-    const pressure_advance::Config saved_pa = pressure_advance::get_axis_e_config();
-    const float smooth_time = saved_pa.smooth_time > 0.f ? saved_pa.smooth_time : 0.04f;
-    const auto saved_settings = planner.user_settings;
-    const bool stealth = config_store().stealth_mode.get();
-    Hotend &hotend = Hotend::for_tool(PhysicalToolIndex::from_raw(0));
-    const Hotend::TargetTemperature saved_target = hotend.nozzle_target_temp();
-    BlockEStallDetection block_estall; // la détection de filament coincé lirait nos créneaux comme des à-coups
-    ScopeGuard restore = [&] {
-        if (!planner.draining()) {
-            // Un peu de filament en arrière contre le suintement, puis les réglages d'avant
-            if (!thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0))) {
-                current_position.e -= retract_mm;
-                line_to_current_position(35.f);
-            }
-            planner.synchronize();
-        }
-        if (!planner.draining()) {
-            pressure_advance::set_axis_e_config(saved_pa);
-        }
-        planner.apply_settings(saved_settings);
-        planner.set_stealth_mode(stealth);
-        hotend.set_nozzle_target_temp(saved_target);
-    };
+    // Réglages remis à la fin, même sur un arrêt de Marlin : PA, mouvements, consigne de la buse (session commune)
+    session::Session session(stop_requested);
+    const float smooth_time = session.smooth_time();
     planner.set_stealth_mode(false); // ses limites fausseraient les créneaux
     {
         auto s = planner.user_settings;
@@ -396,62 +351,27 @@ void calibrate(const Request &rq) {
         planner.apply_settings(s); // les limites matérielles de Prusa s'appliquent encore
     }
 
-    // Origine si nécessaire (avant de chauffer), hauteur sûre, avant du plateau
-    if (axes_need_homing()) {
-        GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
-    }
-    if (must_stop() || axes_need_homing()) {
-        fail(must_stop() ? Error::stopped : Error::homing);
-        return;
-    }
+    // Origine si nécessaire, hauteur sûre, avant du plateau ; la tête va de p0 − ls/2 à p0 + lf + ls/2 : centrée sur x
     const Profile prof = profile(rq.params);
     const float ls = prof.v_lo * rq.params.slow_s, lf = prof.v_hi * rq.params.fast_s;
-    // La tête va de p0 − ls/2 à p0 + lf + ls/2 : centrée sur x
     const float x_center = std::isfinite(rq.x) ? rq.x : X_BED_SIZE / 2.f;
     const float p0 = x_center - lf / 2.f;
-    const float y = std::clamp(rq.y, soft_endstop.min.y + edge_margin, soft_endstop.max.y - edge_margin);
-    const float z = std::min(std::max(rq.z, planner.max_printed_z + 10.f), soft_endstop.max.z - edge_margin);
-    if (p0 - ls / 2 < soft_endstop.min.x + edge_margin || p0 + lf + ls / 2 > soft_endstop.max.x - edge_margin || z < 5.f) {
-        fail(Error::no_room);
-        return;
-    }
-    if (current_position.z < z) {
-        do_blocking_move_to_z(z, travel_speed_z);
-    }
-    do_blocking_move_to_xy(p0, y, travel_speed_xy);
-    if (must_stop()) {
-        fail(Error::stopped);
+    float y = rq.y;
+    if (const session::Result r = session.go_to(p0 - ls / 2, p0 + lf + ls / 2, p0, y, 0.f, rq.z); r != session::Result::ok) {
+        fail(error_of(r));
         return;
     }
 
     // Buse à la température de la matière
     st_phase = Phase::heating;
-    hotend.set_nozzle_target_temp(temperature);
-    {
-        const uint32_t start = ticks_ms();
-        // La consigne réelle (Prusa peut la borner) ; une consigne retirée entre-temps (refroidissement) : échec
-        while (!(std::fabs(hotend.nozzle_temp().value_or(0.f) - float(hotend.nozzle_target_temp())) <= 2.f) || hotend.nozzle_target_temp() < EXTRUDE_MINTEMP) {
-            if (must_stop()) {
-                fail(Error::stopped);
-                return;
-            }
-            if (ticks_ms() - start > heat_timeout_ms) {
-                fail(Error::heating);
-                return;
-            }
-            idle(true);
-        }
-    }
-    if (!wait_ms(3000) || thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0))) {
-        fail(must_stop() ? Error::stopped : Error::heating);
+    if (const session::Result r = session.heat(temperature); r != session::Result::ok) {
+        fail(error_of(r));
         return;
     }
 
     // Purge sur place (hors de la zone des pièces), le filament tombe sur l'avant du plateau
     st_phase = Phase::priming;
-    current_position.e += prime_mm;
-    line_to_current_position(prime_speed);
-    if (!wait_moves() || !wait_ms(500)) {
+    if (!session.prime(prime_mm, prime_speed)) {
         fail(Error::stopped);
         return;
     }

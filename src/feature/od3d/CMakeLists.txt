@@ -16,8 +16,16 @@ if(HAS_MANUAL_BELT_TUNING AND HAS_INPUT_SHAPER_CALIBRATION)
     )
 endif()
 if(HAS_LOADCELL AND HAS_MMU2)
-  # F4 : outil de mesure par la cellule de charge et pressure advance par emplacement
+  # F4 : outil de mesure par la cellule de charge et pressure advance par emplacement ; F5, F6 : débit maximal et
+  # température minimale par emplacement
   target_sources(
-    firmware PRIVATE force_probe_od3d.cpp force_trace_od3d.cpp pa_math_od3d.cpp pa_od3d.cpp
+    firmware
+    PRIVATE force_probe_od3d.cpp
+            force_trace_od3d.cpp
+            measure_session_od3d.cpp
+            pa_math_od3d.cpp
+            pa_od3d.cpp
+            spool_calib_math_od3d.cpp
+            spool_calib_od3d.cpp
     )
 endif()

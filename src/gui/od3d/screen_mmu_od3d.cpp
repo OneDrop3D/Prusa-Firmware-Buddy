@@ -170,7 +170,7 @@ void ScreenMMU::update() {
     for (ShelfSpool &spool : spools) {
         spool.update(ready);
     }
-    preload_all.set_enabled(atelier::mmu_active() && atelier::can_run() && !atelier::filament_in_nozzle());
+    preload_all.enable(atelier::mmu_active() && atelier::can_run() && !atelier::filament_in_nozzle());
     keep_focus(*this);
 }
 
@@ -337,10 +337,10 @@ void ScreenMMUMotors::update() {
     // Le MMU refuse de bouger le sélecteur quand le FINDA voit un filament (selector.cpp) : bouton inactif
     const bool selector_ok = ok && !marlin_vars().mmu2_finda.get();
     for (PositionButton &b : selector) {
-        b.set_enabled(selector_ok);
+        b.enable(selector_ok);
     }
     for (PositionButton &b : idler) {
-        b.set_enabled(ok);
+        b.enable(ok);
     }
     keep_focus(*this);
 }

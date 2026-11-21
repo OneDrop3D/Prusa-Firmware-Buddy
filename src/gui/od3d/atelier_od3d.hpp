@@ -32,6 +32,9 @@ public:
     void set_look(Look set);
     void set_font(Font set);
 
+    /// set_enabled() qui redessine le bouton s'il change (set_enabled() ne le fait pas)
+    void enable(bool set);
+
     const uint8_t tag;
 
 protected:

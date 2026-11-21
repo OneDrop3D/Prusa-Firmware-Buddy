@@ -523,8 +523,11 @@ void ScreenLoadUnload::setup_buttons() {
             primary_used = true;
         }
     }
+    // Sans bouton actif, le cadre garde le focus (pas l'en-tête, qui n'est pas atteignable ici)
     if (buttons[0].IsEnabled()) {
         buttons[0].SetFocus();
+    } else {
+        box.SetFocus();
     }
 }
 

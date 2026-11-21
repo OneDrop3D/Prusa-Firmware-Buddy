@@ -45,6 +45,13 @@ void Button::set_font(Font set) {
     Invalidate();
 }
 
+void Button::enable(bool set) {
+    if (set != IsEnabled()) {
+        set_enabled(set);
+        Invalidate();
+    }
+}
+
 Button::Colors Button::colors() const {
     // Couleurs de la maquette (SPEC_G.md §1.5)
     static constexpr Color brown = Color::from_raw(0x3A2618);

@@ -237,7 +237,7 @@ void ScreenChangeSpool::layout() {
         title.SetText(_("Insert the new spool"));
         text.SetText(_("Push the filament into input %d: the MMU grabs it by itself.").formatted(text_params, wizard.slot + 1));
         primary.set(Button::Look::primary, _("Preload"));
-        primary.set_enabled(atelier::mmu_active() && atelier::can_run());
+        primary.enable(atelier::mmu_active() && atelier::can_run());
         break;
     default: {
         char name[24];
@@ -250,7 +250,7 @@ void ScreenChangeSpool::layout() {
         }
         strlcpy(done_name.data(), name, done_name.size());
         primary.set(Button::Look::primary, _("Done · %s").formatted(done_params, done_name.data()));
-        primary.set_enabled(true);
+        primary.enable(true);
         break;
     }
     }

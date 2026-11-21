@@ -233,6 +233,7 @@ ScreenSpoolCalib::ScreenSpoolCalib(uint8_t slot)
     shown = calib::status();
     shown_running = calib::is_running();
     shown_runs = calib::run_count();
+    shown_pa_running = pa::is_running();
     show_toggles();
     show_note();
     update();
@@ -281,7 +282,7 @@ void ScreenSpoolCalib::show_note() {
             text = _("Homing and moving...");
             break;
         }
-    } else if (pa::is_running()) {
+    } else if (shown_pa_running) {
         text = _("Another measurement is running.");
     } else if (marlin_client::is_printing()) {
         text = _("Not while printing.");
@@ -337,7 +338,9 @@ void ScreenSpoolCalib::update() {
     }
     const calib::Status s = calib::status();
     const bool finished = runs != shown_runs || (shown_running && !running);
-    if (running != shown_running || pending != shown_pending || !(s == shown) || finished) {
+    const bool pa_running = pa::is_running();
+    if (running != shown_running || pending != shown_pending || !(s == shown) || finished || pa_running != shown_pa_running) {
+        shown_pa_running = pa_running;
         shown_running = running;
         shown_pending = pending;
         shown = s;
@@ -350,7 +353,7 @@ void ScreenSpoolCalib::update() {
     }
 
     const bool ours = running || pending;
-    const bool busy = ours || pa::is_running();
+    const bool busy = ours || pa_running;
     const bool printing = marlin_client::is_printing();
     const bool can_measure = !busy && !printing && loaded(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
     flow_button.enable(can_measure);

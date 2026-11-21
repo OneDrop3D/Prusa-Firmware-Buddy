@@ -71,6 +71,7 @@ private:
     bool shown_running = false;
     bool shown_pending = false;
     bool second_cancels = false; ///< « second » montre « Annuler »
+    bool shown_pa_running = false; ///< une mesure du PA occupe l'imprimante
     calib::Status shown {};
     uint16_t shown_runs = 0;
 };

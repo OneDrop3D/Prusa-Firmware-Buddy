@@ -2,21 +2,19 @@
 #include "screen_spool_od3d.hpp"
 
 #include "thumbnail_od3d.hpp"
+#include "value_editor_od3d.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <config_store/store_instance.hpp>
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
+#include <feature/od3d/spool_usage_od3d.hpp>
 #include <filament_to_load.hpp>
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <iterator>
-#include <option/has_anfc.h>
-
-#if HAS_ANFC()
-    #include <feature/openprinttag/filament_usage_tracker/filament_usage_tracker.hpp>
-#endif
 
 namespace od3d {
 
@@ -31,6 +29,7 @@ namespace {
         uint8_t step = 1; ///< 1 retirer, 2 insérer, 3 choisir
         uint8_t material = 0; ///< index dans materials
         int8_t paint = -1; ///< index dans atelier::paints, -1 = couleur du préréglage
+        uint16_t net_g = 1000; ///< poids net de la bobine neuve (F13)
     };
     Wizard wizard;
 
@@ -53,11 +52,18 @@ namespace {
     constexpr Rect16 paint_body(int i) {
         return Rect16(13 + 58 * i, 143, 46, 46);
     }
-    constexpr Rect16 weight_rect = { 12, 196, 456, 16 };
+    // Poids neuf (F13) : 250 g à 2 kg, puis « Autre » (valeur libre), sur toute la largeur
+    constexpr uint8_t weight_count = spool_usage::net_presets.size() + 1;
+    constexpr Rect16 weight_body(int i) {
+        return Rect16(10 + 78 * i, 196, 70, 30);
+    }
+    constexpr const char *weight_labels[] = { "250 g", "500 g", "750 g", "1 kg", "2 kg" };
+    static_assert(std::size(weight_labels) == spool_usage::net_presets.size());
     constexpr Rect16 cancel_body = { style::margin, 236, 120, 36 };
     constexpr Rect16 primary_body = { 136, 236, 336, 36 };
     static_assert(band_rect.Bottom() < picture_rect.Top() && picture_rect.Bottom() < title_rect.Top() && text_rect.Bottom() < style::with_ring(cancel_body).Top());
-    static_assert(style::with_ring(paint_body(0)).Bottom() < weight_rect.Top() && weight_rect.Bottom() < style::with_ring(cancel_body).Top());
+    static_assert(style::with_ring(paint_body(0)).Bottom() < style::with_ring(weight_body(0)).Top() && style::with_ring(weight_body(0)).Bottom() < style::with_ring(cancel_body).Top());
+    static_assert(style::inside(style::content, style::with_ring(weight_body(weight_count - 1))));
     static_assert(style::inside(style::content, style::with_ring(paint_body(7))) && style::inside(style::content, style::with_ring(primary_body)));
     static_assert(style::with_ring(material_body(3)).Bottom() < style::with_ring(paint_body(0)).Top());
 
@@ -66,7 +72,18 @@ namespace {
         tag_paint = 10, // 10 à 17
         tag_cancel = 20,
         tag_primary,
+        tag_weight = 30, // 30 à 35, le dernier : valeur libre
     };
+
+    /// Le poids est-il l'un des choix fixes ? son rang, sinon le bouton « Autre »
+    uint8_t weight_index(uint16_t net_g) {
+        for (uint8_t i = 0; i < spool_usage::net_presets.size(); ++i) {
+            if (spool_usage::net_presets[i] == net_g) {
+                return i;
+            }
+        }
+        return weight_count - 1;
+    }
 
     uint8_t material_index(FilamentType type) {
         if (type) {
@@ -89,7 +106,10 @@ namespace {
 
 void open_change_spool(uint8_t slot, SpoolChange mode) {
     const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
-    wizard = { .slot = slot, .mode = mode, .step = 3, .material = material_index(type), .paint = int8_t(atelier::paint_index(type)) };
+    // Poids proposé : celui de la bobine suivie, sinon 1 kg
+    const spool_usage::Record usage = spool_usage::record(slot);
+    const uint16_t net_g = spool_usage::is_tracked(usage) ? usage.net_g : 1000;
+    wizard = { .slot = slot, .mode = mode, .step = 3, .material = material_index(type), .paint = int8_t(atelier::paint_index(type)), .net_g = net_g };
     open_screen<ScreenChangeSpool>();
     switch (mode) {
     case SpoolChange::change:
@@ -218,7 +238,14 @@ ScreenChangeSpool::ScreenChangeSpool()
         { this, material_body(5), tag_material + 5, Button::Look::card, string_view_utf8::MakeCPUFLASH(material_names[5]), nullptr, style::screen, 10 },
     }
     , paints { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 }, { this, 4 }, { this, 5 }, { this, 6 }, { this, 7 } }
-    , weight_note(this, weight_rect, is_multiline::no, is_closed_on_click_t::no, _("Spool weight tracking: soon"))
+    , weights {
+        { this, weight_body(0), tag_weight + 0, Button::Look::card, string_view_utf8::MakeCPUFLASH(weight_labels[0]), nullptr, style::screen, 15 },
+        { this, weight_body(1), tag_weight + 1, Button::Look::card, string_view_utf8::MakeCPUFLASH(weight_labels[1]), nullptr, style::screen, 15 },
+        { this, weight_body(2), tag_weight + 2, Button::Look::card, string_view_utf8::MakeCPUFLASH(weight_labels[2]), nullptr, style::screen, 15 },
+        { this, weight_body(3), tag_weight + 3, Button::Look::card, string_view_utf8::MakeCPUFLASH(weight_labels[3]), nullptr, style::screen, 15 },
+        { this, weight_body(4), tag_weight + 4, Button::Look::card, string_view_utf8::MakeCPUFLASH(weight_labels[4]), nullptr, style::screen, 15 },
+        { this, weight_body(5), tag_weight + 5, Button::Look::card, {}, nullptr, style::screen, 15 },
+    }
     , cancel(this, cancel_body, tag_cancel, Button::Look::outline, _("Cancel"), nullptr, style::screen)
     , primary(this, primary_body, tag_primary, Button::Look::primary, {}, nullptr, style::screen, style::radius_big)
     , tabs(this, TabBar::Tab::workshop) {
@@ -227,9 +254,7 @@ ScreenChangeSpool::ScreenChangeSpool()
     title.SetTextColor(style::text_strong);
     text.set_font(Font::small);
     text.SetTextColor(style::text_muted);
-    weight_note.set_font(Font::small);
-    weight_note.SetTextColor(style::text_muted);
-    for (window_text_t *t : { &title, &text, &weight_note }) {
+    for (window_text_t *t : { &title, &text }) {
         t->SetBackColor(style::screen);
         t->SetPadding({ 0, 0, 0, 0 });
     }
@@ -258,7 +283,24 @@ void ScreenChangeSpool::layout() {
         p.set_enabled(choose);
         p.Invalidate();
     }
-    weight_note.set_visible(choose);
+    // Poids : le choix courant en brun et orange ; « Autre » montre la valeur libre choisie
+    const uint8_t weight = weight_index(wizard.net_g);
+    if (weight == weight_count - 1) {
+        spool_usage::format_weight(other_weight.data(), other_weight.size(), wizard.net_g);
+    } else {
+        _("Other").copyToRAM(other_weight.data(), other_weight.size());
+    }
+    for (Button &w : weights) {
+        const uint8_t i = w.tag - tag_weight;
+        w.set_visible(choose);
+        w.set_enabled(choose);
+        const Button::Look look = choose && i == weight ? Button::Look::selected : Button::Look::card;
+        if (i == weight_count - 1) {
+            w.set(look, string_view_utf8::MakeRAM(other_weight.data()));
+        } else {
+            w.set_look(look);
+        }
+    }
     band.Invalidate();
     picture.Invalidate();
 
@@ -283,7 +325,9 @@ void ScreenChangeSpool::layout() {
         } else {
             strlcpy(name, chosen.parameters().name.data(), sizeof(name));
         }
-        strlcpy(done_name.data(), name, done_name.size());
+        char weight_text[12];
+        spool_usage::format_weight(weight_text, sizeof(weight_text), wizard.net_g);
+        snprintf(done_name.data(), done_name.size(), "%s · %s", name, weight_text);
         primary.set(Button::Look::primary, _("Done · %s").formatted(done_params, done_name.data()));
         primary.enable(true);
         break;
@@ -305,6 +349,13 @@ void ScreenChangeSpool::finish() {
     const VirtualToolIndex tool = VirtualToolIndex::from_raw(wizard.slot);
     const OptionalColor color = wizard.paint >= 0 ? OptionalColor(atelier::paints[wizard.paint].color) : OptionalColor(std::nullopt);
     config_store().set_filament_type(tool, filament::apply_load_color(FilamentType(material_types[wizard.material]), tool, color));
+    // F13 : bobine neuve = compteur remis à zéro, reste = poids neuf ; « Matière et couleur » seul garde le reste
+    // (au plus le nouveau poids net)
+    if (wizard.mode == SpoolChange::material) {
+        spool_usage::set_net(wizard.slot, wizard.net_g);
+    } else {
+        spool_usage::new_spool(wizard.slot, wizard.net_g);
+    }
     close_screen();
 }
 
@@ -329,6 +380,23 @@ void ScreenChangeSpool::windowEvent(window_t *sender, GUI_event_t event, void *p
             wizard.paint = wizard.paint == paint ? -1 : paint; // un 2e clic revient à la couleur du préréglage
             layout();
             paints[paint].SetFocus();
+        } else if (tag >= tag_weight && tag < tag_weight + weight_count) {
+            const uint8_t i = tag - tag_weight;
+            if (i < spool_usage::net_presets.size()) {
+                wizard.net_g = spool_usage::net_presets[i];
+            } else {
+                // Valeur libre, avec l'éditeur commun
+                static constexpr NumericInputConfig config = {
+                    .min_value = spool_usage::min_net_g,
+                    .max_value = spool_usage::max_net_g,
+                    .step = 10,
+                };
+                if (const auto v = ValueEditor::exec(_("New spool net weight"), wizard.net_g, config, nullptr, "g")) {
+                    wizard.net_g = uint16_t(*v);
+                }
+            }
+            layout();
+            weights[i].SetFocus();
         } else if (tag == tag_cancel) {
             close_screen();
         } else if (tag == tag_primary) {
@@ -358,29 +426,56 @@ void ScreenChangeSpool::windowEvent(window_t *sender, GUI_event_t event, void *p
 
 namespace {
     constexpr Rect16 usage_card_rect = { style::margin, style::top, 168, 226 };
-    constexpr Rect16 row_rect(int i) {
-        return Rect16(184, style::top + 42 * i, 288, 38);
+    constexpr Rect16 row_body(int i) {
+        return Rect16(186, style::top + 42 * i, 284, 36);
     }
-    constexpr Rect16 note_rect = { 184, 174, 288, 48 };
-    constexpr Rect16 edit_body = { 184, 236, 288, 36 };
-    static_assert(row_rect(2).Bottom() < note_rect.Top() && note_rect.Bottom() < style::with_ring(edit_body).Top());
-    static_assert(style::inside(style::content, usage_card_rect) && style::inside(style::content, style::with_ring(edit_body)));
+    constexpr Rect16 note_rect = { 186, 176, 284, 48 };
+    constexpr Rect16 full_body = { 186, 236, 284, 36 };
+    static_assert(style::with_ring(row_body(2)).Bottom() < note_rect.Top() && note_rect.Bottom() < style::with_ring(full_body).Top());
+    static_assert(style::inside(style::content, usage_card_rect) && style::inside(style::content, style::with_ring(full_body)));
+    static_assert(style::inside(style::content, style::with_ring(row_body(0))));
+
+    enum UsageTag : uint8_t {
+        tag_net,
+        tag_remaining,
+        tag_alert,
+        tag_full,
+    };
+
+    /// Valeur d'une ligne ; la ligne n'est redessinée que si elle change
+    void set_value(ValueRow &row, const char *text) {
+        if (strcmp(row.value.data(), text) != 0) {
+            strlcpy(row.value.data(), text, row.value.size());
+            row.Invalidate();
+        }
+    }
+
+    void set_grams(ValueRow &row, float grams) {
+        char text[16];
+        snprintf(text, sizeof(text), "%d g", int(std::lround(grams)));
+        set_value(row, text);
+    }
 } // namespace
 
-InfoRow::InfoRow(window_t *parent, Rect16 rect, const img::Resource &icon, const string_view_utf8 &label)
-    : window_t(parent, rect)
-    , icon(icon)
-    , label(label) {}
+ValueRow::ValueRow(window_t *parent, Rect16 body, uint8_t tag, const img::Resource &icon, const string_view_utf8 &label)
+    : Button(parent, body, tag, Look::card, label, &icon, style::screen) {}
 
-void InfoRow::unconditionalDraw() {
-    const Rect16 r = GetRect();
-    display::draw_rounded_rect(r, style::screen, style::surface, style::radius, MIC_ALL_CORNERS);
-    const int16_t y = r.Top() + (r.Height() - 16) / 2;
-    draw_icon({ int16_t(r.Left() + 12), y }, icon, style::surface);
+void ValueRow::unconditionalDraw() {
+    const Colors c = colors();
+    const Rect16 b = body();
+    draw_frame(b, c);
+    const bool enabled = IsEnabled();
+    const int16_t y = b.Top() + (b.Height() - height(Font::small)) / 2;
+    if (icon) {
+        draw_icon({ int16_t(b.Left() + 12), int16_t(b.Top() + (b.Height() - icon->h) / 2) }, *icon, c.fill, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+    }
     const uint16_t value_w = strlen(value.data()) * width(Font::small);
-    const int16_t value_x = r.Left() + r.Width() - 12 - value_w;
-    draw_text(Rect16(r.Left() + 36, y, value_x - 6 - (r.Left() + 36), height(Font::small)), label, Font::small, style::text, style::surface);
-    draw_text(Rect16(value_x, y, value_w, height(Font::small)), string_view_utf8::MakeRAM(value.data()), Font::small, style::text_strong, style::surface);
+    const int16_t value_x = b.Left() + b.Width() - 12 - value_w;
+    const int16_t label_x = b.Left() + 36;
+    draw_text(Rect16(label_x, y, std::max(0, value_x - 6 - label_x), height(Font::small)), label, Font::small, c.fg, c.fill);
+    if (value_w) {
+        draw_text(Rect16(value_x, y, value_w, height(Font::small)), string_view_utf8::MakeRAM(value.data()), Font::small, enabled ? style::text_strong : style::text_faint, c.fill);
+    }
 }
 
 UsageCard::UsageCard(window_t *parent, uint8_t slot)
@@ -391,28 +486,31 @@ void UsageCard::unconditionalDraw() {
     const Rect16 r = GetRect();
     display::draw_rounded_rect(r, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
     const VirtualToolIndex tool = VirtualToolIndex::from_raw(slot);
-    spool::Look look = Slot::read(slot).look;
+    const spool::Look look = Slot::read(slot).look; // remplissage réel (F13 ou étiquette)
 
-    // Le reste n'est connu qu'avec une bobine OpenPrintTag suivie par Prusa (sinon F13, à venir)
     char weight[16] = "-";
     char detail[24] = "";
-#if HAS_ANFC()
-    if (const auto report = buddy::openprinttag::filament_usage_tracker().filament_report(tool); report && report->full_weight_g > 0) {
-        const int percent = std::clamp(int(report->remaining_weight_g * 100 / report->full_weight_g), 0, 100);
-        look.fill_percent = percent;
-        snprintf(weight, sizeof(weight), "%d g", int(report->remaining_weight_g));
-        if (report->g_per_mm > 0) {
-            snprintf(detail, sizeof(detail), "~ %d m · %d %%", int(report->remaining_weight_g / report->g_per_mm / 1000), percent);
+    Color weight_color = style::text;
+    const auto usage = spool_usage::report(slot);
+    if (usage) {
+        snprintf(weight, sizeof(weight), "%d g", int(std::lround(usage->remaining_g)));
+        if (usage->g_per_mm > 0) {
+            snprintf(detail, sizeof(detail), "~ %d m · %d %%", int(usage->remaining_g / usage->g_per_mm / 1000), usage->fill_percent());
+        }
+        if (usage->low()) {
+            weight_color = style::warning;
         }
     }
-#endif
     constexpr uint8_t d = 104;
     draw_spool({ int16_t(r.Left() + (r.Width() - d) / 2), int16_t(r.Top() + 12) }, look, d, style::surface);
-    draw_text(Rect16(r.Left(), r.Top() + 124, r.Width(), height(Font::big)), string_view_utf8::MakeRAM(weight), Font::big, style::text, style::surface, Align_t::Center());
+    draw_text(Rect16(r.Left(), r.Top() + 124, r.Width(), height(Font::big)), string_view_utf8::MakeRAM(weight), Font::big, weight_color, style::surface, Align_t::Center());
     draw_text(Rect16(r.Left(), r.Top() + 160, r.Width(), height(Font::small)), string_view_utf8::MakeRAM(detail), Font::small, style::text_muted, style::surface, Align_t::Center());
     char name[24];
     atelier::spool_name(name, FilamentType::for_tool(tool));
     draw_text(Rect16(r.Left(), r.Top() + 184, r.Width(), height(Font::small)), string_view_utf8::MakeRAM(name), Font::small, style::text_soft, style::surface, Align_t::Center());
+    if (usage && usage->low()) {
+        draw_text(Rect16(r.Left(), r.Top() + 204, r.Width(), height(Font::small)), _("Running low"), Font::small, style::warning, style::surface, Align_t::Center());
+    }
 }
 
 ScreenSpoolUsage::ScreenSpoolUsage(uint8_t slot)
@@ -420,39 +518,134 @@ ScreenSpoolUsage::ScreenSpoolUsage(uint8_t slot)
     , slot(slot)
     , header(this, _("Slot %i").formatted(title_params, slot + 1), true)
     , card(this, slot)
-    , material(this, row_rect(0), img::spool_16x16, _("Material"))
-    , temperatures(this, row_rect(1), img::nozzle_16x16, _("Nozzle / bed"))
-    , remaining(this, row_rect(2), img::warning_16x16, _("Remaining"))
-    , note(this, note_rect, is_multiline::yes, is_closed_on_click_t::no, _("Remaining weight and print history per spool: soon."))
-    , edit(this, edit_body, 0, Button::Look::outline, _("Material and colour"), &img::user_filament_16x16, style::screen)
+    , net(this, row_body(0), tag_net, img::spool_16x16, _("Net weight (new)"))
+    , remaining(this, row_body(1), tag_remaining, img::spool_16x16, _("Remaining"))
+    , alert(this, row_body(2), tag_alert, img::warning_16x16, _("Low-spool alert"))
+    , note(this, note_rect, is_multiline::yes, is_closed_on_click_t::no)
+    , full(this, full_body, tag_full, Button::Look::outline, _("Full spool (100%)"), nullptr, style::screen)
     , tabs(this, TabBar::Tab::workshop) {
     note.set_font(Font::small);
-    note.SetTextColor(style::text_muted);
+    note.SetTextColor(style::text_soft);
     note.SetBackColor(style::screen);
     note.SetPadding({ 0, 0, 0, 0 });
-
-    const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
-    if (type) {
-        const FilamentTypeParameters p = type.parameters();
-        strlcpy(material.value.data(), p.name.data(), material.value.size());
-        snprintf(temperatures.value.data(), temperatures.value.size(), "%d/%d\xC2\xB0", p.nozzle_temperature, p.heatbed_temperature);
+    refresh();
+    // Focus de départ (SPEC_G.md §3.7) : le reste, à corriger après une pesée
+    if (remaining.IsEnabled()) {
+        remaining.SetFocus();
+    } else if (net.IsEnabled()) {
+        net.SetFocus();
     } else {
-        strlcpy(material.value.data(), "-", material.value.size());
-        strlcpy(temperatures.value.data(), "-", temperatures.value.size());
+        full.SetFocus(); // inactif aussi (étiquette) : le cadre a quand même un élément ciblé
     }
-    _("soon").copyToRAM(remaining.value.data(), remaining.value.size());
-#if HAS_ANFC()
-    if (const auto report = buddy::openprinttag::filament_usage_tracker().filament_report(VirtualToolIndex::from_raw(slot))) {
-        snprintf(remaining.value.data(), remaining.value.size(), "%d g", int(report->remaining_weight_g));
+}
+
+void ScreenSpoolUsage::refresh() {
+    const auto usage = spool_usage::report(slot);
+    const spool_usage::Record rec = spool_usage::record(slot);
+    const bool tag = usage && usage->from_tag;
+    const bool tracked = usage && !tag;
+
+    if (usage) {
+        set_grams(net, usage->net_g);
+        set_grams(remaining, usage->remaining_g);
+    } else {
+        set_value(net, "-");
+        set_value(remaining, "-");
     }
-#endif
-    edit.SetFocus();
+    if (tag) {
+        set_value(alert, "-");
+    } else {
+        set_grams(alert, rec.alert_g);
+    }
+    shown_g = usage ? int(std::lround(usage->remaining_g)) : -1;
+
+    net.enable(!tag);
+    remaining.enable(tracked);
+    alert.enable(tracked);
+    full.enable(tracked);
+    card.Invalidate();
+
+    // Consommations, ou pourquoi il n'y en a pas
+    StringViewUtf8Parameters<8> params;
+    if (tag) {
+        _("Data from the NFC tag (OpenPrintTag).").copyToRAM(note_text.data(), note_text.size());
+    } else if (tracked) {
+        _("Used since loaded: %d g").formatted(params, int(std::lround(usage->used_g))).copyToRAM(note_text.data(), note_text.size());
+        size_t len = strlen(note_text.data());
+        if (len + 2 < note_text.size()) {
+            note_text[len++] = '\n';
+            StringViewUtf8Parameters<8> params2;
+            _("Last print: %d g").formatted(params2, int(std::lround(usage->last_print_g))).copyToRAM(note_text.data() + len, note_text.size() - len);
+        }
+    } else {
+        _("Set the net weight of the spool to start tracking it.").copyToRAM(note_text.data(), note_text.size());
+    }
+    note.SetText(string_view_utf8::MakeRAM(note_text.data()));
+    note.Invalidate();
+}
+
+void ScreenSpoolUsage::edit(uint8_t tag) {
+    const spool_usage::Record rec = spool_usage::record(slot);
+    const auto usage = spool_usage::report(slot);
+    switch (tag) {
+    case tag_net: {
+        static constexpr NumericInputConfig config = {
+            .min_value = spool_usage::min_net_g,
+            .max_value = spool_usage::max_net_g,
+            .step = 10,
+        };
+        if (const auto v = ValueEditor::exec(_("Net weight (new)"), spool_usage::is_tracked(rec) ? rec.net_g : 1000, config, nullptr, "g")) {
+            spool_usage::set_net(slot, uint16_t(*v));
+        }
+        break;
+    }
+    case tag_remaining: {
+        if (!usage) {
+            return;
+        }
+        const NumericInputConfig config = {
+            .max_value = usage->net_g,
+            .step = 10,
+        };
+        if (const auto v = ValueEditor::exec(_("Remaining"), usage->remaining_g, config, nullptr, "g")) {
+            spool_usage::set_remaining(slot, *v);
+        }
+        break;
+    }
+    case tag_alert: {
+        static constexpr NumericInputConfig config = {
+            .max_value = spool_usage::max_alert_g,
+            .step = 10,
+        };
+        if (const auto v = ValueEditor::exec(_("Low-spool alert"), rec.alert_g, config, nullptr, "g")) {
+            spool_usage::set_alert(slot, uint16_t(*v));
+        }
+        break;
+    }
+    case tag_full:
+        if (usage) {
+            spool_usage::set_remaining(slot, usage->net_g);
+        }
+        break;
+    default:
+        return;
+    }
+    refresh();
 }
 
 void ScreenSpoolUsage::windowEvent(window_t *sender, GUI_event_t event, void *param) {
-    if (event == GUI_event_t::CHILD_CLICK) {
-        open_change_spool(slot, SpoolChange::material);
+    switch (event) {
+    case GUI_event_t::CHILD_CLICK:
+        edit(static_cast<uint8_t>(reinterpret_cast<uintptr_t>(param)));
         return;
+    case GUI_event_t::LOOP:
+        // Pendant une impression, le reste baisse : redessiné quand il change d'un gramme
+        if (const auto usage = spool_usage::report(slot); usage && int(std::lround(usage->remaining_g)) != shown_g) {
+            refresh();
+        }
+        break;
+    default:
+        break;
     }
     Screen::windowEvent(sender, event, param);
 }

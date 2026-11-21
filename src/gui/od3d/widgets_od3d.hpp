@@ -24,6 +24,7 @@ struct Slot {
     std::array<char, 8> material {}; ///< nom de la matière, « - » sans bobine
     bool loaded = false; ///< chargé dans la buse
     bool enabled = false; ///< utilisable (sans MMU activé, seul le premier l'est)
+    bool low = false; ///< reste sous le seuil d'alerte de fin (F13)
 
     static Slot read(uint8_t index);
     bool operator==(const Slot &) const = default;

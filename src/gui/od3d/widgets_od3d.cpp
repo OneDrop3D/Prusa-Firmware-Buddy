@@ -15,6 +15,7 @@
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
+#include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <filament.hpp>
 #include <i18n.h>
@@ -30,6 +31,7 @@
 #include <time_tools.hpp>
 #include <timing.h>
 #include <tool_index.hpp>
+#include <window_msgbox.hpp>
 
 #if HAS_CHAMBER_API()
     #include <feature/chamber/chamber.hpp>
@@ -52,6 +54,11 @@ Slot Slot::read(uint8_t index) {
         strlcpy(slot.material.data(), params.name.data(), slot.material.size());
         // Seuls les filaments ad hoc ont une couleur : sinon une couleur par matière
         slot.look.filament = params.color.has_value() ? *params.color : spool::default_color(params.name.data());
+        // Remplissage réel (F13, ou étiquette OpenPrintTag) ; bobine pleine dessinée si le poids n'est pas suivi
+        if (const auto usage = spool_usage::report(index)) {
+            slot.look.fill_percent = usage->fill_percent();
+            slot.low = usage->low();
+        }
     } else {
         strlcpy(slot.material.data(), "-", slot.material.size()); // « — » n'est pas dans la police
     }
@@ -212,6 +219,14 @@ void Screen::InitState(screen_init_variant var) {
 }
 
 void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::LOOP && !HasDialog()) {
+        // F13 : une bobine vient de passer sous son seuil d'alerte (une fois par passage), sur nos écrans seulement
+        if (const auto slot = spool_usage::take_low_alert()) {
+            const auto usage = spool_usage::report(*slot);
+            StringViewUtf8Parameters<16> params;
+            MsgBoxWarning(_("Spool %d is running low: about %d g left.").formatted(params, *slot + 1, usage ? int(usage->remaining_g) : 0), Responses_Ok);
+        }
+    }
     if (event == GUI_event_t::HELD_RELEASED && has_back) {
         close_screen();
         return;

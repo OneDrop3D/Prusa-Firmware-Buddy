@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
+#include <feature/od3d/spool_usage_od3d.hpp>
 #include <i18n.h>
 #include <IDialog.hpp>
 #include <img_resources.hpp>
@@ -90,14 +91,18 @@ namespace {
             const uint16_t w = r.Left() + r.Width() - x;
             draw_text(Rect16(x, top + 14, w, height(Font::normal)), _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
 
-            // État, puis la température de la matière (ce que la fiche sait sans suivi des bobines)
-            char status[48];
+            // État, la température de la matière, puis le reste (F13 ou étiquette OpenPrintTag)
+            char status[56];
             const char *state = slot.loaded ? N_("In the nozzle") : (type ? N_("In the MMU") : N_("Empty"));
             _(state).copyToRAM(status, sizeof(status));
             if (type) {
                 const FilamentTypeParameters p = type.parameters();
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · %d/%d\xC2\xB0", p.nozzle_temperature, p.heatbed_temperature);
+            }
+            if (const auto usage = spool_usage::report(index); usage && type) {
+                const size_t len = strlen(status);
+                snprintf(status + len, sizeof(status) - len, " · ~%d g", int(usage->remaining_g));
             }
             draw_text(Rect16(x, top + 36, w, height(Font::small)), string_view_utf8::MakeRAM(status), Font::small, style::text_muted, style::surface);
         }
@@ -117,6 +122,7 @@ namespace {
         void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
     private:
+        StringViewUtf8Parameters<8> usage_params; ///< « Reste 350 g », avant le bouton qui garde le texte formaté
         Head head;
         Button main;
         Button change;
@@ -174,6 +180,14 @@ namespace {
         eject.set_enabled(mmu_free);
         cut.set_enabled(mmu_free);
         pa.set_enabled(false); // F4 (mesure du PA) n'existe pas encore
+
+        // « Reste 350 g » (SPEC_G.md §3.3) quand le poids est suivi : ouvre l'utilisation, où il se corrige après une pesée
+        if (const auto report = spool_usage::report(index)) {
+            usage.set(Button::Look::secondary, _("Left %d g").formatted(usage_params, int(report->remaining_g)), &img::spool_16x16);
+            if (report->low()) {
+                usage.set_look(Button::Look::alert);
+            }
+        }
 
         if (!type) {
             // Emplacement vide : seul le bouton principal (SPEC_G.md §3.3)

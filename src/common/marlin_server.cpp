@@ -232,6 +232,9 @@
 #if HAS_FILAMENT_TRACKER()
     #include <feature/filament_tracker/filament_tracker.hpp>
 #endif
+#if HAS_FILAMENT_TRACKER() && HAS_MMU2()
+    #include <feature/od3d/spool_usage_od3d.hpp> // OneDrop3D (F13)
+#endif
 
 #include <option/buddy_enable_wui.h>
 #if BUDDY_ENABLE_WUI()
@@ -950,6 +953,9 @@ static void cycle() {
 #if HAS_ANFC()
     buddy::openprinttag::filament_usage_tracker().step();
 #endif
+#if HAS_FILAMENT_TRACKER() && HAS_MMU2()
+    od3d::spool_usage::step(); // OneDrop3D (F13) : poids des bobines
+#endif
 
     buddy::safety_timer().step();
 
@@ -1148,6 +1154,9 @@ static void cleanup_print(ResetToolMapping reset_tool_mapping = ResetToolMapping
 /// To be called when the printer goes from printing -> not printing end state (finished, aborted, ...)
 /// Executes all the print finishing touches
 void static finalize_print(bool finished) {
+#if HAS_FILAMENT_TRACKER() && HAS_MMU2()
+    od3d::spool_usage::on_print_end(); // OneDrop3D (F13) : poids des bobines et dernière impression
+#endif
 #if HAS_POWER_PANIC()
     power_panic::reset_state();
 #endif
@@ -2370,6 +2379,9 @@ static void _server_print_loop(void) {
         server.was_print_time_saved = false;
 #if HAS_SPOOL_JOIN()
         od3d::apply_persistent_spool_joins(); // OneDrop3D (F3)
+#endif
+#if HAS_FILAMENT_TRACKER() && HAS_MMU2()
+        od3d::spool_usage::on_print_start(); // OneDrop3D (F13)
 #endif
 #if HAS_WASTEBIN_FILL_TRACKING()
         // Fresh print: reset the per-print pellet/toolchange progress counter.

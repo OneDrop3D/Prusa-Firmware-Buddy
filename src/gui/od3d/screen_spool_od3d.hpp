@@ -73,8 +73,9 @@ private:
     StringViewUtf8Parameters<4> header_params;
     StringViewUtf8Parameters<4> title_params;
     StringViewUtf8Parameters<4> text_params;
-    StringViewUtf8Parameters<24> done_params;
-    std::array<char, 24> done_name {};
+    StringViewUtf8Parameters<36> done_params;
+    std::array<char, 36> done_name {}; ///< « PETG vert · 1 kg »
+    std::array<char, 12> other_weight {}; ///< « Autre » ou la valeur libre choisie (« 1250 g »)
 
     Header header;
     StepBand band;
@@ -83,28 +84,25 @@ private:
     window_text_t text;
     Button materials[6];
     PaintButton paints[8];
-    window_text_t weight_note;
+    Button weights[6]; ///< poids neuf (F13) : 250 g, 500 g, 750 g, 1 kg, 2 kg, autre
     Button cancel;
     DoneButton primary;
     TabBar tabs;
 };
 
-/// Une ligne « libellé … valeur » de l'utilisation, sans action
-class InfoRow : public window_t {
+/// Une ligne « icône, libellé … valeur » de l'utilisation (SPEC_G.md §3.7) : un clic ouvre l'éditeur de valeur
+/// (CHILD_CLICK avec son tag, comme Button)
+class ValueRow : public Button {
 public:
-    InfoRow(window_t *parent, Rect16 rect, const img::Resource &icon, const string_view_utf8 &label);
+    ValueRow(window_t *parent, Rect16 body, uint8_t tag, const img::Resource &icon, const string_view_utf8 &label);
 
     std::array<char, 16> value {};
 
 protected:
     void unconditionalDraw() override;
-
-private:
-    const img::Resource &icon;
-    string_view_utf8 label;
 };
 
-/// Carte de gauche : bobine Ø104, reste, nom
+/// Carte de gauche : bobine Ø104, reste, longueur et remplissage, nom, « Bientôt vide »
 class UsageCard : public window_t {
 public:
     UsageCard(window_t *parent, uint8_t slot);
@@ -116,6 +114,8 @@ private:
     uint8_t slot;
 };
 
+/// « Utilisation » d'une bobine (F13) : poids net, reste (à corriger après une pesée), alerte de fin, consommations.
+/// Une bobine à étiquette OpenPrintTag montre les données de l'étiquette, sans modification.
 class ScreenSpoolUsage final : public Screen {
 public:
     explicit ScreenSpoolUsage(uint8_t slot);
@@ -124,15 +124,20 @@ protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
+    void refresh(); ///< valeurs, textes et éléments actifs d'après le suivi
+    void edit(uint8_t tag);
+
     uint8_t slot;
+    int shown_g = -1; ///< reste affiché, pour ne redessiner que s'il change (pendant une impression)
     StringViewUtf8Parameters<4> title_params; ///< avant l'en-tête, qui garde le titre formaté
+    std::array<char, 112> note_text {};
     Header header;
     UsageCard card;
-    InfoRow material;
-    InfoRow temperatures;
-    InfoRow remaining;
+    ValueRow net;
+    ValueRow remaining;
+    ValueRow alert;
     window_text_t note;
-    Button edit;
+    Button full;
     TabBar tabs;
 };
 

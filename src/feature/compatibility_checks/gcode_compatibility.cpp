@@ -37,6 +37,11 @@
     #include <feature/openprinttag/filament_usage_tracker/filament_usage_tracker.hpp>
 #endif
 
+#include <option/has_filament_tracker.h>
+#if HAS_FILAMENT_TRACKER() && HAS_MMU2()
+    #include <feature/od3d/spool_usage_od3d.hpp> // OneDrop3D (F13)
+#endif
+
 #if HAS_TOOLCHANGER()
     #include <module/prusa/toolchanger.h>
 #endif
@@ -515,6 +520,11 @@ void CompatibilityReport::generate_toolmapping_only_noclear([[maybe_unused]] con
 #if HAS_ANFC()
             if (auto v = buddy::openprinttag::filament_usage_tracker().filament_report(virtual_tool)) {
                 remaining_filament_g += v->remaining_weight_g;
+    #if HAS_FILAMENT_TRACKER() && HAS_MMU2()
+            } else if (auto r = od3d::spool_usage::report(virtual_tool.to_raw())) {
+                // OneDrop3D (F13) : sans étiquette, le reste suivi par l'imprimante
+                remaining_filament_g += r->remaining_g;
+    #endif
             } else {
                 // At least one of the spools does not have an OPT
                 // We cannot rely on the remaining filament calculations

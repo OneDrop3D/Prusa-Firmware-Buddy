@@ -50,8 +50,8 @@ namespace {
 
 } // namespace
 
-std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply) {
-    ValueEditor editor(label, value, config, apply);
+std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit) {
+    ValueEditor editor(label, value, config, apply, unit);
     Screens::Access()->gui_loop_until_dialog_closed();
     if (editor.accepted) {
         return editor.value;
@@ -62,12 +62,13 @@ std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float valu
     return std::nullopt;
 }
 
-ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply)
+ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit)
     : IDialog(sheet_rect)
     , label(label)
     , config(config)
     , value(config.clamp(value))
     , apply(apply)
+    , unit(unit)
     , view(*this) {
     SetBackColor(style::surface);
 }
@@ -199,7 +200,7 @@ void ValueEditor::ValueView::unconditionalDraw() {
             snprintf(digits, sizeof(digits), "%.*f", editor.config.max_decimal_places, static_cast<double>(editor.value));
         }
     }
-    const string_view_utf8 unit = special ? _(editor.config.special_value_str) : editor.config.unit_str();
+    const string_view_utf8 unit = special ? _(editor.config.special_value_str) : (editor.unit ? string_view_utf8::MakeCPUFLASH(editor.unit) : editor.config.unit_str());
     const uint16_t digits_w = strlen(digits) * width(Font::large);
     const uint16_t gap = digits_w && !unit.isNULLSTR() ? 8 : 0;
     const uint16_t unit_w = std::min<int>(unit.computeNumUtf8Chars() * width(Font::big), value_rect.Width() - digits_w - gap);

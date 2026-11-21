@@ -7,6 +7,7 @@
 #include <common/marlin_vars.hpp>
 #include <cstdio>
 #include <display.hpp>
+#include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <marlin_client.hpp>
@@ -109,6 +110,13 @@ void ShelfSpool::unconditionalDraw() {
         line_color = style::accent;
     } else if (!slot.look.filament) {
         line = _("Empty");
+    } else if (const auto usage = spool_usage::report(tag)) {
+        // Reste (F13 ou étiquette OpenPrintTag), en jaune sous le seuil d'alerte
+        snprintf(color_name, sizeof(color_name), "~%d g", int(usage->remaining_g));
+        line = string_view_utf8::MakeRAM(color_name);
+        if (usage->low()) {
+            line_color = style::warning;
+        }
     } else {
         atelier::paint_name(color_name, atelier::paint_index(FilamentType::for_tool(VirtualToolIndex::from_raw(tag))));
         line = string_view_utf8::MakeRAM(color_name);

@@ -55,6 +55,7 @@
 #include <option/has_chamber_filtration_api.h>
 #include <option/has_esp.h>
 #include <option/has_auto_retract.h>
+#include <feature/od3d/spool_usage_math_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -439,6 +440,12 @@ struct CurrentStore
     /// OneDrop3D (F3) : relais de bobine permanents, « emplacement n vide → emplacement k » (0xff : aucun)
     StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Spool Join")> od3d_spool_join;
     StoreItemArray<uint8_t, uint8_t(0xff), ItemFlag::features, journal::hash("OD3D Spool Join Target"), 16, VirtualToolIndex::count> od3d_spool_join_target;
+#endif
+#if HAS_MMU2()
+    /// OneDrop3D (F13) : suivi du poids de la bobine de chaque emplacement (poids net, reste, seuil, consommations).
+    /// Nouvel élément : sans valeur enregistrée, poids net 0 = pas de suivi. Pour changer Record, prendre un autre nom
+    /// (« OD3D Spool Usage » entre en collision avec « Adhoc Filament Parameters 4 »).
+    StoreItemArray<od3d::spool_usage::Record, AnyDefaultConstructor {}, ItemFlag::printer_state, journal::hash("OD3D Spool Weight"), 8, VirtualToolIndex::count> od3d_spool_usage;
 #endif
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;

@@ -2,6 +2,7 @@
 #include "screen_move_od3d.hpp"
 
 #include "menu_od3d.hpp"
+#include "screen_mmu_od3d.hpp"
 
 #include <algorithm>
 #include <common/marlin_vars.hpp>
@@ -34,6 +35,11 @@ namespace {
     constexpr Rect16 y_plus_body = { 54, 48, 48, 42 };
     constexpr Rect16 y_minus_body = { 54, 142, 48, 42 };
     constexpr Rect16 origin_xy_body = { 56, 94, 44, 44 };
+    // Diagonales dans les coins de la croix (retour de l'utilisateur, 21/11 : « plusieurs axes à la fois »)
+    constexpr Rect16 up_left_body = { 12, 49, 38, 38 };
+    constexpr Rect16 up_right_body = { 106, 49, 38, 38 };
+    constexpr Rect16 down_left_body = { 12, 144, 38, 38 };
+    constexpr Rect16 down_right_body = { 106, 144, 38, 38 };
     constexpr Rect16 z_value_rect = { 148, style::content.Top(), 66, 16 };
     constexpr Rect16 z_plus_body = { 154, 62, 54, 60 };
     constexpr Rect16 z_minus_body = { 154, 127, 54, 60 };
@@ -43,15 +49,21 @@ namespace {
     constexpr Rect16 map_rect = { 304, style::content.Top(), 168, 144 };
     constexpr Rect16 step_title_rect = { 8, 203, 36, 16 };
     constexpr Rect16 position_rect = { 296, 203, 176, 16 };
-    constexpr Rect16 origin_all_body = { 8, 236, 228, 36 };
-    constexpr Rect16 motors_body = { 244, 236, 228, 36 };
+    // Trois boutons en bas : origine, moteurs coupés, axes du MMU
+    constexpr Rect16 origin_all_body = { 8, 236, 150, 36 };
+    constexpr Rect16 motors_body = { 165, 236, 150, 36 };
+    constexpr Rect16 mmu_axes_body = { 322, 236, 150, 36 };
 
     /// 58 px : « 0.1 mm » (54 px) tient dans le contour de 2 px du pas choisi
     constexpr Rect16 step_body(int i) {
         return Rect16(46 + 62 * i, 196, 58, 30);
     }
 
-    static_assert(style::inside(style::content, cross_rect) && style::inside(style::content, map_rect) && style::inside(style::content, style::with_ring(motors_body)));
+    static_assert(style::inside(style::content, cross_rect) && style::inside(style::content, map_rect) && style::inside(style::content, style::with_ring(mmu_axes_body)));
+    static_assert(style::with_ring(origin_all_body).Right() < style::with_ring(motors_body).Left() && style::with_ring(motors_body).Right() < style::with_ring(mmu_axes_body).Left());
+    static_assert(style::inside(cross_rect, style::with_ring(up_left_body)) && style::inside(cross_rect, style::with_ring(up_right_body)) && style::inside(cross_rect, style::with_ring(down_left_body)) && style::inside(cross_rect, style::with_ring(down_right_body)));
+    static_assert(style::with_ring(up_left_body).Right() < style::with_ring(y_plus_body).Left() && style::with_ring(y_plus_body).Right() < style::with_ring(up_right_body).Left());
+    static_assert(style::with_ring(up_left_body).Bottom() < style::with_ring(x_minus_body).Top() && style::with_ring(x_minus_body).Bottom() < style::with_ring(down_left_body).Top());
     static_assert(style::inside(cross_rect, style::with_ring(x_minus_body)) && style::inside(cross_rect, style::with_ring(x_plus_body)) && style::inside(cross_rect, style::with_ring(y_plus_body)) && style::inside(cross_rect, style::with_ring(y_minus_body)));
     static_assert(z_value_rect.Bottom() < style::with_ring(z_plus_body).Top() && cross_rect.Right() < z_value_rect.Left() && z_value_rect.Right() < e_value_rect.Left());
     static_assert(style::with_ring(retract_body).Right() < map_rect.Left() && cross_rect.Bottom() < style::with_ring(step_body(0)).Top());
@@ -122,6 +134,27 @@ namespace {
         { "M83\nG1 E%.2f F240\nM82" },
     };
 
+    /// X ou Y sans origine : comme la prise d'origine, arrêt au contact d'un bord (M1990)
+    constexpr GCodeLiteral free_gcodes[] = {
+        { "M1990 X%.2f" },
+        { "M1990 Y%.2f" },
+    };
+
+    // Diagonales : un G1 X et Y d'une ligne (même distance sur les deux axes), une chaîne par pas et par sens, car un
+    // GCodeLiteral n'a qu'un paramètre. Sens : 0 haut-gauche (X- Y+), 1 haut-droite, 2 bas-gauche, 3 bas-droite.
+#define OD3D_DIAG(sx, sy, d) GCodeLiteral { "G91\nG1 X" sx d " Y" sy d " F3000\nG90" }
+#define OD3D_DIAG_FREE(sx, sy, d) GCodeLiteral { "M1990 X" sx d " Y" sy d }
+#define OD3D_DIAG_STEPS(M, sx, sy) { M(sx, sy, "0.1"), M(sx, sy, "1"), M(sx, sy, "10"), M(sx, sy, "50") }
+    constexpr GCodeLiteral diag_gcodes[4][4] = {
+        OD3D_DIAG_STEPS(OD3D_DIAG, "-", ""), OD3D_DIAG_STEPS(OD3D_DIAG, "", ""), OD3D_DIAG_STEPS(OD3D_DIAG, "-", "-"), OD3D_DIAG_STEPS(OD3D_DIAG, "", "-")
+    };
+    constexpr GCodeLiteral diag_free_gcodes[4][4] = {
+        OD3D_DIAG_STEPS(OD3D_DIAG_FREE, "-", ""), OD3D_DIAG_STEPS(OD3D_DIAG_FREE, "", ""), OD3D_DIAG_STEPS(OD3D_DIAG_FREE, "-", "-"), OD3D_DIAG_STEPS(OD3D_DIAG_FREE, "", "-")
+    };
+#undef OD3D_DIAG_STEPS
+#undef OD3D_DIAG_FREE
+#undef OD3D_DIAG
+
     /// Rien pendant une impression : la liste de Prusa n'avance pas non plus tant que Marlin travaille
     bool not_printing() {
         if (marlin_client::is_printing()) {
@@ -174,16 +207,20 @@ namespace {
         if (!not_printing()) {
             return;
         }
+        GCodeLiteral gcode = step_gcodes[axis];
         if (axis == E_AXIS) {
             if (!hot_enough()) {
                 // shortcut: boîte de dialogue au lieu du toast de la maquette, à remplacer par le toast commun (UI-2)
                 MsgBoxWarning(_("Nozzle too cold to extrude: heat it first."), Responses_Ok);
                 return;
             }
-        } else if (!homed(axis == Z_AXIS ? _BV(Z_AXIS) : _BV(X_AXIS) | _BV(Y_AXIS))) {
-            return;
+        } else if (axis == Z_AXIS) {
+            if (!homed(_BV(Z_AXIS))) {
+                return; // Z sans origine : le plateau pourrait toucher la buse, on propose la prise d'origine
+            }
+        } else if (!known(_BV(axis))) {
+            gcode = free_gcodes[axis]; // X ou Y sans origine : arrêt au contact d'un bord
         }
-        GCodeLiteral gcode = step_gcodes[axis];
         // Comme le menu Prusa : le pas d'E par défaut pousse un peu moins que demandé, compensé ici seulement
         gcode.parameter = axis == E_AXIS ? mm * CALIBRATED_AXIS_STEPS_PER_UNIT_E0 / get_steps_per_unit_e() : mm;
         if (marlin_client::inject(gcode) && axis == E_AXIS) {
@@ -194,6 +231,26 @@ namespace {
     template <AxisEnum axis, int dir>
     void step() {
         move_by(axis, dir * step_mm[step_index]);
+    }
+
+    /// X et Y ensemble ; un seul des deux sans origine : l'un après l'autre
+    template <uint8_t direction>
+    void step_diagonal() {
+        if (!not_printing()) {
+            return;
+        }
+        const bool x_known = known(_BV(X_AXIS)), y_known = known(_BV(Y_AXIS));
+        if (x_known == y_known) {
+            (void)marlin_client::inject((x_known ? diag_gcodes : diag_free_gcodes)[direction][step_index]);
+            return;
+        }
+        const float d = step_mm[step_index];
+        move_by(X_AXIS, (direction == 0 || direction == 2) ? -d : d);
+        move_by(Y_AXIS, direction < 2 ? d : -d);
+    }
+
+    void open_mmu_axes() {
+        open_screen<ScreenMMUMotors>();
     }
 
     /// Va au point touché comme la liste de Prusa (G123 : vitesse manuelle, arrêté par l'ordre suivant) ;
@@ -224,6 +281,17 @@ namespace {
 
     /// Chevron de 13 × 7 px en trait de 2 px, centré sur c
     void draw_chevron(point_i16_t c, MoveKey::Arrow arrow, Color color) {
+        if (arrow >= MoveKey::Arrow::up_left) {
+            // Chevron d'angle de 9 px, trait de 2 px, pointe vers le coin
+            const int16_t sx = (arrow == MoveKey::Arrow::up_left || arrow == MoveKey::Arrow::down_left) ? -1 : 1;
+            const int16_t sy = (arrow == MoveKey::Arrow::up_left || arrow == MoveKey::Arrow::up_right) ? -1 : 1;
+            const int16_t tip_x = c.x + 4 * sx, tip_y = c.y + 4 * sy;
+            for (int16_t t = 0; t < 2; ++t) {
+                display::draw_line(point_ui16(tip_x - t * sx, tip_y), point_ui16(tip_x - t * sx, tip_y - 8 * sy), color);
+                display::draw_line(point_ui16(tip_x, tip_y - t * sy), point_ui16(tip_x - 8 * sx, tip_y - t * sy), color);
+            }
+            return;
+        }
         const bool vertical = arrow == MoveKey::Arrow::up || arrow == MoveKey::Arrow::down;
         const int16_t s = (arrow == MoveKey::Arrow::down || arrow == MoveKey::Arrow::right) ? 1 : -1; // côté de la pointe
         for (int16_t t = 0; t < 2; ++t) {
@@ -271,6 +339,10 @@ void MoveKey::draw_content(Rect16 body) {
     const int16_t cx = body.Left() + body.Width() / 2;
     if (arrow == Arrow::none) {
         draw_icon({ int16_t(cx - 8), int16_t(body.Top() + (body.Height() - 16) / 2) }, img::home_full_16x16, fill());
+        return;
+    }
+    if (arrow >= Arrow::up_left) {
+        draw_chevron({ cx, int16_t(body.Top() + body.Height() / 2) }, arrow, dimmed ? style::text_faint : arrow_color);
         return;
     }
     // Chevron (18 px) et libellé (16 px) centrés ensemble, 4 px entre eux
@@ -402,6 +474,10 @@ ScreenMove::ScreenMove()
     , y_plus(this, y_plus_body, step<Y_AXIS, 1>, style::surface, MoveKey::Arrow::up, string_view_utf8::MakeCPUFLASH("Y+"))
     , y_minus(this, y_minus_body, step<Y_AXIS, -1>, style::surface, MoveKey::Arrow::down, string_view_utf8::MakeCPUFLASH("Y-"), true)
     , origin_xy(this, origin_xy_body, home_xy, style::surface, MoveKey::Arrow::none)
+    , xy_up_left(this, up_left_body, step_diagonal<0>, style::surface, MoveKey::Arrow::up_left)
+    , xy_up_right(this, up_right_body, step_diagonal<1>, style::surface, MoveKey::Arrow::up_right)
+    , xy_down_left(this, down_left_body, step_diagonal<2>, style::surface, MoveKey::Arrow::down_left)
+    , xy_down_right(this, down_right_body, step_diagonal<3>, style::surface, MoveKey::Arrow::down_right)
     , z_value(this, z_value_rect, Align_t::Center())
     , z_plus(this, z_plus_body, step<Z_AXIS, 1>, style::screen, MoveKey::Arrow::up, string_view_utf8::MakeCPUFLASH("Z+"))
     , z_minus(this, z_minus_body, step<Z_AXIS, -1>, style::screen, MoveKey::Arrow::down, string_view_utf8::MakeCPUFLASH("Z-"), true)
@@ -412,8 +488,9 @@ ScreenMove::ScreenMove()
     , step_title(this, step_title_rect, Align_t::LeftCenter())
     , steps { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 } }
     , position(this, position_rect, Align_t::LeftCenter())
-    , origin_all(this, origin_all_body, home_all, _("Home all axes"), &img::home_full_16x16, style::secondary, style::text_strong)
-    , motors(this, motors_body, disable_motors, _("Disable motors"), nullptr, style::secondary, style::text_strong)
+    , origin_all(this, origin_all_body, home_all, _("Home XYZ"), &img::home_full_16x16, style::secondary, style::text_strong)
+    , motors(this, motors_body, disable_motors, _("Motors off"), nullptr, style::secondary, style::text_strong)
+    , mmu_axes(this, mmu_axes_body, open_mmu_axes, _("MMU axes"), &img::spool_16x16, style::secondary, style::text_strong)
     , tabs(this, section_tab())
     , shown_step(step_index) {
     ClrMenuTimeoutClose(); // comme la liste de Prusa : l'écran reste ouvert pendant les déplacements

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <optional>
 
 #include "metric.h"
 #include "window_event.hpp"
@@ -64,6 +65,20 @@ public:
 
     /// Returns last detected touchscreen event
     TouchscreenEvent get_last_event() const;
+
+    /// OneDrop3D (interface G) : le doigt posé en ce moment (un seul), pour suivre un glissement (curseur, appui
+    /// maintenu) ; nullopt sans contact. Lu dans la tâche de l'interface, comme update().
+    std::optional<point_ui16_t> held_point() const {
+        if (gesture_recognition_state_ != GestureRecognitionState::active || last_touch_state_.multitouch_point_count != 1) {
+            return std::nullopt;
+        }
+        return last_touch_state_.multitouch_points[0].position;
+    }
+
+    /// OneDrop3D (interface G) : où le contact en cours a commencé (valable tant que held_point() en donne un)
+    point_ui16_t held_start() const {
+        return gesture_start_pos_;
+    }
 
 public:
     /// Polling/update event

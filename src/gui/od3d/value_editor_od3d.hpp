@@ -10,7 +10,8 @@
 
 namespace od3d {
 
-/// Molette : un pas par cran, clic = OK. Toucher : −, +, la barre (valeur à l'endroit touché), OK. Glisser = annuler.
+/// Molette : un pas par cran, clic = OK. Toucher : −, +, la barre (valeur sous le doigt, qui peut glisser), OK.
+/// Glisser hors de la barre = annuler.
 class ValueEditor final : public IDialog {
 public:
     using Apply = void (*)(float value);
@@ -40,7 +41,8 @@ private:
     };
 
     void step(int steps);
-    void set(float set);
+    void set(float set, bool quiet = false); ///< quiet : sans le son de pas (glissement sur la barre)
+    void follow_finger(); ///< LOOP : la valeur suit le doigt posé sur la barre
     float fraction() const; ///< position sur la barre, 0 à 1
 
     string_view_utf8 label;
@@ -48,6 +50,7 @@ private:
     float value;
     Apply apply;
     bool accepted = false;
+    bool dragged = false; ///< le doigt a glissé sur la barre : le balayage qui suit n'annule pas
     ValueView view;
 };
 

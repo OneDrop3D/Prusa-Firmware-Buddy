@@ -192,6 +192,7 @@ void M1986(); //< Empty the INDX nozzle-cleaner wastebin (pause, move aside, res
 void M1987(); //< Heater selftest
 #endif
 
+void M1990(); //< OneDrop3D : déplacer X ou Y sans origine, arrêt au contact
 void M9140(); //< Set normal (non-stealth) mode
 void M9141(); //< Get stealth mode status
 void M9150(); //< Set stealth mode

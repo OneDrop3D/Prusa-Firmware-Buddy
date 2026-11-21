@@ -19,8 +19,15 @@ namespace od3d {
 /// Ouvre « Avant l'impression » pour un G-code (chemin canonique, comme celui de la liste des fichiers)
 void open_preview(const char *path);
 
-/// Lit les métadonnées d'un G-code (temps, filament, matières) ; vide s'il ne s'ouvre pas
+/// Lit les métadonnées d'un G-code (temps, filament, matières) ; vide s'il ne s'ouvre pas. Les 16 dernières lues
+/// restent en mémoire : la grille, ses pages et « Avant l'impression » ne relisent pas la clé (lente, ~0,1 s par fichier).
 print_info::FileInfo read_file_info(const char *path);
+
+/// Les métadonnées déjà lues de ce fichier, sans toucher à la clé
+std::optional<print_info::FileInfo> cached_file_info(const char *path);
+
+/// Oublie les métadonnées lues (clé retirée ou changée)
+void forget_file_infos();
 
 /// Vignette 313 × 173 du G-code réduite d'un facteur entier, centrée dans box sur le fond des vignettes ;
 /// grey_rows lignes du haut en gris. false s'il n'y a pas de vignette (box n'est pas touchée).
@@ -41,8 +48,12 @@ public:
 
     FileTile(ScreenFiles &screen, uint8_t index);
 
-    /// Affiche l'entrée index_in_view de la liste (Kind::none : carte cachée)
+    /// Affiche l'entrée index_in_view de la liste (Kind::none : carte cachée). Les métadonnées viennent du cache,
+    /// sinon plus tard (load_info) : la grille s'affiche sans attendre la clé.
     void set(Kind kind, uint8_t index_in_view);
+
+    /// Lit les métadonnées qui manquent, une fois la carte dessinée ; false s'il n'y avait rien à lire
+    bool load_info();
 
     Kind kind = Kind::none;
     uint8_t view_index = 0; ///< place dans la fenêtre de la liste (LazyDirView)
@@ -54,6 +65,7 @@ protected:
 private:
     ScreenFiles &screen;
     print_info::FileInfo info;
+    bool info_pending = false;
 };
 
 /// Haut d'une carte : la vignette du fichier, ou l'icône du dossier. La vignette (lecture sur la clé, ~0,1 s) vient
@@ -75,6 +87,19 @@ private:
     bool image_requested = false;
 };
 
+/// Barre de défilement de la grille (SPEC_G.md §1.7), dans la marge droite : seule à se repeindre avec les cartes
+/// quand la page tourne (l'écran entier, en-tête et onglets compris, se repeignait)
+class GridScroll : public window_t {
+public:
+    GridScroll(ScreenFiles &screen, Rect16 rect);
+
+protected:
+    void unconditionalDraw() override;
+
+private:
+    ScreenFiles &screen;
+};
+
 class ScreenFiles final : public Screen {
 public:
     ScreenFiles();
@@ -93,6 +118,10 @@ public:
 
     FileTile &tile(uint8_t i) { return tiles[i]; }
 
+    int item_count() const; ///< entrées affichables, « .. » compris dans un sous-dossier
+    int first_item() const { return first; }
+    static constexpr uint8_t tiles_count = 4;
+
     std::optional<ScaledQoiReader> scaler; ///< une vignette à la fois ; dans l'écran plutôt que sur la pile (6 Ko)
 
 protected:
@@ -100,16 +129,14 @@ protected:
     void unconditionalDraw() override;
 
 private:
-    static constexpr uint8_t tiles_count = 4;
-
     void load();
-    void show(int new_first, FileTile &focus); ///< recharge à partir de new_first et redessine tout
-    int item_count() const; ///< entrées affichables, « .. » compris dans un sous-dossier
+    void show(int new_first, FileTile &focus); ///< recharge à partir de new_first : cartes et barre seulement
     bool in_subfolder() const;
 
     Header header;
     FileThumb thumbs[tiles_count];
     FileTile tiles[tiles_count];
+    GridScroll scroll;
     TabBar tabs;
     LazyDirView<tiles_count> view;
     bool loaded = false;
@@ -117,6 +144,24 @@ private:
     // Gardés quand l'écran est recréé (retour d'« Avant l'impression ») ; remis à zéro à chaque ouverture
     static std::array<char, filename_defs::path_buffer_size> dir;
     static int first; ///< rang de la première carte dans la liste
+};
+
+/// Aperçu d'« Avant l'impression » : la case et son icône tout de suite, la vignette au LOOP suivant (lecture sur la clé)
+class PreviewThumb : public window_t {
+public:
+    PreviewThumb(window_t *parent, Rect16 rect, const char *path);
+
+    /// Demande le dessin de la vignette une fois la case affichée ; false s'il n'y a rien à faire
+    bool request_image();
+
+protected:
+    void unconditionalDraw() override;
+
+private:
+    const char *path;
+    std::optional<ScaledQoiReader> scaler;
+    bool image_drawn = false;
+    bool image_requested = false;
 };
 
 /// « Avant l'impression » : vignette, nom, « durée · grammes · mètres », une ligne par emplacement utilisé,
@@ -151,12 +196,12 @@ private:
     void update_buttons();
 
     Header header;
+    PreviewThumb thumb;
     Button print;
     Button map;
     TabBar tabs;
     print_info::FileInfo info;
     std::array<char, 32> name {};
-    std::optional<ScaledQoiReader> scaler;
 };
 
 } // namespace od3d

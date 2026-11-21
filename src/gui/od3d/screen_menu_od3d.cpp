@@ -84,7 +84,7 @@ ScreenNozzleTemperature::ScreenNozzleTemperature()
 
 // Les relais sont lus au départ de chaque impression : un changement vaut pour la suivante.
 MI_SPOOL_JOIN::MI_SPOOL_JOIN()
-    : WI_ICON_SWITCH_OFF_ON_t(config_store().od3d_spool_join.get(), _("Automatic join\nEmpty spool: another one takes over"), &img::cycle_16x16) {}
+    : WI_ICON_SWITCH_OFF_ON_t(config_store().od3d_spool_join.get(), _("Automatic join\nSame material and colour, or the rules below"), &img::cycle_16x16) {}
 
 void MI_SPOOL_JOIN::OnChange(size_t) {
     config_store().od3d_spool_join.set(value());

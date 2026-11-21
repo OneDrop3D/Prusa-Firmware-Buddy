@@ -10354,3 +10354,23 @@ msgstr "Axes sans origine. Faire la prise d'origine maintenant ?"
 #: src/gui/od3d/screen_move_od3d.cpp
 msgid "Nozzle too cold to extrude: heat it first."
 msgstr "Buse trop froide pour extruder : chauffez-la d'abord."
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Home XYZ"
+msgstr "Origine XYZ"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Motors off"
+msgstr "Couper moteurs"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "MMU axes"
+msgstr "Axes du MMU"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Pull the filament out of input %d at the back of the MMU, remove the spool, then press."
+msgstr "Tirez le filament par l'entrée %d, à l'arrière du MMU, retirez la bobine, puis appuyez."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Automatic join\nSame material and colour, or the rules below"
+msgstr "Relais automatique\nMême matière et couleur, ou les règles dessous"

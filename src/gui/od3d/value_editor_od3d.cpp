@@ -12,7 +12,11 @@
 #include <display.hpp>
 #include <event/knob_event.hpp>
 #include <ScreenHandler.hpp>
+#include <option/has_touch.h>
 #include <sound.hpp>
+#if HAS_TOUCH()
+    #include <hw/touchscreen/touchscreen.hpp>
+#endif
 
 namespace od3d {
 
@@ -26,6 +30,7 @@ namespace {
     constexpr Rect16 value_rect = { 80, 159, 320, 53 };
     constexpr Rect16 bar_rect = { 40, 234, 400, 6 };
     constexpr Rect16 bar_zone = { 30, 226, 420, 22 }; ///< barre et son disque Ø18
+    constexpr Rect16 drag_zone = { 0, 216, 480, 44 }; ///< où un glissement saisit la barre : plus haut que le dessin, pour le doigt
     constexpr Rect16 ok_rect = { 140, 262, 200, 40 };
     constexpr Rect16 view_rect = { 30, 156, 420, 94 }; ///< valeur et barre ; les disques − et + n'y sont pas repeints
     constexpr uint8_t knob_d = 18;
@@ -80,6 +85,10 @@ void ValueEditor::unconditionalDraw() {
 
 void ValueEditor::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     switch (event) {
+    case GUI_event_t::LOOP:
+        follow_finger();
+        IDialog::windowEvent(sender, event, param);
+        return;
     case GUI_event_t::KNOB: {
         auto &ctx = *static_cast<GuiEventContext *>(param);
         step(ctx.event.value<gui_event::KnobEvent>().diff);
@@ -96,7 +105,7 @@ void ValueEditor::windowEvent(window_t *sender, GUI_event_t event, void *param) 
             step(-1);
         } else if (plus_rect.Contain(at)) {
             step(1);
-        } else if (bar_zone.Contain(at)) {
+        } else if (drag_zone.Contain(at)) {
             const float f = std::clamp((at.x - bar_rect.Left()) / float(bar_rect.Width()), 0.0f, 1.0f);
             set(config.min_value + f * (config.max_value - config.min_value));
         } else if (ok_rect.Contain(at)) {
@@ -111,7 +120,30 @@ void ValueEditor::windowEvent(window_t *sender, GUI_event_t event, void *param) 
     }
 }
 
+void ValueEditor::follow_finger() {
+#if HAS_TOUCH()
+    const auto at = touchscreen.held_point();
+    if (!at || !drag_zone.Contain(touchscreen.held_start())) {
+        return;
+    }
+    const int16_t from = touchscreen.held_start().x;
+    if (!dragged && std::abs(at->x - from) < 4) {
+        return; // pas encore un glissement : un toucher reste un toucher
+    }
+    dragged = true;
+    const float f = std::clamp((at->x - bar_rect.Left()) / float(bar_rect.Width()), 0.0f, 1.0f);
+    set(config.min_value + f * (config.max_value - config.min_value), true);
+#endif
+}
+
 void ValueEditor::screenEvent(window_t *sender, GUI_event_t event, void *param) {
+    const bool swipe = event == GUI_event_t::TOUCH_SWIPE_LEFT || event == GUI_event_t::TOUCH_SWIPE_RIGHT
+        || event == GUI_event_t::TOUCH_SWIPE_UP || event == GUI_event_t::TOUCH_SWIPE_DOWN;
+    if (swipe && dragged) {
+        dragged = false; // fin du glissement sur la barre : la valeur reste
+        sound::play(SoundType::encoder_move);
+        return;
+    }
     if (event == GUI_event_t::TOUCH_SWIPE_LEFT || event == GUI_event_t::TOUCH_SWIPE_RIGHT) {
         close_dialog(); // annulé
         return;
@@ -124,14 +156,18 @@ void ValueEditor::step(int steps) {
     set(config.clamp(std::round(value / config.step + float(steps)) * config.step, float(steps)));
 }
 
-void ValueEditor::set(float set) {
+void ValueEditor::set(float set, bool quiet) {
     const float previous = value;
     value = config.clamp(std::round(set / config.step) * config.step);
     if (value == previous) {
-        sound::play(SoundType::blind_alert);
+        if (!quiet) {
+            sound::play(SoundType::blind_alert);
+        }
         return;
     }
-    sound::play(SoundType::encoder_move);
+    if (!quiet) {
+        sound::play(SoundType::encoder_move);
+    }
     view.Invalidate();
     if (apply) {
         apply(value);

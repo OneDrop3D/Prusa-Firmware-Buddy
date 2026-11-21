@@ -17,6 +17,10 @@
 #include <printers.h>
 #include "MItem_mmu.hpp"
 #include <device/board.h>
+#include <option/has_nozzle_thermal_compensation.h>
+#if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
+    #include <gui/od3d/menu_items_od3d.hpp> // OneDrop3D
+#endif
 
 #if XL_ENCLOSURE_SUPPORT()
     #include "MItem_enclosure.hpp"
@@ -37,6 +41,9 @@ using ScreenMenuControlSpec = ScreenMenu<EFooter::On,
     MI_PICK_PARK_TOOL,
 #endif
     MI_MOVE_AXIS,
+#if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
+    od3d::MI_MMU_AXES, // OneDrop3D : les axes du MMU, à côté de ceux de l'imprimante
+#endif
     MI_DISABLE_MOTORS,
 #if HAS_SHEET_PROFILES()
     MI_CURRENT_SHEET_PROFILE,

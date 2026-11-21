@@ -1,8 +1,9 @@
 /// @file
 /// OneDrop3D (F1, interface G) : « Déplacer les axes » (SPEC_G.md §3.17), à la place de la liste de Prusa
 /// (Contrôle > Déplacer axe). Croix XY avec l'origine XY au centre, colonnes Z et E, pas de 0.1 à 50 mm,
-/// carte du plateau à toucher. Pas relatifs (G1) et carte (G123) aux vitesses du menu Prusa ; un axe sans
-/// origine propose d'abord la prise d'origine, E reste bloqué tant que la buse est froide.
+/// carte du plateau à toucher. Pas relatifs (G1, diagonales comprises) et carte (G123) aux vitesses du menu Prusa.
+/// X et Y sans origine bougent quand même, comme la prise d'origine : arrêt au contact d'un bord (M1990). Z sans
+/// origine propose la prise d'origine ; E reste bloqué tant que la buse est froide. « Axes du MMU » ouvre ses moteurs.
 #pragma once
 
 #include "screen_temperatures_od3d.hpp" // TextButton
@@ -22,6 +23,10 @@ public:
         down,
         left,
         right,
+        up_left, ///< diagonales : chevron d'angle seul, sans libellé
+        up_right,
+        down_left,
+        down_right,
     };
 
     MoveKey(window_t *parent, Rect16 body, Action action, Color back, Arrow arrow, const string_view_utf8 &label = {}, bool arrow_below = false, Color arrow_color = style::text);
@@ -118,6 +123,10 @@ private:
     MoveKey y_plus;
     MoveKey y_minus;
     MoveKey origin_xy;
+    MoveKey xy_up_left; ///< diagonales dans les coins de la croix : X et Y ensemble
+    MoveKey xy_up_right;
+    MoveKey xy_down_left;
+    MoveKey xy_down_right;
     LiveText z_value;
     MoveKey z_plus;
     MoveKey z_minus;
@@ -130,6 +139,7 @@ private:
     LiveText position;
     TextButton origin_all;
     TextButton motors;
+    TextButton mmu_axes;
     TabBar tabs;
 
     uint8_t shown_step; ///< pas dessiné comme choisi

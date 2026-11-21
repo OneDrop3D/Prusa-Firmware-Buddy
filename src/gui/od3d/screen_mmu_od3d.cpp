@@ -1,5 +1,6 @@
 /// @file
 #include "screen_mmu_od3d.hpp"
+#include "menu_items_od3d.hpp"
 
 #include "spool_sheet_od3d.hpp"
 
@@ -409,5 +410,14 @@ ScreenMenuMMUSettings::ScreenMenuMMUSettings()
 
 ScreenMenuMMUInfo::ScreenMenuMMUInfo()
     : ScreenMenuMMUInfoBase(_("MMU info"), &img::info_16x16) {}
+
+// ---- Contrôle › Axes du MMU ----
+
+MI_MMU_AXES::MI_MMU_AXES()
+    : IWindowMenuItem(_("MMU axes"), &img::spool_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+
+void MI_MMU_AXES::click(IWindowMenu &) {
+    open_screen<ScreenMMUMotors>();
+}
 
 } // namespace od3d

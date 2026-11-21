@@ -127,11 +127,63 @@ void open_preview(const char *path) {
     open_screen<ScreenPreview>();
 }
 
+namespace {
+
+    /// Métadonnées des derniers fichiers lus, repérés par une empreinte de leur chemin (FNV-1a) ; ~1,3 Ko
+    struct InfoCache {
+        static constexpr size_t size = 16;
+        std::array<uint32_t, size> keys {}; ///< 0 : place libre
+        std::array<FileInfo, size> infos {};
+        uint8_t next = 0;
+
+        static uint32_t key(const char *path) {
+            uint32_t h = 2166136261u;
+            for (const char *p = path; *p; ++p) {
+                h = (h ^ uint8_t(*p)) * 16777619u;
+            }
+            return h ? h : 1;
+        }
+
+        const FileInfo *find(const char *path) const {
+            const uint32_t k = key(path);
+            for (size_t i = 0; i < size; ++i) {
+                if (keys[i] == k) {
+                    return &infos[i];
+                }
+            }
+            return nullptr;
+        }
+
+        void put(const char *path, const FileInfo &info) {
+            keys[next] = key(path);
+            infos[next] = info;
+            next = (next + 1) % size;
+        }
+    };
+
+    InfoCache info_cache;
+
+} // namespace
+
+std::optional<FileInfo> cached_file_info(const char *path) {
+    if (const FileInfo *hit = info_cache.find(path)) {
+        return *hit;
+    }
+    return std::nullopt;
+}
+
+void forget_file_infos() {
+    info_cache.keys = {};
+}
+
 FileInfo read_file_info(const char *path) {
+    if (const FileInfo *hit = info_cache.find(path)) {
+        return *hit;
+    }
     FileInfo info;
     AnyGcodeFormatReader reader(path);
     if (!reader.is_open() || !reader->stream_metadata_start()) {
-        return info;
+        return info; // pas gardé : la clé peut revenir
     }
     GcodeBuffer buffer;
     while (reader->stream_get_line(buffer, IGcodeReader::Continuations::Discard) == IGcodeReader::Result_t::RESULT_OK) {
@@ -140,6 +192,7 @@ FileInfo read_file_info(const char *path) {
             print_info::parse_metadata(info, std::string_view(&*name.begin, name.len()), std::string_view(&*value.begin, value.len()));
         }
     }
+    info_cache.put(path, info);
     return info;
 }
 
@@ -173,15 +226,33 @@ void FileTile::set(Kind k, uint8_t index_in_view) {
     kind = k;
     view_index = index_in_view;
     info = {};
+    info_pending = false;
     if (kind == Kind::file) {
         std::array<char, filename_defs::path_buffer_size> path;
         if (screen.entry_path(*this, path)) {
-            info = read_file_info(path.data());
+            if (const auto cached = cached_file_info(path.data())) {
+                info = *cached;
+            } else {
+                info_pending = true; // lu après le dessin de la grille (load_info)
+            }
         }
     }
     set_visible(kind != Kind::none);
     set_enabled(kind != Kind::none);
     Invalidate();
+}
+
+bool FileTile::load_info() {
+    if (!info_pending || !IsVisible() || IsInvalid()) {
+        return false;
+    }
+    info_pending = false;
+    std::array<char, filename_defs::path_buffer_size> path;
+    if (screen.entry_path(*this, path)) {
+        info = read_file_info(path.data());
+    }
+    Invalidate(); // la partie basse seulement : la vignette est une autre fenêtre
+    return true;
 }
 
 void FileTile::unconditionalDraw() {
@@ -295,11 +366,31 @@ void FileThumb::unconditionalDraw() {
     }
 }
 
+GridScroll::GridScroll(ScreenFiles &screen, Rect16 rect)
+    : window_t(&screen, rect)
+    , screen(screen) {}
+
+void GridScroll::unconditionalDraw() {
+    const Rect16 r = GetRect();
+    const int count = screen.item_count();
+    constexpr int n = ScreenFiles::tiles_count;
+    if (count <= n) {
+        display::fill_rect(r, style::screen);
+        return;
+    }
+    const int h = std::max(r.Height() * n / count, 12);
+    const int y = std::min<int>(r.Top() + (r.Height() - h) * screen.first_item() / std::max(count - n, 1), r.Bottom() + 1 - h);
+    display::fill_rect(Rect16(r.Left(), r.Top(), r.Width(), y - r.Top()), style::screen);
+    display::fill_rect(Rect16(r.Left(), y, r.Width(), h), style::text_faint);
+    display::fill_rect(Rect16(r.Left(), y + h, r.Width(), r.Bottom() + 1 - y - h), style::screen);
+}
+
 ScreenFiles::ScreenFiles()
     : Screen(true)
     , header(this, _("Files \xC2\xB7 USB drive"), true)
     , thumbs { { *this, tiles[0], 0 }, { *this, tiles[1], 1 }, { *this, tiles[2], 2 }, { *this, tiles[3], 3 } } // avant les cartes : leur anneau passe sur les coins de la vignette
     , tiles { { *this, 0 }, { *this, 1 }, { *this, 2 }, { *this, 3 } }
+    , scroll(*this, Rect16(475, grid_rect.Top(), 3, grid_rect.Height()))
     , tabs(this, TabBar::Tab::print) {}
 
 void ScreenFiles::InitState(screen_init_variant var) {
@@ -367,9 +458,16 @@ const char *ScreenFiles::display_name(const FileTile &t) const {
 }
 
 void ScreenFiles::show(int new_first, FileTile &focus) {
+    const bool was_empty = item_count() == 0;
+    const auto hidden = [this] { return std::ranges::count_if(tiles, [](const FileTile &t) { return !t.IsVisible(); }); };
+    const auto hidden_before = hidden();
     first = new_first;
     load();
-    Invalidate(); // barre de défilement, message
+    if (was_empty || item_count() == 0 || hidden() > hidden_before) {
+        Invalidate(); // message « Pas de fichier », ou une carte cachée dont la place doit être repeinte
+    } else {
+        scroll.Invalidate(); // les cartes se sont invalidées seules ; l'en-tête et les onglets ne bougent pas
+    }
     if (focus.IsVisible()) {
         focus.SetFocus();
     }
@@ -415,11 +513,6 @@ void ScreenFiles::unconditionalDraw() {
     if (count == 0) {
         const string_view_utf8 text = marlin_vars().media_inserted ? _("No printable file") : _("Insert a USB drive");
         draw_text(Rect16(grid_rect.Left(), 130, grid_rect.Width(), height(Font::small)), text, Font::small, style::text_muted, style::screen, Align_t::Center());
-    } else if (count > tiles_count) {
-        // Barre de défilement (§1.7) dans la marge droite
-        const int h = std::max(grid_rect.Height() * tiles_count / count, 12);
-        const int y = grid_rect.Top() + (grid_rect.Height() - h) * first / std::max(count - tiles_count, 1);
-        display::fill_rect(Rect16(475, std::min<int>(y, grid_rect.Bottom() + 1 - h), 3, h), style::text_faint);
     }
 }
 
@@ -429,14 +522,18 @@ void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) 
         if (!loaded) {
             load(); // si InitState n'a pas été appelé
         }
-        for (FileThumb &t : thumbs) {
-            if (t.request_image()) {
-                break; // une vignette par LOOP
+        // Une lecture de la clé par LOOP : d'abord les lignes « durée · grammes » (courtes), puis les vignettes
+        if (std::ranges::none_of(tiles, [](FileTile &t) { return t.load_info(); })) {
+            for (FileThumb &t : thumbs) {
+                if (t.request_image()) {
+                    break;
+                }
             }
         }
         break;
     case GUI_event_t::MEDIA:
         if (const auto state = MediaState_t(int(param)); state == MediaState_t::inserted || state == MediaState_t::removed) {
+            forget_file_infos();
             strlcpy(dir.data(), "/usb", dir.size());
             show(0, tiles[0]);
         }
@@ -484,9 +581,38 @@ void ScreenPreview::Button::draw_content(Rect16 body) {
     draw_text(Rect16(x + 16 + 6, y, text_w, height(Font::small)), label, Font::small, fg, fill());
 }
 
+PreviewThumb::PreviewThumb(window_t *parent, Rect16 rect, const char *path)
+    : window_t(parent, rect)
+    , path(path) {}
+
+bool PreviewThumb::request_image() {
+    if (image_drawn || image_requested || IsInvalid()) {
+        return false;
+    }
+    image_requested = true;
+    Invalidate();
+    ValidateBackground(); // la case reste, seule la vignette se dessine
+    return true;
+}
+
+void PreviewThumb::unconditionalDraw() {
+    const Rect16 box = GetRect();
+    if (!HasValidBackground()) {
+        display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
+        draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, img::print_16x16, style::thumb_back);
+        image_drawn = false;
+    }
+    if (image_requested) {
+        image_requested = false;
+        image_drawn = true;
+        draw_thumbnail(path, box, preview_factor, scaler);
+    }
+}
+
 ScreenPreview::ScreenPreview()
     : Screen(true)
     , header(this, _("Before printing"), true)
+    , thumb(this, preview_box, path.data())
     , print(this, print_body, print_now, true)
     , map(this, map_body, map_colours, false)
     , tabs(this, TabBar::Tab::print)
@@ -507,11 +633,6 @@ void ScreenPreview::update_buttons() {
 
 void ScreenPreview::unconditionalDraw() {
     Screen::unconditionalDraw();
-
-    display::draw_rounded_rect(preview_box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
-    if (!draw_thumbnail(path.data(), preview_box, preview_factor, scaler)) {
-        draw_icon({ int16_t(preview_box.Left() + (preview_box.Width() - 16) / 2), int16_t(preview_box.Top() + (preview_box.Height() - 16) / 2) }, img::print_16x16, style::thumb_back);
-    }
 
     const uint16_t w = style::screen_w - style::margin - info_x;
     draw_text(Rect16(info_x, style::top, w, height(Font::normal)), string_view_utf8::MakeRAM(name.data()), Font::normal, style::text_strong, style::screen);
@@ -550,6 +671,9 @@ void ScreenPreview::unconditionalDraw() {
 void ScreenPreview::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP || event == GUI_event_t::MEDIA) {
         update_buttons();
+    }
+    if (event == GUI_event_t::LOOP) {
+        thumb.request_image(); // après le premier dessin de l'écran
     }
     Screen::windowEvent(sender, event, param);
 }

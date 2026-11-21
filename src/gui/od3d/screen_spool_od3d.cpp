@@ -94,7 +94,12 @@ void open_change_spool(uint8_t slot, SpoolChange mode) {
     switch (mode) {
     case SpoolChange::change:
         wizard.step = 1;
-        atelier::run(Op::eject, slot); // SPEC_G.md §3.5 : M705 avant l'étape 1
+        // Le filament sort par l'arrière, côté bobine (retour de l'utilisateur, 21/11 : l'éjection M705 le poussait
+        // toujours vers l'avant). Chargé dans la buse : on le décharge jusqu'au MMU, galet libéré ; sinon il y est
+        // déjà, et on le tire à la main par l'entrée de l'emplacement.
+        if (Slot::read(slot).loaded) {
+            atelier::run(Op::unload, slot);
+        }
         break;
     case SpoolChange::insert:
         start_insert();
@@ -260,7 +265,7 @@ void ScreenChangeSpool::layout() {
     switch (wizard.step) {
     case 1:
         title.SetText(_("Remove spool %d").formatted(title_params, wizard.slot + 1));
-        text.SetText(_("The MMU pulled the filament out of input %d. Remove the spool, then press.").formatted(text_params, wizard.slot + 1));
+        text.SetText(_("Pull the filament out of input %d at the back of the MMU, remove the spool, then press.").formatted(text_params, wizard.slot + 1));
         primary.set(Button::Look::primary, _("It's done"));
         break;
     case 2:

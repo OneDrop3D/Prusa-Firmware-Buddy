@@ -193,6 +193,7 @@ void M1987(); //< Heater selftest
 #endif
 
 void M1990(); //< OneDrop3D : déplacer X ou Y sans origine, arrêt au contact
+void M852(); //< OneDrop3D (F15) : correction d'équerrage XY
 void M9140(); //< Set normal (non-stealth) mode
 void M9141(); //< Get stealth mode status
 void M9150(); //< Set stealth mode

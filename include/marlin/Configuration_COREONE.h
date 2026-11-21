@@ -867,6 +867,9 @@ static constexpr float EXTRUDER_SERVICE_MOVE_E_FACTOR = static_cast<float>(CALIB
     #define Y_MAX_PRINT_POS Y_MAX_POS
     #define Y_MIN_PRINT_POS Y_MIN_POS
     #define HOMING_PREEMPTIVE_MOVE_Y 15.f
+    // OneDrop3D (F15) : correction d'équerrage XY, à la place du SKEW_CORRECTION que Prusa a retiré de Marlin.
+    // Facteur XY seulement, 0 par défaut, réglé par M852 I<k> ou l'écran « Équerrage XY » (src/feature/od3d/skew_od3d.hpp).
+    #define OD3D_SKEW_CORRECTION_XY
 #endif
 
 #ifdef USE_PRUSA_EEPROM_AS_SOURCE_OF_DEFAULT_VALUES

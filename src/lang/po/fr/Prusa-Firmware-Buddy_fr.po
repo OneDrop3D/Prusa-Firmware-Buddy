@@ -10379,3 +10379,56 @@ msgstr "Relais automatique\nMême matière et couleur, ou les règles dessous"
 #, c-format
 msgid "pressed on %d (free %d s)"
 msgstr "serré sur %d (libre %d s)"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "XY squareness\nFixes a frame that is not square"
+msgstr "Équerrage XY\nCorrige un cadre qui n'est pas d'équerre"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "XY squareness"
+msgstr "Équerrage XY"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Test piece\nPrint a 100 mm square, then measure it"
+msgstr "Pièce de mesure\nCarré de 100 mm à imprimer puis mesurer"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Print a solid 100 x 100 x 3 mm square in the middle of the bed. Seen from the front: A front left, B back left, C back right, D front right. Measure AC, BD (diagonals) and AD (side) with a caliper."
+msgstr "Imprimez un carré plein de 100 x 100 x 3 mm au centre du plateau. Vu de face : A avant gauche, B arrière gauche, C arrière droit, D avant droit. Mesurez au pied à coulisse AC, BD (diagonales) et AD (côté)."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Diagonal AC"
+msgstr "Diagonale AC"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Diagonal BD"
+msgstr "Diagonale BD"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Side AD"
+msgstr "Côté AD"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Measured skew"
+msgstr "Écart mesuré"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Apply correction"
+msgstr "Appliquer la correction"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Inconsistent measurements: check AC, BD and AD."
+msgstr "Mesures incohérentes : vérifiez AC, BD et AD."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Skew over 0.57°: adjust the frame and belts rather than correcting it."
+msgstr "Écart de plus de 0,57° : réglez plutôt le cadre et les courroies."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+#, c-format
+msgid "XY correction saved: %s. Used for prints (with bed leveling). Print the test piece again to check."
+msgstr "Correction XY enregistrée : %s. Elle sert aux impressions (avec le nivellement). Réimprimez la pièce pour vérifier."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Reset to zero"
+msgstr "Remettre à zéro"

@@ -15,6 +15,14 @@ MachinePosXYZ to_machine_pos(const xyz_pos_t &pos) {
 
 #if HAS_MESH
     if (planner.leveling_active) {
+    #if ENABLED(OD3D_SKEW_CORRECTION_XY)
+        // OneDrop3D (F15) : équerrage XY (cisaillement autour du milieu du plateau en Y), avant le MBL : la hauteur du
+        // maillage se lit là où la tête va vraiment. Jamais au-delà des courses de X, sauf si la position y est déjà.
+        if (Planner::skew_xy != 0.0f) {
+            const float x = pos.x - (pos.y - Planner::skew_y_center) * Planner::skew_xy;
+            result.x = std::clamp(x, std::min(pos.x, Planner::skew_x_min), std::max(pos.x, Planner::skew_x_max));
+        }
+    #endif
         const float mbl_correction = ubl.get_z_correction(result.xy());
 
     #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
@@ -70,6 +78,12 @@ xyz_pos_t to_native_pos(const MachinePosXYZ &pos) {
             // No fade
             result.z -= mbl_correction;
         }
+    #if ENABLED(OD3D_SKEW_CORRECTION_XY)
+        // OneDrop3D (F15) : inverse de l'équerrage (Y n'est pas modifié) ; une position bornée ne revient pas exactement
+        if (Planner::skew_xy != 0.0f) {
+            result.x = pos.x + (pos.y - Planner::skew_y_center) * Planner::skew_xy;
+        }
+    #endif
     }
 #endif
 

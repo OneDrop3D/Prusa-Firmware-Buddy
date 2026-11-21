@@ -364,6 +364,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 1990: // OneDrop3D
             PrusaGcodeSuite::M1990();
             break;
+#if ENABLED(OD3D_SKEW_CORRECTION_XY)
+        case 852: // OneDrop3D : équerrage XY (retiré de Marlin par Prusa)
+            PrusaGcodeSuite::M852();
+            break;
+#endif
         case 9140:
             PrusaGcodeSuite::M9140();
             break;

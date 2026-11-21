@@ -249,6 +249,23 @@ namespace {
     constexpr uint8_t reg_idler = 0x1c;
     constexpr uint8_t park = 5;
 
+    /// F12 : registre de la poulie, ajouté par notre firmware du MMU (Prusa-Firmware-MMU OneDrop3D, branche
+    /// od3d/f12-poulie, logic/pulley_service.h). Valeur = emplacement * 256 + mm (octet signé) ; 0 = arrêt ;
+    /// emplacement 0 à 4 = galet serré, poulie de ±mm puis galet relâché ; 5 = galet libre, rotation à |mm| mm/s
+    /// arrêtée par le MMU lui-même après 60 s.
+    constexpr uint8_t reg_pulley = 0x24;
+    constexpr int8_t pulley_step_mm = 10;
+    constexpr int8_t clean_speed_mm_s = 10; ///< rotation lente
+    constexpr uint32_t clean_ms = 60'000; ///< durée maximale fixée par le firmware du MMU
+    constexpr uint16_t pulley_request(uint8_t slot, int8_t mm) {
+        return uint16_t(slot << 8 | uint8_t(mm));
+    }
+
+    /// Le MMU doit rapporter 3.0.4 (sinon l'imprimante le refuse) : notre firmware se reconnaît à son numéro de build,
+    /// le nombre de commits de sa branche. Officiel Prusa 3.0.4 : 935 ; OneDrop3D F0 : 936 ; le registre 0x24 existe
+    /// depuis le build 939 (commit F12 de od3d/f12-poulie).
+    constexpr uint16_t mmu_build_with_pulley = 939;
+
     /// BUG-1 : un galet serré garde son moteur à 530 mA (Idler::FinishMove du firmware MMU). Chez Prusa, il n'est
     /// serré que le temps d'un chargement : ici, on le relâche seul après ce délai sans nouvelle commande.
     constexpr uint32_t idler_release_ms = 120'000;
@@ -260,7 +277,7 @@ namespace {
     }
 
     enum MotorTag : uint8_t {
-        tag_pulley = 0, // 0 à 2, inactifs
+        tag_pulley = 0, // 0 : -10 mm, 1 : +10 mm, 2 : nettoyer / arrêter
         tag_selector = 10, // 10 à 15 : emplacements 1 à 5 puis parking
         tag_idler = 20, // 20 : libre, 21 à 25 : serré sur 1 à 5
     };
@@ -337,7 +354,8 @@ ScreenMMUMotors::ScreenMMUMotors()
     for (window_text_t *note : { &pulley_note, &selector_note, &idler_note }) {
         setup_note(*note);
     }
-    // Poulie : rotation libre et pas de 10 mm demandent une commande que le firmware du MMU n'a pas (F12)
+    // Poulie : rotation libre et pas de 10 mm demandent le registre 0x24 de notre firmware du MMU (F12) ; sans lui,
+    // les boutons restent grisés avec la note « bientôt : firmware MMU » (update)
     pulley_back.set_enabled(false);
     pulley_forward.set_enabled(false);
     pulley_clean.set_enabled(false);
@@ -352,9 +370,19 @@ ScreenMMUMotors::ScreenMMUMotors()
 
 ScreenMMUMotors::~ScreenMMUMotors() {
     // Sans dialogue (destruction de l'écran) : simple mise en file du G-code
+    if (cleaning && atelier::mmu_active()) {
+        marlin_client::gcode("M708 A0x24 X0"); // le MMU l'arrêterait seul au bout de 60 s
+    }
     if (engaged_here && atelier::mmu_active() && MMU2::mmu2.IdlerSlot() < park) {
         marlin_client::gcode("M708 A0x1c X5");
     }
+}
+
+int8_t ScreenMMUMotors::pulley_slot() const {
+    if (idler_at >= 0 && idler_at < park) {
+        return idler_at;
+    }
+    return selector_at >= 0 && selector_at < park ? selector_at : int8_t(-1);
 }
 
 void ScreenMMUMotors::update() {
@@ -378,21 +406,41 @@ void ScreenMMUMotors::update() {
             left = int16_t((remaining + 999) / 1000);
         }
     }
-    if (sel != selector_at || idl != idler_at || left != seconds_left) {
+    // F12 : le MMU arrête seul le nettoyage après 60 s
+    const bool supported = active && MMU2::mmu2.GetMMUFWVersionBuild() >= mmu_build_with_pulley;
+    int16_t clean = -1;
+    if (cleaning) {
+        const int32_t remaining = int32_t(clean_ms) - int32_t(ticks_ms() - cleaning_ms);
+        if (remaining <= 0 || !active) {
+            cleaning = false;
+        } else {
+            clean = int16_t((remaining + 999) / 1000);
+        }
+    }
+    if (sel != selector_at || idl != idler_at || left != seconds_left || supported != pulley_supported || clean != clean_left) {
         selector_at = sel;
         idler_at = idl;
         seconds_left = left;
+        pulley_supported = supported;
+        clean_left = clean;
         show();
     }
 
-    // Le MMU refuse de bouger le sélecteur quand le FINDA voit un filament (selector.cpp) : bouton inactif
-    const bool selector_ok = ok && !marlin_vars().mmu2_finda.get();
+    // Le MMU refuse de bouger le sélecteur quand le FINDA voit un filament (selector.cpp) : bouton inactif.
+    // Il refuse aussi la poulie (registre 0x24) dès qu'un filament est dans le sélecteur.
+    const bool finda = marlin_vars().mmu2_finda.get();
+    const bool selector_ok = ok && !finda && !cleaning;
     for (PositionButton &b : selector) {
         b.enable(selector_ok);
     }
+    // Pendant le nettoyage, le galet ne doit pas serrer un filament contre la poulie qui tourne
     for (PositionButton &b : idler) {
-        b.enable(ok);
+        b.enable(ok && !cleaning);
     }
+    const bool pulley_ok = ok && supported && !finda;
+    pulley_back.enable(pulley_ok && !cleaning && pulley_slot() >= 0);
+    pulley_forward.enable(pulley_ok && !cleaning && pulley_slot() >= 0);
+    pulley_clean.enable(pulley_ok || cleaning);
     keep_focus(*this);
 }
 
@@ -403,6 +451,18 @@ void ScreenMMUMotors::show() {
         const int idler_value = i == 0 ? park : i - 1;
         idler[i].set_look(idler_value == idler_at ? Button::Look::selected : Button::Look::secondary);
     }
+    const int8_t slot = pulley_slot();
+    if (!pulley_supported) {
+        pulley_note.SetText(_("soon: MMU firmware"));
+    } else if (clean_left >= 0) {
+        pulley_note.SetText(_("cleaning (stops in %d s)").formatted(pulley_params, clean_left));
+    } else if (slot < 0) {
+        pulley_note.SetText(_("choose a slot below"));
+    } else {
+        pulley_note.SetText(_("pulley on slot %d").formatted(pulley_params, slot + 1));
+    }
+    pulley_clean.set(clean_left >= 0 ? Button::Look::alert : Button::Look::selected, clean_left >= 0 ? _("Stop cleaning") : _("Clean"));
+
     if (selector_at < 0) {
         selector_note.SetText(string_view_utf8::MakeNULLSTR());
     } else if (selector_at == park) {
@@ -429,7 +489,24 @@ void ScreenMMUMotors::windowEvent(window_t *sender, GUI_event_t event, void *par
 
     case GUI_event_t::CHILD_CLICK: {
         const uint8_t tag = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(param));
-        if (tag >= tag_selector && tag <= tag_selector + 5) {
+        if (tag == tag_pulley || tag == tag_pulley + 1) {
+            // Pas de 10 mm : le MMU serre le galet, tourne, puis le relâche lui-même
+            if (const int8_t slot = pulley_slot(); slot >= 0) {
+                atelier::write_register(reg_pulley, pulley_request(slot, int8_t(tag == tag_pulley ? -pulley_step_mm : pulley_step_mm)));
+            }
+        } else if (tag == tag_pulley + 2) {
+            if (cleaning) {
+                if (atelier::write_register(reg_pulley, 0)) {
+                    cleaning = false;
+                }
+            } else if (atelier::write_register(reg_pulley, pulley_request(park, clean_speed_mm_s))) {
+                // Le galet est libéré par le MMU : plus rien à relâcher ici
+                engaged_here = false;
+                cleaning = true;
+                cleaning_ms = ticks_ms();
+            }
+            update();
+        } else if (tag >= tag_selector && tag <= tag_selector + 5) {
             const uint8_t value = tag - tag_selector; // 0 à 4, 5 = parking
             atelier::write_register(reg_selector, value); // la position affichée suit le MMU (update)
         } else if (tag >= tag_idler && tag <= tag_idler + 5) {

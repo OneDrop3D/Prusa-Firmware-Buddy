@@ -120,8 +120,8 @@ namespace atelier {
     /// Une demande de cette opération a été montrée par l'écran de progression (donc lancée)
     bool request_served(Op op, uint8_t slot);
 
-    /// Envoie M708 au MMU : registre 0x1b (sélecteur, 5 = parking) ou 0x1c (galet, 5 = libre)
-    bool write_register(uint8_t reg, uint8_t value);
+    /// Envoie M708 au MMU : registre 0x1b (sélecteur, 5 = parking), 0x1c (galet, 5 = libre) ou 0x24 (poulie, F12)
+    bool write_register(uint8_t reg, uint16_t value);
 
 } // namespace atelier
 

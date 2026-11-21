@@ -10379,3 +10379,21 @@ msgstr "Relais automatique\nMême matière et couleur, ou les règles dessous"
 #, c-format
 msgid "pressed on %d (free %d s)"
 msgstr "serré sur %d (libre %d s)"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "cleaning (stops in %d s)"
+msgstr "nettoyage (arrêt dans %d s)"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "choose a slot below"
+msgstr "choisir un emplacement"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "pulley on slot %d"
+msgstr "poulie sur l'emplacement %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Stop cleaning"
+msgstr "Arrêter"

@@ -206,6 +206,11 @@ public:
         return mmuFwVersion[2];
     }
 
+    /// OneDrop3D : numéro de build rapporté par le MMU (S3), seul moyen de reconnaître notre firmware 3.0.4
+    inline uint16_t MmuFwVersionBuild() const {
+        return mmuFwVersionBuild;
+    }
+
     inline uint16_t BowdenLength() const {
         return regs16[2];
     }

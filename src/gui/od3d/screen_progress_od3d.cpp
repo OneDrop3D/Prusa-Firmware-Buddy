@@ -50,7 +50,7 @@ namespace {
     constexpr Rect16 mark_rect = { content_x, 56, 48, 48 }; ///< bobine Ø44 (46,58) ou icône d'erreur 48 × 48
     constexpr uint8_t spinner_d = 44;
     constexpr uint32_t spinner_turn_ms = 1600; ///< un tour (SPEC_G.md §3.4)
-    constexpr uint8_t box_radius = 18;
+    constexpr uint8_t box_radius = style::radius_big; ///< coins de toutes nos grandes cartes
     constexpr Color veil = Color::from_raw(0x0C0C0D); ///< le fond × 0,45, pour ce qui se repeint autour du dialogue
 
     static_assert(style::inside(box_rect, body_rect) && style::inside(box_rect, bar_rect) && style::inside(body_rect, mark_rect));
@@ -522,7 +522,8 @@ ScreenLoadUnload::~ScreenLoadUnload() {
 
 void ScreenLoadUnload::Change(fsm::BaseData new_data) {
     const Phase new_phase = GetEnumFromPhaseIndex<Phase>(new_data.GetPhase());
-    const bool phase_changed = !has_data || new_phase != phase;
+    // Une autre erreur du MMU garde la même phase : seules ses données (l'erreur) changent
+    const bool phase_changed = !has_data || new_phase != phase || (new_phase == Phase::MMU_ERRWaitingForUser && new_data.GetData() != data.GetData());
     data = new_data;
     has_data = true;
 
@@ -573,8 +574,14 @@ void ScreenLoadUnload::enter_phase() {
             notice_text = desc->err_text;
             notice_code = std::to_underlying(desc->err_code);
             notice_type = std::to_underlying(desc->type);
-            for (size_t i = 0; i < responses.size(); ++i) {
-                responses[i] = MMU2::ButtonOperationToResponse(desc->buttons[i]);
+            // Les boutons du MMU sont à leur place (gauche, milieu, droite) : une erreur à un bouton (« Filament
+            // éjecté » : Continuer) l'a au milieu. On les tasse, sinon setup_buttons() n'en voyait aucun et
+            // l'écran restait bloqué derrière un « Annuler » éteint.
+            size_t n = 0;
+            for (const auto button : desc->buttons) {
+                if (const Response r = MMU2::ButtonOperationToResponse(button); r != Response::_none && n < responses.size()) {
+                    responses[n++] = r;
+                }
             }
         }
         kind = Kind::notice;
@@ -675,11 +682,9 @@ void ScreenLoadUnload::respond(Response response) {
 }
 
 void ScreenLoadUnload::unconditionalDraw() {
-    // 1er dessin : l'écran d'origine reste autour du dialogue (sous l'en-tête) ; ensuite un fond sombre
-    if (painted) {
-        display::fill_rect(GetRect(), veil);
-    }
-    painted = true;
+    // Toujours le fond sombre : les coins arrondis du cadre sont peints de cette couleur. Laisser l'écran d'origine
+    // autour au 1er dessin faisait des coins noirs carrés sur lui (retour de l'utilisateur, 21/11).
+    display::fill_rect(GetRect(), veil);
 }
 
 void ScreenLoadUnload::windowEvent(window_t *sender, GUI_event_t event, void *param) {

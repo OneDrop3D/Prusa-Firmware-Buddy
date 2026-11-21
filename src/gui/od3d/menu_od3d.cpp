@@ -167,6 +167,7 @@ MenuListBase::MenuListBase(window_t *parent, Rect16 rect)
 
 void MenuListBase::attach(IWindowMenu &menu) {
     list = &menu;
+    menu.hide_leading_return(); // listes virtuelles de Prusa : le « Retour » en double de l'en-tête
     menu.SetFocus();
 }
 

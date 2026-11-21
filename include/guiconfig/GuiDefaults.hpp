@@ -90,7 +90,7 @@ struct GuiDefaults {
     static constexpr size_t infoDefaultLen = ScreenWidth > 240 ? 22 : 11; // null included, mac address must fit - need to be at least 18
 
     // Color settings
-    static constexpr Color ColorBack = COLOR_BLACK;
+    static constexpr Color ColorBack = Color::from_raw(0x1B1C1E); // OneDrop3D (interface G) : fond de la maquette au lieu du noir
     static constexpr Color ColorText = COLOR_WHITE;
     static constexpr Color ColorDisabled = COLOR_SILVER;
     static constexpr Color ColorSelected = COLOR_BRAND;
@@ -213,8 +213,9 @@ struct GuiDefaults {
     static constexpr Rect16 MsgBoxLayoutRect = { 70, 90, 363, ScreenHeight - 90 - ButtonHeight }; // Msgbox rect for drawing icon + text
     static constexpr Rect16 MessageTextRect = Rect16(MsgBoxLayoutRect.Left() + 48 + 15, MsgBoxLayoutRect.Top(), 300, MsgBoxLayoutRect.Height()); // 48px icon + 10px icon-text delimeter
 
-    static constexpr Rect16 DialogFrameRect = RectScreenNoHeader;
-    static constexpr uint16_t RadioButtonCornerRadius = 8;
+    // OneDrop3D (interface G) : sous notre en-tête de 40 px et son trait (celui de Prusa en fait 32) ; coins de 12 px
+    static constexpr Rect16 DialogFrameRect = { 0, 41, ScreenWidth, ScreenHeight - 41 };
+    static constexpr uint16_t RadioButtonCornerRadius = 12;
     static constexpr bool EnableDialogBigLayout = true;
     static constexpr uint16_t QRSize = 130;
     static constexpr uint16_t WarningDlgPadding = 26;

@@ -237,7 +237,8 @@ void IRadioButton::draw_n_btns(size_t btn_count) {
                 GetBtnIndex() == i && IsEnabled(i) && !disabled_drawing_selected);
         }
     }
-    Color spaces_clr = (GetBackColor() == COLOR_BRAND) ? COLOR_BLACK : COLOR_BRAND;
+    // OneDrop3D (interface G) : l'espace entre les boutons prend le fond du dialogue
+    Color spaces_clr = GetParent() ? GetParent()->GetBackColor() : GuiDefaults::ColorBack;
     for (size_t i = 0; i < btn_count - 1; ++i) {
         display::fill_rect(layout.spaces[i], spaces_clr);
     }
@@ -277,7 +278,7 @@ void IRadioButton::EnableDrawingSelected() {
 }
 
 static void button_draw(Rect16 rc_btn, Color back_color, Color parent_color, const string_view_utf8 &text, bool is_selected) {
-    Color button_cl = is_selected ? back_color : COLOR_GRAY;
+    Color button_cl = is_selected ? back_color : Color::from_raw(0x303337); // OneDrop3D (interface G) : bouton secondaire
     Color text_cl = is_selected ? COLOR_BLACK : COLOR_WHITE;
     if (GuiDefaults::RadioButtonCornerRadius) {
         display::draw_rounded_rect(rc_btn, parent_color, button_cl, GuiDefaults::RadioButtonCornerRadius, MIC_ALL_CORNERS);

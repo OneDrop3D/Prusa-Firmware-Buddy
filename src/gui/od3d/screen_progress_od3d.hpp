@@ -92,7 +92,6 @@ private:
     std::optional<atelier::Request> request;
     fsm::BaseData data;
     bool has_data = false;
-    bool painted = false; ///< le 1er dessin laisse l'écran d'origine autour du dialogue
     PhasesLoadUnload phase = PhasesLoadUnload::initial;
     LoadUnloadMode mode = LoadUnloadMode::Load;
     uint8_t progress = 0;

@@ -55,8 +55,17 @@ public: // Scroll related stuff
 
     /// Maximum allowed scroll index, given the current item_count and max_items_on_screen
     inline int max_scroll_offset() const {
-        return std::max(item_count() - max_items_on_screen_count(), 0);
+        return std::max(item_count() - max_items_on_screen_count(), first_index_);
     }
+
+    /// OneDrop3D (interface G) : premier index affichable ; 1 quand la ligne « Retour » de tête est masquée
+    inline int first_index() const {
+        return first_index_;
+    }
+
+    /// OneDrop3D (interface G) : masque la ligne « Retour » simple en tête de liste (le retour passe par l'en-tête).
+    /// Seules les listes virtuelles en ont besoin : les autres cachent leurs éléments.
+    virtual void hide_leading_return() {}
 
     /// Scrolls the view so that the provided index is on the first slot
     /// Providing invalid $set results in an error.
@@ -157,6 +166,12 @@ private:
     /// How many items we've scrolled down by
     /// Formwrly known as index_of_first
     int scroll_offset_ = 0;
+
+protected:
+    /// OneDrop3D (interface G) : les index en dessous ne s'affichent pas et ne prennent pas le focus
+    int first_index_ = 0;
+
+private:
 
     /// To redraw last item, if it was hidden, has no effect in case entire window is invalid
     uint8_t last_visible_slot_count_ = 0;

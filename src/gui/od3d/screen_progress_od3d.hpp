@@ -96,6 +96,7 @@ private:
 
     std::array<Response, 3> responses {};
 
+    Header header; ///< températures en direct pendant la chauffe (le pied de page de Prusa les montrait)
     Box box;
     Body body;
     Bar bar;

@@ -363,6 +363,7 @@ void ScreenLoadUnload::Bar::unconditionalDraw() {
 
 ScreenLoadUnload::ScreenLoadUnload()
     : request(atelier::take_request())
+    , header(this, _("Filament"), false)
     , box(this)
     , body(&box, *this)
     , bar(&box, *this)
@@ -534,7 +535,7 @@ void ScreenLoadUnload::respond(Response response) {
 }
 
 void ScreenLoadUnload::unconditionalDraw() {
-    // 1er dessin : l'écran d'origine reste autour du dialogue ; ensuite (retour d'un autre dialogue) un fond sombre
+    // 1er dessin : l'écran d'origine reste autour du dialogue (sous l'en-tête) ; ensuite un fond sombre
     if (painted) {
         display::fill_rect(GetRect(), veil);
     }

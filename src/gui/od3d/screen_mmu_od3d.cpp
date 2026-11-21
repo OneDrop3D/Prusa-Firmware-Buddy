@@ -79,15 +79,15 @@ void ShelfSpool::unconditionalDraw() {
     draw_body(Rect16(b.Left() - style::ring, b.Top() - style::ring, b.Width() + 2 * style::ring, b.Height() + 2 * style::ring), fill, style::screen, radius, IsFocused());
 
     const bool enabled = IsEnabled();
-    char number[2] = { char('1' + tag), '\0' };
-    draw_text(Rect16(b.Left() + 8, b.Top() + 5, 9, height(Font::small)), string_view_utf8::MakeRAM(number), Font::small, style::text_muted, fill);
-
     constexpr uint8_t d = 64;
     const point_i16_t at { int16_t(b.Left() + (b.Width() - d) / 2), int16_t(b.Top() + 8) };
     if (slot.loaded) {
         display::draw_rounded_rect(Rect16(at.x - 2, at.y - 2, d + 4, d + 4), fill, style::accent, d / 2 + 2, MIC_ALL_CORNERS);
     }
     draw_spool(at, slot.look, d);
+    // Le numéro après l'anneau orange, dont le carré repeint les coins
+    const char number[2] = { char('1' + tag), '\0' };
+    draw_text(Rect16(b.Left() + 8, b.Top() + 5, 9, height(Font::small)), string_view_utf8::MakeRAM(number), Font::small, style::text_muted, fill);
 
     draw_text(Rect16(b.Left(), b.Top() + 76, b.Width(), height(Font::normal)), string_view_utf8::MakeRAM(slot.material.data()), Font::normal,
         enabled ? style::text_strong : style::text_faint, fill, Align_t::Center());

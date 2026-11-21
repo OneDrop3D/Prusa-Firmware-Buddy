@@ -9884,3 +9884,26 @@ msgstr "Températures"
 #: src/gui/od3d/screen_home_od3d.cpp
 msgid "Workshop"
 msgstr "Atelier"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Pair PrintForge"
+msgstr "Associer PrintForge"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Turn on PrusaLink first: Settings > Network > PrusaLink."
+msgstr "Activez d'abord PrusaLink : Réglages > Réseau > PrusaLink."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+#, c-format
+msgid ""
+"Type this code in PrintForge:\n"
+"\n"
+"%s\n"
+"\n"
+"Valid for 5 minutes."
+msgstr ""
+"Saisissez ce code dans PrintForge :\n"
+"\n"
+"%s\n"
+"\n"
+"Valable 5 minutes."

@@ -57,6 +57,13 @@ public:
         : MI_SPOOL_JOIN_TARGET(slot_) {}
 };
 
+/// Association de PrintForge : affiche un code à 6 chiffres, valable tant que le message est ouvert (5 minutes au plus)
+class MI_PAIR_PRINTFORGE final : public IWindowMenuItem {
+public:
+    MI_PAIR_PRINTFORGE();
+    void click(IWindowMenu &) override;
+};
+
 /// F1 : ouvre le nouvel accueil (étape 1, avant qu'il devienne l'écran de démarrage)
 class MI_HOME_PREVIEW final : public IWindowMenuItem {
 public:
@@ -64,7 +71,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-using ScreenMenuFeaturesBase = BasicScreenMenu<MI_HOME_PREVIEW, MI_NOZZLE_THERMAL_COMPENSATION, MI_SPOOL_JOIN,
+using ScreenMenuFeaturesBase = BasicScreenMenu<MI_PAIR_PRINTFORGE, MI_HOME_PREVIEW, MI_NOZZLE_THERMAL_COMPENSATION, MI_SPOOL_JOIN,
     MI_SPOOL_JOIN_TARGET_N<0>, MI_SPOOL_JOIN_TARGET_N<1>, MI_SPOOL_JOIN_TARGET_N<2>, MI_SPOOL_JOIN_TARGET_N<3>, MI_SPOOL_JOIN_TARGET_N<4>>;
 
 class ScreenMenuFeatures final : public ScreenMenuFeaturesBase {

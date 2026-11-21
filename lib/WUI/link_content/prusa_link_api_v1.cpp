@@ -17,6 +17,10 @@
 #include <transfers/monitor.hpp>
 #include <transfers/changed_path.hpp>
 #include <state/printer_state.hpp>
+#include <config_store/store_instance.hpp>
+#include <feature/od3d/pairing_od3d.hpp>
+#include <array>
+#include <optional>
 #include <cstring>
 #include <cstdio>
 #include <cerrno>
@@ -110,6 +114,21 @@ Selector::Accepted PrusaLinkApiV1::accept(const RequestParser &parser, handler::
     }
 
     const auto suffix = *suffix_opt;
+
+    // OneDrop3D : association de PrintForge, POST /api/v1/od3d/pair/<code à 6 chiffres>, forcément sans clé.
+    // Seul ce chemin échappe à check_auth ; le code n'existe que pendant les 5 minutes où l'imprimante l'affiche.
+    if (auto code = remove_prefix(suffix, "od3d/pair/"); code.has_value()) {
+        static std::array<char, config_store_ns::pl_password_size> cle; // la page d'état ne garde qu'un pointeur sur son texte
+        if (parser.method != http::Method::Post) {
+            out.next = StatusPage(Status::MethodNotAllowed, StatusPage::CloseHandling::ErrorClose, parser.accepts_json);
+        } else if (od3d::pairing::check(*code)) {
+            cle = config_store().prusalink_password.get();
+            out.next = StatusPage(Status::Ok, StatusPage::CloseHandling::ErrorClose, true, std::nullopt, cle.data());
+        } else {
+            out.next = StatusPage(Status::Forbidden, StatusPage::CloseHandling::ErrorClose, parser.accepts_json);
+        }
+        return Accepted::Accepted;
+    }
 
     if (!parser.check_auth(out)) {
         return Accepted::Accepted;

@@ -3,6 +3,9 @@
 #include "screen_home_od3d.hpp"
 
 #include <config_store/store_instance.hpp>
+#include <cstdio>
+#include <feature/od3d/pairing_od3d.hpp>
+#include <window_msgbox.hpp>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
@@ -16,6 +19,22 @@ MI_FEATURES::MI_FEATURES()
 
 void MI_FEATURES::click(IWindowMenu &) {
     Screens::Access()->Open(ScreenFactory::Screen<ScreenMenuFeatures>);
+}
+
+MI_PAIR_PRINTFORGE::MI_PAIR_PRINTFORGE()
+    : IWindowMenuItem(_("Pair PrintForge"), nullptr, is_enabled_t::yes, is_hidden_t::no) {}
+
+void MI_PAIR_PRINTFORGE::click(IWindowMenu &) {
+    // PrintForge reçoit le mot de passe PrusaLink : sans lui, il n'y a rien à transmettre.
+    if (!config_store().prusalink_enabled.get() || !config_store().prusalink_password.get()[0]) {
+        MsgBoxWarning(_("Turn on PrusaLink first: Settings > Network > PrusaLink."), Responses_Ok);
+        return;
+    }
+    char code[8];
+    snprintf(code, sizeof(code), "%06lu", static_cast<unsigned long>(od3d::pairing::start()));
+    StringViewUtf8Parameters<8> params;
+    MsgBoxInfo(_("Type this code in PrintForge:\n\n%s\n\nValid for 5 minutes.").formatted(params, code), Responses_Ok);
+    od3d::pairing::stop();
 }
 
 MI_HOME_PREVIEW::MI_HOME_PREVIEW()

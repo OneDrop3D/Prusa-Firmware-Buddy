@@ -55,10 +55,13 @@ namespace {
     static_assert(style::with_ring(retract_body).Right() < map_rect.Left() && cross_rect.Bottom() < style::with_ring(step_body(0)).Top());
     static_assert(style::with_ring(step_body(3)).Right() < position_rect.Left() && style::with_ring(step_body(0)).Bottom() < style::with_ring(origin_all_body).Top());
 
-    // Carte : le centre du point (Ø14) reste à 7 px du trait, le réticule s'arrête à 2 px du bord arrondi
+    // Carte : le centre du point (Ø14) reste à 11 px du trait (rayon des coins) pour que son carré, effacé
+    // quand il bouge, ne touche jamais un coin arrondi ; le réticule s'arrête à 2 px du bord
     constexpr Rect16 map_inner = { map_rect.Left() + 1, map_rect.Top() + 1, map_rect.Width() - 2, map_rect.Height() - 2 };
+    constexpr int16_t map_radius = 11; ///< coins de map_inner
     constexpr int16_t dot_d = 14;
-    constexpr Rect16 head_area = { map_inner.Left() + dot_d / 2, map_inner.Top() + dot_d / 2, map_inner.Width() - dot_d, map_inner.Height() - dot_d };
+    constexpr Rect16 head_area = { map_inner.Left() + map_radius, map_inner.Top() + map_radius, map_inner.Width() - 2 * map_radius, map_inner.Height() - 2 * map_radius };
+    static_assert(2 * (dot_d / 2) * (dot_d / 2) < map_radius * map_radius, "coin du carré du point dans l'arrondi");
     constexpr float bed_x = X_BED_SIZE;
     constexpr float bed_y = Y_BED_SIZE;
 
@@ -366,12 +369,16 @@ void BedMap::paint(Rect16 r) const {
 void BedMap::unconditionalDraw() {
     if (!HasValidBackground()) {
         display::draw_rounded_rect(map_rect, style::screen, style::line, 12, MIC_ALL_CORNERS);
-        display::draw_rounded_rect(map_inner, style::line, map_back, 11, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(map_inner, style::line, map_back, map_radius, MIC_ALL_CORNERS);
         draw_grid(map_inner);
     } else if (drawn) {
-        // Seuls l'ancien réticule et l'ancien point s'effacent : pas de clignotement
-        paint(crosshair_column(drawn->x));
-        paint(crosshair_row(drawn->y));
+        // Seuls l'ancien point et les traits du réticule qui ont bougé s'effacent : pas de clignotement
+        if (!head || head->x != drawn->x) {
+            paint(crosshair_column(drawn->x));
+        }
+        if (!head || head->y != drawn->y) {
+            paint(crosshair_row(drawn->y));
+        }
         paint(dot_rect(*drawn));
     }
     drawn = head;

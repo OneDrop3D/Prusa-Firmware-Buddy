@@ -7,6 +7,7 @@
 #include <config_store/store_instance.hpp>
 #include <cstdio>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+#include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/pairing_od3d.hpp>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
@@ -57,6 +58,16 @@ void MI_PAIR_PRINTFORGE::click(IWindowMenu &) {
 
 ScreenMenuFeatures::ScreenMenuFeatures()
     : BasicScreenMenu(_("OneDrop3D Features")) {}
+
+// ---- PA de l'imprimante (F4) ----
+
+// Vaut dès le prochain changement d'outil ou M572 ; la mesure se lance depuis la fiche de la bobine (puce « PA »).
+MI_PA_PRINTER_WINS::MI_PA_PRINTER_WINS()
+    : WI_ICON_SWITCH_OFF_ON_t(pa::printer_wins(), _("Printer PA wins\nMeasured slot PA replaces the slicer's M572"), &img::nozzle_16x16) {}
+
+void MI_PA_PRINTER_WINS::OnChange(size_t) {
+    pa::set_printer_wins(value());
+}
 
 // ---- Température de la buse (F2) ----
 

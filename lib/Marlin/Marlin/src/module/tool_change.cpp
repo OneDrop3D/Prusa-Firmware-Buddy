@@ -34,6 +34,10 @@
 #include <option/has_mmu2.h>
 #if HAS_MMU2()
   #include <feature/prusa/MMU2/mmu2_mk4.h>
+  #include <option/has_loadcell.h>
+  #if HAS_LOADCELL()
+    #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4)
+  #endif
 #endif
 
 #if EXTRUDERS > 1
@@ -65,6 +69,9 @@ bool tool_change(const std::variant<VirtualToolIndex, PhysicalToolIndex, NoTool>
       [](PhysicalToolIndex physical_tool){ /* do nothing */ static_assert(PhysicalToolIndex::count == 1); },
       [](NoTool){ MMU2::mmu2.unload(); }
     );
+    #if HAS_LOADCELL()
+      od3d::pa::on_tool_change(); // OneDrop3D (F4) : PA mesuré de l'emplacement, si le réglage est actif
+    #endif
     return true;
 
   #elif HAS_TOOLCHANGER()

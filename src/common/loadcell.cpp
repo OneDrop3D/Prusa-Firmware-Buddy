@@ -28,6 +28,10 @@
 #include "../Marlin/src/feature/precise_stepping/precise_stepping.hpp"
 #include "feature/prusa/e-stall_detector.h"
 #include <metric_handlers.h>
+#include <option/has_mmu2.h>
+#if HAS_MMU2()
+    #include <feature/od3d/force_probe_od3d.hpp> // OneDrop3D (F4)
+#endif
 
 LOG_COMPONENT_DEF(Loadcell, logging::Severity::info);
 
@@ -335,6 +339,11 @@ void Loadcell::ProcessSample(int32_t loadcellRaw, uint32_t time_us, uint32_t sou
 
     const xyze_pos_t pos_sample = buddy::positionLookback.get_position_at(time_us);
     const float z_pos = pos_sample.z;
+#if HAS_MMU2()
+    // OneDrop3D (F4) : outil de mesure par la cellule de charge (rien hors enregistrement) ; échantillon indéfini :
+    // le dernier valide, comme le reste de la fonction
+    od3d::force_probe::on_loadcell_sample(time_us, get_tared_z_load(this->loadcellRaw, scale, offset), pos_sample.x);
+#endif
 
     const MetricsData metrics_data {
         .time_us = time_us,

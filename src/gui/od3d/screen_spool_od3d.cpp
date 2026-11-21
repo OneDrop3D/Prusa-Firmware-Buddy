@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
+#include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <filament_to_load.hpp>
 #include <i18n.h>
@@ -347,6 +348,12 @@ void ScreenChangeSpool::layout() {
 void ScreenChangeSpool::finish() {
     // Comme le menu Prusa « Changer tous les filaments » : préréglage + couleur = filament ad hoc de l'emplacement
     const VirtualToolIndex tool = VirtualToolIndex::from_raw(wizard.slot);
+    // F4 : le PA mesuré appartient à la bobine. Bobine neuve : effacé ; « Matière et couleur » seul : effacé si la
+    // matière change (la couleur ne change pas le PA)
+    const FilamentType before = FilamentType::for_tool(tool);
+    if (wizard.mode != SpoolChange::material || !before || strcmp(before.parameters().name.data(), material_names[wizard.material]) != 0) {
+        pa::clear(wizard.slot);
+    }
     const OptionalColor color = wizard.paint >= 0 ? OptionalColor(atelier::paints[wizard.paint].color) : OptionalColor(std::nullopt);
     config_store().set_filament_type(tool, filament::apply_load_color(FilamentType(material_types[wizard.material]), tool, color));
     // F13 : bobine neuve = compteur remis à zéro, reste = poids neuf ; « Matière et couleur » seul garde le reste

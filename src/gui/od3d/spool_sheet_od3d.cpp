@@ -2,6 +2,7 @@
 #include "spool_sheet_od3d.hpp"
 
 #include "atelier_od3d.hpp"
+#include "screen_pa_od3d.hpp"
 #include "screen_spool_od3d.hpp"
 
 #include <cstdio>
@@ -52,6 +53,7 @@ namespace {
         preload,
         eject,
         cut,
+        pa,
     };
 
     constexpr Rect16 secondary_body(int i) {
@@ -123,6 +125,7 @@ namespace {
 
     private:
         StringViewUtf8Parameters<8> usage_params; ///< « Reste 350 g », avant le bouton qui garde le texte formaté
+        std::array<char, 12> pa_text {}; ///< « PA 0.035 » ou « PA ? » (F4), avant le bouton qui le montre
         Head head;
         Button main;
         Button change;
@@ -146,7 +149,7 @@ namespace {
         , preload(this, chip_body(0), tag_preload, Button::Look::outline, _("Preload"), nullptr, style::surface, chip_body(0).Height() / 2)
         , eject(this, chip_body(1), tag_eject, Button::Look::outline, _("Eject"), nullptr, style::surface, chip_body(1).Height() / 2)
         , cut(this, chip_body(2), tag_cut, Button::Look::outline, _("Cut"), nullptr, style::surface, chip_body(2).Height() / 2)
-        , pa(this, chip_body(3), tag_pa, Button::Look::alert, _("PA: soon"), nullptr, style::surface, chip_body(3).Height() / 2)
+        , pa(this, chip_body(3), tag_pa, Button::Look::outline, {}, nullptr, style::surface, chip_body(3).Height() / 2)
         , close(this, close_body, tag_close, Button::Look::secondary, _("Close"), nullptr, style::surface, 13) {
         SetBackColor(style::surface); // ce que la fiche repeint d'elle-même : seulement sa bande
 
@@ -179,7 +182,14 @@ namespace {
         preload.set_enabled(mmu_free);
         eject.set_enabled(mmu_free);
         cut.set_enabled(mmu_free);
-        pa.set_enabled(false); // F4 (mesure du PA) n'existe pas encore
+        // F4 : K mesuré de l'emplacement, « PA ? » sans mesure (en jaune si le PA de l'imprimante prime) ; ouvre l'écran
+        // du PA, toujours (on y regarde la valeur et la courbe même pendant une impression)
+        if (const auto k = pa::k_for_slot(index)) {
+            snprintf(pa_text.data(), pa_text.size(), "PA %.3f", double(*k));
+        } else {
+            strlcpy(pa_text.data(), "PA ?", pa_text.size());
+        }
+        pa.set(pa::needs_measure(index) ? Button::Look::alert : Button::Look::outline, string_view_utf8::MakeRAM(pa_text.data()));
 
         // « Reste 350 g » (SPEC_G.md §3.3) quand le poids est suivi : ouvre l'utilisation, où il se corrige après une pesée
         if (const auto report = spool_usage::report(index)) {
@@ -236,6 +246,8 @@ namespace {
                 choice = Choice::cut;
                 break;
             case tag_pa:
+                choice = Choice::pa;
+                break;
             case tag_close:
                 break;
             }
@@ -302,6 +314,9 @@ void open_sheet(uint8_t index) {
         break;
     case Choice::usage:
         open_spool_usage(index);
+        break;
+    case Choice::pa:
+        open_pa(index);
         break;
     }
 }

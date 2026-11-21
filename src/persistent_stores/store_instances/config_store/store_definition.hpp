@@ -56,6 +56,7 @@
 #include <option/has_esp.h>
 #include <option/has_auto_retract.h>
 #include <feature/od3d/spool_usage_math_od3d.hpp>
+#include <feature/od3d/pa_math_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -453,6 +454,10 @@ struct CurrentStore
     /// Nouvel élément : sans valeur enregistrée, poids net 0 = pas de suivi. Pour changer Record, prendre un autre nom
     /// (« OD3D Spool Usage » entre en collision avec « Adhoc Filament Parameters 4 »).
     StoreItemArray<od3d::spool_usage::Record, AnyDefaultConstructor {}, ItemFlag::printer_state, journal::hash("OD3D Spool Weight"), 8, VirtualToolIndex::count> od3d_spool_usage;
+    /// OneDrop3D (F4) : pressure advance mesuré par emplacement (k_none : à mesurer), effacé au changement de bobine.
+    StoreItemArray<od3d::pa::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D PA Slot"), 8, VirtualToolIndex::count> od3d_pa;
+    /// OneDrop3D (F4) : « le PA de l'imprimante prime » sur le M572 du trancheur (coupé par défaut)
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D PA Printer Wins")> od3d_pa_printer_wins;
 #endif
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;

@@ -23,6 +23,11 @@
 #include <feature/prusa/e-stall_detector.h>
 
 #include <option/has_toolchanger.h>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_LOADCELL() && HAS_MMU2()
+    #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4)
+#endif
 #if HAS_TOOLCHANGER()
     #include <module/prusa/toolchanger.h>
 #endif
@@ -356,6 +361,9 @@ bool SpoolJoin::do_join(VirtualToolIndex current_virtual_tool) {
 
 #elif HAS_MMU2()
     MMU2::mmu2.tool_change_full(new_virtual_tool.to_raw());
+    #if HAS_LOADCELL()
+    od3d::pa::on_tool_change(); // OneDrop3D (F4) : PA mesuré de l'emplacement qui prend le relais
+    #endif
 #else
     #error "unknown printer"
 #endif

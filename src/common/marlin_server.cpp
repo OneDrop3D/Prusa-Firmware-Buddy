@@ -238,6 +238,9 @@
 #if HAS_FILAMENT_TRACKER() && HAS_MMU2()
     #include <feature/od3d/spool_usage_od3d.hpp> // OneDrop3D (F13)
 #endif
+#if HAS_LOADCELL() && HAS_MMU2()
+    #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4)
+#endif
 
 #include <option/buddy_enable_wui.h>
 #if BUDDY_ENABLE_WUI()
@@ -2389,6 +2392,9 @@ static void _server_print_loop(void) {
 #endif
 #if HAS_FILAMENT_TRACKER() && HAS_MMU2()
         od3d::spool_usage::on_print_start(); // OneDrop3D (F13)
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
+        od3d::pa::on_print_start(); // OneDrop3D (F4)
 #endif
 #if HAS_WASTEBIN_FILL_TRACKING()
         // Fresh print: reset the per-print pellet/toolchange progress counter.

@@ -10575,3 +10575,140 @@ msgstr "poulie sur l'emplacement %d"
 #: src/gui/od3d/screen_mmu_od3d.cpp
 msgid "Stop cleaning"
 msgstr "Arrêter"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Pressure advance"
+msgstr "Avance de pression"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Confidence %d/100"
+msgstr "Confiance %d/100"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Not measured"
+msgstr "Non mesuré"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "PA to measure"
+msgstr "PA à mesurer"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "No force curve yet"
+msgstr "Pas encore de courbe"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Slot %d · PA"
+msgstr "Emplacement %d · PA"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Measure"
+msgstr "Mesurer"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Clear"
+msgstr "Effacer"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Printer PA: on"
+msgstr "PA imprimante : oui"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Printer PA: off"
+msgstr "PA imprimante : non"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "USB curves: on"
+msgstr "Courbes USB : oui"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "USB curves: off"
+msgstr "Courbes USB : non"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Heating the nozzle to %d°"
+msgstr "Chauffe de la buse à %d°"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Purging..."
+msgstr "Purge..."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Measuring K = %s (%d/%d)"
+msgstr "Mesure K = %s (%d/%d)"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Homing and moving..."
+msgstr "Origine et placement..."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Measured: K = %s. Curves on the USB drive."
+msgstr "Mesuré : K = %s. Courbes sur la clé USB."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Measured: K = %s"
+msgstr "Mesuré : K = %s"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Homing failed."
+msgstr "Prise d'origine impossible."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "No room for the test."
+msgstr "Pas la place pour le test."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "The nozzle did not heat up."
+msgstr "La buse n'a pas chauffé."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Measurement cancelled."
+msgstr "Mesure annulée."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Force signal too weak: nothing saved."
+msgstr "Signal de force trop faible : rien d'enregistré."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Force does not follow K: nothing saved."
+msgstr "La force ne suit pas K : rien d'enregistré."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "K out of range (%s): nothing saved."
+msgstr "K hors plage (%s) : rien d'enregistré."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Unsure result (K = %s): nothing saved."
+msgstr "Résultat incertain (K = %s) : rien d'enregistré."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Invalid request."
+msgstr "Demande invalide."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Load this spool into the nozzle to measure it."
+msgstr "Chargez cette bobine dans la buse pour la mesurer."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Heats, then extrudes ~1 g at the bed front."
+msgstr "Chauffe, puis extrude ~1 g à l'avant du plateau."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "The nozzle heats up, then extrudes about 1 g of filament in the air above the front of the bed (2 to 3 min). Clear the bed. Start?"
+msgstr "La buse chauffe, puis extrude environ 1 g de filament dans le vide au-dessus de l'avant du plateau (2 à 3 min). Dégagez le plateau. Commencer ?"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: PA to measure (slicer value used)"
+msgstr "Emplacement %d : PA à mesurer (valeur du trancheur)"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Printer PA wins\nMeasured slot PA replaces the slicer's M572"
+msgstr "Le PA de l'imprimante prime\nLe PA mesuré remplace le M572 du trancheur"

@@ -10,6 +10,7 @@
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
+#include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <gcode/gcode_reader_any.hpp>
 #include <gui/event/gui_event.hpp>
@@ -642,9 +643,9 @@ void ScreenPreview::unconditionalDraw() {
     summary(info, true, text);
     draw_text(Rect16(info_x, style::top + 23, w, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::screen);
 
-    // Une ligne par emplacement utilisé : bobine, « n · matière chargée », grammes du fichier (en jaune s'ils
-    // dépassent le reste de la bobine, F13)
-    int row = 0, mismatch = -1, shortage = -1;
+    // Une ligne par emplacement utilisé : bobine, « n · matière chargée », PA mesuré (F4), grammes du fichier (en
+    // jaune s'ils dépassent le reste de la bobine, F13)
+    int row = 0, mismatch = -1, shortage = -1, pa_missing = -1;
     float shortage_left = 0;
     Slot mismatch_slot;
     for (uint8_t t = 0; t < print_info::max_tools; ++t) {
@@ -655,7 +656,22 @@ void ScreenPreview::unconditionalDraw() {
         const Slot slot = Slot::read(t);
         draw_spool({ info_x, y }, slot.look, 16, style::screen);
         snprintf(text.data(), text.size(), "%d%s%s", t + 1, dot, slot.material.data());
-        draw_text(Rect16(info_x + 22, y, 160, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
+        draw_text(Rect16(info_x + 22, y, 100, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
+        // PA : la valeur mesurée ; « PA ? » en jaune si le PA de l'imprimante prime et qu'il manque (sinon le
+        // trancheur décide : rien)
+        Color pa_color = style::text_muted;
+        if (const auto k = pa::k_for_slot(t)) {
+            snprintf(text.data(), text.size(), "%.3f", double(*k));
+        } else if (pa::needs_measure(t) && slot.look.filament) {
+            strlcpy(text.data(), "PA ?", text.size());
+            pa_color = style::warning;
+            if (pa_missing < 0) {
+                pa_missing = t;
+            }
+        } else {
+            text[0] = '\0';
+        }
+        draw_text(Rect16(info_x + 124, y, 56, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, pa_color, style::screen);
         const auto usage = spool_usage::report(t);
         const bool too_little = usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g);
         if (too_little && shortage < 0) {
@@ -673,8 +689,8 @@ void ScreenPreview::unconditionalDraw() {
     // Alertes (§3.10) : la bobine n'a pas assez de filament pour le fichier (F13 ; la fin d'une bobine n'arrête pas
     // l'impression, le capteur la met en pause) ; la matière chargée n'est pas celle du fichier (Prusa la vérifie aussi
     // au départ). Une alerte prend les deux lignes ; deux alertes, une ligne chacune.
-    StringViewUtf8Parameters<24> shortage_params, mismatch_params;
-    string_view_utf8 warnings[2];
+    StringViewUtf8Parameters<24> shortage_params, mismatch_params, pa_params;
+    string_view_utf8 warnings[3];
     int count = 0;
     if (shortage >= 0) {
         warnings[count++] = _("Slot %d: %d g needed, about %d g left").formatted(shortage_params, shortage + 1, int(std::lround(info.grams[shortage])), int(shortage_left));
@@ -682,6 +698,11 @@ void ScreenPreview::unconditionalDraw() {
     if (mismatch >= 0) {
         warnings[count++] = _("Slot %d: %s in the file, %s loaded").formatted(mismatch_params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
     }
+    if (pa_missing >= 0) {
+        // F4 : « PA à mesurer » ; le M572 du trancheur reste utilisé pour cet emplacement
+        warnings[count++] = _("Slot %d: PA to measure (slicer value used)").formatted(pa_params, pa_missing + 1);
+    }
+    count = std::min(count, 2); // deux lignes au plus : les alertes de filament d'abord
     const uint16_t warning_w = style::screen_w - 2 * style::margin;
     if (count == 1) {
         render_text_align(Rect16(style::margin, warning_y, warning_w, 2 * height(Font::small)), warnings[0], Font::small, style::screen, style::warning, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));

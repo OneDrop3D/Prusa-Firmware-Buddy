@@ -10,6 +10,7 @@ target_sources(
           screen_mmu_od3d.cpp
           screen_move_od3d.cpp
           screen_music_od3d.cpp
+          screen_pa_od3d.cpp
           screen_printing_od3d.cpp
           screen_progress_od3d.cpp
           screen_skew_od3d.cpp

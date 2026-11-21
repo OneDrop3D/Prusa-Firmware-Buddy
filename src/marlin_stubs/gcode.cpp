@@ -372,6 +372,9 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 1991: // OneDrop3D
             PrusaGcodeSuite::M1991();
             break;
+        case 1992: // OneDrop3D (F4)
+            PrusaGcodeSuite::M1992();
+            break;
         case 9140:
             PrusaGcodeSuite::M9140();
             break;

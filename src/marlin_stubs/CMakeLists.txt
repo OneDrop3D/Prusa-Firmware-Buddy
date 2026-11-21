@@ -17,6 +17,7 @@ target_sources(
           M1990_od3d.cpp
           M852_od3d.cpp
           M1991_od3d.cpp
+          M1992_od3d.cpp
           M9140_M9150.cpp
           M9200.cpp
           M9201.cpp

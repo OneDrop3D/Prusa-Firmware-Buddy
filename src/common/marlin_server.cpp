@@ -9,6 +9,7 @@
 #include <marlin_stubs/skippable_gcode.hpp>
 #include <feature/od3d/skew_od3d.hpp> // OneDrop3D (F15)
 #include <feature/od3d/mpc_control_od3d.hpp> // OneDrop3D (F7)
+#include <feature/od3d/lookahead_od3d.hpp> // OneDrop3D (F26)
 #include <mapi/parking.hpp>
 #include <mapi/feedrates/standard_feedrates.hpp>
 #include "marlin_client_events.hpp"
@@ -1431,6 +1432,9 @@ static void settings_load() {
 #endif
 #if ENABLED(OD3D_MPCTEMP)
     od3d::mpc::load(); // OneDrop3D (F7, F8) : régulation PID / MPC, modèle MPC, température selon le débit
+#endif
+#if ENABLED(OD3D_FAN_LEAD)
+    od3d::lookahead::load(); // OneDrop3D (F26) : avance du ventilateur pièce
 #endif
 }
 

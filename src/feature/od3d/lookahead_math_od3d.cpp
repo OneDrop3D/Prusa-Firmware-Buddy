@@ -34,4 +34,22 @@ float FlowScan::mean_e_speed() const {
     return time_s_ > 0 ? e_sum_ / time_s_ : 0;
 }
 
+bool FanScan::add(const BlockInfo &b) {
+    if (!b.is_move) {
+        return true; // bloc de synchronisation : ventilateur à 0, ignoré comme chez Prusa
+    }
+    if (!has_first_) {
+        has_first_ = true;
+        fan_ = b.fan;
+    } else if (elapsed_s_ < lead_s_) {
+        fan_ = std::max(fan_, b.fan);
+    } else {
+        return false;
+    }
+    if (b.duration_s > 0 && std::isfinite(b.duration_s)) {
+        elapsed_s_ += b.duration_s;
+    }
+    return elapsed_s_ < lead_s_;
+}
+
 } // namespace od3d::lookahead

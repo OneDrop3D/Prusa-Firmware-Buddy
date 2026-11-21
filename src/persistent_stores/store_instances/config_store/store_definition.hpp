@@ -469,6 +469,8 @@ struct CurrentStore
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Flow Temp Enabled")> od3d_flow_temp_enabled;
     StoreItem<uint8_t, od3d::mpc::default_flow_threshold, ItemFlag::features, journal::hash("OD3D Flow Temp Threshold")> od3d_flow_temp_threshold;
     StoreItem<uint8_t, od3d::mpc::default_flow_max_boost, ItemFlag::features, journal::hash("OD3D Flow Temp Max Boost")> od3d_flow_temp_max_boost;
+    /// OneDrop3D (F26) : avance du ventilateur pièce [dixièmes de seconde], 0 (par défaut) = comme Prusa
+    StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Fan Lead")> od3d_fan_lead;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

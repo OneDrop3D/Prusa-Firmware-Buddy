@@ -237,6 +237,10 @@
     #endif
 #endif // PIDTEMP
 
+// OneDrop3D (F26) : ventilateur pièce appliqué en avance sur les blocs à venir (Planner::check_axes_activity) ;
+// avance réglable de 0 à 1 s, 0 par défaut = comportement de Prusa (src/feature/od3d/lookahead_od3d.hpp)
+#define OD3D_FAN_LEAD
+
 //===========================================================================
 //============================= PID > Bed Temperature Control ===============
 //===========================================================================

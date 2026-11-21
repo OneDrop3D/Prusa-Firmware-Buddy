@@ -10948,3 +10948,11 @@ msgstr "Hausse maximale"
 #: src/gui/od3d/screen_mpc_od3d.cpp
 msgid "Current rise"
 msgstr "Hausse actuelle"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Fan lead\nPart fan speeds up to 1 s early"
+msgstr "Ventilation anticipée\nLe ventilateur accélère jusqu'à 1 s plus tôt"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Fan lead"
+msgstr "Ventilation anticipée"

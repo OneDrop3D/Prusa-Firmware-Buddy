@@ -3,6 +3,7 @@
 #include "atelier_od3d.hpp"
 #include "menu_od3d.hpp"
 #include "screen_mmu_od3d.hpp" // Panel
+#include "value_editor_od3d.hpp"
 
 #include <algorithm>
 #include <array>
@@ -245,6 +246,80 @@ void MI_MPC_CALIBRATE::Loop() {
 
 void MI_MPC_CALIBRATE::click(IWindowMenu &) {
     open_screen<ScreenMpcCalibration>();
+}
+
+// ---- Réglage entier ----
+
+MI_OD3D_NUMBER::MI_OD3D_NUMBER(const string_view_utf8 &label, const img::Resource *icon, const char *editor_label, const NumericInputConfig &config, const char *unit, Get get, Set set)
+    // Sans icône au constructeur : WI_LAMBDA_LABEL_t réserverait alors à la valeur la place d'une icône
+    : WI_LAMBDA_LABEL_t(label, nullptr, is_enabled_t::yes, is_hidden_t::no, [this](const std::span<char> &buffer) {
+        snprintf(buffer.data(), buffer.size(), "%u %s", unsigned(shown), this->unit);
+    })
+    , editor_label(editor_label)
+    , config(config)
+    , unit(unit)
+    , get(get)
+    , set(set)
+    , shown(get()) {
+    SetIconId(icon);
+}
+
+void MI_OD3D_NUMBER::click(IWindowMenu &) {
+    if (const auto v = ValueEditor::exec(_(editor_label), get(), config, nullptr, unit)) {
+        set(static_cast<uint8_t>(std::lround(config.clamp(*v))));
+        Loop();
+    }
+}
+
+void MI_OD3D_NUMBER::Loop() {
+    if (const uint8_t now = get(); now != shown) {
+        shown = now;
+        InValidateExtension();
+    }
+}
+
+// ---- F8 : température selon le débit ----
+
+namespace {
+
+    constexpr NumericInputConfig flow_threshold_config {
+        .min_value = mpc::flow_threshold_range.min,
+        .max_value = mpc::flow_threshold_range.max,
+    };
+
+    constexpr NumericInputConfig flow_max_boost_config {
+        .min_value = mpc::flow_max_boost_range.min,
+        .max_value = mpc::flow_max_boost_range.max,
+    };
+
+} // namespace
+
+// Vaut tout de suite, impression comprise : à l'arrêt, la hausse redescend en rampe
+MI_FLOW_TEMP::MI_FLOW_TEMP()
+    : WI_ICON_SWITCH_OFF_ON_t(mpc::flow_temp_enabled(), _("Flow temperature\nHotter before fast moves, MPC only"), &img::speed_16x16,
+        mpc::is_mpc_selected() ? is_enabled_t::yes : is_enabled_t::no) {}
+
+void MI_FLOW_TEMP::OnChange(size_t) {
+    mpc::set_flow_temp_enabled(value());
+}
+
+void MI_FLOW_TEMP::Loop() {
+    set_enabled(mpc::is_mpc_selected());
+}
+
+MI_FLOW_TEMP_THRESHOLD::MI_FLOW_TEMP_THRESHOLD()
+    : MI_OD3D_NUMBER(_("Flow threshold\nThe temperature rises above it"), &img::nozzle_16x16, N_("Flow threshold"), flow_threshold_config, "mm3/s",
+        mpc::flow_temp_threshold, mpc::set_flow_temp_threshold) {}
+
+MI_FLOW_TEMP_MAX_BOOST::MI_FLOW_TEMP_MAX_BOOST()
+    : MI_OD3D_NUMBER(_("Maximum rise\n+1 °C per mm3/s above the threshold"), &img::temperature_16x16, N_("Maximum rise"), flow_max_boost_config, "\xC2\xB0" "C",
+        mpc::flow_temp_max_boost, mpc::set_flow_temp_max_boost) {}
+
+MI_FLOW_TEMP_BOOST::MI_FLOW_TEMP_BOOST()
+    : MenuItemAutoUpdatingLabel(_("Current rise"), "+%d \xC2\xB0" "C", [](auto *) -> int {
+        return mpc::flow_temp_current_boost();
+    }) {
+    SetIconId(&img::temperature_16x16);
 }
 
 // ---- Écran de la calibration ----

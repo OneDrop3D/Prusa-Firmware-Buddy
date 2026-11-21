@@ -46,7 +46,7 @@ void Model::reset(float measured_temp) {
 
 float Model::step(const StepArgs &a) {
     if (!is_valid(params_) || !(a.pwm_max > 0)
-        || !all_finite({ a.dt_s, a.measured_temp, a.target_temp, a.max_target_temp, a.fan, a.e_speed, a.applied_pwm, a.pwm_max })) {
+        || !all_finite({ a.dt_s, a.measured_temp, a.target_temp, a.max_target_temp, a.fan, a.e_speed, a.applied_pwm, a.pwm_max, a.ff_e_speed })) {
         initialized_ = false;
         return 0;
     }
@@ -84,8 +84,11 @@ float Model::step(const StepArgs &a) {
     // Consigne au-delà de la consigne maximale : ramenée à celle-ci ; mesure au-delà (+ marge) : on ne chauffe pas
     if (a.target_temp > 0 && a.measured_temp < a.max_target_temp + max_target_cutoff) {
         const float target = std::min(a.target_temp, a.max_target_temp);
+        // F8 : les pertes compensées comptent le filament à venir (puissance anticipée), la prédiction ci-dessus celui
+        // qui passe
+        const float h_demand = a.ff_e_speed >= 0 ? losses(p, a.fan, a.ff_e_speed) : h;
         // Amener le bloc à la consigne en horizon_s, et compenser les pertes au niveau du bloc
-        const float power = (target - block_temp_) * p.block_heat_capacity / horizon_s + (block_temp_ - ambient_temp_) * h;
+        const float power = (target - block_temp_) * p.block_heat_capacity / horizon_s + (block_temp_ - ambient_temp_) * h_demand;
         pwm = power / p.heater_power * a.pwm_max;
     }
 
@@ -94,6 +97,32 @@ float Model::step(const StepArgs &a) {
         return 0;
     }
     return std::clamp(pwm, 0.0f, a.pwm_max);
+}
+
+// ---- F8 : température selon le débit ----
+
+float flow_boost_request(float flow_mm3s, float threshold_mm3s, float max_boost) {
+    if (!all_finite({ flow_mm3s, threshold_mm3s, max_boost })) {
+        return 0;
+    }
+    const float cap = std::clamp(max_boost, flow_max_boost_range.min, flow_max_boost_range.max);
+    return std::clamp((flow_mm3s - threshold_mm3s) * flow_boost_gain, 0.0f, cap);
+}
+
+float boosted_target(float target, float boost, float max_target) {
+    if (!(target > 0) || !std::isfinite(target) || !std::isfinite(max_target)) {
+        return target;
+    }
+    const float b = std::isfinite(boost) ? std::clamp(boost, 0.0f, flow_max_boost_range.max) : 0.0f;
+    // Jamais au-dessus de la consigne maximale (comme Model::step, qui y ramène toute consigne)
+    return std::min(target + b, max_target);
+}
+
+float FlowBoost::step(float request, float dt_s) {
+    const float r = std::isfinite(request) ? std::clamp(request, 0.0f, flow_max_boost_range.max) : 0.0f;
+    const float dt = (std::isfinite(dt_s) && dt_s > 0) ? dt_s : 0.0f;
+    value_ = r >= value_ ? r : std::max(r, value_ - flow_boost_fall_rate * dt);
+    return value_;
 }
 
 // ---- Calibration ----

@@ -78,6 +78,9 @@ struct StepArgs {
     float e_speed; ///< vitesse du filament dans la buse [mm/s], 0 hors extrusion
     float applied_pwm; ///< sortie appliquée depuis le pas précédent, 0 à pwm_max
     float pwm_max; ///< sortie à pleine puissance (PID_MAX de Prusa : 255)
+    /// F8 : vitesse du filament à venir [mm/s] pour la puissance demandée (puissance anticipée) ; la prédiction du
+    /// modèle garde e_speed (le filament qui passe vraiment). < 0 : e_speed (comportement de F7).
+    float ff_e_speed = -1.0f;
 };
 
 /// Modèle thermique et régulateur MPC d'une buse
@@ -109,6 +112,41 @@ private:
 
 /// Pertes totales [W/K] pour un ventilateur (0 à 1) et une vitesse du filament [mm/s]
 float losses(const Params &p, float fan, float e_speed);
+
+// ---- F8 : température selon le débit (seulement quand le MPC régule) ----
+//
+// La consigne de Prusa (nozzle_target_temp, vue par les protections) ne change pas : seul le MPC vise
+// consigne + hausse, bornée sous la consigne maximale de Prusa (max_nozzle_temp − HEATER_MAXTEMP_SAFETY_MARGIN).
+
+inline constexpr uint8_t default_flow_threshold = 12; ///< [mm³/s] débit à partir duquel la consigne monte
+inline constexpr uint8_t default_flow_max_boost = 12; ///< [°C] hausse maximale
+inline constexpr Range flow_threshold_range { 1.0f, 50.0f }; ///< [mm³/s]
+/// [°C] La hausse ne dépasse jamais l'hystérésis de l'emballement thermique de Prusa (THERMAL_PROTECTION_HYSTERESIS,
+/// 15 °C) : voir mpc_control_od3d.hpp
+inline constexpr Range flow_max_boost_range { 1.0f, 15.0f };
+inline constexpr float flow_boost_gain = 1.0f; ///< [°C par mm³/s] au-dessus du seuil
+inline constexpr float flow_boost_fall_rate = 1.0f; ///< [°C/s] descente douce de la hausse
+
+/// Hausse demandée pour un débit [mm³/s] : flow_boost_gain × (débit − seuil), dans [0, plafond] ; le plafond est
+/// lui-même ramené dans flow_max_boost_range. 0 sur une valeur non finie.
+float flow_boost_request(float flow_mm3s, float threshold_mm3s, float max_boost);
+
+/// Consigne visée par le MPC : min(consigne + hausse, consigne maximale). Une consigne <= 0 (chauffe coupée) reste
+/// telle quelle ; la hausse est ramenée dans [0, flow_max_boost_range.max] ; jamais au-dessus de la consigne
+/// maximale ; sans consigne maximale finie, pas de hausse.
+float boosted_target(float target, float boost, float max_target);
+
+/// Hausse appliquée : elle monte d'un coup jusqu'à la demande (anticipation) et redescend en rampe
+/// (flow_boost_fall_rate), pour ne pas couper la chauffe à chaque ralentissement bref
+class FlowBoost {
+public:
+    float step(float request, float dt_s);
+    void reset() { value_ = 0; }
+    float value() const { return value_; }
+
+private:
+    float value_ = 0;
+};
 
 // ---- Calibration (M306 T) ----
 

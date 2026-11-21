@@ -10924,3 +10924,27 @@ msgstr "La température ne se stabilise pas"
 #: src/gui/od3d/screen_mpc_od3d.cpp
 msgid "Inconsistent measurements, try again"
 msgstr "Mesures incohérentes, recommencez"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Flow temperature\nHotter before fast moves, MPC only"
+msgstr "Température selon le débit\nPlus chaud avant les passages rapides, MPC"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Flow threshold\nThe temperature rises above it"
+msgstr "Seuil de débit\nLa température monte au-delà"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Flow threshold"
+msgstr "Seuil de débit"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Maximum rise\n+1 °C per mm3/s above the threshold"
+msgstr "Hausse maximale\n+1 °C par mm3/s au-delà du seuil"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Maximum rise"
+msgstr "Hausse maximale"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Current rise"
+msgstr "Hausse actuelle"

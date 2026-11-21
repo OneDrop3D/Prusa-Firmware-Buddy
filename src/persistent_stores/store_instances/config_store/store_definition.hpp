@@ -464,6 +464,11 @@ struct CurrentStore
     /// calibration valable) ; paramètres du modèle MPC (M306 T ou M306 P C R A F H), non valables tant que non calibrés
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D MPC Enabled")> od3d_mpc_enabled;
     StoreItem<od3d::mpc::Params, od3d::mpc::Params {}, ItemFlag::calibrations, journal::hash("OD3D MPC Model")> od3d_mpc_params;
+    /// OneDrop3D (F8) : température selon le débit, seulement avec le MPC (coupée par défaut) ; seuil [mm³/s] et
+    /// hausse maximale [°C]
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Flow Temp Enabled")> od3d_flow_temp_enabled;
+    StoreItem<uint8_t, od3d::mpc::default_flow_threshold, ItemFlag::features, journal::hash("OD3D Flow Temp Threshold")> od3d_flow_temp_threshold;
+    StoreItem<uint8_t, od3d::mpc::default_flow_max_boost, ItemFlag::features, journal::hash("OD3D Flow Temp Max Boost")> od3d_flow_temp_max_boost;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

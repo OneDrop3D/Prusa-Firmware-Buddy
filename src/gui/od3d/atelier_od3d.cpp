@@ -229,6 +229,7 @@ namespace atelier {
         uint32_t valid_until_ms = 0;
 
         constexpr uint32_t first_wait_ms = 30'000; ///< le G-code peut attendre que la file se vide
+        constexpr uint32_t open_ms = 3'600'000; ///< tant que l'écran de progression est ouvert (attente du filament…)
         constexpr uint32_t chain_ms = 3'000; ///< entre deux écrans d'une même opération
 
         bool send(const char *gcode, Op op, uint8_t slot) {
@@ -289,7 +290,7 @@ namespace atelier {
             return std::nullopt;
         }
         served = true;
-        valid_until_ms = ticks_ms() + first_wait_ms; // tant que l'écran est ouvert
+        valid_until_ms = ticks_ms() + open_ms; // l'écran peut être recréé (retour d'un autre écran) sans perdre le nom
         return request;
     }
 

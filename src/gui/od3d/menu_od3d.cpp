@@ -2,6 +2,7 @@
 #include "menu_od3d.hpp"
 
 #include "screen_files_od3d.hpp"
+#include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
 #include "text_od3d.hpp"
 
@@ -235,7 +236,7 @@ TabBar::Tab section_tab() {
     if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMenuSettings>(); })) {
         return TabBar::Tab::settings;
     }
-    if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMenuFilamentMMU>() || n.creator.is_screen<ScreenMenuFilament>(); })) {
+    if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMMU>() || n.creator.is_screen<ScreenMenuFilamentMMU>() || n.creator.is_screen<ScreenMenuFilament>(); })) {
         return TabBar::Tab::workshop;
     }
     if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenFiles>() || n.creator.is_screen<ScreenPrinting>(); })) {

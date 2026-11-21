@@ -1,6 +1,6 @@
 /// @file
-/// OneDrop3D (F1, interface G) : l'étagère du MMU (SPEC_G.md §3.2), ses moteurs (§3.8) et, en attendant les listes G,
-/// ses réglages et ses infos en menus Prusa (§4).
+/// OneDrop3D (F1, interface G) : l'étagère du MMU (SPEC_G.md §3.2), ses moteurs (§3.8), ses réglages et ses infos
+/// (§4 : éléments des menus Prusa, dessinés en liste G par screen_menu.hpp).
 #pragma once
 
 #include "atelier_od3d.hpp"
@@ -118,16 +118,15 @@ private:
     StringViewUtf8Parameters<4> idler_params;
 };
 
-/// Réglages du MMU (menu Prusa) : MMU, coupe, mode furtif, longueur du tube, relais de bobine
-using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH,
-    MI_SPOOL_JOIN, MI_SPOOL_JOIN_TARGET_N<0>, MI_SPOOL_JOIN_TARGET_N<1>, MI_SPOOL_JOIN_TARGET_N<2>, MI_SPOOL_JOIN_TARGET_N<3>, MI_SPOOL_JOIN_TARGET_N<4>>;
+/// Réglages du MMU (éléments Prusa, liste G) : MMU, coupe, mode furtif, longueur du tube, relais de bobine
+using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH, MI_SPOOL_JOIN_SLOTS>;
 
 class ScreenMenuMMUSettings final : public ScreenMenuMMUSettingsBase {
 public:
     ScreenMenuMMUSettings();
 };
 
-/// Infos du MMU (menu Prusa) : FINDA et échecs de chargement
+/// Infos du MMU (éléments Prusa, liste G) : FINDA et échecs de chargement
 using ScreenMenuMMUInfoBase = BasicScreenMenu<MI_INFO_FINDA, MI_MMU_LOAD_FAILS, MI_MMU_TOTAL_LOAD_FAILS, MI_MMU_GENERAL_FAILS, MI_MMU_TOTAL_GENERAL_FAILS>;
 
 class ScreenMenuMMUInfo final : public ScreenMenuMMUInfoBase {

@@ -10374,3 +10374,8 @@ msgstr "Tirez le filament par l'entrée %d, à l'arrière du MMU, retirez la bob
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Automatic join\nSame material and colour, or the rules below"
 msgstr "Relais automatique\nMême matière et couleur, ou les règles dessous"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "pressed on %d (free %d s)"
+msgstr "serré sur %d (libre %d s)"

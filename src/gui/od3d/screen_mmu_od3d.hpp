@@ -90,6 +90,8 @@ private:
 class ScreenMMUMotors final : public Screen {
 public:
     ScreenMMUMotors();
+    /// Relâche le galet serré depuis cet écran (BUG-1 : serré, son moteur reste à 530 mA)
+    ~ScreenMMUMotors();
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
@@ -112,10 +114,13 @@ private:
     PositionButton idler[6];
     TabBar tabs;
 
-    int8_t selector_at = -1; ///< dernière position demandée (le MMU ne la publie pas), -1 inconnue
-    int8_t idler_at = -1;
+    int8_t selector_at = -1; ///< position lue dans le MMU (0 à 4, 5 = parking), -1 inconnue
+    int8_t idler_at = -1; ///< position lue dans le MMU (0 à 4 = serré, 5 = libre), -1 inconnue
+    bool engaged_here = false; ///< galet serré par cet écran : à relâcher en partant ou après le délai
+    uint32_t engaged_ms = 0; ///< moment de la dernière commande « serrer »
+    int16_t seconds_left = -1; ///< compte à rebours affiché, -1 sans
     StringViewUtf8Parameters<4> selector_params;
-    StringViewUtf8Parameters<4> idler_params;
+    StringViewUtf8Parameters<8> idler_params; ///< emplacement et secondes restantes
 };
 
 /// Réglages du MMU (éléments Prusa, liste G) : MMU, coupe, mode furtif, longueur du tube, relais de bobine

@@ -27,6 +27,7 @@
 #include <option/has_pause.h>
 #include <option/has_power_panic.h>
 #include <option/has_indx.h>
+#include <option/has_mmu2.h>
 
 /**
  * Configuration_adv.h
@@ -246,6 +247,10 @@
 // Time can be set by M18 and M84.
 #if HAS_INDX()
   #define DEFAULT_STEPPER_DEACTIVE_TIME 600 // 10 min on INDX
+#elif HAS_MMU2()
+  // OneDrop3D (BUG-4) : 2 min faisaient perdre l'origine X/Y pendant qu'on charge une bobine du MMU et qu'on revient
+  // à « Déplacer les axes » ; 10 min comme Prusa le fait pour l'INDX
+  #define DEFAULT_STEPPER_DEACTIVE_TIME 600
 #else
   #define DEFAULT_STEPPER_DEACTIVE_TIME 120
 #endif

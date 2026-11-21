@@ -459,6 +459,12 @@ void ScreenMenuSTSCalibrations::draw() {
 }
 
 void ScreenMenuSTSCalibrations::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    // OneDrop3D (interface G) : nos menus ne capturent plus la molette (screen_menu.hpp), les entrées passent par
+    // l'écran ; sans ce relais, molette, clic et retour ne faisaient plus rien (BUG-2, redémarrage forcé)
+    if (event != GUI_event_t::LOOP) {
+        SelftestSnake::detail::ScreenMenuSTSCalibrations::windowEvent(sender, event, param);
+        return;
+    }
     do_menu_event(this, sender, event, param, get_first_action(), false);
 }
 
@@ -487,7 +493,13 @@ void ScreenMenuSTSWizard::draw() {
 }
 
 void ScreenMenuSTSWizard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
-    if (event != GUI_event_t::LOOP || GetFirstDialog()) {
+    // OneDrop3D (interface G) : nos menus ne capturent plus la molette (screen_menu.hpp), les entrées passent par
+    // l'écran ; sans ce relais, molette, clic et retour ne faisaient plus rien (BUG-2, redémarrage forcé)
+    if (event != GUI_event_t::LOOP) {
+        SelftestSnake::detail::ScreenMenuSTSWizard::windowEvent(sender, event, param);
+        return;
+    }
+    if (GetFirstDialog()) {
         return;
     }
 

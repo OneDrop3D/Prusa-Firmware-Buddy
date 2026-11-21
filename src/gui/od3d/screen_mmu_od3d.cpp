@@ -7,7 +7,10 @@
 #include <common/marlin_vars.hpp>
 #include <cstdio>
 #include <display.hpp>
+#include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <feature/prusa/MMU2/mmu2_state.h>
+#include <marlin_client.hpp>
+#include <timing.h>
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <iterator>
@@ -246,6 +249,16 @@ namespace {
     constexpr uint8_t reg_idler = 0x1c;
     constexpr uint8_t park = 5;
 
+    /// BUG-1 : un galet serré garde son moteur à 530 mA (Idler::FinishMove du firmware MMU). Chez Prusa, il n'est
+    /// serré que le temps d'un chargement : ici, on le relâche seul après ce délai sans nouvelle commande.
+    constexpr uint32_t idler_release_ms = 120'000;
+
+    /// Position rapportée par le MMU (registres lus à chaque interrogation) ; -1 si inconnue (MMU absent, prise
+    /// d'origine en cours = 0xff)
+    int8_t reported(uint8_t value) {
+        return value <= park ? int8_t(value) : int8_t(-1);
+    }
+
     enum MotorTag : uint8_t {
         tag_pulley = 0, // 0 à 2, inactifs
         tag_selector = 10, // 10 à 15 : emplacements 1 à 5 puis parking
@@ -337,8 +350,41 @@ ScreenMMUMotors::ScreenMMUMotors()
     }
 }
 
+ScreenMMUMotors::~ScreenMMUMotors() {
+    // Sans dialogue (destruction de l'écran) : simple mise en file du G-code
+    if (engaged_here && atelier::mmu_active() && MMU2::mmu2.IdlerSlot() < park) {
+        marlin_client::gcode("M708 A0x1c X5");
+    }
+}
+
 void ScreenMMUMotors::update() {
-    const bool ok = atelier::mmu_active() && atelier::can_run();
+    const bool active = atelier::mmu_active();
+    const bool ok = active && atelier::can_run();
+
+    // Vraies positions (et non la dernière demande) : on voit un galet resté serré
+    const int8_t sel = active ? reported(MMU2::mmu2.SelectorSlot()) : int8_t(-1);
+    const int8_t idl = active ? reported(MMU2::mmu2.IdlerSlot()) : int8_t(-1);
+    if (idl == park && ticks_ms() - engaged_ms > 5'000) {
+        engaged_here = false; // relâché (par nous, par Prusa ou par le MMU) ; 5 s : le temps que le MMU serre et le rapporte
+    }
+    int16_t left = -1;
+    if (engaged_here) {
+        const int32_t remaining = int32_t(idler_release_ms) - int32_t(ticks_ms() - engaged_ms);
+        if (remaining <= 0) {
+            if (marlin_client::gcode_try("M708 A0x1c X5") == marlin_client::GcodeTryResult::Submitted) {
+                engaged_here = false;
+            }
+        } else {
+            left = int16_t((remaining + 999) / 1000);
+        }
+    }
+    if (sel != selector_at || idl != idler_at || left != seconds_left) {
+        selector_at = sel;
+        idler_at = idl;
+        seconds_left = left;
+        show();
+    }
+
     // Le MMU refuse de bouger le sélecteur quand le FINDA voit un filament (selector.cpp) : bouton inactif
     const bool selector_ok = ok && !marlin_vars().mmu2_finda.get();
     for (PositionButton &b : selector) {
@@ -369,6 +415,9 @@ void ScreenMMUMotors::show() {
     } else if (idler_at == park) {
         idler_note.SetText(_("idler free"));
     } else {
+    } else if (seconds_left >= 0) {
+        idler_note.SetText(_("pressed on %d (free %d s)").formatted(idler_params, idler_at + 1, seconds_left));
+    } else {
         idler_note.SetText(_("pressed on %d").formatted(idler_params, idler_at + 1));
     }
 }
@@ -383,15 +432,12 @@ void ScreenMMUMotors::windowEvent(window_t *sender, GUI_event_t event, void *par
         const uint8_t tag = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(param));
         if (tag >= tag_selector && tag <= tag_selector + 5) {
             const uint8_t value = tag - tag_selector; // 0 à 4, 5 = parking
-            if (atelier::write_register(reg_selector, value)) {
-                selector_at = value;
-                show();
-            }
+            atelier::write_register(reg_selector, value); // la position affichée suit le MMU (update)
         } else if (tag >= tag_idler && tag <= tag_idler + 5) {
             const uint8_t value = tag == tag_idler ? park : tag - tag_idler - 1;
-            if (atelier::write_register(reg_idler, value)) {
-                idler_at = value;
-                show();
+            if (atelier::write_register(reg_idler, value) && value != park) {
+                engaged_here = true;
+                engaged_ms = ticks_ms();
             }
         }
         return;

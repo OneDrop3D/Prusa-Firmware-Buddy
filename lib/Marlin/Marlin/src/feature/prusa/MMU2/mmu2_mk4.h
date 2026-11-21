@@ -188,6 +188,9 @@ public:
     /// @returns current selector slot as reported by the MMU
     inline uint8_t SelectorSlot() const { return logic.SelectorSlot(); }
 
+    /// OneDrop3D : position du galet rapportée par le MMU (0 à 4 serré, 5 libre, 0xff pendant la prise d'origine)
+    inline uint8_t IdlerSlot() const { return logic.IdlerSlot(); }
+
     inline uint16_t TotalFailStatistics() const { return logic.FailStatistics(); }
 
     /// @returns Current error code

@@ -24,6 +24,11 @@
 #include <option/has_wastebin_fill_tracking.h>
 #include <gui/screen/screen_preheat.hpp>
 #include <gui/screen/dialog_safety_timer.hpp>
+#include <option/has_mmu2.h>
+#include <option/has_nozzle_thermal_compensation.h>
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    #include <gui/od3d/screen_printing_od3d.hpp> // OneDrop3D : interface G
+#endif
 
 #if HAS_LOADCELL()
     #include <gui/screen/screen_nozzle_cleaning_failed.hpp>
@@ -229,7 +234,11 @@ struct FSMPrintDef {
         } else
 #endif
             if constexpr (fsm == ClientFSM::Printing) {
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+            screen = ScreenFactory::Screen<od3d::ScreenPrinting>; // OneDrop3D : notre écran Impression remplace celui de Prusa
+#else
             screen = ScreenFactory::Screen<screen_printing_data_t>;
+#endif
             if (Screens::Access()->IsScreenOpened(screen)) {
                 // Already opened, no need to do anything
                 return true;

@@ -12,3 +12,10 @@ add_executable(
 target_include_directories(spool_draw_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/common)
 target_link_libraries(spool_draw_od3d_tests buddy_utils)
 add_catch_test(spool_draw_od3d_tests)
+
+add_executable(
+  print_info_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/print_info_test.cpp
+                        ${CMAKE_SOURCE_DIR}/src/gui/od3d/print_info_od3d.cpp
+  )
+target_include_directories(print_info_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(print_info_od3d_tests)

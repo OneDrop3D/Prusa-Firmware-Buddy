@@ -1,5 +1,7 @@
 /// @file
 #include "widgets_od3d.hpp"
+#include "screen_files_od3d.hpp"
+#include "screen_printing_od3d.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -94,9 +96,7 @@ void open_filament_menu() {
 }
 
 void open_files() {
-    if (marlin_vars().media_inserted) {
-        open_screen<screen_filebrowser_data_t>();
-    }
+    open_screen<ScreenFiles>(); // sans clé, la grille le dit
 }
 
 void open_temperatures() {
@@ -415,8 +415,7 @@ namespace {
         Screens::Access()->CloseAll();
     }
     void tab_print() {
-        Screens::Access()->CloseAll();
-        open_files();
+        open_print_tab(); // l'écran Impression pendant une impression, sinon les fichiers
     }
     void tab_workshop() {
         Screens::Access()->CloseAll();

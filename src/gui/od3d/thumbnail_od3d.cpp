@@ -96,7 +96,12 @@ bool ScaledQoiReader::decode_band() {
 
         const qoi::Pixel p = decoder.pull_pixel();
         if (const unsigned x = src_x / params.factor; x < out_w) {
-            const Color c = Color::mix(params.back, Color::from_rgb(p.r, p.g, p.b), p.a);
+            Color px = Color::from_rgb(p.r, p.g, p.b);
+            if (out_y < params.grey_rows) {
+                const uint8_t l = (p.r * 77 + p.g * 150 + p.b * 29) >> 9; // luminance, puis moitié
+                px = Color::from_rgb(l, l, l);
+            }
+            const Color c = Color::mix(params.back, px, p.a);
             sums[x][0] += c.r;
             sums[x][1] += c.g;
             sums[x][2] += c.b;

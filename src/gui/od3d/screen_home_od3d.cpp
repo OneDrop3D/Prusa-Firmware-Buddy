@@ -1,5 +1,7 @@
 /// @file
 #include "screen_home_od3d.hpp"
+#include "screen_files_od3d.hpp"
+#include "screen_printing_od3d.hpp"
 
 #include <common/marlin_vars.hpp>
 #include <common/thumbnail_sizes.hpp>
@@ -128,8 +130,10 @@ void FileCard::set(bool usb, const char *latest) {
 }
 
 void FileCard::print() const {
-    if (state == State::file) {
-        marlin_client::print_start(path.data()); // ouvre l'aperçu Prusa avant l'impression
+    if (print_active()) {
+        open_screen<ScreenPrinting>(); // « Voir » : l'impression en cours
+    } else if (state == State::file) {
+        open_preview(path.data()); // « Avant l'impression » ; « Imprimer » y passe par print_start de Prusa
     }
 }
 
@@ -325,7 +329,7 @@ void ScreenHome::windowEvent(window_t *sender, GUI_event_t event, void *param) {
                 GuiMediaEventsHandler::ConsumeOneClickPrinting() && !usbh_power_cycle::block_one_click_print()) {
                 std::array<char, filename_defs::path_buffer_size> filepath;
                 if (screen_home_data_t::find_latest_gcode(filepath.data(), filepath.size())) {
-                    marlin_client::print_start(filepath.data());
+                    open_preview(filepath.data()); // comme l'aperçu Prusa : rien ne part sans « Imprimer »
                 }
             }
         }

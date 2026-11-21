@@ -23,6 +23,7 @@ public:
         Color back; ///< fond sous les pixels transparents
         uint8_t radius; ///< rayon des coins arrondis [px]
         Color outside; ///< couleur hors des coins arrondis
+        uint16_t grey_rows = 0; ///< lignes du haut de l'image réduite en gris à 50 % (écran Impression : pas encore imprimé)
     };
 
     ScaledQoiReader(AbstractByteReader &source, const Params &params);

@@ -9923,3 +9923,59 @@ msgstr "Aucun fichier imprimable"
 #: src/gui/od3d/screen_home_od3d.cpp
 msgid "Insert a USB drive"
 msgstr "Insérez une clé USB"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Files · USB drive"
+msgstr "Fichiers · clé USB"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Folder"
+msgstr "Dossier"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Before printing"
+msgstr "Avant l'impression"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Map colours"
+msgstr "Associer les couleurs"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Slot %d: %s in the file, %s loaded"
+msgstr "Emplacement %d : %s dans le fichier, %s chargé"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Adjust"
+msgstr "Ajuster"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Stop print"
+msgstr "Arrêter"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resume print"
+msgstr "Reprendre"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "paused"
+msgstr "en pause"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "stopped"
+msgstr "arrêtée"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "finished"
+msgstr "terminée"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "ends %s"
+msgstr "fin %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "%s left"
+msgstr "Reste %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Now: slot %d"
+msgstr "En cours : emplacement %d"

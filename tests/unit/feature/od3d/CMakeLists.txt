@@ -55,3 +55,9 @@ add_executable(
   )
 target_include_directories(spool_usage_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(spool_usage_od3d_tests)
+add_executable(
+  belt_tension_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/belt_tension_test.cpp
+                          ${CMAKE_SOURCE_DIR}/src/feature/od3d/belt_tension_math_od3d.cpp
+  )
+target_include_directories(belt_tension_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(belt_tension_od3d_tests)

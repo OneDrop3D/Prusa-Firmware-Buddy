@@ -372,6 +372,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 1991: // OneDrop3D
             PrusaGcodeSuite::M1991();
             break;
+#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION()
+        case 1992: // OneDrop3D (F14)
+            PrusaGcodeSuite::M1992();
+            break;
+#endif
         case 9140:
             PrusaGcodeSuite::M9140();
             break;

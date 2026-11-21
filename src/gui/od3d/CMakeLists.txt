@@ -4,6 +4,7 @@ target_sources(
           island_od3d.cpp
           menu_od3d.cpp
           print_info_od3d.cpp
+          screen_belts_od3d.cpp
           screen_files_od3d.cpp
           screen_home_od3d.cpp
           screen_menu_od3d.cpp

@@ -1,11 +1,12 @@
 /// @file
 /// OneDrop3D : le groupe « Fonctions OneDrop3D », en tête des réglages (SPEC_G.md §3.22), et ses écrans
 /// « Température de la buse » (§3.23, ce qui existe : la compensation de dilatation) et « Relais de bobine » (§3.24) ;
-/// « Équerrage XY » (F15) est dans screen_skew_od3d.*.
+/// « Équerrage XY » (F15) est dans screen_skew_od3d.*, « Tension des courroies » (F14) dans screen_belts_od3d.*.
 /// Chaque fonction a une ligne d'explication sous son nom (libellé sur deux lignes, séparées par « \n »).
 #pragma once
 
 #include "screen_skew_od3d.hpp"
+#include "menu_items_od3d.hpp"
 
 #include <basic_screen_menu.hpp>
 #include <MItem_menus.hpp>
@@ -97,7 +98,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_SKEW_XY, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_SKEW_XY, MI_BELT_TENSION, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

@@ -6,7 +6,7 @@
 #include "screen_menu_fan_info.hpp"
 #include "screen_menu_board_info.hpp"
 #include "screen_menu_temperature_and_fans.hpp"
-#include "screen_menu_move.hpp"
+#include <gui/od3d/screen_move_od3d.hpp> // OneDrop3D (interface G) : Déplacer les axes
 #include "screen_menu_sensor_info.hpp"
 #include "screen_menu_version_info.hpp"
 #include "screen_menu_metrics.hpp"
@@ -133,7 +133,7 @@ template struct MI_SCREEN_CTOR<ScreenMenuVersionInfo>;
 template struct MI_SCREEN_CTOR<ScreenMenuSensorInfo>;
 template struct MI_SCREEN_CTOR<ScreenMenuFailStat>;
 template struct MI_SCREEN_CTOR<ScreenMenuTemperatureAndFans>;
-template struct MI_SCREEN_CTOR<ScreenMenuMove>;
+template struct MI_SCREEN_CTOR<od3d::ScreenMove>;
 template struct MI_SCREEN_CTOR<ScreenMenuMetricsSettings>;
 template struct MI_SCREEN_CTOR<ScreenMenuEthernetSettings>;
 #if HAS_ESP()

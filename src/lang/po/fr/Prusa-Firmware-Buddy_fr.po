@@ -10310,3 +10310,47 @@ msgstr "Coupe du filament %d"
 #: src/gui/od3d/screen_mmu_od3d.cpp
 msgid "MMU assist"
 msgstr "Assistance"
+
+#: src/gui/MItem_menus.hpp src/gui/od3d/screen_move_od3d.cpp
+msgid "Move axes"
+msgstr "Déplacer les axes"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Extrude"
+msgstr "Extruder"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Retract"
+msgstr "Rétracter"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "E cold"
+msgstr "E froid"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Step"
+msgstr "Pas"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "tap to go there"
+msgstr "toucher : y aller"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Home all axes"
+msgstr "Origine des 3 axes"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Disable motors"
+msgstr "Désactiver les moteurs"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Not while printing."
+msgstr "Pas pendant une impression."
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Axes not homed. Home them now?"
+msgstr "Axes sans origine. Faire la prise d'origine maintenant ?"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Nozzle too cold to extrude: heat it first."
+msgstr "Buse trop froide pour extruder : chauffez-la d'abord."

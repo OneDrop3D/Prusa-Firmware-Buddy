@@ -7,6 +7,7 @@ target_sources(
           screen_home_od3d.cpp
           screen_menu_od3d.cpp
           screen_mmu_od3d.cpp
+          screen_move_od3d.cpp
           screen_printing_od3d.cpp
           screen_progress_od3d.cpp
           screen_spool_od3d.cpp

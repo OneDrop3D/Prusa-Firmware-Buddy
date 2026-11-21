@@ -86,8 +86,11 @@ using MI_FAIL_STAT
 using MI_TEMPERATURE_AND_FANS
     = MI_SCREEN<N_("Temperature & Fans"), class ScreenMenuTemperatureAndFans, &img::temperature_16x16>;
 
+namespace od3d {
+class ScreenMove; // OneDrop3D (interface G) : « Déplacer les axes » à la place de la liste ScreenMenuMove
+}
 using MI_MOVE_AXIS
-    = MI_SCREEN<N_("Move Axis"), class ScreenMenuMove, &img::move_16x16>;
+    = MI_SCREEN<N_("Move axes"), od3d::ScreenMove, &img::move_16x16>;
 
 using MI_METRICS_SETTINGS
     = MI_SCREEN<N_("Metrics & Log"), class ScreenMenuMetricsSettings>;

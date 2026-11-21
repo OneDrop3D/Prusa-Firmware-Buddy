@@ -63,7 +63,7 @@ void open_filament_menu();
 /// Fichiers de la clé USB (rien sans clé : le navigateur de Prusa se refermerait aussitôt)
 void open_files();
 
-/// Aperçu des températures (pour l'instant le menu Prusa « Température et ventilateurs »)
+/// Aperçu des températures (screen_temperatures_od3d.hpp)
 void open_temperatures();
 
 // ---- Écran ----
@@ -205,6 +205,9 @@ protected:
 class Header {
 public:
     Header(window_t *parent, const string_view_utf8 &title, bool has_back);
+
+    /// Change le titre, même s'il est dans le même tampon (menus Prusa)
+    void set_title(const string_view_utf8 &text);
 
 private:
     IconButton back; ///< caché et inactif sur l'accueil

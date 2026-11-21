@@ -46,6 +46,7 @@
 using ScreenMenuSettingsBase = BasicScreenMenu<
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     od3d::MI_FEATURES, // OneDrop3D : en tête des réglages
+    od3d::MI_PRINTER_INFO, // OneDrop3D (interface G) : « Infos de l'imprimante » en deuxième
 #endif
     MI_USER_INTERFACE,
     MI_TOOLHEAD_SETTINGS,

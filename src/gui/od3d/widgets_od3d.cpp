@@ -2,6 +2,7 @@
 #include "widgets_od3d.hpp"
 #include "screen_files_od3d.hpp"
 #include "screen_printing_od3d.hpp"
+#include "screen_temperatures_od3d.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -21,7 +22,6 @@
 #include <screen_menu_filament.hpp>
 #include <screen_menu_filament_mmu.hpp>
 #include <screen_menu_settings.hpp>
-#include <screen_menu_temperature_and_fans.hpp>
 #include <time_tools.hpp>
 #include <timing.h>
 #include <tool_index.hpp>
@@ -100,7 +100,9 @@ void open_files() {
 }
 
 void open_temperatures() {
-    open_screen<ScreenMenuTemperatureAndFans>();
+    if (!Screens::Access()->IsScreenOpened<ScreenTemperatures>()) {
+        open_screen<ScreenTemperatures>();
+    }
 }
 
 // ---- Écran ----
@@ -405,6 +407,11 @@ Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_ba
     title.SetBackColor(style::screen);
     title.SetPadding({ 0, 0, 0, 0 });
     line.SetBackColor(style::line);
+}
+
+void Header::set_title(const string_view_utf8 &text) {
+    title.SetText(text);
+    title.Invalidate();
 }
 
 // ---- Barre d'onglets ----

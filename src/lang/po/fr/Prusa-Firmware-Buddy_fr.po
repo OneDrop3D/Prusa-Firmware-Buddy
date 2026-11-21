@@ -9848,21 +9848,8 @@ msgid "OneDrop3D Features"
 msgstr "Fonctions OneDrop3D"
 
 #: src/gui/od3d/screen_menu_od3d.cpp
-msgid "ONEDROP3D FEATURES"
-msgstr "FONCTIONS ONEDROP3D"
-
-#: src/gui/od3d/screen_menu_od3d.cpp
-msgid "Nozzle Expansion"
-msgstr "Dilatation de la buse"
-
-#: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Spool Join"
 msgstr "Relais de bobine"
-
-#: src/gui/od3d/screen_menu_od3d.cpp
-#, c-format
-msgid "Slot %i empty"
-msgstr "Emplacement %i vide"
 
 #: src/gui/od3d/screen_menu_od3d.cpp
 #, c-format
@@ -9880,10 +9867,6 @@ msgstr "Températures"
 #: src/gui/od3d/screen_home_od3d.cpp
 msgid "Workshop"
 msgstr "Atelier"
-
-#: src/gui/od3d/screen_menu_od3d.cpp
-msgid "Pair PrintForge"
-msgstr "Associer PrintForge"
 
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Turn on PrusaLink first: Settings > Network > PrusaLink."
@@ -9979,3 +9962,87 @@ msgstr "Reste %s"
 #: src/gui/od3d/screen_printing_od3d.cpp
 msgid "Now: slot %d"
 msgstr "En cours : emplacement %d"
+#: src/gui/od3d/screen_menu_od3d.hpp
+msgid "Printer info"
+msgstr "Infos de l'imprimante"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Nozzle temperature\nCompensates the nozzle growing when hot"
+msgstr "Température de la buse\nCompense l'allongement de la buse chaude"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Spool join\nEmpty spool: another one takes over"
+msgstr "Relais de bobine\nBobine vide : une autre prend la suite"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Pair PrintForge\n6-digit code to link PrintForge"
+msgstr "Associer PrintForge\nCode à 6 chiffres pour relier PrintForge"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Nozzle expansion\nFixes Z as the hot nozzle grows longer"
+msgstr "Dilatation de la buse\nCorrige Z car la buse chaude s'allonge"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Current correction"
+msgstr "Correction actuelle"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Nozzle temp."
+msgstr "Temp. de la buse"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Automatic join\nEmpty spool: another one takes over"
+msgstr "Relais automatique\nBobine vide : une autre prend la suite"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+#, c-format
+msgid "When %i runs out"
+msgstr "Quand %i est vide"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "do nothing"
+msgstr "ne rien faire"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "target"
+msgstr "cible"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "no target"
+msgstr "sans cible"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "stable"
+msgstr "stable"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "heating"
+msgstr "chauffe"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "cooling"
+msgstr "refroidit"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Part fan"
+msgstr "Ventilateur"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Chamber fans"
+msgstr "Extraction"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Filtration"
+msgstr "Filtration"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Preheat..."
+msgstr "Préchauffer..."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Presets"
+msgstr "Préréglages"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Cool down"
+msgstr "Refroidir"

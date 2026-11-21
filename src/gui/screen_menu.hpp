@@ -5,6 +5,7 @@
 #include <WinMenuContainer.hpp>
 #include <window_menu.hpp>
 #include <screen.hpp>
+#include <gui/od3d/menu_od3d.hpp>
 
 /// Bits of ScreenMenuBase than can be made non-templated to save flash
 class ScreenMenuBase_ : public screen_t {
@@ -23,20 +24,20 @@ public:
     }
 
 protected:
-    ScreenMenuBase_(window_t *parent, const string_view_utf8 &label, EFooter show_footer, IWindowMenu *menu)
+    ScreenMenuBase_(window_t *parent, const string_view_utf8 &label, [[maybe_unused]] EFooter show_footer, IWindowMenu *menu)
         : screen_t(parent, parent != nullptr ? win_type_t::dialog : win_type_t::normal)
-        , header(this)
-        , footer(this)
+        , header(this, label)
         , i_menu(menu) //
     {
         // Do NOT work with i_menu here, it is not yet constructed!
-        header.SetText(label);
-        footer.set_visible(show_footer == EFooter::On);
     }
 
+    /// OneDrop3D (interface G) : appui long = retour
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
 protected:
-    window_header_t header;
-    StatusFooter footer;
+    /// OneDrop3D (interface G) : en-tête G ; la barre d'onglets remplace le pied de page
+    od3d::MenuHeader header;
 
 private:
     IWindowMenu *i_menu = nullptr;
@@ -48,13 +49,15 @@ class ScreenMenuBase : public ScreenMenuBase_ {
 protected:
     ScreenMenuBase(window_t *parent, const string_view_utf8 &label, EFooter show_footer)
         : ScreenMenuBase_(parent, label, show_footer, &menu.menu)
-        , menu(this, show_footer == EFooter::On ? GuiDefaults::RectScreenBody : GuiDefaults::RectScreenNoHeader) //
+        , menu(this, od3d::list_rect)
+        , tabs(this, od3d::section_tab()) //
     {
-        CaptureNormalWindow(menu); // set capture to list
+        // OneDrop3D (interface G) : pas de capture, la molette va de l'en-tête à la liste puis aux onglets
     }
 
 protected:
-    WindowExtendedMenu<Menu> menu;
+    od3d::MenuList<Menu> menu; ///< OneDrop3D (interface G) : liste G au lieu de WindowExtendedMenu
+    od3d::TabBar tabs; ///< après la liste : ordre de la molette
 };
 
 template <EFooter FOOTER, class... T>
@@ -73,6 +76,7 @@ public:
 
     ScreenMenu(const string_view_utf8 &label, window_t *parent = nullptr)
         : ScreenMenuBase(parent, label, FOOTER) {
+        od3d::hide_return_items(container); // OneDrop3D (interface G) : retour par l'en-tête et l'appui long
         menu.menu.BindContainer(container);
     }
 

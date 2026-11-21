@@ -17,6 +17,7 @@ cancel_60x60.png
 clear_60x60.png
 connect_16x16.png
 connect_orange_16x16.png
+cycle_16x16.png
 dash_18x18.png
 disconnect_80x80_disabled.png
 disconnect_80x80_focused.png
@@ -99,6 +100,7 @@ plusminus_60x60.png
 preheat_80x80_disabled.png
 preheat_80x80_focused.png
 preheat_80x80.png
+preheat_white_16x16.png
 print_16x16.png
 print_80x80_disabled.png
 print_80x80_focused.png

@@ -1,9 +1,13 @@
 /// @file
-/// OneDrop3D : le groupe « Fonctions OneDrop3D », en tête des réglages.
+/// OneDrop3D : le groupe « Fonctions OneDrop3D », en tête des réglages (SPEC_G.md §3.22), et ses écrans
+/// « Température de la buse » (§3.23, ce qui existe : la compensation de dilatation) et « Relais de bobine » (§3.24).
+/// Chaque fonction a une ligne d'explication sous son nom (libellé sur deux lignes, séparées par « \n »).
 #pragma once
 
 #include <basic_screen_menu.hpp>
+#include <MItem_menus.hpp>
 #include <WindowMenuItems.hpp>
+#include <WindowItemFormatableLabel.hpp>
 #include <gui/menu_item/menu_item_select_menu.hpp>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
@@ -11,6 +15,8 @@
 
 static_assert(HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2(), "Fonctions OneDrop3D : CORE One avec MMU");
 static_assert(VirtualToolIndex::count == 5, "Un relais par emplacement du MMU");
+
+class ScreenMenuInfo; // menu Info de Prusa
 
 namespace od3d {
 
@@ -21,11 +27,34 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// « Infos de l'imprimante » : le menu Info de Prusa, deuxième ligne des réglages
+using MI_PRINTER_INFO = MI_SCREEN<N_("Printer info"), ::ScreenMenuInfo, &img::info_16x16>;
+
+/// Ouvre « Température de la buse »
+class MI_NOZZLE_TEMPERATURE final : public IWindowMenuItem {
+public:
+    MI_NOZZLE_TEMPERATURE();
+    void click(IWindowMenu &) override;
+};
+
+/// Ouvre « Relais de bobine »
+class MI_SPOOL_JOIN_SLOTS final : public IWindowMenuItem {
+public:
+    MI_SPOOL_JOIN_SLOTS();
+    void click(IWindowMenu &) override;
+};
+
 /// F2 : compensation de la dilatation de la buse
 class MI_NOZZLE_THERMAL_COMPENSATION final : public WI_ICON_SWITCH_OFF_ON_t {
 public:
     MI_NOZZLE_THERMAL_COMPENSATION();
     void OnChange(size_t) override;
+};
+
+/// F2 : correction appliquée maintenant (cible de la buse), en lecture seule
+class MI_NOZZLE_THERMAL_CORRECTION final : public MenuItemAutoUpdatingLabel<float> {
+public:
+    MI_NOZZLE_THERMAL_CORRECTION();
 };
 
 /// F3 : relais de bobine permanents, interrupteur général
@@ -35,7 +64,8 @@ public:
     void OnChange(size_t) override;
 };
 
-/// F3 : « Emplacement n vide » → emplacement k ; l'élément 0 désactive le relais de cet emplacement
+/// F3 : « Quand n est vide » → emplacement k ; l'élément 0 désactive le relais de cet emplacement.
+/// Un clic passe à la valeur suivante (SPEC_G.md §3.24).
 class MI_SPOOL_JOIN_TARGET : public MenuItemSelectMenu {
 public:
     explicit MI_SPOOL_JOIN_TARGET(uint8_t slot);
@@ -64,12 +94,20 @@ public:
     void click(IWindowMenu &) override;
 };
 
-using ScreenMenuFeaturesBase = BasicScreenMenu<MI_PAIR_PRINTFORGE, MI_NOZZLE_THERMAL_COMPENSATION, MI_SPOOL_JOIN,
-    MI_SPOOL_JOIN_TARGET_N<0>, MI_SPOOL_JOIN_TARGET_N<1>, MI_SPOOL_JOIN_TARGET_N<2>, MI_SPOOL_JOIN_TARGET_N<3>, MI_SPOOL_JOIN_TARGET_N<4>>;
-
-class ScreenMenuFeatures final : public ScreenMenuFeaturesBase {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_SPOOL_JOIN_SLOTS, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
+};
+
+class ScreenNozzleTemperature final : public BasicScreenMenu<MI_NOZZLE_THERMAL_COMPENSATION, MI_NOZZLE_THERMAL_CORRECTION> {
+public:
+    ScreenNozzleTemperature();
+};
+
+class ScreenSpoolJoin final : public BasicScreenMenu<MI_SPOOL_JOIN,
+                                  MI_SPOOL_JOIN_TARGET_N<0>, MI_SPOOL_JOIN_TARGET_N<1>, MI_SPOOL_JOIN_TARGET_N<2>, MI_SPOOL_JOIN_TARGET_N<3>, MI_SPOOL_JOIN_TARGET_N<4>> {
+public:
+    ScreenSpoolJoin();
 };
 
 } // namespace od3d

@@ -440,6 +440,11 @@ struct CurrentStore
     StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Spool Join")> od3d_spool_join;
     StoreItemArray<uint8_t, uint8_t(0xff), ItemFlag::features, journal::hash("OD3D Spool Join Target"), 16, VirtualToolIndex::count> od3d_spool_join_target;
 #endif
+    /// OneDrop3D (F18) : musique des moteurs. Fichier .mid choisi (nom court 8.3, à la racine de la clé), moteurs
+    /// (0 : X et Y, 1 : X seul, 2 : Z) et lecture à la fin de chaque impression réussie (coupée par défaut)
+    StoreItem<std::array<char, 13>, std::array<char, 13> {}, ItemFlag::features, journal::hash("OD3D Music File")> od3d_music_file;
+    StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Music Motors")> od3d_music_motors;
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Music At Print End")> od3d_music_at_print_end;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

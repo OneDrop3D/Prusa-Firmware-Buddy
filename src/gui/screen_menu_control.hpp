@@ -45,6 +45,9 @@ using ScreenMenuControlSpec = ScreenMenu<EFooter::On,
     od3d::MI_MMU_AXES, // OneDrop3D : les axes du MMU, à côté de ceux de l'imprimante
 #endif
     MI_DISABLE_MOTORS,
+#if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
+    od3d::MI_MOTOR_MUSIC, // OneDrop3D (F18) : musique des moteurs
+#endif
 #if HAS_SHEET_PROFILES()
     MI_CURRENT_SHEET_PROFILE,
 #endif

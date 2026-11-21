@@ -13,4 +13,11 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Contrôle › « Musique des moteurs » (F18) : ouvre l'écran de la musique des moteurs
+class MI_MOTOR_MUSIC final : public IWindowMenuItem {
+public:
+    MI_MOTOR_MUSIC();
+    void click(IWindowMenu &) override;
+};
+
 } // namespace od3d

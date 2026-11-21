@@ -37,3 +37,10 @@ target_include_directories(
   )
 target_link_libraries(draw_od3d_tests buddy_utils byte_utils)
 add_catch_test(draw_od3d_tests)
+
+add_executable(
+  music_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/music_od3d_test.cpp
+                   ${CMAKE_SOURCE_DIR}/src/feature/od3d/music_od3d.cpp
+  )
+target_include_directories(music_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(music_od3d_tests)

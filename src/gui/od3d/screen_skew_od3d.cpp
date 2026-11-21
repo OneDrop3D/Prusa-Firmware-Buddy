@@ -105,22 +105,23 @@ MI_SKEW_APPLY::MI_SKEW_APPLY()
 
 void MI_SKEW_APPLY::click(IWindowMenu &) {
     const skew::Result result = measured();
-    switch (result.status) {
-    case skew::Status::inconsistent:
+    // La pièce a été imprimée avec la correction actuelle : l'écart mesuré est le reste, il s'y ajoute
+    // (deux cisaillements s'additionnent). Pour repartir de zéro : « Remettre à zéro », puis réimprimer.
+    const float total = config_store().od3d_skew_xy.get() + result.factor;
+    if (result.status == skew::Status::inconsistent) {
         MsgBoxWarning(_("Inconsistent measurements: check AC, BD and AD."), Responses_Ok);
         return;
-    case skew::Status::too_large:
+    }
+    if (result.status == skew::Status::too_large || !skew::is_valid_factor(total)) {
         MsgBoxWarning(_("Skew over 0.57\xC2\xB0: adjust the frame and belts rather than correcting it."), Responses_Ok);
         return;
-    case skew::Status::ok:
-        break;
     }
     // M852 enregistre le facteur (config_store) et l'applique dans le fil de Marlin
-    marlin_client::gcode_printf("M852 I%.6f", static_cast<double>(result.factor));
+    marlin_client::gcode_printf("M852 I%.6f", static_cast<double>(total));
     char angle[16];
-    format_degrees(result.factor, angle, sizeof(angle));
+    format_degrees(total, angle, sizeof(angle));
     StringViewUtf8Parameters<16> params;
-    MsgBoxInfo(_("XY correction saved: %s. Used for prints (with bed leveling). Print the test piece again to check.").formatted(params, angle), Responses_Ok);
+    MsgBoxInfo(_("XY correction saved: %s (measured skew added to the current one). Used for prints with bed leveling. Print the test piece again to check.").formatted(params, angle), Responses_Ok);
 }
 
 MI_SKEW_CURRENT::MI_SKEW_CURRENT()

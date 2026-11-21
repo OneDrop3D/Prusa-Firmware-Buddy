@@ -10426,8 +10426,8 @@ msgstr "Écart de plus de 0,57° : réglez plutôt le cadre et les courroies."
 
 #: src/gui/od3d/screen_skew_od3d.cpp
 #, c-format
-msgid "XY correction saved: %s. Used for prints (with bed leveling). Print the test piece again to check."
-msgstr "Correction XY enregistrée : %s. Elle sert aux impressions (avec le nivellement). Réimprimez la pièce pour vérifier."
+msgid "XY correction saved: %s (measured skew added to the current one). Used for prints with bed leveling. Print the test piece again to check."
+msgstr "Correction XY enregistrée : %s (écart mesuré ajouté à la correction actuelle). Elle sert aux impressions avec nivellement. Réimprimez la pièce pour vérifier."
 
 #: src/gui/od3d/screen_skew_od3d.cpp
 msgid "Reset to zero"

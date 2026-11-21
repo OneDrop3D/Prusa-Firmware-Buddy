@@ -308,9 +308,9 @@ namespace atelier {
         return served && request.op == op && request.slot == slot;
     }
 
-    bool write_register(uint8_t reg, uint8_t value) {
+    bool write_register(uint8_t reg, uint16_t value) {
         char gcode[24];
-        snprintf(gcode, sizeof(gcode), "M708 A0x%02x X%u", reg, value);
+        snprintf(gcode, sizeof(gcode), "M708 A0x%02x X%u", reg, unsigned(value));
         return gui_try_gcode_with_msg(gcode);
     }
 

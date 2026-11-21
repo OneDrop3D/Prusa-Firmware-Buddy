@@ -209,6 +209,11 @@ public:
         }
     }
 
+    /// OneDrop3D : numéro de build du firmware du MMU connecté, 0 s'il n'est pas actif
+    uint16_t GetMMUFWVersionBuild() const {
+        return State() == xState::Active ? logic.MmuFwVersionBuild() : 0;
+    }
+
     /// Method to read-only mmu_print_saved
     inline bool MMU_PRINT_SAVED() const { return mmu_print_saved != SavedState::None; }
 

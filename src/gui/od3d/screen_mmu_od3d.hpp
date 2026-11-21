@@ -90,7 +90,7 @@ private:
 class ScreenMMUMotors final : public Screen {
 public:
     ScreenMMUMotors();
-    /// Relâche le galet serré depuis cet écran (BUG-1 : serré, son moteur reste à 530 mA)
+    /// Relâche le galet serré depuis cet écran (BUG-1 : serré, son moteur reste à 530 mA) et arrête le nettoyage
     ~ScreenMMUMotors();
 
 protected:
@@ -99,6 +99,8 @@ protected:
 private:
     void update();
     void show();
+    /// Emplacement des pas de 10 mm : celui du galet serré, sinon celui du sélecteur ; -1 sans emplacement
+    int8_t pulley_slot() const;
 
     Header header;
     Panel pulley_panel;
@@ -119,6 +121,11 @@ private:
     bool engaged_here = false; ///< galet serré par cet écran : à relâcher en partant ou après le délai
     uint32_t engaged_ms = 0; ///< moment de la dernière commande « serrer »
     int16_t seconds_left = -1; ///< compte à rebours affiché, -1 sans
+    bool pulley_supported = false; ///< le firmware du MMU connecté a le registre 0x24 (F12)
+    bool cleaning = false; ///< « Nettoyer » envoyé par cet écran, pas encore arrêté
+    uint32_t cleaning_ms = 0; ///< moment du lancement du nettoyage
+    int16_t clean_left = -1; ///< secondes de nettoyage restantes affichées, -1 sans
+    StringViewUtf8Parameters<4> pulley_params;
     StringViewUtf8Parameters<4> selector_params;
     StringViewUtf8Parameters<8> idler_params; ///< emplacement et secondes restantes
 };

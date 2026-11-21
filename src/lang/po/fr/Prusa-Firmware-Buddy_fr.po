@@ -10557,3 +10557,21 @@ msgstr "Réglez le poids net de la bobine pour commencer son suivi."
 #, c-format
 msgid "Slot %d: %d g needed, about %d g left"
 msgstr "Emplacement %d : %d g prévus, il reste ~%d g"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "cleaning (stops in %d s)"
+msgstr "nettoyage (arrêt dans %d s)"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "choose a slot below"
+msgstr "choisir un emplacement"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "pulley on slot %d"
+msgstr "poulie sur l'emplacement %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Stop cleaning"
+msgstr "Arrêter"

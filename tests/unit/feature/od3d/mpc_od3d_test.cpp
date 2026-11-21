@@ -495,19 +495,19 @@ TEST_CASE("mpc F8 : la hausse monte d'un coup et redescend en rampe") {
 
 namespace {
 
-/// Buse simulée et MPC, avec la vitesse du filament à venir donnée à part (puissance anticipée)
+/// Buse simulée et MPC, avec la vitesse du filament à venir donnée à part (puissance anticipée). Mesure sans bruit
+/// (sonde simulée lue directement : std::normal_distribution refuse un écart type nul), pour comparer deux essais.
 struct FfLoop {
     Plant plant;
     Model model;
     float pwm = 0;
 
     FfLoop() {
-        plant.noise = 0;
         model.set_params(good_params());
     }
 
     void step(float target, float fan, float e_now, float e_ahead) {
-        pwm = model.step(StepArgs { dt, plant.measure(), target, max_target, fan, e_now, pwm, pwm_max, e_ahead });
+        pwm = model.step(StepArgs { dt, plant.t_sensor, target, max_target, fan, e_now, pwm, pwm_max, e_ahead });
         REQUIRE(pwm >= 0);
         REQUIRE(pwm <= pwm_max);
         plant.step(dt, pwm, fan, e_now);
@@ -543,7 +543,6 @@ TEST_CASE("mpc F8 : puissance anticipée") {
         a.set_params(good_params());
         b.set_params(good_params());
         Plant p;
-        p.noise = 0;
         float pwm_a = 0, pwm_b = 0;
         for (int i = 0; i < 500; ++i) {
             const float e = (i / 50) % 2 ? 5.0f : 0.0f;

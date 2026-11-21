@@ -472,6 +472,12 @@ struct CurrentStore
     StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Soft Cooldown Step")> od3d_cooldown_step;
     StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Cooldown Interval")> od3d_cooldown_interval;
     StoreItem<uint8_t, 50, ItemFlag::features, journal::hash("OD3D Cooldown Floor")> od3d_cooldown_floor;
+    /// OneDrop3D (F30) : reprise sans cicatrice (coupée par défaut) ; purge (mm), rétraction (dixièmes de mm), vitesse
+    /// de la dernière descente (mm/s)
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Clean Resume Enabled")> od3d_clean_resume;
+    StoreItem<uint8_t, 8, ItemFlag::features, journal::hash("OD3D Clean Resume Purge")> od3d_clean_resume_purge;
+    StoreItem<uint8_t, 8, ItemFlag::features, journal::hash("OD3D Clean Resume Retract")> od3d_clean_resume_retract;
+    StoreItem<uint8_t, 2, ItemFlag::features, journal::hash("OD3D Clean Resume Approach")> od3d_clean_resume_approach;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

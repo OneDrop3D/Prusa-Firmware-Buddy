@@ -28,22 +28,26 @@ namespace {
     constexpr uint16_t thumb_w = thumbnail_sizes::preview_thumbnail_width;
     constexpr uint16_t thumb_h = thumbnail_sizes::preview_thumbnail_height;
 
-    // Grille (SPEC_G.md §3.9) : 4 cartes de 228 × 114, haut de 72 px pour la vignette (313 × 173 réduite au tiers)
+    // Grille (SPEC_G.md §3.9) : 4 cartes de 228 × 110 (114 dans la maquette, sous l'en-tête de 40 px), haut de 72 px
+    // pour la vignette (313 × 173 réduite au tiers)
     constexpr Rect16 tile_body(int i) {
-        return Rect16(style::margin + (i % 2) * 236, 32 + (i / 2) * 120, 228, 114);
+        return Rect16(style::margin + (i % 2) * 236, style::top + (i / 2) * 116, 228, 110);
     }
     constexpr uint16_t tile_thumb_h = 72;
     constexpr uint8_t grid_factor = 3;
-    constexpr Rect16 grid_rect = Rect16::fromLTRB(style::margin, 32, style::screen_w - style::margin, 266);
+    constexpr Rect16 grid_rect = Rect16::fromLTRB(style::margin, style::top, style::screen_w - style::margin, tile_body(3).Bottom() + 1);
     static_assert(thumb_w / grid_factor <= tile_body(0).Width() && thumb_h / grid_factor <= tile_thumb_h);
     static_assert(style::inside(style::content, style::with_ring(tile_body(3))));
 
-    // Avant l'impression (§3.10)
-    constexpr Rect16 preview_box = { style::margin, 32, 212, 146 };
+    // Avant l'impression (§3.10), sous l'en-tête de 40 px : case de l'aperçu 136 px de haut (146 dans la maquette)
+    constexpr Rect16 preview_box = { style::margin, style::top, 212, 136 };
     constexpr uint8_t preview_factor = 2;
     constexpr int16_t info_x = 230;
-    constexpr Rect16 print_body = { style::margin, 220, 228, 44 };
-    constexpr Rect16 map_body = { 244, 220, 228, 44 };
+    constexpr int16_t warning_y = 188;
+    constexpr Rect16 print_body = { style::margin, 228, 228, 44 };
+    constexpr Rect16 map_body = { 244, 228, 228, 44 };
+    static_assert(preview_box.Bottom() < warning_y && warning_y + 2 * 16 <= style::with_ring(print_body).Top());
+    static_assert(style::inside(style::content, style::with_ring(map_body)));
     static_assert(thumb_w / preview_factor <= preview_box.Width() && thumb_h / preview_factor <= preview_box.Height());
 
     constexpr const char *dot = " \xC2\xB7 "; ///< « · » : dans la police grâce au titre « Fichiers · clé USB » du .po
@@ -154,28 +158,6 @@ bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<
     return true;
 }
 
-void draw_ring(Rect16 outer, Color ring, Color back, uint8_t radius) {
-    const int w = outer.Width(), h = outer.Height();
-    const auto span = [&](int y, int from, int to, Color c) {
-        if (to > from) {
-            display::fill_rect(Rect16(outer.Left() + from, outer.Top() + y, to - from, 1), c);
-        }
-    };
-    for (int y = 0; y < h; ++y) {
-        const int out = print_info::corner_inset(y, h, radius + style::ring);
-        span(y, 0, out, back);
-        span(y, w - out, w, back);
-        if (y < style::ring || y >= h - style::ring) {
-            span(y, out, w - out, ring);
-        } else {
-            // Bande de l'anneau : la marge et les coins du corps, concentriques à ceux du bord
-            const int in = style::ring + print_info::corner_inset(y - style::ring, h - 2 * style::ring, radius);
-            span(y, out, in, ring);
-            span(y, w - in, w - out, ring);
-        }
-    }
-}
-
 // ---- Grille des fichiers ----
 
 std::array<char, filename_defs::path_buffer_size> ScreenFiles::dir { '/', 'u', 's', 'b' };
@@ -203,26 +185,28 @@ void FileTile::set(Kind k, uint8_t index_in_view) {
 }
 
 void FileTile::unconditionalDraw() {
+    // La marge et la partie basse de la carte ; le haut (vignette) est FileThumb, qui ne se relit pas au focus.
+    // Focus : la partie basse plus claire, sans anneau
     const Rect16 outer = GetRect();
-    const Color ring = IsFocused() ? style::focus_ring : style::screen;
-    draw_ring(outer, ring, style::screen, style::radius_big);
+    draw_margin(outer, style::screen);
 
     const Rect16 body(outer.Left() + style::ring, outer.Top() + style::ring, outer.Width() - 2 * style::ring, outer.Height() - 2 * style::ring);
     const Rect16 text_area(body.Left(), body.Top() + tile_thumb_h, body.Width(), body.Height() - tile_thumb_h);
-    display::draw_rounded_rect(text_area, ring, style::surface, style::radius_big, MIC_BOT_LEFT | MIC_BOT_RIGHT);
+    const Color bg = IsFocused() ? style::focused(style::surface) : style::surface;
+    display::draw_rounded_rect(text_area, style::screen, bg, style::radius_big, MIC_BOT_LEFT | MIC_BOT_RIGHT);
 
     const int16_t x = body.Left() + 10;
     const uint16_t w = body.Width() - 20;
     std::array<char, 32> name;
     display_name(screen.display_name(*this), kind == Kind::file, name, w / width(Font::small));
-    draw_text(Rect16(x, body.Top() + 78, w, height(Font::small)), string_view_utf8::MakeRAM(name.data()), Font::small, style::text_strong, style::surface);
+    draw_text(Rect16(x, body.Top() + 76, w, height(Font::small)), string_view_utf8::MakeRAM(name.data()), Font::small, style::text_strong, bg);
 
-    const Rect16 line(x, body.Top() + 96, w, height(Font::small));
+    const Rect16 line(x, body.Top() + 92, w, height(Font::small));
     switch (kind) {
     case Kind::file: {
         std::array<char, 32> text;
         summary(info, false, text);
-        draw_text(line, string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::surface);
+        draw_text(line, string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, bg);
         // Une bobine pleine par emplacement utilisé, alignées à droite
         constexpr uint8_t d = 12, step = 16;
         int16_t spool_x = body.Left() + body.Width() - 10 - (std::popcount(info.used) * step - (step - d));
@@ -230,17 +214,17 @@ void FileTile::unconditionalDraw() {
             if (info.is_used(t)) {
                 spool::Look look = Slot::read(t).look;
                 look.fill_percent = 100;
-                draw_spool({ spool_x, int16_t(line.Top() + 2) }, look, d);
+                draw_spool({ spool_x, int16_t(line.Top() + 2) }, look, d, bg);
                 spool_x += step;
             }
         }
         break;
     }
     case Kind::folder:
-        draw_text(line, _("Folder"), Font::small, style::text_muted, style::surface);
+        draw_text(line, _("Folder"), Font::small, style::text_muted, bg);
         break;
     case Kind::up:
-        draw_text(line, _("Back"), Font::small, style::text_muted, style::surface);
+        draw_text(line, _("Back"), Font::small, style::text_muted, bg);
         break;
     case Kind::none:
         break;
@@ -277,32 +261,38 @@ FileThumb::FileThumb(ScreenFiles &screen, const FileTile &tile, uint8_t index)
     set_visible(false);
 }
 
+bool FileThumb::request_image() {
+    if (image_drawn || image_requested || !IsVisible() || IsInvalid()) {
+        return false;
+    }
+    image_requested = true;
+    Invalidate();
+    ValidateBackground(); // la case reste, seule la vignette se dessine
+    return true;
+}
+
 void FileThumb::unconditionalDraw() {
     const Rect16 box = GetRect();
-    // Les coins hors de l'arrondi sont dans la bande de l'anneau de la carte
-    const Color corner = tile.IsFocused() ? style::focus_ring : style::screen;
-    display::draw_rounded_rect(box, corner, style::thumb_back, style::radius_big, MIC_TOP_LEFT | MIC_TOP_RIGHT);
-
-    const img::Resource *icon = nullptr;
-    switch (tile.kind) {
-    case FileTile::Kind::file: {
-        std::array<char, filename_defs::path_buffer_size> path;
-        if (screen.entry_path(tile, path) && draw_thumbnail(path.data(), box, grid_factor, screen.scaler)) {
-            return;
+    if (!HasValidBackground()) {
+        // La case et son icône ; pour un fichier, l'icône attend la vignette (LOOP suivant) ou reste s'il n'y en a pas
+        display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        image_drawn = tile.kind != FileTile::Kind::file;
+        const img::Resource *icon = tile.kind == FileTile::Kind::file ? &img::print_16x16
+            : tile.kind == FileTile::Kind::folder                    ? &img::folder_full_16x16
+            : tile.kind == FileTile::Kind::up                        ? &img::folder_up_16x16
+                                                                      : nullptr;
+        if (icon) {
+            draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, *icon, style::thumb_back);
         }
-        icon = &img::print_16x16;
-        break;
     }
-    case FileTile::Kind::folder:
-        icon = &img::folder_full_16x16;
-        break;
-    case FileTile::Kind::up:
-        icon = &img::folder_up_16x16;
-        break;
-    case FileTile::Kind::none:
-        return;
+    if (image_requested) {
+        image_requested = false;
+        image_drawn = true;
+        std::array<char, filename_defs::path_buffer_size> path;
+        if (tile.kind == FileTile::Kind::file && screen.entry_path(tile, path)) {
+            draw_thumbnail(path.data(), box, grid_factor, screen.scaler);
+        }
     }
-    draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, *icon, style::thumb_back);
 }
 
 ScreenFiles::ScreenFiles()
@@ -439,6 +429,11 @@ void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) 
         if (!loaded) {
             load(); // si InitState n'a pas été appelé
         }
+        for (FileThumb &t : thumbs) {
+            if (t.request_image()) {
+                break; // une vignette par LOOP
+            }
+        }
         break;
     case GUI_event_t::MEDIA:
         if (const auto state = MediaState_t(int(param)); state == MediaState_t::inserted || state == MediaState_t::removed) {
@@ -480,13 +475,13 @@ void ScreenPreview::Button::draw_content(Rect16 body) {
     const uint16_t text_w = label.computeNumUtf8Chars() * width(Font::small);
     const int16_t y = body.Top() + (body.Height() - height(Font::small)) / 2;
     if (!primary) {
-        draw_text(Rect16(body.Left(), y, body.Width(), height(Font::small)), label, Font::small, fg, body_color, Align_t::Center());
+        draw_text(Rect16(body.Left(), y, body.Width(), height(Font::small)), label, Font::small, fg, fill(), Align_t::Center());
         return;
     }
     const int16_t x = body.Left() + (body.Width() - 16 - 6 - text_w) / 2;
     const ropfn rop = active ? ropfn { .swap_bw = has_swapped_bw::yes } : ropfn { .shadow = is_shadowed::yes };
-    draw_icon({ x, y }, img::print_16x16, body_color, rop);
-    draw_text(Rect16(x + 16 + 6, y, text_w, height(Font::small)), label, Font::small, fg, body_color);
+    draw_icon({ x, y }, img::print_16x16, fill(), rop);
+    draw_text(Rect16(x + 16 + 6, y, text_w, height(Font::small)), label, Font::small, fg, fill());
 }
 
 ScreenPreview::ScreenPreview()
@@ -519,10 +514,10 @@ void ScreenPreview::unconditionalDraw() {
     }
 
     const uint16_t w = style::screen_w - style::margin - info_x;
-    draw_text(Rect16(info_x, 32, w, height(Font::normal)), string_view_utf8::MakeRAM(name.data()), Font::normal, style::text_strong, style::screen);
+    draw_text(Rect16(info_x, style::top, w, height(Font::normal)), string_view_utf8::MakeRAM(name.data()), Font::normal, style::text_strong, style::screen);
     std::array<char, 40> text;
     summary(info, true, text);
-    draw_text(Rect16(info_x, 55, w, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::screen);
+    draw_text(Rect16(info_x, style::top + 23, w, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::screen);
 
     // Une ligne par emplacement utilisé : bobine, « n · matière chargée », grammes du fichier
     int row = 0, mismatch = -1;
@@ -531,9 +526,9 @@ void ScreenPreview::unconditionalDraw() {
         if (!info.is_used(t)) {
             continue;
         }
-        const int16_t y = 74 + 19 * row++;
+        const int16_t y = style::top + 42 + 19 * row++;
         const Slot slot = Slot::read(t);
-        draw_spool({ info_x, y }, slot.look, 16);
+        draw_spool({ info_x, y }, slot.look, 16, style::screen);
         snprintf(text.data(), text.size(), "%d%s%s", t + 1, dot, slot.material.data());
         draw_text(Rect16(info_x + 22, y, 160, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
         snprintf(text.data(), text.size(), "%.0f g", double(info.grams[t]));
@@ -548,7 +543,7 @@ void ScreenPreview::unconditionalDraw() {
     if (mismatch >= 0) {
         StringViewUtf8Parameters<24> params;
         const string_view_utf8 warning = _("Slot %d: %s in the file, %s loaded").formatted(params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
-        render_text_align(Rect16(style::margin, 184, style::screen_w - 2 * style::margin, 2 * height(Font::small)), warning, Font::small, style::screen, style::warning, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
+        render_text_align(Rect16(style::margin, warning_y, style::screen_w - 2 * style::margin, 2 * height(Font::small)), warning, Font::small, style::screen, style::warning, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
     }
 }
 

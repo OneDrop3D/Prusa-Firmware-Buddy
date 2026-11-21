@@ -38,18 +38,25 @@ private:
 };
 
 /// Carte du dernier fichier : vignette, « Dernier fichier », nom. « Imprimer » est un élément à part,
-/// pour que le focus ne fasse pas relire la vignette sur la clé.
+/// pour que le focus ne fasse pas relire la vignette sur la clé. La vignette est lue au LOOP qui suit le dessin de la
+/// carte : l'écran s'affiche d'abord, la clé est lue ensuite.
 class FileCard : public window_t {
 public:
     explicit FileCard(window_t *parent);
 
     /// @param latest chemin du dernier fichier, nullptr s'il n'y en a pas
-    void set(bool usb, const char *latest);
+    /// @return la carte a changé (elle se redessine)
+    bool set(bool usb, const char *latest);
+
+    /// Un fichier était connu (clé insérée) à la dernière ouverture de l'accueil : l'écran le reprend sans relire la clé
+    static bool known() { return state != State::no_usb; }
+    static bool has_file() { return state == State::file; }
 
     void print() const;
 
 protected:
     void unconditionalDraw() override;
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
     bool draw_thumbnail(Rect16 box);
@@ -60,9 +67,13 @@ private:
         file,
     };
 
-    State state = State::no_usb;
-    std::array<char, filename_defs::path_buffer_size> path {};
-    std::array<char, 64> name {}; ///< nom affiché, sans extension, coupé à la largeur de la carte
+    // Gardés d'une ouverture de l'accueil à l'autre (l'écran est recréé à chaque retour)
+    static State state;
+    static std::array<char, filename_defs::path_buffer_size> path;
+    static std::array<char, 64> name; ///< nom affiché, sans extension, coupé à la largeur de la carte
+
+    bool thumb_drawn = false; ///< la vignette (ou son icône) est à l'écran
+    bool thumb_requested = false; ///< à dessiner au prochain dessin, sans repeindre la carte
     std::optional<ScaledQoiReader> scaler; ///< dans l'écran plutôt que sur la pile de l'interface (6 Ko)
 };
 
@@ -107,6 +118,7 @@ private:
     TabBar tabs;
 
     bool usb_inserted;
+    bool rescan = false; ///< relire la clé au 1er LOOP (l'écran a repris le dernier fichier connu)
     bool event_in_progress = false;
     MediaState_t media_event = MediaState_t::unknown;
     static bool usb_was_already_inserted; ///< une clé a déjà été vue depuis le démarrage

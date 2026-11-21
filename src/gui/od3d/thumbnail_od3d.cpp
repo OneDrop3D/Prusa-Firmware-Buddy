@@ -122,4 +122,81 @@ bool ScaledQoiReader::outside_corner(int x, int y) const {
     return dx >= 0 && dy >= 0 && dx * dx + dy * dy >= r * r;
 }
 
+// ---- Image calculée ----
+
+PixelQoiReader::PixelQoiReader(uint16_t w, uint16_t h, Pixel pixel, const void *ctx)
+    : pixel(pixel)
+    , ctx(ctx)
+    , w(w)
+    , h(h) {}
+
+WritableBytes PixelQoiReader::read(WritableBytes buffer) {
+    size_t n = 0;
+    while (n < buffer.size() && (pending_pos < pending_len || next())) {
+        buffer[n++] = pending[pending_pos++];
+    }
+    return buffer.first(n);
+}
+
+Color PixelQoiReader::take() {
+    Color c = peeked ? *peeked : pixel(ctx, pos % w, pos / w);
+    peeked.reset();
+    ++pos;
+    return c;
+}
+
+bool PixelQoiReader::next() {
+    pending_pos = pending_len = 0;
+    const uint32_t total = uint32_t(w) * h;
+
+    if (!started) {
+        started = true;
+        if (total == 0) {
+            return false;
+        }
+        constexpr std::array<char, 4> magic { 'q', 'o', 'i', 'f' };
+        for (size_t i = 0; i < magic.size(); ++i) {
+            pending[i] = std::byte(magic[i]);
+        }
+        put_be32(&pending[4], w);
+        put_be32(&pending[8], h);
+        pending[12] = std::byte(3); // RGB
+        pending[13] = std::byte(0);
+        pending_len = qoi::Decoder::HEADER_SIZE;
+        return true;
+    }
+    if (pos >= total) {
+        return false;
+    }
+
+    const Color c = take();
+    if (last && c == *last) {
+        // QOI_OP_RUN : le pixel précédent, 1 à 62 fois
+        uint8_t run = 1;
+        while (run < 62 && pos < total) {
+            peeked = pixel(ctx, pos % w, pos / w);
+            if (*peeked != c) {
+                break;
+            }
+            peeked.reset();
+            ++pos;
+            ++run;
+        }
+        pending[0] = std::byte(0xc0 | (run - 1));
+        pending_len = 1;
+        return true;
+    }
+
+    // QOI_OP_RGB. L'écran mélange chaque pixel au fond avec une opacité de 255 (Color::mix), ce qui retire 1 à chaque
+    // canal : +1 le compense, et le pixel tombe sur la même couleur qu'un fill_rect (les 6 bits hauts de chaque canal).
+    last = c;
+    const auto up = [](uint8_t v) { return std::byte(v == 255 ? 255 : v + 1); };
+    pending[0] = std::byte(0xfe);
+    pending[1] = up(c.r);
+    pending[2] = up(c.g);
+    pending[3] = up(c.b);
+    pending_len = 4;
+    return true;
+}
+
 } // namespace od3d

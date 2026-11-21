@@ -34,20 +34,21 @@ namespace od3d {
 
 namespace {
 
-    // Géométrie de l'accueil (SPEC_G.md §3.1)
+    // Géométrie de l'accueil (SPEC_G.md §3.1), sous l'en-tête de 40 px : carte du fichier 7 px moins haute
     constexpr Rect16 spool_body(int i) {
-        return Rect16(style::margin + i * 79, 32, 74, 64);
+        return Rect16(style::margin + i * 79, style::top, 74, 64);
     }
-    constexpr Rect16 mmu_body = { 403, 32, 69, 64 };
-    constexpr Rect16 file_rect = { style::margin, 104, 464, 104 };
-    constexpr Rect16 thumb_rect = { 16, 113, thumbnail_sizes::preview_thumbnail_width / 2, thumbnail_sizes::preview_thumbnail_height / 2 };
-    constexpr Rect16 print_body = { 342, 166, 122, 34 };
-    constexpr Rect16 files_body = { style::margin, 214, 128, 52 };
-    constexpr Rect16 temps_body = { 144, 214, 192, 52 };
-    constexpr Rect16 control_body = { 344, 214, 128, 52 };
+    constexpr Rect16 mmu_body = { 403, style::top, 69, 64 };
+    constexpr Rect16 file_rect = { style::margin, 117, 464, 97 };
+    constexpr Rect16 thumb_rect = { 16, file_rect.Top() + 5, thumbnail_sizes::preview_thumbnail_width / 2, thumbnail_sizes::preview_thumbnail_height / 2 };
+    constexpr Rect16 print_body = { 342, 171, 122, 34 };
+    constexpr Rect16 files_body = { style::margin, 220, 128, 52 };
+    constexpr Rect16 temps_body = { 144, 220, 192, 52 };
+    constexpr Rect16 control_body = { 344, 220, 128, 52 };
     constexpr uint8_t name_chars = 25; ///< nom du fichier en gras (11 px) sur 280 px
 
     static_assert(thumb_rect.Width() == 156 && thumb_rect.Height() == 86, "vignette 313 × 173 de l'aperçu Prusa, réduite de moitié");
+    static_assert(style::with_ring(spool_body(0)).Bottom() < file_rect.Top() && file_rect.Bottom() < style::with_ring(files_body).Top());
     static_assert(style::inside(style::content, style::with_ring(spool_body(0))) && style::inside(style::content, style::with_ring(mmu_body)));
     static_assert(spool_body(4).Right() + 1 + 5 == mmu_body.Left() && mmu_body.Right() + 1 == style::screen_w - style::margin);
     static_assert(style::inside(file_rect, style::with_ring(print_body)) && style::inside(file_rect, thumb_rect));
@@ -95,34 +96,35 @@ void SpoolCard::update(bool mmu_ready) {
     if (!(s == slot) || enabled != IsEnabled()) {
         slot = s;
         set_enabled(enabled);
-        Invalidate();
+        invalidate_content();
     }
 }
 
 void SpoolCard::draw_content(Rect16 body) {
     constexpr uint8_t d = 40;
     const point_i16_t at { int16_t(body.Left() + (body.Width() - d) / 2), int16_t(body.Top() + 3) };
-    if (slot.loaded) {
-        // Chargée dans la buse : anneau orange de 2 px autour du disque
-        display::draw_rounded_rect(Rect16(at.x - 2, at.y - 2, d + 4, d + 4), body_color, style::accent, d / 2 + 2, MIC_ALL_CORNERS);
-    }
-    draw_spool(at, slot.look, d);
+    // Chargée dans la buse : anneau orange de 2 px autour du disque ; sinon le carré de l'anneau au fond de la carte
+    draw_spool(at, slot.look, d, fill(), std::optional<Color>(slot.loaded ? style::accent : fill()));
 
     char label[12];
     snprintf(label, sizeof(label), "%d %s", index + 1, slot.material.data());
     const Color color = slot.loaded ? style::accent : (IsEnabled() ? style::text_soft : style::text_faint);
-    draw_text(Rect16(body.Left(), body.Top() + 45, body.Width(), height(Font::small)), string_view_utf8::MakeRAM(label), Font::small, color, body_color, Align_t::Center());
+    draw_text(Rect16(body.Left(), body.Top() + 45, body.Width(), height(Font::small)), string_view_utf8::MakeRAM(label), Font::small, color, fill(), Align_t::Center());
 }
 
 // ---- Dernier fichier ----
 
+FileCard::State FileCard::state = FileCard::State::no_usb;
+std::array<char, filename_defs::path_buffer_size> FileCard::path {};
+std::array<char, 64> FileCard::name {};
+
 FileCard::FileCard(window_t *parent)
     : window_t(parent, file_rect) {}
 
-void FileCard::set(bool usb, const char *latest) {
+bool FileCard::set(bool usb, const char *latest) {
     const State s = !usb ? State::no_usb : (latest ? State::file : State::no_file);
     if (s == state && (!latest || strcmp(latest, path.data()) == 0)) {
-        return;
+        return false;
     }
     state = s;
     path[0] = name[0] = '\0';
@@ -137,6 +139,7 @@ void FileCard::set(bool usb, const char *latest) {
         strlcpy(name.data(), lfn.data(), name.size());
     }
     Invalidate();
+    return true;
 }
 
 void FileCard::print() const {
@@ -167,20 +170,40 @@ bool FileCard::draw_thumbnail(Rect16 box) {
 
 void FileCard::unconditionalDraw() {
     const Rect16 card = GetRect();
-    display::draw_rounded_rect(card, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
+    if (!HasValidBackground()) {
+        // La carte, la case vide de la vignette (elle arrive au LOOP suivant) et les textes
+        display::draw_rounded_rect(card, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(thumb_rect, style::surface, style::thumb_back, 10, MIC_ALL_CORNERS);
+        if (state != State::file) {
+            draw_icon({ int16_t(thumb_rect.Left() + (thumb_rect.Width() - 16) / 2), int16_t(thumb_rect.Top() + (thumb_rect.Height() - 16) / 2) }, img::folder_full_16x16, style::thumb_back);
+        }
+        thumb_drawn = state != State::file;
 
-    display::draw_rounded_rect(thumb_rect, style::surface, style::thumb_back, 10, MIC_ALL_CORNERS);
-    if (!draw_thumbnail(thumb_rect)) {
-        draw_icon({ int16_t(thumb_rect.Left() + (thumb_rect.Width() - 16) / 2), int16_t(thumb_rect.Top() + (thumb_rect.Height() - 16) / 2) }, img::folder_full_16x16, style::thumb_back);
+        const int16_t x = thumb_rect.Left() + thumb_rect.Width() + 12;
+        const uint16_t w = card.Left() + card.Width() - style::margin - x;
+        draw_text(Rect16(x, card.Top() + 6, w, height(Font::small)), _("Latest file"), Font::small, style::text_muted, style::surface);
+        const string_view_utf8 line = state == State::file
+            ? string_view_utf8::MakeRAM(name.data())
+            : (state == State::no_file ? _("No printable file") : _("Insert a USB drive"));
+        draw_text(Rect16(x, card.Top() + 24, w, height(Font::normal)), line, Font::normal, state == State::file ? style::text_strong : style::text_muted, style::surface);
     }
+    if (thumb_requested) {
+        thumb_requested = false;
+        thumb_drawn = true;
+        if (!draw_thumbnail(thumb_rect)) {
+            draw_icon({ int16_t(thumb_rect.Left() + (thumb_rect.Width() - 16) / 2), int16_t(thumb_rect.Top() + (thumb_rect.Height() - 16) / 2) }, img::folder_full_16x16, style::thumb_back);
+        }
+    }
+}
 
-    const int16_t x = thumb_rect.Left() + thumb_rect.Width() + 12;
-    const uint16_t w = card.Left() + card.Width() - style::margin - x;
-    draw_text(Rect16(x, card.Top() + 6, w, height(Font::small)), _("Latest file"), Font::small, style::text_muted, style::surface);
-    const string_view_utf8 line = state == State::file
-        ? string_view_utf8::MakeRAM(name.data())
-        : (state == State::no_file ? _("No printable file") : _("Insert a USB drive"));
-    draw_text(Rect16(x, card.Top() + 24, w, height(Font::normal)), line, Font::normal, state == State::file ? style::text_strong : style::text_muted, style::surface);
+void FileCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    // La vignette (lecture sur la clé, ~0,1 s) après le premier dessin : l'accueil s'affiche sans l'attendre
+    if (event == GUI_event_t::LOOP && !thumb_drawn && !thumb_requested && IsVisible() && !IsInvalid()) {
+        thumb_requested = true;
+        Invalidate();
+        ValidateBackground(); // la carte reste, seule la vignette se dessine
+    }
+    window_t::windowEvent(sender, event, param);
 }
 
 PrintButton::PrintButton(window_t *parent, FileCard &file)
@@ -197,8 +220,8 @@ void PrintButton::draw_content(Rect16 body) {
     const uint16_t text_w = label.computeNumUtf8Chars() * width(Font::small);
     const int16_t x = body.Left() + (body.Width() - 16 - 6 - text_w) / 2;
     const int16_t y = body.Top() + (body.Height() - 16) / 2;
-    draw_icon({ x, y }, img::print_16x16, body_color, ropfn { .swap_bw = has_swapped_bw::yes });
-    draw_text(Rect16(x + 16 + 6, y, text_w, height(Font::small)), label, Font::small, style::on_accent, body_color);
+    draw_icon({ x, y }, img::print_16x16, fill(), ropfn { .swap_bw = has_swapped_bw::yes });
+    draw_text(Rect16(x + 16 + 6, y, text_w, height(Font::small)), label, Font::small, style::on_accent, fill());
 }
 
 void PrintButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -235,7 +258,14 @@ ScreenHome::ScreenHome()
     if (usb_inserted) {
         usb_was_already_inserted = true;
     }
-    refresh_file();
+    if (usb_inserted && FileCard::known()) {
+        // Le dernier fichier connu tout de suite ; la clé est relue au 1er LOOP, une fois l'écran affiché
+        rescan = true;
+        print.set_visible(FileCard::has_file());
+        print.set_enabled(FileCard::has_file());
+    } else {
+        refresh_file();
+    }
     update_spools();
 
     // Sans élément ciblé, le cadre ignore les touchers : il en faut toujours un
@@ -252,10 +282,11 @@ ScreenHome::~ScreenHome() {
 void ScreenHome::refresh_file() {
     std::array<char, filename_defs::path_buffer_size> latest;
     const bool found = usb_inserted && screen_home_data_t::find_latest_gcode(latest.data(), latest.size());
-    file.set(usb_inserted, found ? latest.data() : nullptr);
+    if (file.set(usb_inserted, found ? latest.data() : nullptr)) {
+        print.Invalidate(); // la carte s'est redessinée dessous
+    }
     print.set_visible(found);
     print.set_enabled(found);
-    print.Invalidate(); // la carte se redessine dessous
     files.set_subtitle(usb_inserted ? string_view_utf8::MakeCPUFLASH("USB") : _("No USB"));
     if (!found && print.IsFocused()) {
         temps.SetFocus();
@@ -313,6 +344,10 @@ void ScreenHome::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     }
 
     if (event == GUI_event_t::LOOP) {
+        if (rescan) {
+            rescan = false;
+            refresh_file();
+        }
         update_spools();
 
 #if HAS_POWER_PANIC()

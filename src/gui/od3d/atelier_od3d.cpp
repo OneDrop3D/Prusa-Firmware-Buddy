@@ -84,18 +84,16 @@ Button::Colors Button::colors() const {
             c.fill = c.border = style::secondary; // un bouton orange inactif tromperait
         }
     }
+    if (IsFocused()) {
+        c.fill = style::focused(c.fill); // focus : corps plus clair, sans anneau
+    }
     return c;
 }
 
 Rect16 Button::draw_frame(Rect16 b, const Colors &c) {
-    // Le rect englobe la marge de l'anneau : corps dans la couleur du bord, puis l'intérieur rentré du bord
-    draw_body(Rect16(b.Left() - style::ring, b.Top() - style::ring, b.Width() + 2 * style::ring, b.Height() + 2 * style::ring), c.border, back, radius, IsFocused());
-    if (!c.border_w) {
-        return b;
-    }
-    const Rect16 inner(b.Left() + c.border_w, b.Top() + c.border_w, b.Width() - 2 * c.border_w, b.Height() - 2 * c.border_w);
-    display::draw_rounded_rect(inner, c.border, c.fill, radius > c.border_w ? radius - c.border_w : 0, MIC_ALL_CORNERS);
-    return inner;
+    // Corps et contour d'une passe, marge comprise (le rect englobe la marge)
+    od3d::draw_frame(style::with_ring(b), back, c.border, c.fill, radius, c.border_w);
+    return Rect16(b.Left() + c.border_w, b.Top() + c.border_w, b.Width() - 2 * c.border_w, b.Height() - 2 * c.border_w);
 }
 
 void Button::unconditionalDraw() {
@@ -118,7 +116,6 @@ void Button::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 }
 
 void draw_label(Rect16 area, const string_view_utf8 &label, const img::Resource *icon, Font font, Color fg, Color bg, ropfn rop) {
-    display::fill_rect(area, bg);
     constexpr int16_t gap = 6;
     const font_t &f = *resource_font(font); // width() et height() ne servent qu'à la compilation
     const uint16_t chars = label.isNULLSTR() ? 0 : label.computeNumUtf8Chars();

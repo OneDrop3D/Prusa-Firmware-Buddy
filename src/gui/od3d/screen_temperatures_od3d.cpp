@@ -2,6 +2,7 @@
 #include "screen_temperatures_od3d.hpp"
 
 #include "menu_od3d.hpp"
+#include "thumbnail_od3d.hpp"
 #include "value_editor_od3d.hpp"
 
 #include <algorithm>
@@ -33,14 +34,14 @@ namespace {
 
     // Géométrie (SPEC_G.md §3.15) : 3 colonnes de 149 px ; « Préréglages » ajouté entre les deux boutons du bas
     constexpr Rect16 heater_body(int i) {
-        return Rect16(style::margin + i * 157, 32, 149, 128);
+        return Rect16(style::margin + i * 157, style::top, 149, 122);
     }
     constexpr Rect16 fan_body(int i) {
-        return Rect16(style::margin + i * 157, 166, 149, 42);
+        return Rect16(style::margin + i * 157, 174, 149, 42);
     }
-    constexpr Rect16 preheat_body = { 8, 214, 214, 50 };
-    constexpr Rect16 presets_body = { 228, 214, 124, 50 };
-    constexpr Rect16 cooldown_body = { 358, 214, 114, 50 };
+    constexpr Rect16 preheat_body = { 8, 222, 214, 50 };
+    constexpr Rect16 presets_body = { 228, 222, 124, 50 };
+    constexpr Rect16 cooldown_body = { 358, 222, 114, 50 };
 
     static_assert(style::inside(style::content, style::with_ring(heater_body(2))) && style::inside(style::content, style::with_ring(cooldown_body)));
     static_assert(heater_body(0).Bottom() + 2 * style::ring < fan_body(0).Top() && fan_body(0).Bottom() + 2 * style::ring < preheat_body.Top());
@@ -152,9 +153,9 @@ namespace {
     constexpr Card::Action heater_actions[] = { edit_nozzle, edit_bed, edit_chamber };
     constexpr Card::Action fan_actions[] = { edit_print_fan, edit_chamber_fans, toggle_filtration };
 
-    /// Courbe de la dernière minute : trait orange 2 px, cible en pointillés
+    /// Courbe de la dernière minute : trait orange 2 px, cible en pointillés. Une image d'une passe : la courbe ne
+    /// s'efface pas avant d'être redessinée (elle clignotait toutes les 2 s)
     void draw_graph(Rect16 r, const int16_t *values, size_t count, int16_t target, Color bg) {
-        display::fill_rect(r, bg);
         int16_t lo = *std::min_element(values, values + count);
         int16_t hi = *std::max_element(values, values + count);
         if (target > 0) {
@@ -162,28 +163,37 @@ namespace {
             hi = std::max(hi, target);
         }
         if (lo < 0) {
-            return; // pas de mesure
+            display::fill_rect(r, bg); // pas de mesure
+            return;
         }
         if (hi - lo < 10) { // au moins 10 °C de haut : une courbe stable reste plate
             const int16_t mid = (hi + lo) / 2;
             lo = mid - 5;
             hi = mid + 5;
         }
-        const int16_t bottom = r.Top() + r.Height() - 2;
-        const auto y_of = [&](int16_t v) { return int16_t(bottom - (v - lo) * (r.Height() - 2) / (hi - lo)); };
-        const auto x_of = [&](size_t i) { return int16_t(r.Left() + i * (r.Width() - 1) / (count - 1)); };
+        const int h = r.Height() - 2;
+        const auto y_of = [&](int16_t v) { return h - (v - lo) * h / (hi - lo); };
+        const auto x_of = [&](size_t i) { return int(i * (r.Width() - 1) / (count - 1)); };
 
-        if (target > 0) {
-            const int16_t y = y_of(target);
-            for (int16_t x = r.Left(); x < r.Left() + r.Width(); x += 4) {
-                display::fill_rect(Rect16(x, y, 2, 1), target_line);
-            }
-        }
+        // Haut et bas de la courbe dans chaque colonne, segment par segment (comme draw_line)
+        constexpr int max_w = 128;
+        std::array<std::pair<int8_t, int8_t>, max_w> spans;
+        spans.fill({ int8_t(h + 2), int8_t(-1) });
         for (size_t i = 1; i < count; ++i) {
-            for (int16_t thick = 0; thick < 2; ++thick) {
-                display::draw_line(point_ui16(x_of(i - 1), y_of(values[i - 1]) + thick), point_ui16(x_of(i), y_of(values[i]) + thick), style::accent);
+            const int xa = x_of(i - 1), xb = x_of(i), ya = y_of(values[i - 1]), yb = y_of(values[i]);
+            for (int x = xa; x <= xb && x < max_w; ++x) {
+                const auto y_at = [&](int px) { return xb == xa ? yb : ya + (yb - ya) * (std::min(px, xb) - xa) / (xb - xa); };
+                const int y0 = std::min(y_at(x), y_at(x + 1)), y1 = std::max(y_at(x), y_at(x + 1));
+                spans[x] = { int8_t(std::min<int>(spans[x].first, y0)), int8_t(std::max<int>(spans[x].second, y1)) };
             }
         }
+        const int target_y = target > 0 ? y_of(target) : -1;
+        draw_pixels(r, [&](int x, int y) {
+            if (x < max_w && y >= spans[x].first && y <= spans[x].second + 1) {
+                return style::accent; // 2 px d'épaisseur
+            }
+            return (y == target_y && x % 4 < 2) ? target_line : bg;
+        });
     }
 
 } // namespace
@@ -219,25 +229,8 @@ HeaterCard::Reading HeaterCard::read(Heater heater) {
     return r;
 }
 
-void HeaterCard::invalidate_content() {
-    // Comme IWindowMenu : le fond reste valide si rien d'autre ne l'a invalidé (focus, dialogue refermé)
-    const bool background_valid = HasValidBackground();
-    Invalidate();
-    if (background_valid) {
-        ValidateBackground();
-    }
-}
-
-void HeaterCard::unconditionalDraw() {
-    if (HasValidBackground()) {
-        draw_content(body());
-    } else {
-        Card::unconditionalDraw();
-    }
-}
-
 void HeaterCard::draw_content(Rect16 body) {
-    const Color bg = body_color;
+    const Color bg = fill();
     const int16_t x = body.Left() + 10;
     const uint16_t w = body.Width() - 20;
 
@@ -322,7 +315,7 @@ int16_t FanCard::read(Fan fan) {
 void FanCard::draw_content(Rect16 body) {
     static const img::Resource *const icons[] = { &img::fan_16x16, &img::turbine_16x16, &img::enclosure_16x16 };
     static const char *const labels[] = { N_("Part fan"), N_("Chamber fans"), N_("Filtration") };
-    const Color bg = body_color;
+    const Color bg = fill();
     const int16_t x = body.Left() + 10;
     const int16_t text_x = x + 22;
     const uint16_t text_w = body.Left() + body.Width() - 8 - text_x;
@@ -348,7 +341,7 @@ void FanCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP) {
         if (const int16_t v = read(fan); v != value) {
             value = v;
-            Invalidate();
+            invalidate_content();
         }
     }
     Card::windowEvent(sender, event, param);
@@ -370,9 +363,9 @@ void TextButton::draw_content(Rect16 body) {
     const int16_t y = body.Top() + (body.Height() - height(Font::small)) / 2;
     if (icon) {
         // Sur l'orange, l'icône blanche est inversée (noire)
-        draw_icon({ x, y }, *icon, body_color, fg == style::on_accent ? ropfn { .swap_bw = has_swapped_bw::yes } : ropfn {});
+        draw_icon({ x, y }, *icon, fill(), fg == style::on_accent ? ropfn { .swap_bw = has_swapped_bw::yes } : ropfn {});
     }
-    draw_text(Rect16(x + icon_w, y, text_w, height(Font::small)), label, Font::small, color, body_color);
+    draw_text(Rect16(x + icon_w, y, text_w, height(Font::small)), label, Font::small, color, fill());
 }
 
 // ---- Écran ----

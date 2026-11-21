@@ -30,10 +30,14 @@ protected:
         , i_menu(menu) //
     {
         // Do NOT work with i_menu here, it is not yet constructed!
+        SetBackColor(od3d::style::screen); // OneDrop3D (interface G) : fond de la maquette
     }
 
     /// OneDrop3D (interface G) : appui long = retour
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+    /// OneDrop3D (interface G) : le fond seulement entre l'en-tête, la liste et les onglets, qui se peignent eux-mêmes
+    void unconditionalDraw() override;
 
 protected:
     /// OneDrop3D (interface G) : en-tête G ; la barre d'onglets remplace le pied de page

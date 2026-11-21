@@ -19,11 +19,14 @@ namespace {
 
     using atelier::Op;
 
-    // Géométrie de la fiche (SPEC_G.md §3.3)
-    constexpr int16_t top = 96;
+    // Géométrie de la fiche (SPEC_G.md §3.3), resserrée : elle commence sous la bande des bobines de l'accueil (jusqu'à
+    // y 111 avec sa marge) au lieu de la recouvrir de 2 px, ce qui coupait leurs coins du bas
+    constexpr int16_t top = 114;
     constexpr Rect16 band = { 0, top, style::screen_w, style::screen_h - top };
-    constexpr Rect16 head_rect = { 0, top + 1, 393, 61 };
+    constexpr Rect16 head_rect = { 0, top + 1, 393, 54 };
     constexpr uint8_t band_radius = 18;
+    constexpr Rect16 main_body = { 16, top + 60, 448, 42 };
+    constexpr Rect16 close_body = { 397, top + 16, 67, 28 };
 
     enum Tag : uint8_t {
         tag_main,
@@ -51,12 +54,14 @@ namespace {
     };
 
     constexpr Rect16 secondary_body(int i) {
-        return Rect16(16 + 152 * i, 216, 144, 40);
+        return Rect16(16 + 152 * i, top + 110, 144, 38);
     }
     constexpr Rect16 chip_body(int i) {
-        return Rect16(16 + 114 * i, 266, 106, 34);
+        return Rect16(16 + 114 * i, top + 156, 106, 32);
     }
     static_assert(style::inside(band, style::with_ring(chip_body(3))) && style::inside(band, style::with_ring(secondary_body(2))));
+    static_assert(head_rect.Bottom() < style::with_ring(main_body).Top() && style::with_ring(main_body).Bottom() < style::with_ring(secondary_body(0)).Top());
+    static_assert(style::with_ring(secondary_body(0)).Bottom() < style::with_ring(chip_body(0)).Top());
 
     /// Haut de la fiche : poignée, bobine, « Emplacement n · matière », état ; rien d'actif
     class Head : public window_t {
@@ -69,24 +74,21 @@ namespace {
         void unconditionalDraw() override {
             const Rect16 r = GetRect();
             display::fill_rect(r, style::surface);
-            display::draw_rounded_rect(Rect16(222, top + 7, 36, 4), style::surface, Color::from_raw(0x5B5B5B), 2, MIC_ALL_CORNERS);
+            display::draw_rounded_rect(Rect16(222, top + 6, 36, 4), style::surface, Color::from_raw(0x5B5B5B), 2, MIC_ALL_CORNERS);
 
             const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
             const FilamentType type = FilamentType::for_tool(tool);
             const Slot slot = Slot::read(index);
             constexpr uint8_t d = 40;
-            const point_i16_t at { 16, top + 16 };
-            if (slot.loaded) {
-                display::draw_rounded_rect(Rect16(at.x - 2, at.y - 2, d + 4, d + 4), style::surface, style::accent, d / 2 + 2, MIC_ALL_CORNERS);
-            }
-            draw_spool(at, slot.look, d);
+            const point_i16_t at { 16, top + 13 };
+            draw_spool(at, slot.look, d, style::surface, slot.loaded ? std::optional(style::accent) : std::nullopt);
 
             char name[24];
             atelier::spool_name(name, type);
             StringViewUtf8Parameters<32> params;
             const int16_t x = 66;
             const uint16_t w = r.Left() + r.Width() - x;
-            draw_text(Rect16(x, top + 17, w, height(Font::normal)), _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
+            draw_text(Rect16(x, top + 14, w, height(Font::normal)), _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
 
             // État, puis la température de la matière (ce que la fiche sait sans suivi des bobines)
             char status[48];
@@ -97,7 +99,7 @@ namespace {
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · %d/%d\xC2\xB0", p.nozzle_temperature, p.heatbed_temperature);
             }
-            draw_text(Rect16(x, top + 39, w, height(Font::small)), string_view_utf8::MakeRAM(status), Font::small, style::text_muted, style::surface);
+            draw_text(Rect16(x, top + 36, w, height(Font::small)), string_view_utf8::MakeRAM(status), Font::small, style::text_muted, style::surface);
         }
 
     private:
@@ -131,15 +133,15 @@ namespace {
     SpoolSheet::SpoolSheet(uint8_t index)
         : IDialog(style::screen_rect) // tout l'écran : un toucher au-dessus de la fiche la ferme
         , head(this, index)
-        , main(this, Rect16(16, 162, 448, 46), tag_main, Button::Look::primary, {}, nullptr, style::surface, style::radius_big)
+        , main(this, main_body, tag_main, Button::Look::primary, {}, nullptr, style::surface, style::radius_big)
         , change(this, secondary_body(0), tag_change, Button::Look::secondary, _("Change spool"), &img::spool_16x16)
         , material(this, secondary_body(1), tag_material, Button::Look::secondary, _("Material and colour"), &img::user_filament_16x16)
         , usage(this, secondary_body(2), tag_usage, Button::Look::secondary, _("Spool usage"), &img::info_16x16)
-        , preload(this, chip_body(0), tag_preload, Button::Look::outline, _("Preload"), nullptr, style::surface, 17)
-        , eject(this, chip_body(1), tag_eject, Button::Look::outline, _("Eject"), nullptr, style::surface, 17)
-        , cut(this, chip_body(2), tag_cut, Button::Look::outline, _("Cut"), nullptr, style::surface, 17)
-        , pa(this, chip_body(3), tag_pa, Button::Look::alert, _("PA: soon"), nullptr, style::surface, 17)
-        , close(this, Rect16(397, 118, 67, 28), tag_close, Button::Look::secondary, _("Close"), nullptr, style::surface, 13) {
+        , preload(this, chip_body(0), tag_preload, Button::Look::outline, _("Preload"), nullptr, style::surface, chip_body(0).Height() / 2)
+        , eject(this, chip_body(1), tag_eject, Button::Look::outline, _("Eject"), nullptr, style::surface, chip_body(1).Height() / 2)
+        , cut(this, chip_body(2), tag_cut, Button::Look::outline, _("Cut"), nullptr, style::surface, chip_body(2).Height() / 2)
+        , pa(this, chip_body(3), tag_pa, Button::Look::alert, _("PA: soon"), nullptr, style::surface, chip_body(3).Height() / 2)
+        , close(this, close_body, tag_close, Button::Look::secondary, _("Close"), nullptr, style::surface, 13) {
         SetBackColor(style::surface); // ce que la fiche repeint d'elle-même : seulement sa bande
 
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);

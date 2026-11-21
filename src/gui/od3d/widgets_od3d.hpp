@@ -8,6 +8,7 @@
 #include "style_od3d.hpp"
 
 #include <array>
+#include <optional>
 #include <raster_opfn.hpp>
 #include <ScreenFactory.hpp>
 #include <ScreenHandler.hpp>
@@ -29,9 +30,18 @@ struct Slot {
 };
 
 // ---- Dessin ----
+// Chaque pixel est peint une fois, sans effacement préalable : c'est ce qui évite les clignotements, et l'écran (SPI à
+// 3 octets par pixel) est lent. Un élément repeint tout son rect ; l'écran ne peint que ce qui reste entre eux.
 
-/// Corps arrondi d'un élément dans outer moins la marge de l'anneau ; l'anneau de focus (2 px, blanc) occupe la marge
-void draw_body(Rect16 outer, Color body, Color back, uint8_t radius, bool focused);
+/// La marge de 2 px autour du corps (ancienne place de l'anneau de focus), au fond back, sans toucher au corps
+void draw_margin(Rect16 outer, Color back);
+
+/// Corps arrondi dans outer moins la marge de 2 px, marge comprise, au fond back
+void draw_body(Rect16 outer, Color body, Color back, uint8_t radius);
+
+/// Corps arrondi avec un contour de border_w px (puces, choix, danger), d'une seule passe : les coins du contour suivent
+/// l'arrondi (deux rectangles arrondis emboîtés débordaient aux coins)
+void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w);
 
 /// Une ligne de texte dans rect, fond repeint ; ce qui dépasse est coupé
 void draw_text(Rect16 rect, const string_view_utf8 &text, Font font, Color fg, Color bg, Align_t align = Align_t::LeftCenter());
@@ -39,8 +49,12 @@ void draw_text(Rect16 rect, const string_view_utf8 &text, Font font, Color fg, C
 /// Icône sur un fond uni ; swap_bw = noire au lieu de blanche (sur l'orange), shadow = atténuée
 void draw_icon(point_i16_t at, const img::Resource &icon, Color bg, ropfn rop = {});
 
-/// Bobine de diamètre d, coin haut gauche en at ; les pixels hors du disque ne sont pas touchés
-void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d);
+/// Bobine de diamètre d, coin haut gauche en at, en une image : le carré hors du disque prend la couleur back ;
+/// ring (emplacement chargé) : anneau de 2 px autour du disque, l'image fait alors d + 4 px depuis at - 2
+void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, std::optional<Color> ring = std::nullopt);
+
+/// Fond de frame entre ses fenêtres normales visibles (first à last), qui repeignent chacune tout leur rect
+void fill_background(const window_t &frame, window_t *first, window_t *last);
 
 // ---- Navigation ----
 
@@ -78,6 +92,7 @@ public:
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+    void unconditionalDraw() override; ///< le fond seulement entre les éléments
 
 private:
     bool has_back;
@@ -85,8 +100,8 @@ private:
 
 // ---- Éléments ----
 
-/// Élément actif : corps arrondi, anneau de focus, action au clic ou au toucher.
-/// Son rect comprend la marge de l'anneau : le créer avec style::with_ring(corps).
+/// Élément actif : corps arrondi, plus clair quand il a le focus (style::focused), action au clic ou au toucher.
+/// Son rect comprend une marge de 2 px : le créer avec style::with_ring(corps).
 class Card : public window_t {
 public:
     using Action = void (*)();
@@ -94,10 +109,16 @@ public:
     Card(window_t *parent, Rect16 rect, Action action, Color body_color = style::surface, Color back = style::screen, uint8_t radius = style::radius);
 
 protected:
-    /// Le rect sans la marge de l'anneau
+    /// Le rect sans la marge
     Rect16 body() const;
 
-    /// Contenu, dessiné sur le corps après lui
+    /// Couleur du corps telle que dessinée (plus claire avec le focus) : le fond du contenu
+    Color fill() const;
+
+    /// Redessine le contenu seul, sans repeindre le corps (une valeur a changé : pas de clignotement)
+    void invalidate_content();
+
+    /// Contenu, dessiné sur le corps après lui (ou seul après invalidate_content) : il repeint tout ce qu'il occupe
     virtual void draw_content([[maybe_unused]] Rect16 body) {}
 
     void unconditionalDraw() override;
@@ -201,6 +222,14 @@ protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 };
 
+/// Retour de l'en-tête : disque de 32 px, zone tactile style::back_touch (46 × 44)
+class BackButton : public IconButton {
+public:
+    explicit BackButton(window_t *parent);
+
+    Rect16 get_rect_for_touch() const override;
+};
+
 /// En-tête de tous nos écrans : retour (sous-écrans), titre, bouton des températures, réseau, heure, trait
 class Header {
 public:
@@ -209,8 +238,11 @@ public:
     /// Change le titre, même s'il est dans le même tampon (menus Prusa)
     void set_title(const string_view_utf8 &text);
 
+    /// Caractères du titre à la police small (heure sur 5 ou 8 caractères)
+    static uint8_t title_chars();
+
 private:
-    IconButton back; ///< caché et inactif sur l'accueil
+    BackButton back; ///< caché et inactif sur l'accueil
     window_text_t title;
     TempsButton temps;
     NetworkIcon network;

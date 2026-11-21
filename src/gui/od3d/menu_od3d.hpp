@@ -15,7 +15,7 @@
 namespace od3d {
 
 /// Liste G : 5 lignes de 40 px sous l'en-tête ; la barre de défilement est dans les 6 px de droite
-inline constexpr Rect16 list_rect = { style::margin, 34, 470, 200 };
+inline constexpr Rect16 list_rect = { style::margin, style::top, 470, 200 };
 static_assert(style::inside(style::content, list_rect));
 
 /// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible.

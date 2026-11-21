@@ -1,6 +1,8 @@
 /// @file
 #include "screen_spool_od3d.hpp"
 
+#include "thumbnail_od3d.hpp"
+
 #include <algorithm>
 #include <config_store/store_instance.hpp>
 #include <cstdio>
@@ -40,20 +42,22 @@ namespace {
     constexpr const char *material_names[] = { "PLA", "PETG", "ASA", "PC", "FLEX", "PVB" };
     static_assert(std::size(material_types) == std::size(material_names));
 
-    // Géométrie (SPEC_G.md §3.5, §3.6), boutons du bas communs aux 3 étapes
-    constexpr Rect16 band_rect = { style::margin, 32, 464, 24 };
-    constexpr Rect16 picture_rect = { style::margin, 62, 464, 96 };
-    constexpr Rect16 title_rect = { 12, 164, 456, 19 };
-    constexpr Rect16 text_rect = { 12, 186, 456, 34 };
+    // Géométrie (SPEC_G.md §3.5, §3.6) sous l'en-tête de 40 px, boutons du bas communs aux 3 étapes
+    constexpr Rect16 band_rect = { style::margin, style::top, 464, 24 };
+    constexpr Rect16 picture_rect = { style::margin, 75, 464, 92 };
+    constexpr Rect16 title_rect = { 12, 172, 456, 19 };
+    constexpr Rect16 text_rect = { 12, 194, 456, 34 };
     constexpr Rect16 material_body(int i) {
-        return Rect16(style::margin + 156 * (i % 3), 60 + 34 * (i / 3), 148, 30);
+        return Rect16(style::margin + 156 * (i % 3), 75 + 34 * (i / 3), 148, 30);
     }
     constexpr Rect16 paint_body(int i) {
-        return Rect16(13 + 58 * i, 128, 46, 46);
+        return Rect16(13 + 58 * i, 143, 46, 46);
     }
-    constexpr Rect16 weight_rect = { 12, 182, 456, 16 };
-    constexpr Rect16 cancel_body = { style::margin, 226, 120, 36 };
-    constexpr Rect16 primary_body = { 136, 226, 336, 36 };
+    constexpr Rect16 weight_rect = { 12, 196, 456, 16 };
+    constexpr Rect16 cancel_body = { style::margin, 236, 120, 36 };
+    constexpr Rect16 primary_body = { 136, 236, 336, 36 };
+    static_assert(band_rect.Bottom() < picture_rect.Top() && picture_rect.Bottom() < title_rect.Top() && text_rect.Bottom() < style::with_ring(cancel_body).Top());
+    static_assert(style::with_ring(paint_body(0)).Bottom() < weight_rect.Top() && weight_rect.Bottom() < style::with_ring(cancel_body).Top());
     static_assert(style::inside(style::content, style::with_ring(paint_body(7))) && style::inside(style::content, style::with_ring(primary_body)));
     static_assert(style::with_ring(material_body(3)).Bottom() < style::with_ring(paint_body(0)).Top());
 
@@ -112,10 +116,12 @@ StepBand::StepBand(window_t *parent)
 void StepBand::unconditionalDraw() {
     static constexpr const char *labels[] = { N_("1 · Remove"), N_("2 · Insert"), N_("3 · Choose") };
     const Rect16 r = GetRect();
-    display::fill_rect(r, style::screen);
     for (int i = 0; i < 3; ++i) {
         const int step = i + 1;
         const Rect16 pill(r.Left() + 157 * i, r.Top(), 150, r.Height());
+        if (i) {
+            display::fill_rect(Rect16(pill.Left() - 7, r.Top(), 7, r.Height()), style::screen); // l'écart avant la pastille
+        }
         // En cours : orange ; faite : #303337 ; à venir : #26282B ; étapes sautées éteintes (« Matière et couleur » seule :
         // 1 et 2 ; emplacement vide : rien à retirer)
         const bool current = step == wizard.step;
@@ -137,14 +143,13 @@ void SpoolPicture::unconditionalDraw() {
     // Étape 1 : la bobine de l'emplacement sort ; étape 2 : une bobine neuve entre
     constexpr uint8_t d = 70;
     const spool::Look look = wizard.step == 1 ? Slot::read(wizard.slot).look : spool::Look { spool::default_color("PLA"), 100 };
-    draw_spool({ 110, int16_t(r.Top() + 13) }, look, d);
-    draw_text(Rect16(202, r.Top() + 37, 3 * width(Font::big), height(Font::big)), string_view_utf8::MakeCPUFLASH(wizard.step == 1 ? "<<<" : ">>>"), Font::big, style::accent, style::surface);
+    draw_spool({ 110, int16_t(r.Top() + 11) }, look, d, style::surface);
+    draw_text(Rect16(202, r.Top() + 35, 3 * width(Font::big), height(Font::big)), string_view_utf8::MakeCPUFLASH(wizard.step == 1 ? "<<<" : ">>>"), Font::big, style::accent, style::surface);
 
-    // Case « MMU n » (contour 2 px)
-    const Rect16 box(274, r.Top() + 20, 96, 56);
+    // Case « MMU n » (contour 2 px, d'une passe : les coins suivent l'arrondi)
+    const Rect16 box(274, r.Top() + 18, 96, 56);
     static constexpr Color box_line = Color::from_raw(0x5B5B5B);
-    display::draw_rounded_rect(box, style::surface, box_line, 10, MIC_ALL_CORNERS);
-    display::draw_rounded_rect(Rect16(box.Left() + 2, box.Top() + 2, box.Width() - 4, box.Height() - 4), box_line, style::surface, 8, MIC_ALL_CORNERS);
+    draw_frame(style::with_ring(box), style::surface, box_line, style::surface, 10, 2);
     draw_text(Rect16(box.Left() + 4, box.Top() + 6, box.Width() - 8, height(Font::small)), string_view_utf8::MakeCPUFLASH("MMU"), Font::small, style::text_muted, style::surface, Align_t::Center());
     const char number[2] = { char('1' + wizard.slot), '\0' };
     draw_text(Rect16(box.Left() + 4, box.Top() + 24, box.Width() - 8, height(Font::big)), string_view_utf8::MakeRAM(number), Font::big, style::text, style::surface, Align_t::Center());
@@ -154,16 +159,21 @@ PaintButton::PaintButton(window_t *parent, uint8_t index)
     : Button(parent, paint_body(index), tag_paint + index, Look::card, {}, nullptr, style::screen, 23) {}
 
 void PaintButton::unconditionalDraw() {
-    const Rect16 r = GetRect(); // 50 × 50 : anneau de focus, anneau du choix, bobine Ø40
+    // 50 × 50 : bobine Ø40, anneau orange du choix jusqu'à Ø46, et au focus un disque plus clair derrière (plus d'anneau
+    // blanc) ; une image d'une passe
+    const Rect16 r = GetRect();
     const uint8_t index = tag - tag_paint;
-    display::fill_rect(r, style::screen);
-    if (IsFocused()) {
-        display::draw_rounded_rect(r, style::screen, style::focus_ring, r.Width() / 2, MIC_ALL_CORNERS);
-    }
-    const Rect16 inner(r.Left() + 2, r.Top() + 2, r.Width() - 4, r.Height() - 4);
-    const Color ring = index == wizard.paint ? style::accent : style::screen;
-    display::draw_rounded_rect(inner, IsFocused() ? style::focus_ring : style::screen, ring, inner.Width() / 2, MIC_ALL_CORNERS);
-    draw_spool({ int16_t(r.Left() + 5), int16_t(r.Top() + 5) }, spool::Look { atelier::paints[index].color, 100 }, 40);
+    const Color halo = IsFocused() ? style::focused(style::surface) : style::screen;
+    const Color ring = index == wizard.paint ? style::accent : halo;
+    const spool::Disc disc(spool::Look { atelier::paints[index].color, 100 }, 40);
+    const int outer = r.Width(), inner = outer - 4;
+    draw_pixels(r, [&](int x, int y) {
+        if (const auto c = disc.pixel(x - 5, y - 5)) {
+            return *c;
+        }
+        const int dx = 2 * x + 1 - outer, dy = 2 * y + 1 - outer, q = dx * dx + dy * dy;
+        return q < inner * inner ? ring : (q < outer * outer ? halo : style::screen);
+    });
 }
 
 void DoneButton::unconditionalDraw() {
@@ -181,7 +191,7 @@ void DoneButton::unconditionalDraw() {
     const uint16_t total = std::min<uint16_t>(d + gap + text_w, b.Width() - 12);
     const int16_t x = b.Left() + (b.Width() - total) / 2;
     const Color color = wizard.paint >= 0 ? atelier::paints[wizard.paint].color : spool::default_color(material_names[wizard.material]);
-    draw_spool({ x, int16_t(b.Top() + (b.Height() - d) / 2) }, spool::Look { color, 100 }, d);
+    draw_spool({ x, int16_t(b.Top() + (b.Height() - d) / 2) }, spool::Look { color, 100 }, d, c.fill);
     draw_text(Rect16(x + d + gap, b.Top() + (b.Height() - height(Font::small)) / 2, total - d - gap, height(Font::small)), label, Font::small, c.fg, c.fill);
 }
 
@@ -342,12 +352,13 @@ void ScreenChangeSpool::windowEvent(window_t *sender, GUI_event_t event, void *p
 // ---- Utilisation ----
 
 namespace {
-    constexpr Rect16 usage_card_rect = { style::margin, 32, 168, 232 };
+    constexpr Rect16 usage_card_rect = { style::margin, style::top, 168, 226 };
     constexpr Rect16 row_rect(int i) {
-        return Rect16(184, 32 + 42 * i, 288, 38);
+        return Rect16(184, style::top + 42 * i, 288, 38);
     }
-    constexpr Rect16 note_rect = { 184, 160, 288, 48 };
-    constexpr Rect16 edit_body = { 184, 226, 288, 36 };
+    constexpr Rect16 note_rect = { 184, 174, 288, 48 };
+    constexpr Rect16 edit_body = { 184, 236, 288, 36 };
+    static_assert(row_rect(2).Bottom() < note_rect.Top() && note_rect.Bottom() < style::with_ring(edit_body).Top());
     static_assert(style::inside(style::content, usage_card_rect) && style::inside(style::content, style::with_ring(edit_body)));
 } // namespace
 
@@ -391,7 +402,7 @@ void UsageCard::unconditionalDraw() {
     }
 #endif
     constexpr uint8_t d = 104;
-    draw_spool({ int16_t(r.Left() + (r.Width() - d) / 2), int16_t(r.Top() + 12) }, look, d);
+    draw_spool({ int16_t(r.Left() + (r.Width() - d) / 2), int16_t(r.Top() + 12) }, look, d, style::surface);
     draw_text(Rect16(r.Left(), r.Top() + 124, r.Width(), height(Font::big)), string_view_utf8::MakeRAM(weight), Font::big, style::text, style::surface, Align_t::Center());
     draw_text(Rect16(r.Left(), r.Top() + 160, r.Width(), height(Font::small)), string_view_utf8::MakeRAM(detail), Font::small, style::text_muted, style::surface, Align_t::Center());
     char name[24];

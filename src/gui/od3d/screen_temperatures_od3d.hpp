@@ -23,7 +23,6 @@ public:
     HeaterCard(window_t *parent, Heater heater);
 
 protected:
-    void unconditionalDraw() override;
     void draw_content(Rect16 body) override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
@@ -34,9 +33,6 @@ private:
         bool operator==(const Reading &) const = default;
     };
     static Reading read(Heater heater);
-
-    /// Redessine le contenu sans repeindre le fond ni l'anneau (pas de clignotement)
-    void invalidate_content();
 
     static constexpr size_t samples = 30; ///< une mesure toutes les 2 s : la dernière minute
     Heater heater;

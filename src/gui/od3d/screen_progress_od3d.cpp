@@ -1,6 +1,9 @@
 /// @file
 #include "screen_progress_od3d.hpp"
 
+#include "print_info_od3d.hpp"
+#include "thumbnail_od3d.hpp"
+
 #include <algorithm>
 #include <client_response_texts.hpp>
 #include <common/error_code_mangle.hpp>
@@ -35,16 +38,16 @@ namespace {
     using Phase = PhasesLoadUnload;
     using atelier::Op;
 
-    // Géométrie du dialogue (SPEC_G.md §1.9, capture chargement.png)
-    constexpr Rect16 box_rect = { 28, 40, 424, 232 };
-    constexpr Rect16 body_rect = { 40, 50, 400, 169 }; ///< sous les coins arrondis du cadre
-    constexpr Rect16 bar_rect = { 46, 220, 388, 6 };
-    constexpr int16_t buttons_y = 228;
+    // Géométrie du dialogue (SPEC_G.md §1.9, capture chargement.png), sous l'en-tête de 40 px : 6 px moins haut
+    constexpr Rect16 box_rect = { 28, style::top, 424, 226 };
+    constexpr Rect16 body_rect = { 40, 54, 400, 166 }; ///< sous les coins arrondis du cadre
+    constexpr Rect16 bar_rect = { 46, 222, 388, 6 };
+    constexpr int16_t buttons_y = 231;
     constexpr uint16_t buttons_h = 36; ///< deux lignes pour les textes longs de Prusa (« DÉSACTIVER MMU »)
     constexpr int16_t content_x = 46;
     constexpr uint16_t content_w = 388;
     constexpr int16_t text_x = 102; ///< titre et sous-titre, à droite de la bobine Ø44
-    constexpr Rect16 mark_rect = { content_x, 52, 48, 48 }; ///< bobine Ø44 (46,54) ou icône d'erreur 48 × 48
+    constexpr Rect16 mark_rect = { content_x, 56, 48, 48 }; ///< bobine Ø44 (46,58) ou icône d'erreur 48 × 48
     constexpr uint8_t spinner_d = 44;
     constexpr uint32_t spinner_turn_ms = 1600; ///< un tour (SPEC_G.md §3.4)
     constexpr uint8_t box_radius = 18;
@@ -444,40 +447,27 @@ void ScreenLoadUnload::SpoolMark::unconditionalDraw() {
         draw_icon({ r.Left(), r.Top() }, *icon, style::surface);
         return;
     }
-    display::fill_rect(r, style::surface);
-    const point_i16_t at { r.Left(), int16_t(r.Top() + 2) };
+    // Bobine Ø44, 2 px sous le haut de la case de 48 px, ou anneau de 4 px dont le quart orange tourne (un tour en 1,6 s) :
+    // une image d'une passe, la case n'est plus effacée avant chaque image (10 par seconde, elle clignotait)
     if (owner.request) {
-        draw_spool(at, Slot::read(owner.request->slot).look, spinner_d);
+        const spool::Disc disc(Slot::read(owner.request->slot).look, spinner_d);
+        draw_pixels(r, [&](int x, int y) { return disc.pixel(x, y - 2).value_or(style::surface); });
         return;
     }
-    // Anneau de 4 px, son quart orange tourne (un tour en 1,6 s) : par segments de même couleur, ligne par ligne
     const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % spinner_turn_ms) / spinner_turn_ms;
     constexpr int outer = spinner_d * spinner_d; // distances en demi-pixels, comme spool::Disc
     constexpr int inner = (spinner_d - 8) * (spinner_d - 8);
-    for (int y = 0; y < spinner_d; ++y) {
-        int run_start = 0;
-        std::optional<Color> run;
-        for (int x = 0; x <= spinner_d; ++x) {
-            std::optional<Color> c;
-            if (x < spinner_d) {
-                const int dx = 2 * x + 1 - spinner_d, dy = 2 * y + 1 - spinner_d, q = dx * dx + dy * dy;
-                if (q < outer && q >= inner) {
-                    float a = std::atan2(float(dx), float(-dy)) - start; // 0 = en haut, sens horaire
-                    while (a < 0) {
-                        a += 2 * std::numbers::pi_v<float>;
-                    }
-                    c = a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
-                }
-            }
-            if (c != run) {
-                if (run) {
-                    display::fill_rect(Rect16(at.x + run_start, at.y + y, x - run_start, 1), *run);
-                }
-                run = c;
-                run_start = x;
-            }
+    draw_pixels(r, [&](int x, int y) {
+        const int dx = 2 * x + 1 - spinner_d, dy = 2 * (y - 2) + 1 - spinner_d, q = dx * dx + dy * dy;
+        if (x >= spinner_d || q >= outer || q < inner) {
+            return style::surface;
         }
-    }
+        float a = std::atan2(float(dx), float(-dy)) - start; // 0 = en haut, sens horaire
+        while (a < 0) {
+            a += 2 * std::numbers::pi_v<float>;
+        }
+        return a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
+    });
 }
 
 void ScreenLoadUnload::SpoolMark::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -492,12 +482,17 @@ ScreenLoadUnload::Bar::Bar(window_t *parent, const ScreenLoadUnload &owner)
     , owner(owner) {}
 
 void ScreenLoadUnload::Bar::unconditionalDraw() {
+    // Piste et partie faite d'une passe (la piste se repeignait sous la partie faite à chaque pas)
     const Rect16 r = GetRect();
-    const uint16_t done = r.Width() * std::min<uint8_t>(owner.progress, 100) / 100;
-    display::draw_rounded_rect(r, style::surface, style::line, 3, MIC_ALL_CORNERS);
-    if (done >= 6) {
-        display::draw_rounded_rect(Rect16(r.Left(), r.Top(), done, r.Height()), style::line, style::accent, 3, MIC_ALL_CORNERS);
-    }
+    const int w = r.Width(), h = r.Height();
+    const int done = w * std::min<uint8_t>(owner.progress, 100) / 100;
+    draw_pixels(r, [&](int x, int y) {
+        const int inset = print_info::corner_inset(y, h, 3);
+        if (x < inset || x >= w - inset) {
+            return style::surface;
+        }
+        return done >= 6 && x < done - inset ? style::accent : style::line;
+    });
 }
 
 // ---- Écran ----

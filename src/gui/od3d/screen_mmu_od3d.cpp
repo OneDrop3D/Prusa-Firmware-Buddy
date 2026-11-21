@@ -17,13 +17,17 @@ namespace {
 
     using atelier::Op;
 
-    // Géométrie de l'étagère (SPEC_G.md §3.2) : une carte chargée remonte de 3 px, d'où un rect de 139 px de haut
+    // Géométrie de l'étagère (SPEC_G.md §3.2), sous l'en-tête de 40 px : cartes de 130 px (136 dans la maquette) ;
+    // une carte chargée remonte de 3 px, d'où un rect de 133 px de haut
+    constexpr uint8_t lift = 3;
+    constexpr uint16_t shelf_card_h = 130;
     constexpr Rect16 shelf_rect(int i) {
-        return Rect16(style::margin + 94 * i, 31, 88, 139);
+        return Rect16(style::margin + 94 * i, style::top, 88, shelf_card_h + lift);
     }
     constexpr Rect16 shortcut_body(int i) {
-        return Rect16(style::margin + 156 * (i % 3), 178 + 46 * (i / 3), 148, 40);
+        return Rect16(style::margin + 156 * (i % 3), 187 + 46 * (i / 3), 148, 40);
     }
+    static_assert(style::with_ring(shelf_rect(0)).Bottom() < style::with_ring(shortcut_body(0)).Top());
     static_assert(style::inside(style::content, style::with_ring(shelf_rect(0))) && style::inside(style::content, style::with_ring(shelf_rect(4))));
     static_assert(style::inside(style::content, style::with_ring(shortcut_body(5))));
     static_assert(shelf_rect(4).Right() + 1 == style::screen_w - style::margin);
@@ -71,25 +75,25 @@ void ShelfSpool::update(bool mmu_ready) {
 }
 
 void ShelfSpool::unconditionalDraw() {
-    // Le corps bouge selon l'état : tout le rect est repeint
-    display::fill_rect(GetRect(), style::screen);
+    // Le corps bouge selon l'état : il est repeint avec sa marge, puis la bande de 3 px qu'il laisse, au fond
+    const Rect16 r = GetRect();
     const Rect16 full = body();
-    const Rect16 b(full.Left(), full.Top() + (slot.loaded ? 0 : 3), full.Width(), 136);
-    const Color fill = slot.loaded ? style::secondary : style::surface;
-    draw_body(Rect16(b.Left() - style::ring, b.Top() - style::ring, b.Width() + 2 * style::ring, b.Height() + 2 * style::ring), fill, style::screen, radius, IsFocused());
+    const Rect16 b(full.Left(), full.Top() + (slot.loaded ? 0 : lift), full.Width(), shelf_card_h);
+    const Rect16 outer = style::with_ring(b);
+    display::fill_rect(slot.loaded ? Rect16(r.Left(), outer.Bottom() + 1, r.Width(), lift) : Rect16(r.Left(), r.Top(), r.Width(), lift), style::screen);
+    const Color base = slot.loaded ? style::secondary : style::surface;
+    const Color fill = IsFocused() ? style::focused(base) : base;
+    draw_body(outer, fill, style::screen, radius);
 
     const bool enabled = IsEnabled();
     constexpr uint8_t d = 64;
     const point_i16_t at { int16_t(b.Left() + (b.Width() - d) / 2), int16_t(b.Top() + 8) };
-    if (slot.loaded) {
-        display::draw_rounded_rect(Rect16(at.x - 2, at.y - 2, d + 4, d + 4), fill, style::accent, d / 2 + 2, MIC_ALL_CORNERS);
-    }
-    draw_spool(at, slot.look, d);
+    draw_spool(at, slot.look, d, fill, std::optional<Color>(slot.loaded ? style::accent : fill));
     // Le numéro après l'anneau orange, dont le carré repeint les coins
     const char number[2] = { char('1' + tag), '\0' };
     draw_text(Rect16(b.Left() + 8, b.Top() + 5, 9, height(Font::small)), string_view_utf8::MakeRAM(number), Font::small, style::text_muted, fill);
 
-    draw_text(Rect16(b.Left(), b.Top() + 76, b.Width(), height(Font::normal)), string_view_utf8::MakeRAM(slot.material.data()), Font::normal,
+    draw_text(Rect16(b.Left(), b.Top() + 74, b.Width(), height(Font::normal)), string_view_utf8::MakeRAM(slot.material.data()), Font::normal,
         enabled ? style::text_strong : style::text_faint, fill, Align_t::Center());
 
     // 2e ligne : « Chargé » en orange, « Vide », ou le nom de la couleur choisie dans l'assistant
@@ -105,10 +109,10 @@ void ShelfSpool::unconditionalDraw() {
         atelier::paint_name(color_name, atelier::paint_index(FilamentType::for_tool(VirtualToolIndex::from_raw(tag))));
         line = string_view_utf8::MakeRAM(color_name);
     }
-    draw_text(Rect16(b.Left(), b.Top() + 97, b.Width(), height(Font::small)), line, Font::small, enabled ? line_color : style::text_faint, fill, Align_t::Center());
+    draw_text(Rect16(b.Left(), b.Top() + 94, b.Width(), height(Font::small)), line, Font::small, enabled ? line_color : style::text_faint, fill, Align_t::Center());
 
     if (slot.loaded) {
-        display::draw_rounded_rect(Rect16(b.Left() + 26, b.Top() + 133, 36, 3), fill, style::accent, 2, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(Rect16(b.Left() + 26, b.Top() + shelf_card_h - 4, 36, 3), fill, style::accent, 2, MIC_ALL_CORNERS);
     }
 }
 
@@ -222,13 +226,13 @@ void ScreenMMU::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 namespace {
 
     constexpr Rect16 panel_rect(int i) {
-        return Rect16(style::margin, 32 + 80 * i, 464, 74);
+        return Rect16(style::margin, style::top + 78 * i, 464, 71);
     }
     constexpr Rect16 note_rect(int i) {
         return Rect16(200, panel_rect(i).Top() + 7, 260, height(Font::small));
     }
     constexpr Rect16 pulley_body(int i) {
-        return Rect16(18 + 150 * i, 60, 142, 36);
+        return Rect16(18 + 150 * i, panel_rect(0).Top() + 28, 142, 36);
     }
     constexpr Rect16 position_body(int row, int i) {
         return Rect16(18 + 75 * i, panel_rect(row).Top() + 28, 68, 36);
@@ -282,7 +286,7 @@ void PositionButton::unconditionalDraw() {
     const Rect16 inner = draw_frame(body(), c);
     constexpr uint8_t d = 16;
     const int16_t y = inner.Top() + (inner.Height() - d) / 2;
-    draw_spool({ int16_t(inner.Left() + 16), y }, Slot::read(spool).look, d);
+    draw_spool({ int16_t(inner.Left() + 16), y }, Slot::read(spool).look, d, c.fill);
     draw_text(Rect16(inner.Left() + 38, inner.Top() + (inner.Height() - height(Font::small)) / 2, width(Font::small), height(Font::small)), label, Font::small,
         c.fg, c.fill);
 }

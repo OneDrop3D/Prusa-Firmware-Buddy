@@ -16,7 +16,6 @@
 #include <screen_menu_filament.hpp>
 #include <screen_menu_filament_mmu.hpp>
 #include <screen_menu_settings.hpp>
-#include <time_tools.hpp>
 #include <WindowMenuItems.hpp>
 
 namespace window_menu_item_private {
@@ -84,7 +83,7 @@ namespace {
     void draw_row(IWindowMenuItem &item, Rect16 row, bool first, bool last, bool extension_only) {
         const bool focused = item.is_focused();
         const bool enabled = item.IsEnabled();
-        const Color bg = focused ? style::tile : style::surface;
+        const Color bg = focused ? style::focused(style::surface) : style::surface;
 
         // Contenu entre l'anneau (2 px en haut et en bas) et les marges de 12 px
         const Rect16 content(row.Left() + label_x, row.Top() + 2, row.Width() - label_x - value_right, row.Height() - 4);
@@ -95,16 +94,13 @@ namespace {
         const bool has_extension = extension.Width() > 0 && (enabled || item.DoesShowDisabledExtension());
 
         if (!extension_only) {
+            // Ligne ciblée : fond #34373C (SPEC_G.md §1.6), sans anneau ; une passe, le trait par-dessus sa 1re ligne
             const uint8_t corners = (first ? MIC_TOP_LEFT | MIC_TOP_RIGHT : 0) | (last ? MIC_BOT_LEFT | MIC_BOT_RIGHT : 0);
-            if (focused) {
-                // Ligne ciblée : fond #34373C et anneau blanc 2 px à l'intérieur
-                display::draw_rounded_rect(row, style::screen, style::focus_ring, style::radius_big, corners);
-                display::draw_rounded_rect(Rect16(row.Left() + style::ring, row.Top() + style::ring, row.Width() - 2 * style::ring, row.Height() - 2 * style::ring), style::focus_ring, bg, style::radius_big - style::ring, corners);
-            } else {
+            if (first) {
                 display::draw_rounded_rect(row, style::screen, bg, style::radius_big, corners);
-                if (!first) {
-                    display::fill_rect(Rect16(row.Left(), row.Top(), row.Width(), 1), style::line);
-                }
+            } else {
+                display::fill_rect(Rect16(row.Left(), row.Top(), row.Width(), 1), style::line);
+                display::draw_rounded_rect(Rect16(row.Left(), row.Top() + 1, row.Width(), row.Height() - 1), style::screen, bg, style::radius_big, corners);
             }
 
             const img::Resource *icon = ItemAccess::icon(item);
@@ -143,11 +139,6 @@ namespace {
         display::draw_rounded_rect(Rect16(track.Left(), track.Top() + y, track.Width(), h), style::screen, scrollbar, 1, MIC_ALL_CORNERS);
     }
 
-    uint8_t title_chars() {
-        // Place du titre dans l'en-tête G : il s'arrête au bouton des températures (heure sur 5 ou 8 caractères)
-        return time_tools::get_time_format() == time_tools::TimeFormat::_24h ? 19 : 16;
-    }
-
 } // namespace
 
 // ---- En-tête ----
@@ -160,7 +151,7 @@ MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has
 void MenuHeader::SetText(const string_view_utf8 &title) {
     title.copyToRAM(title_text.data(), title_text.size());
     text::title_case(title_text.data());
-    text::ellipsize(title_text.data(), title_chars());
+    text::ellipsize(title_text.data(), Header::title_chars());
     header.set_title(string_view_utf8::MakeRAM(title_text.data()));
 }
 

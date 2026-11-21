@@ -50,7 +50,7 @@ protected:
     };
     Colors colors() const;
 
-    /// Corps (et anneau de focus) aux couleurs de l'aspect ; rend l'intérieur
+    /// Corps (plus clair avec le focus) et contour aux couleurs de l'aspect, marge comprise ; rend l'intérieur du contour
     Rect16 draw_frame(Rect16 body, const Colors &c);
 
     string_view_utf8 label;
@@ -59,7 +59,7 @@ protected:
     Font font = Font::small;
 };
 
-/// Icône (facultative) et texte centrés dans area ; le texte passe sur deux lignes s'il ne tient pas
+/// Icône (facultative) et texte centrés dans area, déjà peinte au fond bg ; le texte passe sur deux lignes s'il ne tient pas
 void draw_label(Rect16 area, const string_view_utf8 &label, const img::Resource *icon, Font font, Color fg, Color bg, ropfn rop = {});
 
 namespace atelier {

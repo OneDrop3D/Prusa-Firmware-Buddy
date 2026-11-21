@@ -1,9 +1,11 @@
 /// @file
 #include "widgets_od3d.hpp"
+#include "print_info_od3d.hpp"
 #include "screen_files_od3d.hpp"
 #include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
 #include "screen_temperatures_od3d.hpp"
+#include "thumbnail_od3d.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -56,11 +58,47 @@ Slot Slot::read(uint8_t index) {
 
 // ---- Dessin ----
 
-void draw_body(Rect16 outer, Color body, Color back, uint8_t radius, bool focused) {
-    const Rect16 inner(outer.Left() + style::ring, outer.Top() + style::ring, outer.Width() - 2 * style::ring, outer.Height() - 2 * style::ring);
-    const Color ring = focused ? style::focus_ring : back;
-    display::draw_rounded_rect(outer, back, ring, radius + style::ring, MIC_ALL_CORNERS);
-    display::draw_rounded_rect(inner, ring, body, radius, MIC_ALL_CORNERS);
+namespace {
+
+    Rect16 inner(Rect16 outer) {
+        return Rect16(outer.Left() + style::ring, outer.Top() + style::ring, outer.Width() - 2 * style::ring, outer.Height() - 2 * style::ring);
+    }
+
+} // namespace
+
+void draw_margin(Rect16 outer, Color back) {
+    constexpr int16_t m = style::ring;
+    display::fill_rect(Rect16(outer.Left(), outer.Top(), outer.Width(), m), back);
+    display::fill_rect(Rect16(outer.Left(), outer.Bottom() + 1 - m, outer.Width(), m), back);
+    display::fill_rect(Rect16(outer.Left(), outer.Top() + m, m, outer.Height() - 2 * m), back);
+    display::fill_rect(Rect16(outer.Right() + 1 - m, outer.Top() + m, m, outer.Height() - 2 * m), back);
+}
+
+void draw_body(Rect16 outer, Color body, Color back, uint8_t radius) {
+    draw_margin(outer, back);
+    display::draw_rounded_rect(inner(outer), back, body, radius, MIC_ALL_CORNERS);
+}
+
+void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w) {
+    if (!border_w) {
+        draw_body(outer, fill, back, radius);
+        return;
+    }
+    draw_margin(outer, back);
+    const Rect16 b = inner(outer);
+    const int w = b.Width(), h = b.Height(), bw = border_w;
+    int row = -1, out = 0, in = 0; // retraits du bord et du contour pour la ligne row, comme display::draw_rounded_rect
+    draw_pixels(b, [&](int x, int y) {
+        if (y != row) {
+            row = y;
+            out = print_info::corner_inset(y, h, radius);
+            in = (y < bw || y >= h - bw) ? w : bw + print_info::corner_inset(y - bw, h - 2 * bw, radius - bw);
+        }
+        if (x < out || x >= w - out) {
+            return back;
+        }
+        return (x < in || x >= w - in) ? border : fill;
+    });
 }
 
 void draw_text(Rect16 rect, const string_view_utf8 &text, Font font, Color fg, Color bg, Align_t align) {
@@ -71,13 +109,42 @@ void draw_icon(point_i16_t at, const img::Resource &icon, Color bg, ropfn rop) {
     display::draw_img(point_ui16(at.x, at.y), icon, bg, rop);
 }
 
-void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d) {
+void draw_qoi(Rect16 rect, AbstractByteReader &reader) {
+    display::draw_img(point_ui16(rect.Left(), rect.Top()), reader);
+}
+
+void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, std::optional<Color> ring) {
     const spool::Disc disc(look, d);
-    for (int y = 0; y < d; ++y) {
-        disc.for_each_run(y, [&](int x, int len, Color c) {
-            display::fill_rect(Rect16(at.x + x, at.y + y, len, 1), c);
-        });
+    if (!ring) {
+        draw_pixels(Rect16(at.x, at.y, d, d), [&](int x, int y) { return disc.pixel(x, y).value_or(back); });
+        return;
     }
+    const int outer = d + 4; // disque de l'anneau, même règle que spool::Disc (demi-pixels)
+    draw_pixels(Rect16(at.x - 2, at.y - 2, outer, outer), [&](int x, int y) {
+        if (const auto c = disc.pixel(x - 2, y - 2)) {
+            return *c;
+        }
+        const int dx = 2 * x + 1 - outer, dy = 2 * y + 1 - outer;
+        return dx * dx + dy * dy < outer * outer ? *ring : back;
+    });
+}
+
+void fill_background(const window_t &frame, window_t *first, window_t *last) {
+    std::array<Rect16, 40> rects;
+    size_t n = 0;
+    for (window_t *w = first; w; w = w == last ? nullptr : w->GetNext()) {
+        if (!w->IsVisible() || w->GetRect().IsEmpty()) {
+            continue;
+        }
+        if (n == rects.size()) {
+            display::fill_rect(frame.GetRect(), frame.GetBackColor()); // trop d'éléments : tout le fond, comme Prusa
+            return;
+        }
+        rects[n++] = w->GetRect();
+    }
+    style::for_each_gap(frame.GetRect(), std::span<const Rect16>(rects.data(), n), [&](Rect16 r) {
+        display::fill_rect(r, frame.GetBackColor());
+    });
 }
 
 // ---- Navigation ----
@@ -147,6 +214,10 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     screen_t::windowEvent(sender, event, param);
 }
 
+void Screen::unconditionalDraw() {
+    fill_background(*this, getFirstNormal(), getLastNormal());
+}
+
 // ---- Éléments ----
 
 Card::Card(window_t *parent, Rect16 rect, Action action, Color body_color, Color back, uint8_t radius)
@@ -159,12 +230,26 @@ Card::Card(window_t *parent, Rect16 rect, Action action, Color body_color, Color
 }
 
 Rect16 Card::body() const {
-    const Rect16 r = GetRect();
-    return Rect16(r.Left() + style::ring, r.Top() + style::ring, r.Width() - 2 * style::ring, r.Height() - 2 * style::ring);
+    return inner(GetRect());
+}
+
+Color Card::fill() const {
+    return IsFocused() ? style::focused(body_color) : body_color;
+}
+
+void Card::invalidate_content() {
+    // Comme IWindowMenu : le fond reste valide si rien d'autre ne l'a invalidé (focus, dialogue refermé)
+    const bool background_valid = HasValidBackground();
+    Invalidate();
+    if (background_valid) {
+        ValidateBackground();
+    }
 }
 
 void Card::unconditionalDraw() {
-    draw_body(GetRect(), body_color, back, radius, IsFocused());
+    if (!HasValidBackground()) {
+        draw_body(GetRect(), fill(), back, radius);
+    }
     draw_content(body());
 }
 
@@ -191,11 +276,11 @@ IconButton::IconButton(window_t *parent, Rect16 rect, Action action, const img::
 void IconButton::draw_content(Rect16 body) {
     const int16_t x = body.Left() + (body.Width() - icon.w) / 2;
     if (label.isNULLSTR()) {
-        draw_icon({ x, int16_t(body.Top() + (body.Height() - icon.h) / 2) }, icon, body_color);
+        draw_icon({ x, int16_t(body.Top() + (body.Height() - icon.h) / 2) }, icon, fill());
         return;
     }
-    draw_icon({ x, int16_t(body.Top() + 12) }, icon, body_color);
-    draw_text(Rect16(body.Left(), body.Top() + 33, body.Width(), height(Font::small)), label, Font::small, style::text_strong, body_color, Align_t::Center());
+    draw_icon({ x, int16_t(body.Top() + 12) }, icon, fill());
+    draw_text(Rect16(body.Left(), body.Top() + 33, body.Width(), height(Font::small)), label, Font::small, style::text_strong, fill(), Align_t::Center());
 }
 
 IconCard::IconCard(window_t *parent, Rect16 body, Action action, const img::Resource &icon, Color tile, const string_view_utf8 &title, const string_view_utf8 &subtitle)
@@ -208,19 +293,19 @@ IconCard::IconCard(window_t *parent, Rect16 body, Action action, const img::Reso
 void IconCard::set_subtitle(const string_view_utf8 &set) {
     if (!subtitle.is_same_ref(set)) {
         subtitle = set;
-        Invalidate();
+        invalidate_content();
     }
 }
 
 void IconCard::draw_content(Rect16 body) {
     // Tuile de 22 px : le titre en gras (8 caractères, « Fichiers », « Contrôle ») garde une marge dans 128 px
     const Rect16 t(body.Left() + 7, body.Top() + (body.Height() - 22) / 2, 22, 22);
-    display::draw_rounded_rect(t, body_color, tile, 6, MIC_ALL_CORNERS);
+    display::draw_rounded_rect(t, fill(), tile, 6, MIC_ALL_CORNERS);
     draw_icon({ int16_t(t.Left() + 3), int16_t(t.Top() + 3) }, icon, tile);
     const int16_t x = t.Left() + t.Width() + 5;
     const uint16_t w = body.Left() + body.Width() - x;
-    draw_text(Rect16(x, body.Top() + 7, w, height(Font::normal)), title, Font::normal, style::text_strong, body_color);
-    draw_text(Rect16(x, body.Top() + 27, w, height(Font::small)), subtitle, Font::small, style::text_muted, body_color);
+    draw_text(Rect16(x, body.Top() + 7, w, height(Font::normal)), title, Font::normal, style::text_strong, fill());
+    draw_text(Rect16(x, body.Top() + 27, w, height(Font::small)), subtitle, Font::small, style::text_muted, fill());
 }
 
 Temps Temps::read() {
@@ -281,14 +366,14 @@ TempsButton::TempsButton(window_t *parent, Rect16 body)
     , temps(Temps::read()) {}
 
 void TempsButton::draw_content(Rect16 body) {
-    draw_temps(Rect16(body.Left() + 4, body.Top() + (body.Height() - 16) / 2, body.Width() - 8, 16), temps, style::text, body_color, true);
+    draw_temps(Rect16(body.Left() + 4, body.Top() + (body.Height() - 16) / 2, body.Width() - 8, 16), temps, style::text, fill(), true);
 }
 
 void TempsButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP) {
         if (const Temps t = Temps::read(); t != temps) {
             temps = t;
-            Invalidate();
+            invalidate_content(); // les chiffres seuls : le bouton n'est pas repeint, il ne clignote plus
         }
     }
     Card::windowEvent(sender, event, param);
@@ -299,15 +384,15 @@ TempsCard::TempsCard(window_t *parent, Rect16 body)
     , temps(Temps::read()) {}
 
 void TempsCard::draw_content(Rect16 body) {
-    draw_text(Rect16(body.Left() + 10, body.Top() + 7, body.Width() - 20, height(Font::normal)), _("Temperatures"), Font::normal, style::text_strong, body_color);
-    draw_temps(Rect16(body.Left() + 10, body.Top() + 29, body.Width() - 20, 16), temps, style::text_soft, body_color, false);
+    draw_text(Rect16(body.Left() + 10, body.Top() + 7, body.Width() - 20, height(Font::normal)), _("Temperatures"), Font::normal, style::text_strong, fill());
+    draw_temps(Rect16(body.Left() + 10, body.Top() + 29, body.Width() - 20, 16), temps, style::text_soft, fill(), false);
 }
 
 void TempsCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP) {
         if (const Temps t = Temps::read(); t != temps) {
             temps = t;
-            Invalidate();
+            invalidate_content();
         }
     }
     Card::windowEvent(sender, event, param);
@@ -366,9 +451,13 @@ void Clock::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 
 namespace {
 
-    // En-tête, de droite à gauche (SPEC_G.md §1.3) : heure, réseau, températures, puis le titre prend le reste
+    // En-tête de 40 px (style::header), de droite à gauche : heure, réseau, températures, puis le titre prend le reste
     constexpr int16_t header_gap = 6;
     constexpr uint16_t temps_w = 182; ///< 3 × (icône 16 + 2 + « 230° ») + 2 × 6, plus 4 de chaque côté
+    constexpr uint16_t temps_h = 30;
+    constexpr uint8_t back_d = 32; ///< disque du retour (22 dans la maquette)
+    constexpr Rect16 back_body = { 6, (style::header.Height() - back_d) / 2, back_d, back_d };
+    static_assert(style::inside(style::back_touch, style::with_ring(back_body)));
 
     uint16_t clock_w() {
         return (time_tools::get_time_format() == time_tools::TimeFormat::_24h ? 5 : 8) * width(Font::small);
@@ -380,10 +469,10 @@ namespace {
         return clock_x() - header_gap - 16;
     }
     Rect16 temps_body() {
-        return Rect16(network_x() - header_gap - temps_w, 2, temps_w, 22);
+        return Rect16(network_x() - header_gap - temps_w, (style::header.Height() - temps_h) / 2, temps_w, temps_h);
     }
     Rect16 title_rect(bool has_back) {
-        const int16_t x = has_back ? 36 : style::margin;
+        const int16_t x = has_back ? style::back_touch.Width() : style::margin;
         return Rect16(x, 0, temps_body().Left() - style::ring - header_gap - x, style::header.Height());
     }
 
@@ -393,11 +482,18 @@ namespace {
 
 } // namespace
 
+BackButton::BackButton(window_t *parent)
+    : IconButton(parent, style::with_ring(back_body), go_back, img::arrow_left_16x16, {}, style::secondary, back_d / 2) {}
+
+Rect16 BackButton::get_rect_for_touch() const {
+    return style::back_touch;
+}
+
 Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_back)
-    : back(parent, style::with_ring(Rect16(style::margin, 2, 22, 22)), go_back, img::arrow_left_16x16, {}, style::secondary, 11)
+    : back(parent)
     , title(parent, title_rect(has_back), is_multiline::no, is_closed_on_click_t::no, title_text)
     , temps(parent, temps_body())
-    , network(parent, { network_x(), 5 })
+    , network(parent, { network_x(), int16_t((style::header.Height() - 16) / 2) })
     , clock(parent, Rect16(clock_x(), 0, clock_w(), style::header.Height()))
     , line(parent, style::header_line) {
     back.set_visible(has_back);
@@ -413,6 +509,10 @@ Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_ba
 void Header::set_title(const string_view_utf8 &text) {
     title.SetText(text);
     title.Invalidate();
+}
+
+uint8_t Header::title_chars() {
+    return title_rect(true).Width() / width(Font::small);
 }
 
 // ---- Barre d'onglets ----
@@ -456,14 +556,17 @@ TabBar::Button::Button(window_t *parent, Tab tab, Tab active)
 
 void TabBar::Button::unconditionalDraw() {
     const Rect16 r = GetRect();
+    // Ciblé à la molette : une pastille plus claire dans la case (la barre n'a pas de marge)
+    const Color bg = IsFocused() ? style::surface : style::tab_bar;
     display::fill_rect(r, style::tab_bar);
-    // La barre n'a pas de marge : l'anneau de focus est dessiné à l'intérieur de la case
-    draw_body(Rect16(r.Left() + 6, r.Top() + 3, r.Width() - 12, r.Height() - 4), style::tab_bar, style::tab_bar, radius, IsFocused());
+    if (IsFocused()) {
+        display::draw_rounded_rect(Rect16(r.Left() + 6, r.Top() + 4, r.Width() - 12, r.Height() - 5), style::tab_bar, bg, radius, MIC_ALL_CORNERS);
+    }
     if (active) {
         display::draw_rounded_rect(Rect16(r.Left() + 38, r.Top(), 44, 3), style::tab_bar, style::accent, 2, MIC_BOT_LEFT | MIC_BOT_RIGHT);
     }
-    draw_icon({ int16_t(r.Left() + (r.Width() - icon.w) / 2), int16_t(r.Top() + 7) }, icon, style::tab_bar, active ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
-    draw_text(Rect16(r.Left() + 8, r.Top() + 26, r.Width() - 16, height(Font::small)), label, Font::small, active ? style::accent : style::text_muted, style::tab_bar, Align_t::Center());
+    draw_icon({ int16_t(r.Left() + (r.Width() - icon.w) / 2), int16_t(r.Top() + 6) }, icon, bg, active ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+    draw_text(Rect16(r.Left() + 10, r.Top() + 24, r.Width() - 20, height(Font::small)), label, Font::small, active ? style::accent : style::text_muted, bg, Align_t::Center());
 }
 
 TabBar::TabBar(window_t *parent, Tab active)

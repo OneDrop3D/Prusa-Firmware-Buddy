@@ -73,6 +73,7 @@ protected:
 private:
     ScreenPrinting &screen;
     uint16_t grey_rows;
+    int16_t line_y = 0; ///< trait orange dessiné (0 : aucun), effacé quand il descend
 };
 
 /// Colonne de droite, en deux fenêtres pour que chacune ne se redessine que si sa partie change :

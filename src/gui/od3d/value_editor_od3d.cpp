@@ -1,6 +1,8 @@
 /// @file
 #include "value_editor_od3d.hpp"
 
+#include "print_info_od3d.hpp"
+#include "thumbnail_od3d.hpp"
 #include "widgets_od3d.hpp"
 
 #include <algorithm>
@@ -183,15 +185,26 @@ void ValueEditor::ValueView::unconditionalDraw() {
     const int16_t end = unit_x + unit_w;
     display::fill_rect(Rect16(end, top, value_rect.Left() + value_rect.Width() - end, h), bg);
 
-    // Barre : piste, remplissage orange, disque blanc
-    const uint16_t filled = static_cast<uint16_t>(std::lround(editor.fraction() * bar_rect.Width()));
-    display::fill_rect(bar_zone, bg);
-    display::draw_rounded_rect(bar_rect, bg, style::line, 3, MIC_ALL_CORNERS);
-    if (filled) {
-        display::draw_rounded_rect(Rect16(bar_rect.Left(), bar_rect.Top(), filled, bar_rect.Height()), bg, style::accent, 3, MIC_ALL_CORNERS);
-    }
-    const int16_t knob_x = bar_rect.Left() + filled - knob_d / 2;
-    display::draw_rounded_rect(Rect16(knob_x, bar_rect.Top() + bar_rect.Height() / 2 - knob_d / 2, knob_d, knob_d), bg, style::text_strong, knob_d / 2, MIC_ALL_CORNERS);
+    // Barre : piste, remplissage orange, disque blanc ; une image d'une passe (la zone s'effaçait à chaque pas)
+    const int filled = static_cast<int>(std::lround(editor.fraction() * bar_rect.Width()));
+    const int bar_x = bar_rect.Left() - bar_zone.Left(), bar_y = bar_rect.Top() - bar_zone.Top();
+    const int bar_w = bar_rect.Width(), bar_h = bar_rect.Height();
+    const int knob_x = bar_x + filled - knob_d / 2, knob_y = bar_y + bar_h / 2 - knob_d / 2;
+    draw_pixels(bar_zone, [&](int x, int y) {
+        const int kx = 2 * (x - knob_x) + 1 - knob_d, ky = 2 * (y - knob_y) + 1 - knob_d;
+        if (kx * kx + ky * ky < knob_d * knob_d) {
+            return style::text_strong;
+        }
+        const int by = y - bar_y, bx = x - bar_x;
+        if (by < 0 || by >= bar_h) {
+            return bg;
+        }
+        const int inset = print_info::corner_inset(by, bar_h, bar_h / 2);
+        if (bx < inset || bx >= bar_w - inset) {
+            return bg;
+        }
+        return bx < filled - inset ? style::accent : style::line;
+    });
 }
 
 } // namespace od3d

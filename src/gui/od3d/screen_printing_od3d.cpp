@@ -45,16 +45,17 @@ namespace od3d {
 
 namespace {
 
-    // Géométrie (SPEC_G.md §3.12)
-    constexpr Rect16 thumb_rect = { style::margin, 32, 200, 140 };
-    constexpr Rect16 info_rect = { 218, 30, 254, 142 }; ///< colonne de droite : progression, ligne, bobine
+    // Géométrie (SPEC_G.md §3.12), sous l'en-tête de 40 px : aperçu 134 px de haut (140 dans la maquette)
+    constexpr Rect16 thumb_rect = { style::margin, style::top, 200, 134 };
+    constexpr Rect16 info_rect = { 218, 42, 254, 138 }; ///< colonne de droite : progression, ligne, bobine (rien d'actif)
     constexpr Rect16 progress_rect = { info_rect.Left(), info_rect.Top(), info_rect.Width(), 56 };
-    constexpr Rect16 line_rect = { info_rect.Left(), 86, info_rect.Width(), 16 };
-    constexpr Rect16 spool_rect = Rect16::fromLTRB(info_rect.Left(), 102, info_rect.Left() + info_rect.Width(), info_rect.Top() + info_rect.Height());
+    constexpr Rect16 line_rect = { info_rect.Left(), progress_rect.Bottom() + 1, info_rect.Width(), 16 };
+    constexpr Rect16 spool_rect = Rect16::fromLTRB(info_rect.Left(), line_rect.Bottom() + 1, info_rect.Left() + info_rect.Width(), info_rect.Top() + info_rect.Height());
     static_assert(progress_rect.Bottom() + 1 == line_rect.Top() && line_rect.Bottom() + 1 == spool_rect.Top());
-    constexpr Rect16 strip_rect = { style::margin, 176, 464, 20 };
+    static_assert(spool_rect.Height() == 66 && info_rect.Top() > style::header_line.Top());
+    constexpr Rect16 strip_rect = { style::margin, 184, 464, 20 };
     constexpr Rect16 button_body(int i) {
-        return Rect16(style::margin + i * 94, 202, 88, 62);
+        return Rect16(style::margin + i * 94, 210, 88, 62);
     }
     constexpr uint8_t thumb_factor = 2;
     constexpr uint16_t img_w = thumbnail_sizes::preview_thumbnail_width / thumb_factor;
@@ -141,30 +142,28 @@ void PrintingButton::unconditionalDraw() {
         Card::unconditionalDraw();
         return;
     }
-    // Bouton danger (§1.5) : contour 2 px #E74626 autour du corps
-    const Rect16 b = body();
-    draw_body(GetRect(), style::danger, back, radius, IsFocused());
-    display::draw_rounded_rect(Rect16(b.Left() + 2, b.Top() + 2, b.Width() - 4, b.Height() - 4), style::danger, body_color, radius - 2, MIC_ALL_CORNERS);
-    draw_content(b);
+    // Bouton danger (§1.5) : contour 2 px #E74626 autour du corps, d'une passe
+    draw_frame(GetRect(), back, style::danger, fill(), radius, 2);
+    draw_content(body());
 }
 
 void PrintingButton::draw_content(Rect16 body) {
     const Rect16 top(body.Left() + 4, body.Top() + 12, body.Width() - 8, 16);
     const Color fg = face.active ? style::text : style::text_faint;
     if (face.value[0]) {
-        draw_text(top, face.text, Font::small, face.active ? style::text_muted : style::text_faint, body_color, Align_t::Center());
-        draw_text(Rect16(top.Left(), body.Top() + 31, top.Width(), height(Font::normal)), string_view_utf8::MakeRAM(face.value.data()), Font::normal, fg, body_color, Align_t::Center());
+        draw_text(top, face.text, Font::small, face.active ? style::text_muted : style::text_faint, fill(), Align_t::Center());
+        draw_text(Rect16(top.Left(), body.Top() + 31, top.Width(), height(Font::normal)), string_view_utf8::MakeRAM(face.value.data()), Font::normal, fg, fill(), Align_t::Center());
         return;
     }
     if (face.icon) {
-        draw_icon({ int16_t(body.Left() + (body.Width() - face.icon->w) / 2), int16_t(top.Top()) }, *face.icon, body_color, face.active ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+        draw_icon({ int16_t(body.Left() + (body.Width() - face.icon->w) / 2), int16_t(top.Top()) }, *face.icon, fill(), face.active ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
     } else if (face.glyph) {
-        draw_text(top, string_view_utf8::MakeCPUFLASH(face.glyph), Font::small, fg, body_color, Align_t::Center());
+        draw_text(top, string_view_utf8::MakeCPUFLASH(face.glyph), Font::small, fg, fill(), Align_t::Center());
     } else if (face.danger) {
-        display::draw_rounded_rect(Rect16(body.Left() + (body.Width() - 14) / 2, top.Top() + 1, 14, 14), body_color, style::danger, 3, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(Rect16(body.Left() + (body.Width() - 14) / 2, top.Top() + 1, 14, 14), fill(), style::danger, 3, MIC_ALL_CORNERS);
     }
     const Color label_fg = !face.active ? style::text_faint : (face.danger ? Color::from_raw(0xFF8A73) : style::text);
-    draw_text(Rect16(top.Left(), body.Top() + 33, top.Width(), height(Font::small)), face.text, Font::small, label_fg, body_color, Align_t::Center());
+    draw_text(Rect16(top.Left(), body.Top() + 33, top.Width(), height(Font::small)), face.text, Font::small, label_fg, fill(), Align_t::Center());
 }
 
 void PrintingButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -188,20 +187,31 @@ void PrintThumb::set_progress(uint8_t percent) {
     const uint16_t rows = img_h * (100 - std::min<int>(percent, 100)) / 100;
     if (rows != grey_rows) {
         grey_rows = rows; // la vignette n'est relue sur la clé qu'à chaque ligne gagnée
+        // La vignette seule, sans repeindre sa case (elle clignotait à chaque ligne)
+        const bool background_valid = HasValidBackground();
         Invalidate();
+        if (background_valid) {
+            ValidateBackground();
+        }
     }
 }
 
 void PrintThumb::unconditionalDraw() {
     const Rect16 box = GetRect();
-    display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
+    if (!HasValidBackground()) {
+        display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
+    } else if (line_y) {
+        display::fill_rect(Rect16(box.Left(), line_y, box.Width(), 1), style::thumb_back); // le trait précédent, hors de l'image
+    }
+    line_y = 0;
     if (!draw_thumbnail(GCodeInfo::getInstance().GetGcodeFilepath(), box, thumb_factor, screen.scaler, grey_rows)) {
         draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, img::print_16x16, style::thumb_back);
         return;
     }
     if (grey_rows > 0) {
         // Trait orange à la hauteur imprimée, sur toute la largeur de la case (§3.12)
-        display::fill_rect(Rect16(box.Left(), box.Top() + (box.Height() - img_h) / 2 + grey_rows, box.Width(), 1), style::accent);
+        line_y = box.Top() + (box.Height() - img_h) / 2 + grey_rows;
+        display::fill_rect(Rect16(box.Left(), line_y, box.Width(), 1), style::accent);
     }
 }
 
@@ -220,8 +230,8 @@ void PrintInfo::set(const Data &d) {
 }
 
 void PrintInfo::unconditionalDraw() {
+    // Des cases qui couvrent tout le rect, chacune avec son fond : pas d'effacement préalable, « 47 % » ne clignote plus
     const Rect16 r = GetRect();
-    display::fill_rect(r, style::screen);
     const int16_t x = r.Left();
     const uint16_t w = r.Width();
 
@@ -230,19 +240,26 @@ void PrintInfo::unconditionalDraw() {
         char percent[8];
         snprintf(percent, sizeof(percent), "%u %%", data.percent);
         const uint16_t percent_w = strlen(percent) * width(Font::large);
-        draw_text(Rect16(x, r.Top(), percent_w, height(Font::large)), string_view_utf8::MakeRAM(percent), Font::large, style::text_strong, style::screen);
-        draw_text(Rect16(x + percent_w + 8, 59, w - percent_w - 8, height(Font::small)), string_view_utf8::MakeRAM(data.state.data()), Font::small, style::text_muted, style::screen);
+        render_text_align(Rect16(x, r.Top(), percent_w, r.Height()), string_view_utf8::MakeRAM(percent), Font::large, style::screen, style::text_strong, {}, text_flags(Align_t::LeftTop()));
+        render_text_align(Rect16(x + percent_w, r.Top(), w - percent_w, r.Height()), string_view_utf8::MakeRAM(data.state.data()), Font::small, style::screen, style::text_muted,
+            padding_ui8(8, 29, 0, 0), text_flags(Align_t::LeftTop()));
         return;
     }
 
+    // Haut (34 px) : bobine chargée et ses deux lignes ; bas : message sur deux lignes
+    constexpr uint8_t d = 26;
+    constexpr int16_t text_dx = d + 8;
+    const Rect16 top_rect(x, r.Top(), w, 34);
     if (data.slot != 0xff) {
-        constexpr uint8_t d = 26;
-        draw_spool({ x, 108 }, data.look, d);
+        const spool::Disc disc(data.look, d);
+        draw_pixels(Rect16(x, r.Top(), text_dx, top_rect.Height()), [&](int px, int py) { return disc.pixel(px, py - 2).value_or(style::screen); });
         StringViewUtf8Parameters<4> params;
-        draw_text(Rect16(x + d + 8, 106, w - d - 8, height(Font::small)), _("Now: slot %d").formatted(params, data.slot + 1), Font::small, style::text_muted, style::screen);
-        draw_text(Rect16(x + d + 8, 122, w - d - 8, height(Font::small)), string_view_utf8::MakeRAM(data.material.data()), Font::small, style::text_strong, style::screen);
+        draw_text(Rect16(x + text_dx, r.Top(), w - text_dx, height(Font::small)), _("Now: slot %d").formatted(params, data.slot + 1), Font::small, style::text_muted, style::screen);
+        render_text_align(Rect16(x + text_dx, r.Top() + 16, w - text_dx, top_rect.Height() - 16), string_view_utf8::MakeRAM(data.material.data()), Font::small, style::screen, style::text_strong, {}, text_flags(Align_t::LeftTop()));
+    } else {
+        display::fill_rect(top_rect, style::screen);
     }
-    render_text_align(Rect16(x, 140, w, 2 * height(Font::small)), string_view_utf8::MakeRAM(data.bottom.data()), Font::small, style::screen, data.bottom_strong ? style::text_soft : style::text_muted, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
+    render_text_align(Rect16(x, r.Top() + top_rect.Height(), w, r.Height() - top_rect.Height()), string_view_utf8::MakeRAM(data.bottom.data()), Font::small, style::screen, data.bottom_strong ? style::text_soft : style::text_muted, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
 }
 
 PrintStrip::PrintStrip(window_t *parent, Rect16 rect)
@@ -256,16 +273,23 @@ void PrintStrip::set_progress(uint8_t p) {
 }
 
 void PrintStrip::unconditionalDraw() {
+    // Piste arrondie, partie faite orange, curseur blanc de 3 px : une image d'une passe (la barre clignotait)
     const Rect16 r = GetRect();
-    display::fill_rect(r, style::screen);
-    const Rect16 track(r.Left(), r.Top() + 4, r.Width(), 12);
-    display::draw_rounded_rect(track, style::screen, style::line, 6, MIC_ALL_CORNERS);
-    const int done = track.Width() * std::min<int>(percent, 100) / 100;
-    if (done > 0) {
-        display::draw_rounded_rect(Rect16(track.Left(), track.Top(), done, track.Height()), style::screen, style::accent, 6, MIC_ALL_CORNERS);
-    }
-    const int cursor = std::clamp<int>(track.Left() + done - 1, r.Left(), r.Left() + r.Width() - 3);
-    display::draw_rounded_rect(Rect16(cursor, r.Top(), 3, r.Height()), style::screen, style::text_strong, 1, MIC_ALL_CORNERS);
+    const int w = r.Width(), h = r.Height();
+    constexpr int track_top = 4, track_h = 12, track_r = 6;
+    const int done = w * std::min<int>(percent, 100) / 100;
+    const int cursor = std::clamp(done - 1, 0, w - 3);
+    draw_pixels(r, [&](int x, int y) {
+        if (x >= cursor && x < cursor + 3) {
+            return (x != cursor + 1 && (y == 0 || y == h - 1)) ? style::screen : style::text_strong; // coins arrondis de 1 px
+        }
+        const int ty = y - track_top;
+        const int inset = ty >= 0 && ty < track_h ? print_info::corner_inset(ty, track_h, track_r) : w;
+        if (x < inset || x >= w - inset) {
+            return style::screen;
+        }
+        return x < done - inset ? style::accent : style::line;
+    });
 }
 
 // ---- Écran ----

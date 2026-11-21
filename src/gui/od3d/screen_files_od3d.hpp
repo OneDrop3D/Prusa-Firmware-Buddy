@@ -26,9 +26,6 @@ print_info::FileInfo read_file_info(const char *path);
 /// grey_rows lignes du haut en gris. false s'il n'y a pas de vignette (box n'est pas touchée).
 bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<ScaledQoiReader> &scaler, uint16_t grey_rows = 0);
 
-/// Anneau de focus seul : la marge de 2 px autour du corps et les coins du corps, comme draw_body() sans le corps
-void draw_ring(Rect16 outer, Color ring, Color back, uint8_t radius);
-
 class ScreenFiles;
 
 /// Carte d'un fichier ou d'un dossier de la grille : anneau, nom, « durée · grammes », bobines utilisées.
@@ -59,10 +56,14 @@ private:
     print_info::FileInfo info;
 };
 
-/// Haut d'une carte : la vignette du fichier, ou l'icône du dossier
+/// Haut d'une carte : la vignette du fichier, ou l'icône du dossier. La vignette (lecture sur la clé, ~0,1 s) vient
+/// après le dessin de la grille, une par LOOP : l'écran s'affiche sans l'attendre et la molette répond entre deux.
 class FileThumb : public window_t {
 public:
     FileThumb(ScreenFiles &screen, const FileTile &tile, uint8_t index);
+
+    /// Demande le dessin de la vignette si elle manque ; false s'il n'y a rien à faire
+    bool request_image();
 
 protected:
     void unconditionalDraw() override;
@@ -70,6 +71,8 @@ protected:
 private:
     ScreenFiles &screen;
     const FileTile &tile;
+    bool image_drawn = false;
+    bool image_requested = false;
 };
 
 class ScreenFiles final : public Screen {

@@ -20,4 +20,11 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Réglages › Fonctions OneDrop3D › « Tension des courroies » (F14) : ouvre l'écran de mesure par l'accéléromètre
+class MI_BELT_TENSION final : public IWindowMenuItem {
+public:
+    MI_BELT_TENSION();
+    void click(IWindowMenu &) override;
+};
+
 } // namespace od3d

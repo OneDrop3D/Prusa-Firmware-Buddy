@@ -10575,3 +10575,92 @@ msgstr "poulie sur l'emplacement %d"
 #: src/gui/od3d/screen_mmu_od3d.cpp
 msgid "Stop cleaning"
 msgstr "Arrêter"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt tension"
+msgstr "Tension courroies"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt tension\nMeasured with the accelerometer"
+msgstr "Tension des courroies\nMesurée par l'accéléromètre"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt A"
+msgstr "Courroie A"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt B"
+msgstr "Courroie B"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "weak peak"
+msgstr "pic peu net"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "too low"
+msgstr "trop basse"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "in range"
+msgstr "correcte"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "too high"
+msgstr "trop haute"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Spectrum"
+msgstr "Spectre"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Start"
+msgstr "Démarrer"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Homing and moving to the measuring position..."
+msgstr "Prise d'origine et mise en place..."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Calibrating accelerometer... %d%%"
+msgstr "Calibration de l'accéléromètre... %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Measuring belt %c... %d%%"
+msgstr "Mesure de la courroie %c... %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Attach the accelerometer to the extruder, then Start (about 1.5 min)."
+msgstr "Fixez l'accéléromètre sur l'extrudeur, puis Démarrer (1 min 30 env.)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "No clear peak on belt %c: attach the accelerometer firmly and try again."
+msgstr "Pas de pic net sur la courroie %c : fixez bien l'accéléromètre et recommencez."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both belts are in range: no need to turn the screws."
+msgstr "Les deux courroies sont dans la plage : rien à tourner."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "A and B differ by more than %d Hz: check the gantry alignment."
+msgstr "A et B diffèrent de plus de %d Hz : vérifiez l'alignement du portique."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: %s %s turn, then measure again."
+msgstr "Les deux vis : %s de %s tour, puis mesurez à nouveau."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Let the nozzle cool below 50°C, then start again."
+msgstr "Laissez la buse refroidir sous 50°C, puis recommencez."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Accelerometer not responding."
+msgstr "L'accéléromètre ne répond pas."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Homing failed."
+msgstr "La prise d'origine a échoué."

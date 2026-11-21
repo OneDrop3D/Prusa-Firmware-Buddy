@@ -257,8 +257,9 @@ private:
 /// températures, réseau, heure, trait
 class Header {
 public:
-    /// back_action : action du retour à la place de la fermeture de l'écran
-    Header(window_t *parent, const string_view_utf8 &title, bool has_back, Card::Action back_action = nullptr);
+    /// back_action : action du retour à la place de la fermeture de l'écran. compact : 31 px et sans retour, pour les
+    /// écrans de Prusa (machines à états) dont le contenu commence à 32 px
+    Header(window_t *parent, const string_view_utf8 &title, bool has_back, Card::Action back_action = nullptr, bool compact = false);
 
     /// Montre ou cache le retour
     void show_back(bool show);

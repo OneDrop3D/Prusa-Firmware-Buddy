@@ -1,5 +1,7 @@
 #pragma once
 
+#include <gui/od3d/menu_od3d.hpp> // OneDrop3D (interface G)
+
 #include "screen.hpp"
 #include <common/static_storage.hpp>
 #include "window_header.hpp"
@@ -98,7 +100,7 @@ class ScreenFSM : public WindowFSM<screen_t, 2016> {
 public:
     ScreenFSM(const char *header_txt, Rect16 inner_frame_rect = GuiDefaults::RectScreenNoHeader)
         : WindowFSM(inner_frame_rect)
-        , header { this, _(header_txt) } {}
+        , header { this, _(header_txt), false, true } {}
 
     virtual void InitState(screen_init_variant var) override {
         if (auto fsm_base_data = var.GetFsmBaseData()) {
@@ -113,7 +115,8 @@ public:
     }
 
 protected:
-    window_header_t header;
+    /// OneDrop3D (interface G) : en-tête G compact (31 px, sans retour : la machine à états décide de la fermeture)
+    od3d::MenuHeader header;
 };
 
 class DialogFSM : public WindowFSM<IDialogMarlin, 1124> {

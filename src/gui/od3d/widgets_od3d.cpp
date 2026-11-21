@@ -459,8 +459,22 @@ namespace {
     // En-tête de 40 px (style::header), de droite à gauche : heure, réseau, températures, puis le titre prend le reste
     constexpr int16_t header_gap = 6;
     constexpr uint16_t temps_w = 173; ///< 3 × (icône 16 + 2) + « 230° » « 110° » « 45° » + 2 × 6, plus 4 de chaque côté
-    constexpr uint16_t temps_h = 30;
     constexpr uint8_t back_d = 32; ///< disque du retour (22 dans la maquette)
+
+    /// Hauteurs : l'en-tête normal (40 px, trait en 40) ou compact (31 px, trait en 31) pour les écrans de Prusa dont
+    /// le contenu commence à 32 (GuiDefaults::HeaderHeight), sans retour
+    struct Geometry {
+        uint16_t h; ///< hauteur sans le trait
+        uint16_t temps_h; ///< bouton des températures
+        uint16_t island_h; ///< pastille de l'opération en arrière-plan
+    };
+    constexpr Geometry normal_geometry { style::header.Height(), 30, 28 };
+    constexpr Geometry compact_geometry { 31, 26, 24 };
+    static_assert(compact_geometry.h + 1 <= GuiDefaults::HeaderHeight, "le contenu des écrans de Prusa commence sous le trait");
+    static_assert((compact_geometry.h - compact_geometry.temps_h) / 2 >= style::ring && (compact_geometry.h - compact_geometry.island_h) / 2 >= style::ring);
+    const Geometry &geometry(bool compact) {
+        return compact ? compact_geometry : normal_geometry;
+    }
     constexpr Rect16 back_body = { 6, (style::header.Height() - back_d) / 2, back_d, back_d };
     static_assert(style::inside(style::back_touch, style::with_ring(back_body)));
 
@@ -473,27 +487,26 @@ namespace {
     int16_t network_x() {
         return clock_x() - header_gap - 16;
     }
-    Rect16 temps_body() {
-        return Rect16(network_x() - header_gap - temps_w, (style::header.Height() - temps_h) / 2, temps_w, temps_h);
+    Rect16 temps_body(const Geometry &g = normal_geometry) {
+        return Rect16(network_x() - header_gap - temps_w, (g.h - g.temps_h) / 2, temps_w, g.temps_h);
     }
-    Rect16 title_rect(bool has_back) {
+    Rect16 title_rect(bool has_back, const Geometry &g = normal_geometry) {
         // Le titre n'est pas actif : il peut passer sur la zone tactile du retour, 6 px après son disque
         const int16_t x = has_back ? back_body.Right() + 1 + header_gap : style::margin;
-        return Rect16(x, 0, temps_body().Left() - style::ring - header_gap - x, style::header.Height());
+        return Rect16(x, 0, temps_body(g).Left() - style::ring - header_gap - x, g.h);
     }
 
     // Pastille de l'opération en arrière-plan, collée au bouton des températures : anneau, « 2 · 100 % »
     constexpr uint16_t island_w = 116;
-    constexpr uint16_t island_h = 28;
     constexpr uint8_t island_spinner = 16;
     constexpr uint32_t island_spin_ms = 1200; ///< un tour
     constexpr Color island_black = COLOR_BLACK;
-    Rect16 island_body() {
-        return Rect16(temps_body().Left() - 2 * style::ring - header_gap - island_w, (style::header.Height() - island_h) / 2, island_w, island_h);
+    Rect16 island_body(const Geometry &g) {
+        return Rect16(temps_body(g).Left() - 2 * style::ring - header_gap - island_w, (g.h - g.island_h) / 2, island_w, g.island_h);
     }
-    Rect16 title_short_rect(bool has_back) {
-        const Rect16 full = title_rect(has_back);
-        return Rect16(full.Left(), full.Top(), std::max<int>(island_body().Left() - style::ring - header_gap - full.Left(), 0), full.Height());
+    Rect16 title_short_rect(bool has_back, const Geometry &g) {
+        const Rect16 full = title_rect(has_back, g);
+        return Rect16(full.Left(), full.Top(), std::max<int>(island_body(g).Left() - style::ring - header_gap - full.Left(), 0), full.Height());
     }
 
     void go_back() {
@@ -574,14 +587,15 @@ void IslandPill::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     Card::windowEvent(sender, event, param);
 }
 
-Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_back, Card::Action back_action)
+Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_back, Card::Action back_action, bool compact)
     : back(parent, back_action)
-    , title(parent, title_rect(has_back), is_multiline::no, is_closed_on_click_t::no, title_text)
-    , island(parent, island_body(), title, title_rect(has_back), title_short_rect(has_back))
-    , temps(parent, temps_body())
-    , network(parent, { network_x(), int16_t((style::header.Height() - 16) / 2) })
-    , clock(parent, Rect16(clock_x(), 0, clock_w(), style::header.Height()))
-    , line(parent, style::header_line) {
+    , title(parent, title_rect(has_back, geometry(compact)), is_multiline::no, is_closed_on_click_t::no, title_text)
+    , island(parent, island_body(geometry(compact)), title, title_rect(has_back, geometry(compact)), title_short_rect(has_back, geometry(compact)))
+    , temps(parent, temps_body(geometry(compact)))
+    , network(parent, { network_x(), int16_t((geometry(compact).h - 16) / 2) })
+    , clock(parent, Rect16(clock_x(), 0, clock_w(), geometry(compact).h))
+    , line(parent, Rect16(0, geometry(compact).h, style::screen_w, 1)) {
+    has_back = has_back && !compact; // le compact n'a pas la place du disque du retour
     back.set_visible(has_back);
     back.set_enabled(has_back);
     title.set_font(Font::small);

@@ -22,10 +22,11 @@ static_assert(style::inside(style::content, list_rect));
 /// has_back = false dans un dialogue : le retour de l'en-tête fermerait l'écran dessous.
 class MenuHeader {
 public:
-    MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true);
+    MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true, bool compact = false);
 
     void SetText(const string_view_utf8 &title);
     void SetIcon(const img::Resource *) {} ///< pas d'icône dans l'en-tête G
+    void set_show_bed_info(bool) {} ///< écrans FSM de Prusa : l'en-tête G a déjà les températures
 
 private:
     std::array<char, 64> title_text {};

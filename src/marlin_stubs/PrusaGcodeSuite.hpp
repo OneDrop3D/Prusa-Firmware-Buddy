@@ -199,6 +199,8 @@ void M1992(); //< OneDrop3D (F14) : tension des courroies mesurée par l'accél�
 void M1993(); //< OneDrop3D (F22) : carte des vitesses critiques (accéléromètre)
 void M1994(); //< OneDrop3D (F4) : mesure du pressure advance d'un emplacement (cellule de charge)
 void M1998(); //< OneDrop3D (F29) : descente douce du plateau (démarrer, arrêter, état)
+void M1995(); //< OneDrop3D (F5) : débit maximal d'un emplacement (cellule de charge)
+void M1996(); //< OneDrop3D (F6) : température minimale d'un emplacement (cellule de charge)
 void M306(); //< OneDrop3D (F7) : régulation MPC de la buse, calibration (T), mode (M), paramètres
 void M9140(); //< Set normal (non-stealth) mode
 void M9141(); //< Get stealth mode status

@@ -91,3 +91,10 @@ add_executable(
   )
 target_include_directories(clean_resume_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(clean_resume_od3d_tests)
+add_executable(
+  spool_calib_od3d_tests
+  ${CMAKE_CURRENT_SOURCE_DIR}/spool_calib_math_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/spool_calib_math_od3d.cpp
+  ${CMAKE_SOURCE_DIR}/src/feature/od3d/pa_math_od3d.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/force_trace_od3d.cpp
+  )
+target_include_directories(spool_calib_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(spool_calib_od3d_tests)

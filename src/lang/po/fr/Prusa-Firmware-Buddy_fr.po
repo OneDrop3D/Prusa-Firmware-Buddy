@@ -11024,3 +11024,90 @@ msgstr "Approche (mm/s)\nLes 5 derniers mm vers la pièce"
 #: src/gui/od3d/screen_resume_od3d.cpp
 msgid "Clean resume"
 msgstr "Reprise propre"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Limit to measured flow\nSlows moves above the spool's max flow"
+msgstr "Limiter au débit mesuré\nRalentit au-delà du débit max de la bobine"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Flow, temp."
+msgstr "Débit, temp."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Max flow"
+msgstr "Débit max"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Min. temperature"
+msgstr "Température min."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Limit: %s mm3/s"
+msgstr "Limite %s mm3/s"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Force/flow"
+msgstr "Force/débit"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Force/temp."
+msgstr "Force/temp."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Slot %d · Flow/temp"
+msgstr "Empl. %d · Débit/T°"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Min. temp."
+msgstr "Temp. min"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Flow limit: on"
+msgstr "Débit limité : oui"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Flow limit: off"
+msgstr "Débit limité : non"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Extruding %s mm3/s (%d/%d)"
+msgstr "Extrusion à %s mm3/s (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Extruding at %d° (%d/%d)"
+msgstr "Extrusion à %d° (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Nozzle down to %d° (%d/%d)"
+msgstr "Descente de la buse à %d° (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Another measurement is running."
+msgstr "Une autre mesure est en cours."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Max flow measured: %s mm3/s"
+msgstr "Débit max mesuré : %s mm3/s"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Min. temperature measured: %d°"
+msgstr "Température min. mesurée : %d°"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Too few steps: nothing saved."
+msgstr "Trop peu de paliers : rien d'enregistré."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "The nozzle heats up, then extrudes up to 1 g of filament at increasing flow above the front of the bed (1 to 2 min). Clear the bed. Start?"
+msgstr "La buse chauffe, puis extrude jusqu'à 1 g de filament à débit croissant au-dessus de l'avant du plateau (1 à 2 min). Dégagez le plateau. Commencer ?"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "The nozzle heats up, then cools down step by step while extruding a little filament above the front of the bed (3 to 6 min). Clear the bed. Start?"
+msgstr "La buse chauffe, puis refroidit par paliers en extrudant un peu de filament au-dessus de l'avant du plateau (3 à 6 min). Dégagez le plateau. Commencer ?"

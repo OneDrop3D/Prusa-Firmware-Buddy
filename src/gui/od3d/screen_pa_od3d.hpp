@@ -2,7 +2,8 @@
 /// OneDrop3D (F4) : écran « Emplacement n · PA », ouvert par la puce « PA » de la fiche d'une bobine. Valeur mesurée
 /// et confiance, courbe de force de la dernière mesure (forme moyenne d'un créneau au K le plus bas, au meilleur K et
 /// au K le plus haut, avec la commande), « Mesurer » (M1994, feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer »,
-/// réglage général « le PA de l'imprimante prime » et export des courbes sur la clé (CSV).
+/// réglage général « le PA de l'imprimante prime » et export des courbes sur la clé (CSV). « Débit, temp. » ouvre l'écran
+/// frère des autres calibrations de la bobine (F5, F6 : screen_spool_calib_od3d.hpp).
 #pragma once
 
 #include "atelier_od3d.hpp"
@@ -14,6 +15,10 @@ namespace od3d {
 
 /// Ouvre l'écran PA de l'emplacement (0 à 4)
 void open_pa(uint8_t slot);
+
+/// Courbes des mesures exportées sur la clé (F4, F5, F6) : choix commun, gardé jusqu'au redémarrage
+bool usb_curves();
+void set_usb_curves(bool set);
 
 /// Carte de gauche : K, confiance, matière et température
 class PaValueCard : public window_t {
@@ -62,6 +67,7 @@ private:
     Button csv;
     Button measure_button;
     Button second; ///< « Annuler » pendant la mesure, « Effacer » sinon
+    Button calib; ///< « Débit, temp. » : écran des autres calibrations de la bobine (F5, F6)
     TabBar tabs;
 
     std::array<char, 64> note_text {};

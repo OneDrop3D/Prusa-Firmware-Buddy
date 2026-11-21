@@ -41,6 +41,24 @@ float dt();
 /// La mémoire a débordé (la fin de la séquence manque)
 bool overflowed();
 
+/// Fenêtre de mesure (F5, F6) : moyenne et écart type de la force sur les points enregistrés entre window_begin() et
+/// window_end(), calculés en flottant dans l'interruption (sans la limite de ±655 g des points de la trace, et même
+/// après le débordement de la mémoire). Force relative au premier échantillon, comme la trace.
+struct WindowStats {
+    uint32_t count = 0; ///< points dans la fenêtre
+    float mean_g = 0; ///< force moyenne [g]
+    float sd_g = 0; ///< écart type [g]
+};
+
+/// Les points suivants entrent dans la fenêtre (statistiques remises à zéro) ; à appeler pendant l'enregistrement
+void window_begin();
+
+/// Plus aucun point n'entre dans la fenêtre
+void window_end();
+
+/// Statistiques de la fenêtre (lire après window_end() ou stop())
+WindowStats window();
+
 /// Écrit la trace en CSV, une ligne « D,<étiquette>,t_s,x_mm,force_g » par point ; false si l'écriture échoue
 bool write_csv(FILE *file, float label);
 

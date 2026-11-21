@@ -9,6 +9,7 @@
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
 #include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/pairing_od3d.hpp>
+#include <feature/od3d/spool_calib_od3d.hpp>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
 #include <window_msgbox.hpp>
@@ -67,6 +68,16 @@ MI_PA_PRINTER_WINS::MI_PA_PRINTER_WINS()
 
 void MI_PA_PRINTER_WINS::OnChange(size_t) {
     pa::set_printer_wins(value());
+}
+
+// ---- Limite de débit (F5) ----
+
+// Vaut dès maintenant pour l'emplacement chargé ; la mesure se lance depuis la fiche de la bobine (PA › Débit, temp.).
+MI_FLOW_LIMIT::MI_FLOW_LIMIT()
+    : WI_ICON_SWITCH_OFF_ON_t(calib::flow_limit_enabled(), _("Limit to measured flow\nSlows moves above the spool's max flow"), &img::nozzle_16x16) {}
+
+void MI_FLOW_LIMIT::OnChange(size_t) {
+    calib::set_flow_limit_enabled(value());
 }
 
 // ---- Température de la buse (F2) ----

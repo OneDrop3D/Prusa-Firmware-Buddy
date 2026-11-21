@@ -52,14 +52,12 @@ struct IWindowMenuItemColorScheme {
     };
 
     struct ROpPair {
-        ropfn focused {
-            .swap_bw = has_swapped_bw::yes,
-        };
+        ropfn focused {}; // OneDrop3D (interface G) : icônes blanches aussi sur la ligne ciblée, qui reste sombre
         ropfn unfocused = {};
     };
 
     ColorPair text {
-        .focused = GuiDefaults::MenuColorBack,
+        .focused = GuiDefaults::MenuColorText, // OneDrop3D (interface G) : texte clair sur la ligne ciblée sombre
         .unfocused = GuiDefaults::MenuColorText,
     };
     ColorPair back {

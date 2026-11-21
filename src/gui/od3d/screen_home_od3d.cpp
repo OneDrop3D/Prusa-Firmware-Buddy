@@ -162,7 +162,7 @@ bool FileCard::draw_thumbnail(Rect16 box) {
     if (!qoi) {
         return false;
     }
-    scaler.emplace(*qoi, ScaledQoiReader::Params { .factor = 2, .back = style::thumb_back, .radius = 10, .outside = style::surface });
+    scaler.emplace(*qoi, ScaledQoiReader::Params { .factor = 2, .back = style::thumb_back, .radius = style::radius_small, .outside = style::surface });
     display::draw_img(point_ui16(box.Left(), box.Top()), *scaler);
     scaler.reset();
     return true;
@@ -173,7 +173,7 @@ void FileCard::unconditionalDraw() {
     if (!HasValidBackground()) {
         // La carte, la case vide de la vignette (elle arrive au LOOP suivant) et les textes
         display::draw_rounded_rect(card, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
-        display::draw_rounded_rect(thumb_rect, style::surface, style::thumb_back, 10, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(thumb_rect, style::surface, style::thumb_back, style::radius_small, MIC_ALL_CORNERS);
         if (state != State::file) {
             draw_icon({ int16_t(thumb_rect.Left() + (thumb_rect.Width() - 16) / 2), int16_t(thumb_rect.Top() + (thumb_rect.Height() - 16) / 2) }, img::folder_full_16x16, style::thumb_back);
         }

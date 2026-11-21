@@ -48,8 +48,11 @@ inline constexpr uint16_t screen_w = 480;
 inline constexpr uint16_t screen_h = 320;
 inline constexpr int16_t margin = 8; ///< marges gauche et droite
 inline constexpr uint8_t ring = 2; ///< anneau de focus, dessiné dans une marge de 2 px autour du corps
-inline constexpr uint8_t radius = 12; ///< cartes et boutons jusqu'à 64 px de haut
-inline constexpr uint8_t radius_big = 14; ///< grandes cartes
+// Arrondis normés (retour de l'utilisateur, 21/11 : « les bords des cases ne sont pas normés ») : trois tailles
+// seulement, plus les pastilles (moitié de la hauteur)
+inline constexpr uint8_t radius_small = 8; ///< petites tuiles d'icône, bouton des températures, pastille d'onglet
+inline constexpr uint8_t radius = 12; ///< cartes, boutons, listes, panneaux, feuilles, dialogues
+inline constexpr uint8_t radius_big = radius; ///< grandes cartes : même arrondi que les autres (14 avant)
 
 // En-tête de 40 px (26 dans la maquette, jugé trop petit sur l'imprimante) ; barre d'onglets de 44 px pour le compenser
 inline constexpr Rect16 header = { 0, 0, screen_w, 40 }; ///< en-tête : retour, titre, températures, réseau, heure

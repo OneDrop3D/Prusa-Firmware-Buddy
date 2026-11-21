@@ -29,7 +29,7 @@ using namespace window_menu_item_private;
 
 constexpr const IWindowMenuItem::ColorScheme IWindowMenuItem::color_scheme_default {
     .text {
-        .focused = GuiDefaults::MenuColorBack,
+        .focused = GuiDefaults::MenuColorText, // OneDrop3D (interface G) : la ligne ciblée reste sombre
         .unfocused = GuiDefaults::MenuColorText,
     },
     .back {
@@ -39,11 +39,11 @@ constexpr const IWindowMenuItem::ColorScheme IWindowMenuItem::color_scheme_defau
 };
 constexpr const IWindowMenuItem::ColorScheme IWindowMenuItem::color_scheme_default_disabled {
     .text {
-        .focused = GuiDefaults::MenuColorBack,
+        .focused = GuiDefaults::MenuColorDisabled, // OneDrop3D (interface G) : ligne ciblée sombre
         .unfocused = GuiDefaults::MenuColorDisabled,
     },
     .back {
-        .focused = GuiDefaults::MenuColorDisabled,
+        .focused = GuiDefaults::MenuColorFocusedBack,
         .unfocused = GuiDefaults::MenuColorBack,
     },
 };

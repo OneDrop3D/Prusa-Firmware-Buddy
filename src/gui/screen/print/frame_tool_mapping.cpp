@@ -27,13 +27,14 @@ namespace screen_tool_mapping {
 
 namespace {
 
+    // OneDrop3D (interface G) : l'outil choisi pour la liaison en orange, plus clair quand il est ciblé
     constexpr const IWindowMenuItem::ColorScheme color_scheme_selected_for_editing {
         .text {
-            .focused = COLOR_BRAND,
-            .unfocused = GuiDefaults::MenuColorText,
+            .focused = COLOR_BLACK,
+            .unfocused = COLOR_BLACK,
         },
         .back {
-            .focused = GuiDefaults::MenuColorFocusedBack,
+            .focused = Color::from_raw(0xFA8B54),
             .unfocused = COLOR_BRAND,
         },
         .rop = {},
@@ -388,10 +389,10 @@ void WindowRoutingBoard::unconditionalDraw() {
 FrameToolMapping::FrameToolMapping(window_frame_t *parent)
     : window_frame_t(parent)
     , gcode_tools_title_(this, Rect16::fromLTWH(0, title_t, menu_w, title_h - title_line_h - 2), is_multiline::no)
-    , gcode_tools_title_line_(this, Rect16::fromLTWH(0, title_t + title_h - title_line_h, menu_w, title_line_h), COLOR_GRAY)
+    , gcode_tools_title_line_(this, Rect16::fromLTWH(0, title_t + title_h - title_line_h, menu_w, title_line_h), Color::from_raw(0x3A3D42)) // OneDrop3D : trait G
     , gcode_tools_menu_(*this, Rect16::fromLTWH(0, menu_t, menu_w, menu_h), ToolType::gcode_tool)
     , virtual_tools_title_(this, Rect16::fromLTWH(right_menu_l, title_t, menu_w, title_h - title_line_h - 2), is_multiline::no)
-    , virtual_tools_title_line_(this, Rect16::fromLTWH(right_menu_l, title_t + title_h - title_line_h, menu_w, title_line_h), COLOR_GRAY)
+    , virtual_tools_title_line_(this, Rect16::fromLTWH(right_menu_l, title_t + title_h - title_line_h, menu_w, title_line_h), Color::from_raw(0x3A3D42)) // OneDrop3D : trait G
     , virtual_tools_menu_(*this, Rect16::fromLTWH(right_menu_l, menu_t, menu_w, menu_h), ToolType::virtual_tool)
     , routing_board_(*this)
     , scrollbar_(this, Rect16::fromLTWH(right_menu_r, menu_t, GuiDefaults::MenuScrollbarWidth, menu_h), gcode_tools_menu_)

@@ -74,7 +74,7 @@ ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const Numer
 
 void ValueEditor::unconditionalDraw() {
     // Coins du haut arrondis ; l'écran dessous n'est pas voilé (pas de transparence)
-    display::draw_rounded_rect(GetRect(), style::screen, style::surface, 18, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    display::draw_rounded_rect(GetRect(), style::screen, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
     draw_text(label_rect, label, Font::small, style::text_muted, style::surface, Align_t::Center());
     draw_round_button(minus_rect, "-");
     draw_round_button(plus_rect, "+");

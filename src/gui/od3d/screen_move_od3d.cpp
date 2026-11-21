@@ -390,7 +390,7 @@ CrossPanel::CrossPanel(window_t *parent, Rect16 rect)
     : window_t(parent, rect) {}
 
 void CrossPanel::unconditionalDraw() {
-    display::draw_rounded_rect(GetRect(), style::screen, style::surface, 16, MIC_ALL_CORNERS);
+    display::draw_rounded_rect(GetRect(), style::screen, style::surface, style::radius, MIC_ALL_CORNERS);
 }
 
 // ---- Carte du plateau ----

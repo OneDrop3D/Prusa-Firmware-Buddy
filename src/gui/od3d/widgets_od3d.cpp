@@ -305,7 +305,7 @@ void IconCard::set_subtitle(const string_view_utf8 &set) {
 void IconCard::draw_content(Rect16 body) {
     // Tuile de 22 px : le titre en gras (8 caractères, « Fichiers », « Contrôle ») garde une marge dans 128 px
     const Rect16 t(body.Left() + 7, body.Top() + (body.Height() - 22) / 2, 22, 22);
-    display::draw_rounded_rect(t, fill(), tile, 6, MIC_ALL_CORNERS);
+    display::draw_rounded_rect(t, fill(), tile, style::radius_small, MIC_ALL_CORNERS);
     draw_icon({ int16_t(t.Left() + 3), int16_t(t.Top() + 3) }, icon, tile);
     const int16_t x = t.Left() + t.Width() + 5;
     const uint16_t w = body.Left() + body.Width() - x;
@@ -367,7 +367,7 @@ void draw_temps(Rect16 rect, const Temps &temps, Color fg, Color bg, bool center
 }
 
 TempsButton::TempsButton(window_t *parent, Rect16 body)
-    : Card(parent, style::with_ring(body), open_temperatures, style::surface, style::screen, 6)
+    : Card(parent, style::with_ring(body), open_temperatures, style::surface, style::screen, style::radius_small)
     , temps(Temps::read()) {}
 
 void TempsButton::draw_content(Rect16 body) {

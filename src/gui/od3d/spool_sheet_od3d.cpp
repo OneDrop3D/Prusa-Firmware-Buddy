@@ -24,7 +24,7 @@ namespace {
     constexpr int16_t top = 114;
     constexpr Rect16 band = { 0, top, style::screen_w, style::screen_h - top };
     constexpr Rect16 head_rect = { 0, top + 1, 393, 54 };
-    constexpr uint8_t band_radius = 18;
+    constexpr uint8_t band_radius = style::radius; ///< arrondi normé (18 avant)
     constexpr Rect16 main_body = { 16, top + 60, 448, 42 };
     constexpr Rect16 close_body = { 397, top + 16, 67, 28 };
 

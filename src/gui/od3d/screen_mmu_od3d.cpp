@@ -128,7 +128,7 @@ void Shortcut::unconditionalDraw() {
     draw_frame(b, c);
     const bool enabled = IsEnabled();
     const Rect16 t(b.Left() + 8, b.Top() + 8, 24, 24);
-    display::draw_rounded_rect(t, c.fill, tile, 7, MIC_ALL_CORNERS);
+    display::draw_rounded_rect(t, c.fill, tile, style::radius_small, MIC_ALL_CORNERS);
     draw_icon({ int16_t(t.Left() + 4), int16_t(t.Top() + 4) }, *icon, tile, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
     const int16_t x = b.Left() + 40;
     const uint16_t w = b.Left() + b.Width() - 4 - x;

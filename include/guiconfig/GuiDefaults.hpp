@@ -99,7 +99,7 @@ struct GuiDefaults {
     static constexpr color_scheme ClickableIconColorScheme = { .normal = ScreenWidth > 240 ? COLOR_DARK_GRAY : COLOR_BLACK, .focused = COLOR_WHITE, .shadowed = ColorBack, .focused_and_shadowed = ColorDisabled };
     // Menu color settings
     static constexpr Color MenuColorBack = ColorBack;
-    static constexpr Color MenuColorFocusedBack = COLOR_WHITE;
+    static constexpr Color MenuColorFocusedBack = Color::from_raw(0x34373C); // OneDrop3D (interface G) : ligne ciblée un ton plus clair, plus de fond blanc
     static constexpr Color MenuColorText = ColorText;
     static constexpr Color MenuColorDisabled = ColorDisabled;
     static constexpr Color MenuColorDevelopment = COLOR_LIGHT_GREEN;

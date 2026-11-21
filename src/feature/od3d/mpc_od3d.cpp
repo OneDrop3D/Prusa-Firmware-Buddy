@@ -199,7 +199,7 @@ Command Autotune::step(const TuneInput &in) {
         const auto add_sample = [&](float t) {
             if (sample_count_ == max_samples) {
                 // Tampon plein : un échantillon sur deux, intervalle doublé (comme Marlin)
-                for (size_t i = 0; i < max_samples / 2; ++i) {
+                for (std::size_t i = 0; i < max_samples / 2; ++i) {
                     samples_[i] = samples_[2 * i];
                 }
                 sample_count_ = max_samples / 2;
@@ -298,7 +298,7 @@ float Autotune::fit_error(float c, float r) const {
     float sensor = samples_[0].temp;
     float t = 0;
     float sse = 0;
-    for (size_t i = 1; i < sample_count_; ++i) {
+    for (std::size_t i = 1; i < sample_count_; ++i) {
         while (t < samples_[i].t) {
             const float h = std::min(sim_dt, samples_[i].t - t);
             block += (heating_power_ - a * (block - ambient_)) * h / c;
@@ -353,13 +353,13 @@ void Autotune::compute() {
     // Première estimation de C par le bilan d'énergie sur la chauffe, à partir du premier quart de la montée
     // (le retard de la sonde y est déjà établi) : C × ΔT = P × Δt − A × ∫(T − T_amb) dt
     const float threshold = ambient_ + 0.25f * (config_.tune_temp - ambient_);
-    size_t first = 0;
+    std::size_t first = 0;
     while (first + 1 < sample_count_ && samples_[first].temp < threshold) {
         ++first;
     }
-    const size_t last = sample_count_ - 1;
+    const std::size_t last = sample_count_ - 1;
     float integral = 0;
-    for (size_t i = first; i < last; ++i) {
+    for (std::size_t i = first; i < last; ++i) {
         integral += ((samples_[i].temp + samples_[i + 1].temp) / 2 - ambient_) * (samples_[i + 1].t - samples_[i].t);
     }
     const float rise = samples_[last].temp - samples_[first].temp;

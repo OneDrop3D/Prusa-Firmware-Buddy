@@ -1,8 +1,13 @@
 /// @file
 #include "screen_mpc_od3d.hpp"
+#include "atelier_od3d.hpp"
 #include "menu_od3d.hpp"
+#include "screen_mmu_od3d.hpp" // Panel
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
+#include <feature/od3d/mpc_control_od3d.hpp>
 #include <common/marlin_vars.hpp>
 #include <cmath>
 #include <cstdio>
@@ -17,6 +22,66 @@
 static_assert(ENABLED(OD3D_MPCTEMP), "Régulation MPC (F7) : CORE One sans INDX");
 
 namespace od3d {
+
+/// Calibration du modèle thermique : étapes, température de la buse, barre, « Lancer » et « Annuler »
+class ScreenMpcCalibration final : public Screen {
+public:
+    ScreenMpcCalibration();
+
+protected:
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+private:
+    /// Les quatre étapes de la maquette, avec leurs repères ✓ ● ○
+    class Steps : public window_t {
+    public:
+        Steps(window_t *parent, Rect16 rect);
+        void set_phase(mpc::Phase phase, bool failed);
+
+    protected:
+        void unconditionalDraw() override;
+
+    private:
+        int8_t current = -1; ///< étape en cours, -1 : aucune ; 4 : toutes faites
+        bool failed = false;
+    };
+
+    class Bar : public window_t {
+    public:
+        Bar(window_t *parent, Rect16 rect);
+        void set_progress(uint8_t set);
+
+    protected:
+        void unconditionalDraw() override;
+
+    private:
+        uint8_t progress = 0;
+    };
+
+    void update();
+    void start();
+    void show_status();
+
+    // Ordre de construction = ordre de la molette
+    Header header;
+    Panel panel;
+    window_text_t temp_note;
+    Steps steps;
+    window_text_t status;
+    Bar bar;
+    Button start_button;
+    Button cancel_button;
+    TabBar tabs;
+
+    std::array<char, 24> temp_text {};
+    std::array<char, 64> status_text {};
+    bool pending = false; ///< M306 T envoyé, pas encore commencé
+    uint16_t runs_at_request = 0;
+    mpc::TuneStatus shown {};
+    bool shown_pending = false;
+    int16_t shown_temp = INT16_MIN;
+};
+
 
 namespace {
 

@@ -190,12 +190,12 @@ void ValueEditor::ValueView::unconditionalDraw() {
     const int bar_x = bar_rect.Left() - bar_zone.Left(), bar_y = bar_rect.Top() - bar_zone.Top();
     const int bar_w = bar_rect.Width(), bar_h = bar_rect.Height();
     const int knob_x = bar_x + filled - knob_d / 2, knob_y = bar_y + bar_h / 2 - knob_d / 2;
-    draw_pixels(bar_zone, [&](int x, int y) {
-        const int kx = 2 * (x - knob_x) + 1 - knob_d, ky = 2 * (y - knob_y) + 1 - knob_d;
+    draw_pixels(bar_zone, [&](int px, int py) {
+        const int kx = 2 * (px - knob_x) + 1 - knob_d, ky = 2 * (py - knob_y) + 1 - knob_d;
         if (kx * kx + ky * ky < knob_d * knob_d) {
             return style::text_strong;
         }
-        const int by = y - bar_y, bx = x - bar_x;
+        const int by = py - bar_y, bx = px - bar_x;
         if (by < 0 || by >= bar_h) {
             return bg;
         }

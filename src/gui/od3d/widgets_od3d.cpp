@@ -453,7 +453,7 @@ namespace {
 
     // En-tête de 40 px (style::header), de droite à gauche : heure, réseau, températures, puis le titre prend le reste
     constexpr int16_t header_gap = 6;
-    constexpr uint16_t temps_w = 182; ///< 3 × (icône 16 + 2 + « 230° ») + 2 × 6, plus 4 de chaque côté
+    constexpr uint16_t temps_w = 173; ///< 3 × (icône 16 + 2) + « 230° » « 110° » « 45° » + 2 × 6, plus 4 de chaque côté
     constexpr uint16_t temps_h = 30;
     constexpr uint8_t back_d = 32; ///< disque du retour (22 dans la maquette)
     constexpr Rect16 back_body = { 6, (style::header.Height() - back_d) / 2, back_d, back_d };
@@ -472,7 +472,8 @@ namespace {
         return Rect16(network_x() - header_gap - temps_w, (style::header.Height() - temps_h) / 2, temps_w, temps_h);
     }
     Rect16 title_rect(bool has_back) {
-        const int16_t x = has_back ? style::back_touch.Width() : style::margin;
+        // Le titre n'est pas actif : il peut passer sur la zone tactile du retour, 6 px après son disque
+        const int16_t x = has_back ? back_body.Right() + 1 + header_gap : style::margin;
         return Rect16(x, 0, temps_body().Left() - style::ring - header_gap - x, style::header.Height());
     }
 

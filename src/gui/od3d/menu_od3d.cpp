@@ -118,7 +118,9 @@ namespace {
         }
 
         if (has_extension) {
-            display::fill_rect(extension, bg);
+            if (extension_only) {
+                display::fill_rect(extension, bg); // une valeur plus courte ne laisse rien (certaines valeurs Prusa ne peignent que leurs glyphes)
+            }
             // Les valeurs Prusa prennent leur couleur « ciblée » (gris foncé) pour un fond blanc : sur le fond G sombre,
             // on les dessine comme non ciblées (la valeur en cours d'édition garde sa couleur)
             AutoRestore unfocus(window_menu_item_private::focused_menu_item, static_cast<IWindowMenuItem *>(nullptr), !item.is_edited());

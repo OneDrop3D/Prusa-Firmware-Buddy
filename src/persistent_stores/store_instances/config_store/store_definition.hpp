@@ -464,6 +464,14 @@ struct CurrentStore
     /// calibration valable) ; paramètres du modèle MPC (M306 T ou M306 P C R A F H), non valables tant que non calibrés
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D MPC Enabled")> od3d_mpc_enabled;
     StoreItem<od3d::mpc::Params, od3d::mpc::Params {}, ItemFlag::calibrations, journal::hash("OD3D MPC Model")> od3d_mpc_params;
+    /// OneDrop3D (F29) : recettes du climat de la chambre par matière (chamber_climate_math_od3d.hpp : bit n plafond,
+    /// bit n + moitié descente douce ; préréglages par PresetFilamentType, filaments de l'utilisateur par indice),
+    /// toutes coupées par défaut ; paliers de la descente douce du plateau (°C, minutes, seuil °C)
+    StoreItem<uint32_t, 0, ItemFlag::features, journal::hash("OD3D Climate Preset Recipes")> od3d_climate_preset_recipes;
+    StoreItem<uint16_t, 0, ItemFlag::features, journal::hash("OD3D Climate User Recipes")> od3d_climate_user_recipes;
+    StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Cooldown Step")> od3d_cooldown_step;
+    StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Cooldown Interval")> od3d_cooldown_interval;
+    StoreItem<uint8_t, 50, ItemFlag::features, journal::hash("OD3D Cooldown Floor")> od3d_cooldown_floor;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

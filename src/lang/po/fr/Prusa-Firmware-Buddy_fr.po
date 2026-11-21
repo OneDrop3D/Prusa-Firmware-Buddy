@@ -10924,3 +10924,79 @@ msgstr "La température ne se stabilise pas"
 #: src/gui/od3d/screen_mpc_od3d.cpp
 msgid "Inconsistent measurements, try again"
 msgstr "Mesures incohérentes, recommencez"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Chamber climate\nMaterial recipes, slow bed cool-down"
+msgstr "Climat de la chambre\nRecettes par matière, descente douce"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Material recipes\nChamber ceiling or slow cool-down"
+msgstr "Recettes par matière\nPlafond de chambre ou descente douce"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Slow cool-down\nTouch to stop it"
+msgstr "Descente douce\nToucher pour l'arrêter"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Stop the slow cool-down? The bed heater turns off."
+msgstr "Arrêter la descente douce ? Le plateau est coupé."
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Step\nBed drop at each step"
+msgstr "Palier\nBaisse du plateau à chaque palier"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Step length\nMinutes between two steps"
+msgstr "Durée d'un palier\nMinutes entre deux paliers"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Down to\nBelow it: bed off, cool-down over"
+msgstr "Jusqu'à\nEn dessous : plateau coupé, fin"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Start now\nFrom the current bed temperature"
+msgstr "Démarrer maintenant\nDepuis la température du plateau"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "A nozzle is heating: the slow cool-down only drives a bed left alone."
+msgstr "Une buse chauffe : la descente douce ne pilote qu'un plateau laissé seul."
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "The bed is already below the floor temperature."
+msgstr "Le plateau est déjà sous la température de fin."
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Chamber per filament\nTarget, max, filtration (Prusa)"
+msgstr "Chambre par filament\nCible, maximum, filtration (Prusa)"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Chamber climate"
+msgstr "Climat chambre"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Material recipes"
+msgstr "Recettes matières"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "no recipe"
+msgstr "aucune"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "ceiling"
+msgstr "plafond"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "slow cool"
+msgstr "descente"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "both"
+msgstr "les deux"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ", filter"
+msgstr ", filtre"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "slow cool-down"
+msgstr "descente douce"

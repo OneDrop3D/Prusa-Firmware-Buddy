@@ -198,6 +198,7 @@ void M1991(); //< OneDrop3D : musique des moteurs (fichier .mid de la clé)
 void M1992(); //< OneDrop3D (F14) : tension des courroies mesurée par l'accéléromètre
 void M1993(); //< OneDrop3D (F22) : carte des vitesses critiques (accéléromètre)
 void M1994(); //< OneDrop3D (F4) : mesure du pressure advance d'un emplacement (cellule de charge)
+void M1998(); //< OneDrop3D (F29) : descente douce du plateau (démarrer, arrêter, état)
 void M306(); //< OneDrop3D (F7) : régulation MPC de la buse, calibration (T), mode (M), paramètres
 void M9140(); //< Set normal (non-stealth) mode
 void M9141(); //< Get stealth mode status

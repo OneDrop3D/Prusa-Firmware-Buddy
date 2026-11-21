@@ -383,6 +383,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 1994: // OneDrop3D (F4)
             PrusaGcodeSuite::M1994();
             break;
+#if HAS_CHAMBER_API()
+        case 1998: // OneDrop3D (F29)
+            PrusaGcodeSuite::M1998();
+            break;
+#endif
 #if ENABLED(OD3D_MPCTEMP)
         case 306: // OneDrop3D (F7) : régulation MPC de la buse (absente du Marlin de Prusa)
             PrusaGcodeSuite::M306();

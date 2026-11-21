@@ -1,6 +1,5 @@
 #include "DialogHandler.hpp"
 
-#include <gui/screen/screen_filament_change.hpp>
 #include "IScreenPrinting.hpp"
 #include "ScreenHandler.hpp"
 #include "screen_printing.hpp"
@@ -28,6 +27,9 @@
 #include <option/has_nozzle_thermal_compensation.h>
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     #include <gui/od3d/screen_printing_od3d.hpp> // OneDrop3D : interface G
+    #include <gui/od3d/screen_progress_od3d.hpp>
+#else
+    #include <gui/screen/screen_filament_change.hpp>
 #endif
 
 #if HAS_LOADCELL()
@@ -293,7 +295,11 @@ using FSMDisplayConfig = FSMDisplayConfigDef<
 #if HAS_SERIAL_PRINT()
     FSMPrintDef<ClientFSM::Serial_printing>,
 #endif
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    FSMScreenDef<ClientFSM::Load_unload, od3d::ScreenLoadUnload>, // OneDrop3D : même machine, apparence G
+#else
     FSMScreenDef<ClientFSM::Load_unload, ScreenFilamentChange>,
+#endif
     FSMScreenDef<ClientFSM::Preheat, ScreenPreheat>,
 #if HAS_SELFTEST()
     FSMScreenDef<ClientFSM::Selftest, ScreenSelftest>,

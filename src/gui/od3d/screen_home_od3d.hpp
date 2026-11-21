@@ -30,6 +30,7 @@ public:
 
 protected:
     void draw_content(Rect16 body) override;
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
     Slot slot;

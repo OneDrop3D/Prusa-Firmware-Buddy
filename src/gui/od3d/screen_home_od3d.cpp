@@ -1,7 +1,9 @@
 /// @file
 #include "screen_home_od3d.hpp"
 #include "screen_files_od3d.hpp"
+#include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
+#include "spool_sheet_od3d.hpp"
 
 #include <common/marlin_vars.hpp>
 #include <common/thumbnail_sizes.hpp>
@@ -75,9 +77,17 @@ namespace {
 // ---- Bobines ----
 
 SpoolCard::SpoolCard(window_t *parent, uint8_t index)
-    : Card(parent, style::with_ring(spool_body(index)), open_filament_menu)
+    : Card(parent, style::with_ring(spool_body(index)), nullptr)
     , slot(Slot::read(index))
     , index(index) {}
+
+void SpoolCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if ((event == GUI_event_t::CLICK || event == GUI_event_t::TOUCH_CLICK) && IsEnabled()) {
+        open_sheet(index); // la fiche de la bobine (onglet Atelier)
+        return;
+    }
+    Card::windowEvent(sender, event, param);
+}
 
 void SpoolCard::update(bool mmu_ready) {
     const Slot s = Slot::read(index);
@@ -208,7 +218,7 @@ ScreenHome::ScreenHome()
     : Screen(false)
     , header(this, _("Home"), false)
     , spools { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 }, { this, 4 } }
-    , mmu(this, style::with_ring(mmu_body), open_filament_menu, img::settings_16x16, string_view_utf8::MakeCPUFLASH("MMU >"))
+    , mmu(this, style::with_ring(mmu_body), open_screen<ScreenMMU>, img::settings_16x16, string_view_utf8::MakeCPUFLASH("MMU >"))
     , file(this)
     , print(this, file)
     , files(this, files_body, open_files, img::folder_full_16x16, style::tile, _("Files"), string_view_utf8::MakeCPUFLASH("USB"))

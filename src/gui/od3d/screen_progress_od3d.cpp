@@ -1,0 +1,577 @@
+/// @file
+#include "screen_progress_od3d.hpp"
+
+#include <algorithm>
+#include <client_response_texts.hpp>
+#include <common/error_code_mangle.hpp>
+#include <cstdio>
+#include <cstring>
+#include <display.hpp>
+#include <display_helper.h>
+#include <filament_to_load.hpp>
+#include <find_error.hpp>
+#include <fsm_loadunload_type.hpp>
+#include <i18n.h>
+#include <img_resources.hpp>
+#include <marlin_client.hpp>
+#include <mmu2/mmu2_error_converter.h>
+#include <option/has_anfc.h>
+#include <option/has_auto_retract.h>
+#include <option/has_extruder_fsensor.h>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#include <option/has_nozzle_cleaner.h>
+#include <option/has_side_fsensor.h>
+#include <sound.hpp>
+
+namespace od3d {
+
+namespace {
+
+    using Phase = PhasesLoadUnload;
+    using atelier::Op;
+
+    // Géométrie du dialogue (SPEC_G.md §1.9, capture chargement.png)
+    constexpr Rect16 box_rect = { 28, 40, 424, 232 };
+    constexpr Rect16 body_rect = { 40, 50, 400, 169 }; ///< sous les coins arrondis du cadre
+    constexpr Rect16 bar_rect = { 46, 220, 388, 6 };
+    constexpr int16_t buttons_y = 228;
+    constexpr uint16_t buttons_h = 36; ///< deux lignes pour les textes longs de Prusa (« DÉSACTIVER MMU »)
+    constexpr int16_t content_x = 46;
+    constexpr uint16_t content_w = 388;
+    constexpr int16_t text_x = 102; ///< titre et sous-titre, à droite de la bobine Ø44
+    constexpr uint8_t box_radius = 18;
+    constexpr Color veil = Color::from_raw(0x0C0C0D); ///< le fond × 0,45, pour ce qui se repeint autour du dialogue
+
+    static_assert(style::inside(box_rect, body_rect) && style::inside(box_rect, bar_rect));
+    static_assert(style::inside(box_rect, style::with_ring(Rect16(content_x, buttons_y, content_w, buttons_h))));
+    static_assert(body_rect.Bottom() < bar_rect.Top() && bar_rect.Bottom() < buttons_y - style::ring);
+
+    /// Texte de chaque phase : les mêmes chaînes que ScreenFilamentChange (déjà traduites)
+    const char *phase_text(Phase phase) {
+        switch (phase) {
+        case Phase::initial:
+            return N_("Finishing buffered gcodes");
+        case Phase::ChangingTool:
+            return N_("Changing tool");
+        case Phase::Parking_stoppable:
+        case Phase::Parking_unstoppable:
+            return N_("Parking");
+        case Phase::WaitingTemp_stoppable:
+        case Phase::WaitingTemp_unstoppable:
+            return N_("Waiting for temperature");
+        case Phase::Ramming_stoppable:
+        case Phase::Ramming_unstoppable:
+            return N_("Ramming");
+        case Phase::Unloading_stoppable:
+        case Phase::Unloading_unstoppable:
+            return N_("Unloading");
+        case Phase::IsFilamentUnloaded:
+            return N_("Was filament unload successful?");
+        case Phase::FilamentNotInFS:
+            return N_("Please remove filament from filament sensor.");
+        case Phase::ManualUnload_continuable:
+        case Phase::ManualUnload_uncontinuable:
+            return N_("Please open idler and remove filament manually");
+        case Phase::UserPush_stoppable:
+        case Phase::UserPush_unstoppable:
+            return N_("Push the filament into the extruder and then, while still pushing, press CONTINUE.");
+        case Phase::MakeSureInserted_stoppable:
+        case Phase::MakeSureInserted_unstoppable:
+        case Phase::AwaitingFilament_stoppable:
+        case Phase::AwaitingFilament_unstoppable:
+            return N_("Make sure the filament is inserted through the sensor.");
+        case Phase::Inserting_stoppable:
+        case Phase::Inserting_unstoppable:
+        case Phase::LoadingToGears_stoppable:
+        case Phase::LoadingToGears_unstoppable:
+            return N_("Inserting");
+        case Phase::IsFilamentInGear:
+            return N_("Is filament in extruder gear?");
+        case Phase::Ejecting_stoppable:
+        case Phase::Ejecting_unstoppable:
+            return N_("Ejecting");
+        case Phase::Loading_stoppable:
+        case Phase::Loading_unstoppable:
+            return N_("Loading to nozzle");
+        case Phase::Purging_stoppable:
+        case Phase::Purging_unstoppable:
+            return N_("Purging");
+        case Phase::IsColor:
+        case Phase::IsColorPurge:
+            return N_("Is color correct?");
+        case Phase::Unparking:
+            return N_("Unparking");
+#if HAS_NOZZLE_CLEANER()
+        case Phase::UnloadNozzleCleaning:
+        case Phase::LoadNozzleCleaning:
+            return N_("Cleaning nozzle");
+#endif
+#if HAS_AUTO_RETRACT()
+        case Phase::AutoRetracting:
+            return N_("Auto-retracting filament");
+#endif
+#if HAS_MMU2()
+        case Phase::LoadFilamentIntoMMU:
+            return N_("Press CONTINUE and push filament into MMU.");
+        case Phase::MMU_EngagingIdler:
+        case Phase::MMU_ERREngagingIdler:
+            return N_("Engaging idler");
+        case Phase::MMU_DisengagingIdler:
+        case Phase::MMU_ERRDisengagingIdler:
+            return N_("Disengaging idler");
+        case Phase::MMU_UnloadingToFinda:
+            return N_("Unloading to FINDA");
+        case Phase::MMU_UnloadingToPulley:
+            return N_("Unloading to pulley");
+        case Phase::MMU_FeedingToFinda:
+            return N_("Feeding to FINDA");
+        case Phase::MMU_FeedingToBondtech:
+            return N_("Feeding to drive gear");
+        case Phase::MMU_FeedingToNozzle:
+            return N_("Feeding to nozzle");
+        case Phase::MMU_AvoidingGrind:
+            return N_("Avoiding grind");
+        case Phase::MMU_FinishingMoves:
+            return N_("Finishing moves");
+        case Phase::MMU_ERRInternal:
+            return N_("ERR Internal");
+        case Phase::MMU_ERRHelpingFilament:
+            return N_("ERR Helping filament");
+        case Phase::MMU_ERRTMCFailed:
+            return N_("ERR TMC failed");
+        case Phase::MMU_UnloadingFilament:
+            return N_("Unloading filament");
+        case Phase::MMU_LoadingFilament:
+            return N_("Loading filament");
+        case Phase::MMU_SelectingFilamentSlot:
+            return N_("Selecting filament slot");
+        case Phase::MMU_PreparingBlade:
+            return N_("Preparing blade");
+        case Phase::MMU_PushingFilament:
+            return N_("Pushing filament");
+        case Phase::MMU_PerformingCut:
+            return N_("Performing cut");
+        case Phase::MMU_ReturningSelector:
+            return N_("Returning selector");
+        case Phase::MMU_ParkingSelector:
+            return N_("Parking selector");
+        case Phase::MMU_EjectingFilament:
+            return N_("Ejecting filament");
+        case Phase::MMU_RetractingFromFinda:
+            return N_("Retracting from FINDA");
+        case Phase::MMU_Homing:
+            return N_("Homing");
+        case Phase::MMU_MovingSelector:
+            return N_("Moving selector");
+        case Phase::MMU_FeedingToFSensor:
+            return N_("Feeding to fsensor");
+        case Phase::MMU_HWTestBegin:
+            return N_("HW test begin");
+        case Phase::MMU_HWTestIdler:
+            return N_("HW test idler");
+        case Phase::MMU_HWTestSelector:
+            return N_("HW test selector");
+        case Phase::MMU_HWTestPulley:
+            return N_("HW test pulley");
+        case Phase::MMU_HWTestCleanup:
+            return N_("HW test cleanup");
+        case Phase::MMU_HWTestExec:
+            return N_("HW test exec");
+        case Phase::MMU_HWTestDisplay:
+            return N_("HW test display");
+        case Phase::MMU_ErrHwTestFailed:
+            return N_("ERR HW test failed");
+#endif
+        default:
+            return nullptr; // début d'une opération du MMU, ou phase affichée en erreur
+        }
+    }
+
+    /// Nom de l'opération quand elle ne vient pas de nos écrans (mêmes chaînes que ScreenFilamentChange)
+    const char *mode_name(LoadUnloadMode mode) {
+        switch (mode) {
+        case LoadUnloadMode::Change:
+            return N_("Changing filament");
+        case LoadUnloadMode::Load:
+            return N_("Loading filament");
+        case LoadUnloadMode::Unload:
+            return N_("Unloading filament");
+        case LoadUnloadMode::FilamentStuck:
+            return N_("Reloading filament");
+        case LoadUnloadMode::Purge:
+            return N_("Purging filament");
+        case LoadUnloadMode::Test:
+            return N_("Testing filament");
+        case LoadUnloadMode::Cut:
+            return N_("Cutting filament");
+        case LoadUnloadMode::Eject:
+            return N_("Ejecting filament");
+        }
+        return N_("Loading filament");
+    }
+
+    /// Titre d'une opération lancée depuis l'atelier, avec son emplacement
+    const char *request_title(Op op) {
+        switch (op) {
+        case Op::load:
+            return N_("Loading slot %d");
+        case Op::unload:
+            return N_("Unloading slot %d");
+        case Op::preload:
+            return N_("Preloading slot %d");
+        case Op::preload_all:
+            return N_("Preloading the MMU");
+        case Op::eject:
+            return N_("Ejecting slot %d");
+        case Op::cut:
+            return N_("Cutting filament %d");
+        }
+        return N_("Loading slot %d");
+    }
+
+    /// Sons de ScreenFilamentChange : un bip quand Prusa attend l'utilisateur
+    void play_phase_sound(Phase phase, LoadUnloadMode mode) {
+        switch (phase) {
+        case Phase::IsFilamentUnloaded:
+            sound::play(SoundType::single_beep);
+            if (mode == LoadUnloadMode::Change || mode == LoadUnloadMode::FilamentStuck) {
+                sound::play(SoundType::waiting_beep); // M600 ou fin de bobine : on appelle l'utilisateur
+            }
+            break;
+        case Phase::FilamentNotInFS:
+        case Phase::UserPush_stoppable:
+        case Phase::UserPush_unstoppable:
+        case Phase::MakeSureInserted_stoppable:
+        case Phase::MakeSureInserted_unstoppable:
+        case Phase::AwaitingFilament_stoppable:
+        case Phase::AwaitingFilament_unstoppable:
+        case Phase::IsColor:
+        case Phase::IsColorPurge:
+            sound::play(SoundType::single_beep);
+            break;
+        default:
+            break;
+        }
+    }
+
+    bool valid_mode(LoadUnloadMode mode) {
+        return std::to_underlying(mode) <= std::to_underlying(LoadUnloadMode::Eject);
+    }
+
+} // namespace
+
+// ---- Cadre, contenu, barre ----
+
+ScreenLoadUnload::Box::Box(window_t *parent)
+    : window_frame_t(parent, box_rect) {
+    SetBackColor(style::surface); // ce qu'un enfant caché laisse derrière lui
+}
+
+void ScreenLoadUnload::Box::unconditionalDraw() {
+    display::draw_rounded_rect(GetRect(), veil, style::surface, box_radius, MIC_ALL_CORNERS);
+}
+
+ScreenLoadUnload::Body::Body(window_t *parent, const ScreenLoadUnload &owner)
+    : window_t(parent, body_rect)
+    , owner(owner) {}
+
+void ScreenLoadUnload::Body::draw_header(Rect16 r) const {
+    // Titre : l'opération (et son emplacement si elle vient de l'atelier), sinon le nom de Prusa
+    StringViewUtf8Parameters<4> params;
+    string_view_utf8 title;
+    char subtitle[24] = "";
+    spool::Look look {}; // bobine vide : opération sans emplacement connu
+    if (owner.request) {
+        title = _(request_title(owner.request->op)).formatted(params, owner.request->slot + 1);
+        atelier::spool_name(subtitle, FilamentType::for_tool(VirtualToolIndex::from_raw(owner.request->slot)));
+        look = Slot::read(owner.request->slot).look;
+    } else {
+        title = _(mode_name(owner.mode));
+        if (owner.mode == LoadUnloadMode::Load) {
+            atelier::spool_name(subtitle, filament::get_type_to_load());
+        }
+    }
+    draw_spool({ content_x, int16_t(r.Top() + 4) }, look, 44);
+
+    const uint16_t w = r.Left() + r.Width() - text_x;
+    const Font font = title.computeNumUtf8Chars() * width(Font::normal) <= w ? Font::normal : Font::small;
+    draw_text(Rect16(text_x, r.Top() + 7, w, height(Font::normal)), title, font, style::text_strong, style::surface);
+    draw_text(Rect16(text_x, r.Top() + 28, w, height(Font::small)), string_view_utf8::MakeRAM(subtitle), Font::small, style::text_muted, style::surface);
+}
+
+void ScreenLoadUnload::Body::unconditionalDraw() {
+    const Rect16 r = GetRect();
+    display::fill_rect(r, style::surface);
+
+    if (owner.kind == Kind::notice) {
+        const img::Resource *icon = owner.notice_type == std::to_underlying(ErrType::ERROR) ? &img::error_48x48
+            : (owner.notice_type == std::to_underlying(ErrType::WARNING) ? &img::warning_48x48 : &img::info_48x48);
+        draw_icon({ content_x, int16_t(r.Top() + 2) }, *icon, style::surface);
+        const uint16_t w = r.Left() + r.Width() - text_x;
+        if (owner.notice_title) {
+            render_text_align(Rect16(text_x, r.Top() + 2, w, 2 * height(Font::normal)), _(owner.notice_title), Font::normal, style::surface, style::text_strong,
+                { 0, 0, 0, 0 }, text_flags(Align_t::LeftCenter(), is_multiline::yes, check_overflow::no));
+        }
+        if (owner.notice_text) {
+            render_text_align(Rect16(content_x, r.Top() + 56, content_w, 5 * height(Font::small)), _(owner.notice_text), Font::small, style::surface, style::text,
+                { 0, 0, 0, 0 }, text_flags(Align_t::LeftTop(), is_multiline::yes, check_overflow::no));
+        }
+        if (owner.notice_code) {
+            // Le lien d'aide de Prusa (TextErrorUrlWindow), sans le QR
+            char url[24];
+            snprintf(url, sizeof(url), "prusa.io/%05u", unsigned(map_error_code(ErrCode(owner.notice_code))));
+            draw_text(Rect16(content_x, r.Top() + 144, content_w, height(Font::small)), string_view_utf8::MakeRAM(url), Font::small, style::text_muted, style::surface);
+        }
+        return;
+    }
+
+    draw_header(r);
+
+    if (owner.kind == Kind::prompt) {
+        if (const char *text = phase_text(owner.phase)) {
+            render_text_align(Rect16(content_x, 108, content_w, 6 * height(Font::small)), _(text), Font::small, style::surface, style::text,
+                { 0, 0, 0, 0 }, text_flags(Align_t::LeftTop(), is_multiline::yes, check_overflow::no));
+        }
+        return;
+    }
+
+    // Étapes : celles que Prusa a déjà annoncées (faites, pastille orange), la dernière en cours (blanche)
+    for (int i = 0; i < owner.history_count; ++i) {
+        const bool current = i == owner.history_count - 1;
+        const int16_t y = 108 + 19 * i;
+        display::draw_rounded_rect(Rect16(content_x + 3, y + 4, 8, 8), style::surface, current ? style::text : style::accent, 4, MIC_ALL_CORNERS);
+        draw_text(Rect16(68, y, r.Left() + r.Width() - 68, height(Font::small)), _(phase_text(owner.history[i])), Font::small,
+            current ? style::text : style::text_muted, style::surface);
+    }
+}
+
+ScreenLoadUnload::Bar::Bar(window_t *parent, const ScreenLoadUnload &owner)
+    : window_t(parent, bar_rect)
+    , owner(owner) {}
+
+void ScreenLoadUnload::Bar::unconditionalDraw() {
+    const Rect16 r = GetRect();
+    const uint16_t done = r.Width() * std::min<uint8_t>(owner.progress, 100) / 100;
+    display::draw_rounded_rect(r, style::surface, style::line, 3, MIC_ALL_CORNERS);
+    if (done >= 6) {
+        display::draw_rounded_rect(Rect16(r.Left(), r.Top(), done, r.Height()), style::line, style::accent, 3, MIC_ALL_CORNERS);
+    }
+}
+
+// ---- Écran ----
+
+ScreenLoadUnload::ScreenLoadUnload()
+    : request(atelier::take_request())
+    , box(this)
+    , body(&box, *this)
+    , bar(&box, *this)
+    , buttons {
+        { &box, Rect16(content_x, buttons_y, content_w, buttons_h), 0, Button::Look::outline, {} },
+        { &box, Rect16(content_x, buttons_y, content_w, buttons_h), 1, Button::Look::outline, {} },
+        { &box, Rect16(content_x, buttons_y, content_w, buttons_h), 2, Button::Look::outline, {} },
+    } {
+    SetBackColor(veil);
+    ClrMenuTimeoutClose(); // comme les écrans FSM de Prusa
+    CaptureNormalWindow(box); // molette et toucher vont au dialogue
+    setup_buttons(); // la 1re phase arrive aussitôt par Change()
+}
+
+ScreenLoadUnload::~ScreenLoadUnload() {
+    sound::stop();
+    atelier::release_request();
+}
+
+void ScreenLoadUnload::Change(fsm::BaseData new_data) {
+    const Phase new_phase = GetEnumFromPhaseIndex<Phase>(new_data.GetPhase());
+    const bool phase_changed = !has_data || new_phase != phase;
+    data = new_data;
+    has_data = true;
+
+    // MMU_ERRWaitingForUser porte un pointeur vers l'erreur, toutes les autres phases FSMLoadUnloadData
+    bool redraw_header = false;
+    if (new_phase != Phase::MMU_ERRWaitingForUser) {
+        const auto d = fsm::deserialize_data<FSMLoadUnloadData>(new_data.GetData());
+        if (valid_mode(d.mode) && d.mode != mode) {
+            mode = d.mode;
+            redraw_header = true;
+        }
+        if (d.progress != progress) {
+            progress = d.progress;
+            bar.Invalidate();
+        }
+    }
+
+    if (phase_changed) {
+        phase = new_phase;
+        enter_phase();
+    } else if (redraw_header) {
+        body.Invalidate();
+    }
+}
+
+void ScreenLoadUnload::enter_phase() {
+    // Comme les cadres de Prusa : le son de la phase précédente s'arrête
+    sound::stop();
+    notice_title = notice_text = nullptr;
+    notice_code = 0;
+    notice_type = std::to_underlying(ErrType::WARNING);
+    responses = {};
+
+    const PhaseResponses &available = ClientResponses::get_available_responses(FSMAndPhase(phase));
+    for (size_t i = 0, n = 0; i < available.size() && n < responses.size(); ++i) {
+        if (available[i] != Response::_none) {
+            responses[n++] = available[i];
+        }
+    }
+
+    switch (phase) {
+#if HAS_MMU2()
+    case Phase::MMU_ERRWaitingForUser:
+        if (has_data) {
+            // L'erreur du MMU et ses 3 boutons, comme FrameMMUNotice
+            const auto *desc = fsm::deserialize_data<const MMU2::MMUErrDesc *>(data.GetData());
+            notice_title = desc->err_title;
+            notice_text = desc->err_text;
+            notice_code = std::to_underlying(desc->err_code);
+            notice_type = std::to_underlying(desc->type);
+            for (size_t i = 0; i < responses.size(); ++i) {
+                responses[i] = MMU2::ButtonOperationToResponse(desc->buttons[i]);
+            }
+        }
+        kind = Kind::notice;
+        break;
+#endif
+#if HAS_LOADCELL() && HAS_EXTRUDER_FSENSOR()
+    case Phase::FilamentStuck: {
+        const auto &err = find_error(ErrCode::ERR_MECHANICAL_STUCK_FILAMENT_DETECTED);
+        notice_title = err.err_title;
+        notice_text = err.err_text;
+        notice_code = std::to_underlying(err.err_code);
+        notice_type = std::to_underlying(err.type);
+        kind = Kind::notice;
+        break;
+    }
+#endif
+#if HAS_SIDE_FSENSOR() && HAS_EXTRUDER_FSENSOR()
+    case Phase::LoadingObstruction_stoppable:
+    case Phase::LoadingObstruction_unstoppable: {
+        const auto &err = find_error(ErrCode::ERR_MECHANICAL_LOADING_OBSTRUCTION);
+        notice_title = err.err_title;
+        notice_text = err.err_text;
+        notice_code = std::to_underlying(err.err_code);
+        notice_type = std::to_underlying(err.type);
+        kind = Kind::notice;
+        break;
+    }
+#endif
+#if HAS_ANFC()
+    case Phase::OPT_UncommitedUsage:
+        notice_title = N_("OpenPrintTag Pending Write");
+        notice_text = N_("There is filament usage to be written to the OpenPrintTag. Make sure the spool is close to the NFC reader.");
+        notice_type = std::to_underlying(ErrType::USER_ACTION);
+        kind = Kind::notice;
+        break;
+#endif
+    default: {
+        // Une question si Prusa attend autre chose que « Stop » ; sinon une étape de plus
+        const bool question = std::ranges::any_of(responses, [](Response r) { return r != Response::_none && r != Response::Stop; });
+        kind = question ? Kind::prompt : Kind::progress;
+        if (!question && phase_text(phase) && (!history_count || history[history_count - 1] != phase)) {
+            if (history_count == history.size()) {
+                std::copy(history.begin() + 1, history.end(), history.begin());
+                --history_count;
+            }
+            history[history_count++] = phase;
+        }
+        break;
+    }
+    }
+
+    play_phase_sound(phase, mode);
+    bar.set_visible(kind == Kind::progress);
+    setup_buttons();
+    box.Invalidate();
+}
+
+void ScreenLoadUnload::setup_buttons() {
+    size_t count = 0;
+    while (count < responses.size() && responses[count] != Response::_none) {
+        ++count;
+    }
+    // Sans réponse, un « Annuler » éteint : Prusa ne permet pas d'arrêter cette étape (chargement par le MMU…)
+    const size_t shown = std::max<size_t>(count, 1);
+    constexpr int16_t gap = 6;
+    const uint16_t w = (content_w - gap * (shown - 1)) / shown;
+    bool primary_used = false;
+    for (size_t i = 0; i < std::size(buttons); ++i) {
+        Button &b = buttons[i];
+        if (i >= shown) {
+            b.set_visible(false);
+            b.set_enabled(false);
+            continue;
+        }
+        b.SetRect(style::with_ring(Rect16(content_x + i * (w + gap), buttons_y, w, buttons_h)));
+        b.set_visible(true);
+        const Response r = i < count ? responses[i] : Response::Stop;
+        b.set_enabled(i < count);
+        if (r == Response::Stop) {
+            b.set(Button::Look::outline, _("Cancel"));
+        } else {
+            b.set(primary_used ? Button::Look::outline : Button::Look::primary, _(get_response_text(r)));
+            primary_used = true;
+        }
+    }
+    if (buttons[0].IsEnabled()) {
+        buttons[0].SetFocus();
+    }
+}
+
+void ScreenLoadUnload::respond(Response response) {
+    if (response != Response::_none) {
+        marlin_client::FSM_response(FSMAndPhase(phase), response);
+    }
+}
+
+void ScreenLoadUnload::unconditionalDraw() {
+    // 1er dessin : l'écran d'origine reste autour du dialogue ; ensuite (retour d'un autre dialogue) un fond sombre
+    if (painted) {
+        display::fill_rect(GetRect(), veil);
+    }
+    painted = true;
+}
+
+void ScreenLoadUnload::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    switch (event) {
+    case GUI_event_t::CHILD_CLICK: {
+        const size_t i = reinterpret_cast<uintptr_t>(param);
+        if (i < responses.size()) {
+            respond(responses[i]);
+        }
+        return;
+    }
+    case GUI_event_t::HELD_RELEASED:
+        // L'appui long annule, là où Prusa le permet (SPEC_G.md §3.4)
+        if (std::ranges::find(responses, Response::Stop) != responses.end()) {
+            respond(Response::Stop);
+        }
+        return;
+    default:
+        break;
+    }
+    screen_t::windowEvent(sender, event, param);
+}
+
+void ScreenLoadUnload::InitState(screen_init_variant var) {
+    if (auto fsm_data = var.GetFsmBaseData()) {
+        Change(*fsm_data);
+    }
+}
+
+screen_init_variant ScreenLoadUnload::GetCurrentState() const {
+    screen_init_variant var;
+    var.SetFsmBaseData(data);
+    return var;
+}
+
+} // namespace od3d

@@ -1,6 +1,7 @@
 /// @file
 #include "widgets_od3d.hpp"
 #include "screen_files_od3d.hpp"
+#include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
 #include "screen_temperatures_od3d.hpp"
 
@@ -425,8 +426,7 @@ namespace {
         open_print_tab(); // l'écran Impression pendant une impression, sinon les fichiers
     }
     void tab_workshop() {
-        Screens::Access()->CloseAll();
-        open_filament_menu();
+        open_section<ScreenMMU>();
     }
     void tab_settings() {
         open_section<ScreenMenuSettings>();

@@ -10046,3 +10046,267 @@ msgstr "Préréglages"
 #: src/gui/od3d/screen_temperatures_od3d.cpp
 msgid "Cool down"
 msgstr "Refroidir"
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "black %s"
+msgstr "%s noir"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "white %s"
+msgstr "%s blanc"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "grey %s"
+msgstr "%s gris"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "red %s"
+msgstr "%s rouge"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "orange %s"
+msgstr "%s orange"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "yellow %s"
+msgstr "%s jaune"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "green %s"
+msgstr "%s vert"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "blue %s"
+msgstr "%s bleu"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+#, c-format
+msgid "Slot %d · %s"
+msgstr "Emplacement %d · %s"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "In the nozzle"
+msgstr "Dans la buse"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "In the MMU"
+msgstr "Dans le MMU"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Change spool"
+msgstr "Changer la bobine"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Material and colour"
+msgstr "Matière et couleur"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Spool usage"
+msgstr "Utilisation"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Preload"
+msgstr "Précharger"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Eject"
+msgstr "Éjecter"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Cut"
+msgstr "Couper"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "PA: soon"
+msgstr "PA bientôt"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Close"
+msgstr "Fermer"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Insert a spool"
+msgstr "Mettre une bobine"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Load to nozzle"
+msgstr "Charger dans la buse"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "All slots"
+msgstr "Tout"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "soon"
+msgstr "bientôt"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Motors"
+msgstr "Moteurs"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Open >"
+msgstr "Ouvrir >"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Press. adv."
+msgstr "Avance (PA)"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "MMU info"
+msgstr "Infos MMU"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "MMU motors"
+msgstr "Moteurs du MMU"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Pulley"
+msgstr "Poulie"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "soon: MMU firmware"
+msgstr "bientôt : firmware du MMU"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Clean"
+msgstr "Nettoyer"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Selector"
+msgstr "Sélecteur"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Idler"
+msgstr "Galet presseur"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Free"
+msgstr "Libre"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "parking"
+msgstr "parking"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "position: %d"
+msgstr "position : %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "idler free"
+msgstr "galet libre"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "pressed on %d"
+msgstr "serré sur %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "MMU settings"
+msgstr "Réglages MMU"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "1 · Remove"
+msgstr "1 · Retirer"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "2 · Insert"
+msgstr "2 · Insérer"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "3 · Choose"
+msgstr "3 · Choisir"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "New spool %d"
+msgstr "Nouvelle bobine %d"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Spool weight tracking: soon"
+msgstr "Suivi du poids des bobines : bientôt"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Cancel"
+msgstr "Annuler"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Remove spool %d"
+msgstr "Retire la bobine %d"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "The MMU pulled the filament out of input %d. Remove the spool, then press."
+msgstr "Le MMU a reculé le filament hors de l'entrée %d. Retire la bobine, puis appuie."
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "It's done"
+msgstr "C'est fait"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Insert the new spool"
+msgstr "Insère la nouvelle bobine"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Push the filament into input %d: the MMU grabs it by itself."
+msgstr "Pousse le filament dans l'entrée %d : le MMU l'attrape seul."
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Done · %s"
+msgstr "Terminé · %s"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Nozzle / bed"
+msgstr "Buse / plateau"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Remaining"
+msgstr "Reste"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Remaining weight and print history per spool: soon."
+msgstr "Poids restant et historique par bobine : bientôt."
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Loading slot %d"
+msgstr "Chargement de l'emplacement %d"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Unloading slot %d"
+msgstr "Déchargement de l'emplacement %d"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Preloading slot %d"
+msgstr "Préchargement de l'emplacement %d"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Preloading the MMU"
+msgstr "Préchargement du MMU"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Ejecting slot %d"
+msgstr "Éjection de l'emplacement %d"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Cutting filament %d"
+msgstr "Coupe du filament %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "MMU assist"
+msgstr "Assistance"

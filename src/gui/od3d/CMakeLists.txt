@@ -1,13 +1,18 @@
 target_sources(
   firmware
-  PRIVATE menu_od3d.cpp
+  PRIVATE atelier_od3d.cpp
+          menu_od3d.cpp
           print_info_od3d.cpp
           screen_files_od3d.cpp
           screen_home_od3d.cpp
           screen_menu_od3d.cpp
+          screen_mmu_od3d.cpp
           screen_printing_od3d.cpp
+          screen_progress_od3d.cpp
+          screen_spool_od3d.cpp
           screen_temperatures_od3d.cpp
           spool_draw.cpp
+          spool_sheet_od3d.cpp
           thumbnail_od3d.cpp
           value_editor_od3d.cpp
           widgets_od3d.cpp

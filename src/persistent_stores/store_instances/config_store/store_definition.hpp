@@ -440,6 +440,8 @@ struct CurrentStore
     StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Spool Join")> od3d_spool_join;
     StoreItemArray<uint8_t, uint8_t(0xff), ItemFlag::features, journal::hash("OD3D Spool Join Target"), 16, VirtualToolIndex::count> od3d_spool_join_target;
 #endif
+    /// OneDrop3D (F15) : facteur d'équerrage XY (M852 I), 0 = aucune correction ; appliqué au démarrage
+    StoreItem<float, 0.0f, ItemFlag::calibrations, journal::hash("OD3D Skew XY")> od3d_skew_xy;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

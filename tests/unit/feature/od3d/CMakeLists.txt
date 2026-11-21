@@ -37,3 +37,9 @@ target_include_directories(
   )
 target_link_libraries(draw_od3d_tests buddy_utils byte_utils)
 add_catch_test(draw_od3d_tests)
+
+add_executable(
+  skew_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/skew_od3d_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/skew_od3d.cpp
+  )
+target_include_directories(skew_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(skew_od3d_tests)

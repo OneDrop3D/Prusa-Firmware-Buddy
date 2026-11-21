@@ -111,3 +111,56 @@ TEST_CASE("machine_pos_conv") {
         }
     }
 }
+
+// OneDrop3D (F15) : équerrage XY, appliqué avec le MBL
+TEST_CASE("machine_pos_conv skew XY") {
+    struct Reset {
+        ~Reset() { Planner::skew_xy = 0.0f; }
+    } reset;
+
+    Planner::set_z_fade_height(0);
+    UBL::z_correction = 0.25f;
+
+    SECTION("Zero : rien ne change") {
+        Planner::skew_xy = 0.0f;
+        CHECK(to_machine_pos(xyz_pos_t { 37, 200, 1 }) == MachinePosXYZ { 37, 200, 1.25f });
+        CHECK(to_native_pos(MachinePosXYZ { 37, 200, 1.25f }) == xyz_pos_t { 37, 200, 1 });
+    }
+
+    SECTION("Cisaillement autour du milieu en Y") {
+        Planner::skew_xy = 0.002f;
+        // Au milieu (y = 110) : pas de décalage
+        CHECK_THAT(to_machine_pos(xyz_pos_t { 50, 110, 1 }).x, Catch::Matchers::WithinAbs(50, tolerance));
+        // 50 mm plus loin : x - 50 * k ; Y et Z (MBL) inchangés
+        const MachinePosXYZ m = to_machine_pos(xyz_pos_t { 50, 160, 1 });
+        CHECK_THAT(m.x, Catch::Matchers::WithinAbs(49.9f, tolerance));
+        CHECK(m.y == 160);
+        CHECK_THAT(m.z, Catch::Matchers::WithinAbs(1.25f, tolerance));
+        CHECK_THAT(to_machine_pos(xyz_pos_t { 50, 60, 1 }).x, Catch::Matchers::WithinAbs(50.1f, tolerance));
+    }
+
+    SECTION("Aller-retour") {
+        Planner::skew_xy = GENERATE(0.01f, -0.01f, 0.0017f, -0.0004f);
+        CAPTURE(Planner::skew_xy);
+        for (const float x : { 0.f, 12.5f, 125.f, 240.f }) {
+            for (const float y : { -19.f, 0.f, 110.f, 221.f }) {
+                CAPTURE(x, y);
+                const xyz_pos_t native { x, y, 0.4f };
+                const xyz_pos_t back = to_native_pos(to_machine_pos(native));
+                CHECK_THAT(back.x, Catch::Matchers::WithinAbs(x, roundtrip_tolerance));
+                CHECK(back.y == y);
+                CHECK_THAT(back.z, Catch::Matchers::WithinAbs(0.4f, roundtrip_tolerance));
+            }
+        }
+    }
+
+    SECTION("Jamais au-delà des courses de X") {
+        Planner::skew_xy = 0.01f;
+        // Bord gauche, au fond : x - 111 * 0,01 serait sous -2
+        CHECK(to_machine_pos(xyz_pos_t { -2, 221, 0 }).x == -2.0f);
+        Planner::skew_xy = -0.01f;
+        CHECK(to_machine_pos(xyz_pos_t { 252, 221, 0 }).x == 252.0f);
+        // Une position déjà hors course n'est pas ramenée dedans, ni poussée plus loin
+        CHECK(to_machine_pos(xyz_pos_t { 255, 221, 0 }).x == 255.0f);
+    }
+}

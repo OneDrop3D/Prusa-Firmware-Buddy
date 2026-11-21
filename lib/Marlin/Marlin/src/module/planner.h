@@ -301,6 +301,14 @@ class Planner {
       static constexpr bool leveling_active = false;
     #endif
 
+    #if ENABLED(OD3D_SKEW_CORRECTION_XY)
+      /// OneDrop3D (F15) : facteur d'équerrage XY, appliqué avec le MBL dans to_machine_pos (machine_pos_conv.cpp) :
+      /// x_machine = x - (y - skew_y_center) * skew_xy, bornée à [skew_x_min, skew_x_max]. Se change par od3d::skew::set_factor.
+      static inline float skew_xy = 0.0f;
+      static constexpr float skew_y_center = Y_BED_SIZE * 0.5f;
+      static constexpr float skew_x_min = X_MIN_POS, skew_x_max = X_MAX_POS;
+    #endif
+
     /// Current planned machine position, in millimeters
     static MachinePosXYZE position_float;
 

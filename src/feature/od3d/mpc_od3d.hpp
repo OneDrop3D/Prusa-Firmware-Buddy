@@ -18,6 +18,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace od3d::mpc {
@@ -203,7 +204,7 @@ public:
     /// Température ambiante mesurée [°C]
     float ambient_temp() const { return ambient_; }
 
-    static constexpr size_t max_samples = 96;
+    static constexpr std::size_t max_samples = 96;
 
 private:
     struct Sample {
@@ -234,7 +235,7 @@ private:
 
     // Chauffe
     std::array<Sample, max_samples> samples_ {};
-    size_t sample_count_ = 0;
+    std::size_t sample_count_ = 0;
     float sample_interval_ = 0.5f;
     float heating_start_temp_ = 0;
     float heating_pwm_sum_ = 0;

@@ -14,6 +14,7 @@ target_sources(
           screen_printing_od3d.cpp
           screen_progress_od3d.cpp
           screen_skew_od3d.cpp
+          screen_speed_map_od3d.cpp
           screen_spool_od3d.cpp
           screen_temperatures_od3d.cpp
           spool_draw.cpp

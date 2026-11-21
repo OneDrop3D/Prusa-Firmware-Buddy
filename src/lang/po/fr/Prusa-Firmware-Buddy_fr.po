@@ -10664,3 +10664,45 @@ msgstr "L'accéléromètre ne répond pas."
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Homing failed."
 msgstr "La prise d'origine a échoué."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Critical speeds"
+msgstr "Vitesses critiques"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Critical speeds\nSpeeds that make the printer vibrate"
+msgstr "Vitesses critiques\nVitesses qui font vibrer l'imprimante"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "X axis"
+msgstr "Axe X"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Y axis"
+msgstr "Axe Y"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "No critical speed"
+msgstr "Aucune vitesse critique"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+#, c-format
+msgid "Avoid: %s mm/s"
+msgstr "À éviter : %s mm/s"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+#, c-format
+msgid "Measuring %c axis... %d%%"
+msgstr "Mesure de l'axe %c... %d%%"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Attach the accelerometer to the extruder, then Start (X and Y, about 3 min)."
+msgstr "Fixez l'accéléromètre sur l'extrudeur, puis Démarrer (X et Y, 3 min env.)."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Orange bars: speeds to avoid (strong vibration)."
+msgstr "Barres orange : vitesses à éviter (fortes vibrations)."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "No speed stands out: no critical speed found."
+msgstr "Aucune vitesse ne ressort : pas de vitesse critique."

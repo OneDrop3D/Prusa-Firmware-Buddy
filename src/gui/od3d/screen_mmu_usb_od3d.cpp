@@ -36,7 +36,7 @@ namespace {
 } // namespace
 
 MI_MMU_USB::MI_MMU_USB()
-    : IWindowMenuItem(_("Prepare MMU USB update\nPrinter stops talking to the MMU"), &img::mmu_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(_("Prepare MMU USB update\nPrinter stops talking to the MMU"), &img::spool_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_MMU_USB::click(IWindowMenu &) {
     if (!mmu_usb::active()) {
@@ -127,7 +127,7 @@ void ScreenMmuUsb::windowEvent(window_t *sender, GUI_event_t event, void *param)
                     pending_ms = ticks_ms();
                 }
             } else {
-                Screens::Access()->Close();
+                Screens::Access()->close_screen();
                 return;
             }
         }

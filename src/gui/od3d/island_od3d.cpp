@@ -2,8 +2,16 @@
 #include "island_od3d.hpp"
 
 #include "atelier_od3d.hpp"
+#include "screen_belts_od3d.hpp"
+#include "screen_collision_od3d.hpp"
+#include "screen_damping_od3d.hpp"
+#include "screen_mpc_od3d.hpp"
+#include "screen_music_od3d.hpp"
+#include "screen_pa_od3d.hpp"
 #include "screen_printing_od3d.hpp"
 #include "screen_progress_od3d.hpp"
+#include "screen_speed_map_od3d.hpp"
+#include "screen_spool_calib_od3d.hpp"
 #include "screen_temperatures_od3d.hpp"
 #include "widgets_od3d.hpp"
 
@@ -11,8 +19,17 @@
 #include <cmath>
 #include <common/marlin_server_shared.h>
 #include <common/marlin_vars.hpp>
+#include <feature/od3d/belt_tension_od3d.hpp>
+#include <feature/od3d/collision_od3d.hpp>
+#include <feature/od3d/damping_od3d.hpp>
+#include <feature/od3d/mpc_control_od3d.hpp>
+#include <feature/od3d/music_player_od3d.hpp>
+#include <feature/od3d/pa_od3d.hpp>
+#include <feature/od3d/speed_map_od3d.hpp>
+#include <feature/od3d/spool_calib_od3d.hpp>
 #include <fsm/filament_change_phases.hpp>
 #include <fsm_loadunload_type.hpp>
+#include <i18n.h>
 #include <option/has_tool_mapping.h>
 #include <ScreenFactory.hpp>
 #include <ScreenHandler.hpp>
@@ -39,6 +56,140 @@ namespace {
     }
 
     PreheatLatch preheat_latch;
+
+    bool wait_is_minimized = false;
+    std::optional<uint32_t> wait_chain_start_ms; ///< fin d'une attente réduite : G29 enchaîne ses commandes
+
+    /// Étapes communes de la mesure du PA (F4) et des mesures F5 / F6 : chauffe, palpage, purge, lignes
+    template <class Phase>
+    Stage stage_of(Phase phase, uint8_t steps) {
+        switch (phase) {
+        case Phase::bed:
+        case Phase::heating:
+            return Stage::heating;
+        case Phase::leveling:
+            return Stage::probing;
+        case Phase::priming:
+            return Stage::priming;
+        case Phase::measuring:
+            return steps ? Stage::step : Stage::busy;
+        default:
+            return Stage::busy;
+        }
+    }
+
+    /// Le processus en cours (un seul à la fois : ce sont des G-codes, que Marlin exécute l'un après l'autre)
+    std::optional<Face> process_face() {
+        Face f { .kind = Kind::process };
+        const auto percent = [&](Process process, uint8_t value) {
+            f.process = process;
+            f.stage = Stage::percent;
+            f.percent = std::min<uint8_t>(value, 100);
+            return f;
+        };
+        if (pa::is_running()) {
+            const pa::Status s = pa::status();
+            f.process = Process::pa;
+            f.slot = s.slot;
+            f.stage = s.phase == pa::Phase::loading ? Stage::loading : stage_of(s.phase, s.steps);
+            f.step = s.step;
+            f.steps = s.steps;
+            return f;
+        }
+        if (calib::is_running()) {
+            const calib::Status s = calib::status();
+            f.process = s.kind == calib::Kind::flow ? Process::flow : Process::min_temp;
+            f.slot = s.slot;
+            f.stage = s.phase == calib::Phase::settling ? Stage::step : stage_of(s.phase, s.steps);
+            f.step = s.step;
+            f.steps = s.steps;
+            return f;
+        }
+        if (belts::is_running()) {
+            return percent(Process::belts, belts::progress_percent());
+        }
+        if (speed_map::is_running()) {
+            return percent(Process::speed_map, speed_map::progress_percent());
+        }
+        if (damping::is_running()) {
+            return percent(Process::damping, damping::progress_percent());
+        }
+        if (const mpc::TuneStatus s = mpc::tune_status(); s.running) {
+            return percent(Process::mpc, s.progress);
+        }
+        if (music::is_playing()) {
+            f.process = Process::music;
+            return f;
+        }
+        if (collision::test_running()) {
+            f.process = Process::hit_test;
+            return f;
+        }
+        return std::nullopt;
+    }
+
+    /// L'écran du processus (celui qui l'a lancé)
+    ScreenFactory::Creator process_screen(const Face &f) {
+        switch (f.process) {
+        case Process::pa:
+            return ScreenFactory::ScreenWithArg<ScreenPa>(f.slot);
+        case Process::flow:
+        case Process::min_temp:
+            return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(f.slot);
+        case Process::belts:
+            return ScreenFactory::Screen<ScreenBelts>;
+        case Process::speed_map:
+            return ScreenFactory::Screen<ScreenSpeedMap>;
+        case Process::damping:
+            return ScreenFactory::Screen<ScreenDamping>;
+        case Process::mpc:
+            return mpc_calibration_screen();
+        case Process::music:
+            return ScreenFactory::Screen<ScreenMusic>;
+        case Process::hit_test:
+            return ScreenFactory::Screen<ScreenCollision>;
+        }
+        return {};
+    }
+
+    string_view_utf8 process_name(Process process) {
+        switch (process) {
+        case Process::pa:
+            return string_view_utf8::MakeCPUFLASH("PA");
+        case Process::flow:
+            return _("Flow");
+        case Process::min_temp:
+            return _("Min temp");
+        case Process::belts:
+            return _("Belts");
+        case Process::speed_map:
+            return _("Speeds");
+        case Process::damping:
+            return _("Damping");
+        case Process::mpc:
+            return string_view_utf8::MakeCPUFLASH("MPC");
+        case Process::music:
+            return _("Music");
+        case Process::hit_test:
+            return _("Hit test");
+        }
+        return {};
+    }
+
+    const char *stage_word(Stage stage) {
+        switch (stage) {
+        case Stage::heating:
+            return N_("heating");
+        case Stage::probing:
+            return N_("probing");
+        case Stage::loading:
+            return N_("loading");
+        case Stage::priming:
+            return N_("priming");
+        default:
+            return nullptr;
+        }
+    }
 
     /// Couleur de l'état de l'impression ; nullopt : pas encore commencée (pas de pastille). Terminée ou arrêtée : grise,
     /// pour retrouver l'écran de fin si on était ailleurs (Prusa n'y ramène pas). Même découpage que
@@ -105,7 +256,7 @@ void minimize(fsm::BaseData data, std::optional<Origin> origin) {
     is_minimized = true;
     last_origin = origin;
     take(data);
-    if (print_active()) {
+    if (print_active() && !in_process()) { // le chargement de la mesure du PA automatique n'est pas un choix
         kept_job = marlin_vars().job_id.get(); // les changements d'outil suivants de cette impression aussi
     }
 }
@@ -115,6 +266,7 @@ bool open_minimized(fsm::BaseData data) {
     const bool chained = chain_start_ms && ticks_ms() - *chain_start_ms < chain_ms; // une seule fois : l'opération qui suit
     chain_start_ms.reset();
     const BackgroundInputs in {
+        .process = in_process(),
         .chained = chained,
         .printing = printing,
         .kept_for_print = printing && kept_job == marlin_vars().job_id.get(),
@@ -164,8 +316,53 @@ void restore() {
     Screens::Access()->Open(screen_node(ScreenFactory::Screen<ScreenLoadUnload>, init));
 }
 
+bool in_process() {
+    return process_face().has_value();
+}
+
+bool wait_opens_minimized() {
+    const bool chained = wait_chain_start_ms && ticks_ms() - *wait_chain_start_ms < chain_ms;
+    wait_chain_start_ms.reset();
+    wait_is_minimized = chained || in_process();
+    return wait_is_minimized;
+}
+
+bool wait_minimized() {
+    return wait_is_minimized;
+}
+
+void minimize_wait() {
+    wait_is_minimized = true;
+}
+
+void wait_end() {
+    if (wait_is_minimized) {
+        wait_chain_start_ms = ticks_ms();
+    }
+    wait_is_minimized = false;
+}
+
+void text(const Face &f, char *buf, size_t size) {
+    char name[24] = "";
+    char word[24] = "";
+    if (f.kind == Kind::process) {
+        process_name(f.process).copyToRAM(name, sizeof(name));
+        if (const char *w = stage_word(f.stage)) {
+            _(w).copyToRAM(word, sizeof(word));
+        }
+    } else if (f.kind == Kind::wait) {
+        _("Wait").copyToRAM(name, sizeof(name));
+    }
+    format_text(f, buf, size, name, word);
+}
+
 Face face() {
     Inputs in;
+    if (const auto process = process_face()) {
+        in.process = *process;
+        in.on_process_screen = Screens::Access()->IsScreenOpened(process_screen(*process));
+    }
+    in.wait_minimized = wait_is_minimized;
     in.filament_minimized = is_minimized;
     in.filament_percent = std::min<uint8_t>(last_progress, 100);
     in.filament_slot = last_origin ? last_origin->slot : no_slot;
@@ -223,7 +420,15 @@ Face face() {
 }
 
 void activate() {
-    switch (face().kind) {
+    const Face f = face();
+    switch (f.kind) {
+    case Kind::process:
+        Screens::Access()->CloseAll(); // la pile redevient [accueil, écran du processus], comme l'onglet Imprimer
+        Screens::Access()->Open(process_screen(f));
+        break;
+    case Kind::wait:
+        wait_is_minimized = false; // DialogHandler rouvre le dialogue au tour suivant
+        break;
     case Kind::filament:
         restore();
         break;

@@ -29,6 +29,7 @@
     #include <gui/od3d/screen_printing_od3d.hpp> // OneDrop3D : interface G
     #include <gui/od3d/screen_progress_od3d.hpp>
     #include <gui/od3d/island_od3d.hpp>
+    #include <gui/od3d/dialog_wait_od3d.hpp>
 #else
     #include <gui/screen/screen_filament_change.hpp>
 #endif
@@ -355,6 +356,41 @@ struct FSMLoadUnloadDef : public FSMScreenDef<ClientFSM::Load_unload, od3d::Scre
 };
 #endif
 
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+/// OneDrop3D : le « Patientez » (origine, palpage) peut être réduit dans l'en-tête (dialog_wait_od3d.hpp) ; pendant nos
+/// processus, il y reste d'emblée. Réduit, le dialogue n'existe pas : la machine n'attend jamais l'utilisateur, ses
+/// alertes sont d'autres machines, qui s'ouvrent par-dessus. Ouvert ou fermé ici seulement, hors de ses événements.
+struct FSMWaitDef : public FSMDialogDef<ClientFSM::Wait, od3d::DialogWait> {
+    using Base = FSMDialogDef<ClientFSM::Wait, od3d::DialogWait>;
+
+    [[nodiscard]] static bool open(fsm::BaseData data) {
+        return od3d::island::wait_opens_minimized() || Base::open(data);
+    }
+
+    static void close() {
+        od3d::island::wait_end();
+        Base::close();
+    }
+
+    [[nodiscard]] static bool change(fsm::BaseData data) {
+        return !DialogHandler::Access().ptr || Base::change(data);
+    }
+
+    /// À chaque tour : réduit depuis son bouton (ou sa flèche), ou rouvert depuis la pastille
+    static void reopen_if_lost(fsm::BaseData data) {
+        if (gui_get_nesting()) {
+            return;
+        }
+        auto &ptr = DialogHandler::Access().ptr;
+        if (od3d::island::wait_minimized() && ptr) {
+            Base::close();
+        } else if (!od3d::island::wait_minimized() && !ptr) {
+            (void)Base::open(data);
+        }
+    }
+};
+#endif
+
 // Just so that we have something at the end of the list and don't have to care about commas
 struct FSMEndDef {
     static constexpr ClientFSM fsm = ClientFSM::_count;
@@ -375,7 +411,11 @@ struct FSMDisplayConfigDef {
 };
 
 using FSMDisplayConfig = FSMDisplayConfigDef<
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    FSMWaitDef, // OneDrop3D : réductible dans l'en-tête
+#else
     FSMDialogDef<ClientFSM::Wait, window_dlg_wait_t>,
+#endif
     FSMDialogDef<ClientFSM::SafetyTimer, DialogSafetyTimer>,
 #if HAS_SERIAL_PRINT()
     FSMPrintDef<ClientFSM::Serial_printing>,

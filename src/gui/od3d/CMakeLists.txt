@@ -2,6 +2,7 @@ target_sources(
   firmware
   PRIVATE accelerometer_guide_od3d.cpp
           atelier_od3d.cpp
+          dialog_wait_od3d.cpp
           island_od3d.cpp
           menu_od3d.cpp
           print_info_od3d.cpp

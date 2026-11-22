@@ -10,6 +10,7 @@
 #pragma once
 
 #include <gui/menu_item/menu_item_select_menu.hpp>
+#include <ScreenFactory.hpp>
 #include <i_window_menu_item.hpp>
 #include <numeric_input_config.hpp>
 #include <WindowItemFormatableLabel.hpp>
@@ -31,6 +32,9 @@ protected:
 private:
     void refresh(); ///< valeur et état (grisé) d'après le mode, la calibration et l'impression
 };
+
+/// Écran de la calibration du modèle (la pastille de l'en-tête y ramène pendant M306 T)
+ScreenFactory::Creator mpc_calibration_screen();
 
 /// « Calibrer le modèle MPC » : ouvre l'écran de la calibration
 class MI_MPC_CALIBRATE final : public IWindowMenuItem {

@@ -70,10 +70,6 @@ namespace {
         display::draw_rounded_rect(r, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
     }
 
-    /// L'écran a été fermé pendant sa mesure (retour, ou un autre écran ouvert par-dessus : en-tête, pastille) et l'a
-    /// donc arrêtée ; gardé hors de l'écran, recréé au retour, pour le dire à l'utilisateur
-    bool stopped_by_leaving = false;
-
 } // namespace
 
 // ---- Panneau d'un axe ----
@@ -197,13 +193,6 @@ ScreenDamping::ScreenDamping()
     action.SetFocus();
 }
 
-ScreenDamping::~ScreenDamping() {
-    if (damping::is_running() || pending) {
-        damping::request_stop();
-        stopped_by_leaving = true;
-    }
-}
-
 void ScreenDamping::show_info() {
     using damping::Status;
     string_view_utf8 text;
@@ -228,7 +217,7 @@ void ScreenDamping::show_info() {
             break;
         }
         case Status::stopped:
-            text = stopped_by_leaving ? _("Stopped: leaving this screen stops the measurement.") : _("Stopped");
+            text = _("Stopped");
             break;
         case Status::printing:
             text = _("Not while printing.");
@@ -320,7 +309,6 @@ void ScreenDamping::start() {
         runs_at_request = before;
         pending = true;
         warned_accelerometer = false;
-        stopped_by_leaving = false;
     }
 }
 

@@ -248,6 +248,10 @@ void MI_MPC_CALIBRATE::click(IWindowMenu &) {
     open_screen<ScreenMpcCalibration>();
 }
 
+ScreenFactory::Creator mpc_calibration_screen() {
+    return ScreenFactory::Screen<ScreenMpcCalibration>;
+}
+
 // ---- Réglage entier ----
 
 MI_OD3D_NUMBER::MI_OD3D_NUMBER(const string_view_utf8 &label, const img::Resource *icon, const char *editor_label, const NumericInputConfig &config, const char *unit, Get get, Set set)

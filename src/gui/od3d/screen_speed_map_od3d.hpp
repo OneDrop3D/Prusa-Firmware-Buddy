@@ -40,7 +40,6 @@ private:
 class ScreenSpeedMap final : public Screen {
 public:
     ScreenSpeedMap();
-    ~ScreenSpeedMap();
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;

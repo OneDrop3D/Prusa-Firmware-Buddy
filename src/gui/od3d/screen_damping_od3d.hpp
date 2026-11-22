@@ -47,7 +47,6 @@ protected:
 class ScreenDamping final : public Screen {
 public:
     ScreenDamping();
-    ~ScreenDamping();
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;

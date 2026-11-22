@@ -11440,3 +11440,47 @@ msgstr "Moteurs coupés\nX, Y et extrudeur : origine perdue"
 #: src/gui/od3d/screen_sleep_od3d.cpp
 msgid "Fans off\nChamber fans and filtration"
 msgstr "Ventilateurs coupés\nChambre et filtration"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Flow"
+msgstr "Débit"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Min temp"
+msgstr "T min"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Belts"
+msgstr "Courroies"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Speeds"
+msgstr "Vitesses"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Damping"
+msgstr "Amorti"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Music"
+msgstr "Musique"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Hit test"
+msgstr "Test choc"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "probing"
+msgstr "palpage"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "loading"
+msgstr "charge"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "priming"
+msgstr "purge"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Wait"
+msgstr "Patientez"

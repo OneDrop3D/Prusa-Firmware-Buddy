@@ -310,26 +310,27 @@ protected:
     void invalidate(Rect16 rect) override; ///< chrome::forget()
 };
 
-/// Pastille « Dynamic Island » (island_od3d.hpp), entre le titre et les températures, qu'elle raccourcit :
+/// Pastille « Dynamic Island » (island_od3d.hpp), à gauche des températures ; visible, elle cache le titre (retour de
+/// l'utilisateur, 22/11 : le titre raccourci ne disait plus rien) :
+/// - un de nos processus : anneau qui tourne, « PA 2/5 », « PA chauffe » ; la toucher rouvre son écran ;
 /// - chargement réduit : anneau qui tourne, emplacement et avancement ; la toucher rouvre l'écran de progression ;
 /// - impression : anneau de progression, « 47% 1h23 », en couleur selon l'état ; la toucher ramène à l'écran Impression ;
 /// - préchauffage : icône de la buse et « 185/215° » ; la toucher ouvre l'aperçu des températures.
-/// Seul son contenu se redessine, et seulement quand ce qu'elle montre change ; l'anneau qui tourne (10 images/s) ne
-/// repeint que les deux bouts de son arc.
+/// Seul son contenu se redessine, et seulement quand ce qu'elle montre change ; l'anneau qui tourne (10 images/s) se
+/// repeint seul, sans le texte.
 class IslandPill : public Card {
 public:
-    IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short);
+    IslandPill(window_t *parent, Rect16 body, window_t &title);
 
 protected:
     void draw_content(Rect16 body) override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
-    void sync(bool show); ///< visible s'il y a quelque chose à montrer ; le titre se raccourcit pour lui laisser la place
-    window_text_t &title;
-    Rect16 title_full;
-    Rect16 title_short;
+    void sync(bool show); ///< visible s'il y a quelque chose à montrer ; le titre est alors caché
+    window_t &title;
     island::Face drawn; ///< ce qui est dessiné
+    island::Face text_drawn; ///< ce dont le texte est à l'écran
     uint32_t last_spin_ms = 0;
 };
 

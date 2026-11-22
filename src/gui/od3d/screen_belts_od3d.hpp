@@ -52,7 +52,6 @@ protected:
 class ScreenBelts final : public Screen {
 public:
     ScreenBelts();
-    ~ScreenBelts();
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;

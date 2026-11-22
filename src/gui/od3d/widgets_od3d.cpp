@@ -669,19 +669,24 @@ namespace {
         return Rect16(x, 0, temps_body(g).Left() - style::ring - header_gap - x, g.h);
     }
 
-    // Pastille de l'opération en arrière-plan, collée au bouton des températures : anneau, « 47% 1h23 »
-    constexpr uint16_t island_w = 116;
+    // Pastille de l'opération en arrière-plan, collée au bouton des températures : anneau, « 47% 1h23 », « PA chauffe ».
+    // Elle prend la place du titre, qu'elle cache, jusqu'au disque du retour.
+    constexpr uint16_t island_w = 150; ///< 13 caractères ; 12 avec l'heure sur 12 h, plus large
     constexpr uint8_t island_spinner = 16;
     constexpr int16_t island_pad = 7; ///< bord gauche → anneau
     constexpr int16_t island_text_gap = 5; ///< anneau → texte
     constexpr int16_t island_text_end = 4; ///< texte → bord droit
-    static_assert(island_w - island_pad - island_spinner - island_text_gap - island_text_end >= 9 * width(Font::small), "9 caractères (island::format_text)");
+    constexpr int16_t island_min_left = back_body.Right() + 1 + 2 * style::ring + header_gap; ///< après le disque du retour
     constexpr uint32_t island_spin_ms = 1200; ///< un tour
     /// Gris du disque du retour : le noir de la maquette (Apple) ne se voyait pas sur le fond #1B1C1E de l'en-tête
     constexpr Color island_fill = style::secondary;
     Rect16 island_body(const Geometry &g) {
-        return Rect16(temps_body(g).Left() - 2 * style::ring - header_gap - island_w, (g.h - g.island_h) / 2, island_w, g.island_h);
+        const int16_t right = temps_body(g).Left() - 2 * style::ring - header_gap;
+        const int16_t left = std::max<int16_t>(right - island_w, island_min_left);
+        return Rect16(left, (g.h - g.island_h) / 2, right - left, g.island_h);
     }
+    // Heure sur 12 h (8 caractères) : la place la plus étroite
+    static_assert(style::screen_w - style::margin - 8 * width(Font::small) - 2 * header_gap - 16 - temps_w - 2 * style::ring - header_gap - island_min_left - island_pad - island_spinner - island_text_gap - island_text_end >= 12 * width(Font::small), "12 caractères (island::format_text)");
     /// Anneau de 3 px dans un carré de island_spinner px : chaque pixel de l'anneau prend arc(angle depuis le haut, dans
     /// le sens des aiguilles d'une montre, de 0 à 2π) ; hors de l'anneau, bg, mélangé à ses bords (anticrénelage)
     template <class Arc>
@@ -699,11 +704,6 @@ namespace {
             }
             return spool::mix_quarters(bg, arc(a), cover);
         });
-    }
-
-    Rect16 title_short_rect(bool has_back, const Geometry &g) {
-        const Rect16 full = title_rect(has_back, g);
-        return Rect16(full.Left(), full.Top(), std::max<int>(island_body(g).Left() - style::ring - header_gap - full.Left(), 0), full.Height());
     }
 
     void go_back() {
@@ -743,11 +743,9 @@ void BackButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     IconButton::windowEvent(sender, event, param);
 }
 
-IslandPill::IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short)
+IslandPill::IslandPill(window_t *parent, Rect16 body, window_t &title)
     : Card(parent, style::with_ring(body), island::activate, island_fill, style::screen, body.Height() / 2)
-    , title(title)
-    , title_full(title_full)
-    , title_short(title_short) {
+    , title(title) {
     set_visible(false);
     set_enabled(false);
     drawn = island::face();
@@ -760,9 +758,8 @@ void IslandPill::sync(bool show) {
     }
     set_visible(show);
     set_enabled(show);
-    title.SetRect(show ? title_short : title_full);
-    title.Invalidate();
-    // Cachée, sa place revient au titre, dont le rect complet la couvre (il repeint tout son fond)
+    // Le cadre repeint le fond du titre caché ; cachée, sa place revient au titre, dont le rect la couvre
+    title.set_visible(!show);
 }
 
 void IslandPill::draw_content(Rect16 body) {
@@ -775,8 +772,10 @@ void IslandPill::draw_content(Rect16 body) {
     switch (f.kind) {
     case Kind::none:
         return; // cachée
+    case Kind::process:
+    case Kind::wait:
     case Kind::filament: {
-        // Anneau dont le quart orange tourne, puis « 2·45% » (emplacement de l'atelier) ou « 45% »
+        // Anneau dont le quart orange tourne, puis « PA 2/5 », « 2·45% » (emplacement de l'atelier) ou « 45% »
         const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % island_spin_ms) / island_spin_ms;
         draw_island_ring(mark, bg, [&](float a) {
             a -= start;
@@ -814,8 +813,12 @@ void IslandPill::draw_content(Rect16 body) {
         draw_icon({ mark.Left(), mark.Top() }, img::nozzle_16x16, bg);
         break;
     }
-    char text[16];
-    island::format_text(f, text, sizeof(text));
+    if (HasValidBackground() && f == text_drawn) {
+        return; // l'anneau seul a tourné : le texte est déjà à l'écran
+    }
+    text_drawn = f;
+    char text[32];
+    island::text(f, text, sizeof(text));
     const int16_t x = mark.Right() + 1 + island_text_gap;
     draw_text(Rect16(x, body.Top() + (body.Height() - height(Font::small)) / 2, body.Left() + body.Width() - island_text_end - x, height(Font::small)), string_view_utf8::MakeRAM(text), Font::small, fg, bg, Align_t::Center());
 }
@@ -826,7 +829,7 @@ void IslandPill::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         sync(f.kind != island::Kind::none);
         if (IsVisible()) {
             const uint32_t now = ticks_ms();
-            const bool spin = f.kind == island::Kind::filament && ticks_diff(now, last_spin_ms) >= 100;
+            const bool spin = island::spins(f.kind) && ticks_diff(now, last_spin_ms) >= 100;
             if (f != drawn || spin) {
                 drawn = f;
                 last_spin_ms = now;
@@ -900,7 +903,7 @@ void HeaderTitle::unconditionalDraw() {
 Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_back, Card::Action back_action, bool compact)
     : back(parent, back_action)
     , title(parent, title_rect(has_back, geometry(compact)), is_multiline::no, is_closed_on_click_t::no, title_text)
-    , island(parent, island_body(geometry(compact)), title, title_rect(has_back, geometry(compact)), title_short_rect(has_back, geometry(compact)))
+    , island(parent, island_body(geometry(compact)), title)
     , temps(parent, temps_body(geometry(compact)))
     , network(parent, { network_x(), int16_t((geometry(compact).h - 16) / 2) })
     , clock(parent, Rect16(clock_x(), 0, clock_w(), geometry(compact).h))

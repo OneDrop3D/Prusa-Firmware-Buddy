@@ -58,10 +58,6 @@ namespace {
         return !speed_map::is_running() && speed_map::status() == speed_map::Status::done;
     }
 
-    /// L'écran a été fermé pendant sa mesure (retour, ou un autre écran ouvert par-dessus : en-tête, pastille) et l'a
-    /// donc arrêtée ; gardé hors de l'écran, recréé au retour, pour le dire à l'utilisateur
-    bool stopped_by_leaving = false;
-
 } // namespace
 
 // ---- Panneau, barres ----
@@ -146,14 +142,6 @@ ScreenSpeedMap::ScreenSpeedMap()
     action.SetFocus();
 }
 
-ScreenSpeedMap::~ScreenSpeedMap() {
-    // Pas de mouvements sans écran pour les arrêter
-    if (speed_map::is_running() || pending) {
-        speed_map::request_stop();
-        stopped_by_leaving = true;
-    }
-}
-
 void ScreenSpeedMap::show_notes() {
     const speed_map::Map &m = speed_map::last();
     window_text_t *notes[axis_count] = { &note_x, &note_y };
@@ -199,7 +187,7 @@ void ScreenSpeedMap::show_info() {
             break;
         }
         case Status::stopped:
-            text = stopped_by_leaving ? _("Stopped: leaving this screen stops the measurement.") : _("Stopped");
+            text = _("Stopped");
             break;
         case Status::printing:
             text = _("Not while printing.");
@@ -282,7 +270,6 @@ void ScreenSpeedMap::start() {
         runs_at_request = before;
         pending = true;
         warned_accelerometer = false;
-        stopped_by_leaving = false;
     }
 }
 

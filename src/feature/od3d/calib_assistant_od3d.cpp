@@ -123,7 +123,7 @@ namespace {
     void finish() {
         const uint32_t date = now();
         for (const Entry &e : entries) {
-            if (run_mask & bit(e.test)) {
+            if (run_mask & test_bit(e.test)) {
                 const size_t i = size_t(e.test);
                 config_store().od3d_calib_done.set(i, after_run(config_store().od3d_calib_done.get(i), e, results[i].load(), date));
             }
@@ -157,11 +157,15 @@ namespace {
                 return false;
             }
         }
+        if (!marlin_server::enqueue_gcode_try(gcode) || !marlin_server::enqueue_gcode_try(marker)) {
+            return false;
+        }
+        // Rien ne tourne avant le retour de M1989 : le résultat lu à la fin sera celui de cette étape, pas d'avant
         if (const auto r = prusa_result(s.test)) {
             prusa_before = *r;
-            set_prusa_result(s.test, TestResult::unknown); // son résultat à elle, pas celui d'avant
+            set_prusa_result(s.test, TestResult::unknown);
         }
-        return marlin_server::enqueue_gcode_try(gcode) && marlin_server::enqueue_gcode_try(marker);
+        return true;
     }
 
     /// Lance l'étape i, ou la suivante qui peut partir ; sinon fin de la série
@@ -340,10 +344,10 @@ void run(uint32_t mask) {
     step_count = uint8_t(build_steps(mask & automatic_mask(), ctx, steps));
     run_mask = 0;
     for (uint8_t i = 0; i < step_count; ++i) {
-        run_mask |= bit(steps[i].test);
+        run_mask |= test_bit(steps[i].test);
     }
     for (const Entry &e : entries) {
-        if (run_mask & bit(e.test)) {
+        if (run_mask & test_bit(e.test)) {
             results[size_t(e.test)] = Result::none;
         }
     }

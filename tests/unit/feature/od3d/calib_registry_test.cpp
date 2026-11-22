@@ -41,11 +41,11 @@ TEST_CASE("calib_registry: accelerometer yes / no / unknown") {
     CHECK(unknown == yes); // jamais répondu : proposés, l'assistant demande
     CHECK((no & accel) == 0);
     CHECK((no | accel) == yes);
-    CHECK((accel & bit(Test::belts)));
-    CHECK((accel & bit(Test::input_shaper)));
-    CHECK((accel & bit(Test::phase_stepping)));
-    CHECK_FALSE((accel & bit(Test::mpc)));
-    CHECK_FALSE((accel & bit(Test::pa)));
+    CHECK((accel & test_bit(Test::belts)));
+    CHECK((accel & test_bit(Test::input_shaper)));
+    CHECK((accel & test_bit(Test::phase_stepping)));
+    CHECK_FALSE((accel & test_bit(Test::mpc)));
+    CHECK_FALSE((accel & test_bit(Test::pa)));
 }
 
 TEST_CASE("calib_registry: spools and flow limit") {
@@ -53,16 +53,16 @@ TEST_CASE("calib_registry: spools and flow limit") {
     Context ctx = full();
     ctx.spools = 0;
     uint32_t m = select(ctx, none, true);
-    CHECK_FALSE((m & bit(Test::pa)));
-    CHECK_FALSE((m & bit(Test::min_temp)));
-    CHECK((m & bit(Test::mpc)));
+    CHECK_FALSE((m & test_bit(Test::pa)));
+    CHECK_FALSE((m & test_bit(Test::min_temp)));
+    CHECK((m & test_bit(Test::mpc)));
 
     ctx = full();
     ctx.flow_limit = false;
     m = select(ctx, none, true);
-    CHECK_FALSE((m & bit(Test::max_flow))); // son résultat ne sert qu'à « limiter au débit mesuré »
-    CHECK((m & bit(Test::pa)));
-    CHECK((m & bit(Test::min_temp)));
+    CHECK_FALSE((m & test_bit(Test::max_flow))); // son résultat ne sert qu'à « limiter au débit mesuré »
+    CHECK((m & test_bit(Test::pa)));
+    CHECK((m & test_bit(Test::min_temp)));
 }
 
 TEST_CASE("calib_registry: version bump proposes only that test") {
@@ -73,14 +73,14 @@ TEST_CASE("calib_registry: version bump proposes only that test") {
     // Une mise à jour a augmenté la version des courroies et du PA : seuls eux sont à refaire
     r[size_t(Test::belts)].version = uint8_t(entry(Test::belts).version - 1);
     r[size_t(Test::pa)].version = uint8_t(entry(Test::pa).version - 1);
-    CHECK(select(full(), r, true) == (bit(Test::belts) | bit(Test::pa)));
+    CHECK(select(full(), r, true) == (test_bit(Test::belts) | test_bit(Test::pa)));
     CHECK(should_propose(full(), r, 0));
 
     // Sans accéléromètre, seul le PA
-    CHECK(select(full(Accelerometer::no), r, true) == bit(Test::pa));
+    CHECK(select(full(Accelerometer::no), r, true) == test_bit(Test::pa));
 
     // Toutes les calibrations applicables, à la demande (menu)
-    CHECK((select(full(), r, false) & bit(Test::damping)));
+    CHECK((select(full(), r, false) & test_bit(Test::damping)));
 }
 
 TEST_CASE("calib_registry: first install proposes everything automatic") {
@@ -99,9 +99,9 @@ TEST_CASE("calib_registry: don't ask again until a version changes") {
 TEST_CASE("calib_registry: manual tests never trigger the prompt alone") {
     Records r = all_done();
     r[size_t(Test::skew)] = {};
-    CHECK((select(full(), r, true) == bit(Test::skew)));
+    CHECK((select(full(), r, true) == test_bit(Test::skew)));
     CHECK_FALSE(should_propose(full(), r, 0));
-    CHECK_FALSE((automatic_mask() & bit(Test::skew)));
+    CHECK_FALSE((automatic_mask() & test_bit(Test::skew)));
 }
 
 TEST_CASE("calib_registry: steps order") {
@@ -113,7 +113,7 @@ TEST_CASE("calib_registry: steps order") {
     // Accéléromètre d'abord (une seule pose), courroies en premier
     CHECK(steps[0].test == Test::belts);
     for (size_t i = 0; i < 5; ++i) {
-        CHECK((accel & bit(steps[i].test)));
+        CHECK((accel & test_bit(steps[i].test)));
     }
     CHECK(steps[5].test == Test::mpc);
 
@@ -132,7 +132,7 @@ TEST_CASE("calib_registry: steps order") {
 
 TEST_CASE("calib_registry: steps of a subset and a short buffer") {
     std::array<Step, 32> steps;
-    CHECK(build_steps(bit(Test::damping) | bit(Test::skew), full(), steps) == 1);
+    CHECK(build_steps(test_bit(Test::damping) | test_bit(Test::skew), full(), steps) == 1);
     CHECK(steps[0].test == Test::damping);
 
     std::array<Step, 3> few;
@@ -162,10 +162,10 @@ TEST_CASE("calib_registry: G-codes") {
 
 TEST_CASE("calib_registry: duration") {
     const Context ctx = full();
-    const uint16_t one = minutes(bit(Test::pa), ctx);
+    const uint16_t one = minutes(test_bit(Test::pa), ctx);
     CHECK(one == 2 * entry(Test::pa).minutes); // par bobine
-    CHECK(minutes(bit(Test::skew), ctx) == 0);
-    CHECK(minutes(bit(Test::belts) | bit(Test::pa), ctx) == entry(Test::belts).minutes + one);
+    CHECK(minutes(test_bit(Test::skew), ctx) == 0);
+    CHECK(minutes(test_bit(Test::belts) | test_bit(Test::pa), ctx) == entry(Test::belts).minutes + one);
 }
 
 TEST_CASE("calib_registry: results and records") {

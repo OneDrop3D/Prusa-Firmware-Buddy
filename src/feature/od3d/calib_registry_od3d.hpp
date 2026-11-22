@@ -83,7 +83,7 @@ constexpr const Entry &entry(Test test) {
     return entries[0]; // inatteignable : static_assert ci-dessus
 }
 
-constexpr uint32_t bit(Test test) {
+constexpr uint32_t test_bit(Test test) {
     return uint32_t(1) << uint8_t(test);
 }
 

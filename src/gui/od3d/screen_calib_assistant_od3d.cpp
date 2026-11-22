@@ -24,7 +24,7 @@ using calib_registry::Accelerometer;
 using calib_registry::Entry;
 using calib_registry::Result;
 using calib_registry::Test;
-using calib_registry::bit;
+using calib_registry::test_bit;
 using calib_registry::entries;
 
 namespace {
@@ -207,7 +207,7 @@ namespace {
     };
 
     TileView tile_view(const Entry &e, const calib_registry::Context &ctx, const calib_registry::Record &record, const assistant::Progress &p) {
-        const uint32_t b = bit(e.test);
+        const uint32_t b = test_bit(e.test);
         const bool open_stage = flow.stage == Stage::propose || flow.stage == Stage::summary;
         if (!calib_registry::applicable(e, ctx)) {
             return { "-", style::text_faint };
@@ -455,7 +455,7 @@ void ScreenCalibAssistant::show() {
     case Stage::summary: {
         int ok = 0, failed = 0;
         for (const Entry &e : entries) {
-            if ((flow.session & bit(e.test)) && (flow.started & bit(e.test))) {
+            if ((flow.session & test_bit(e.test)) && (flow.started & test_bit(e.test))) {
                 ok += assistant::result(e.test) == Result::ok;
                 failed += assistant::result(e.test) == Result::failed;
             }
@@ -536,7 +536,7 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
         if (!e.automatic) {
             open_screen<ScreenSkew>(); // seul test manuel : la pièce imprimée à mesurer
         } else if (flow.stage == Stage::summary) {
-            start_session(bit(e.test), false); // refaire ce test seul
+            start_session(test_bit(e.test), false); // refaire ce test seul
         }
         return;
     }

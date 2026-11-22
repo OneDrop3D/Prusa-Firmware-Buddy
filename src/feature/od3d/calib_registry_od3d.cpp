@@ -39,7 +39,7 @@ uint32_t select(const Context &ctx, std::span<const Record> records, bool only_o
         const size_t i = size_t(e.test);
         const Record r = i < records.size() ? records[i] : Record {};
         if (applicable(e, ctx) && (!only_outdated || outdated(e, r))) {
-            mask |= bit(e.test);
+            mask |= test_bit(e.test);
         }
     }
     return mask;
@@ -48,7 +48,7 @@ uint32_t select(const Context &ctx, std::span<const Record> records, bool only_o
 uint32_t automatic_mask() {
     uint32_t mask = 0;
     for (const Entry &e : entries) {
-        mask |= e.automatic ? bit(e.test) : 0;
+        mask |= e.automatic ? test_bit(e.test) : 0;
     }
     return mask;
 }
@@ -56,7 +56,7 @@ uint32_t automatic_mask() {
 uint32_t needs_mask(uint8_t needs) {
     uint32_t mask = 0;
     for (const Entry &e : entries) {
-        mask |= (e.needs & needs) ? bit(e.test) : 0;
+        mask |= (e.needs & needs) ? test_bit(e.test) : 0;
     }
     return mask;
 }
@@ -78,7 +78,7 @@ uint32_t signature() {
 uint16_t minutes(uint32_t mask, const Context &ctx) {
     unsigned total = 0;
     for (const Entry &e : entries) {
-        if (e.automatic && (mask & bit(e.test))) {
+        if (e.automatic && (mask & test_bit(e.test))) {
             total += unsigned(e.minutes) * unsigned((e.needs & filament) ? spool_count(ctx.spools) : 1);
         }
     }
@@ -93,7 +93,7 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
         }
     };
     for (const Entry &e : entries) {
-        if (e.automatic && (mask & bit(e.test)) && !(e.needs & filament)) {
+        if (e.automatic && (mask & test_bit(e.test)) && !(e.needs & filament)) {
             add(e.test, 0);
         }
     }
@@ -102,7 +102,7 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
             continue;
         }
         for (const Entry &e : entries) {
-            if (e.automatic && (mask & bit(e.test)) && (e.needs & filament)) {
+            if (e.automatic && (mask & test_bit(e.test)) && (e.needs & filament)) {
                 add(e.test, slot);
             }
         }

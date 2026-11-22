@@ -2,6 +2,7 @@
 #include "Marlin/src/gcode/gcode.h"
 #include "Marlin/src/feature/prusa/MMU2/mmu2_mk4.h"
 #include "M70X.hpp"
+#include <feature/od3d/mmu_usb_od3d.hpp>
 
 /** \addtogroup G-Codes
  * @{
@@ -76,6 +77,8 @@ void PrusaGcodeSuite::M708() {
  * - `S` - power off/on
  *   - `0`- turn off MMU's power supply
  *   - `1` - power up the MMU after being turned off
+ *   - `2` - OneDrop3D: keep the MMU powered, stop all communication (MMU firmware update over its USB);
+ *           refused while printing or with the MMU disabled. Any other M709 with S or X ends this mode.
  *
  *  without any parameter returns 0 or 1 for current state
  *
@@ -83,6 +86,16 @@ void PrusaGcodeSuite::M708() {
 void PrusaGcodeSuite::M709() {
     const int16_t reset_val = parser.byteval('X', -1);
     const int16_t power_val = parser.byteval('S', -1);
+
+    if (power_val == 2) {
+        if (!od3d::mmu_usb::start()) {
+            SERIAL_ECHOLNPGM("M709 S2: refused (printing or MMU disabled)");
+        }
+        return;
+    }
+    if (parser.seen('S') || parser.seen('X')) {
+        od3d::mmu_usb::end();
+    }
 
     switch (power_val) {
     case -1:

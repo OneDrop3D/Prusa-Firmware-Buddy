@@ -13,6 +13,10 @@ endif()
 if(HAS_SPOOL_JOIN)
   target_sources(firmware PRIVATE spool_join_od3d.cpp)
 endif()
+if(HAS_MMU2)
+  # Mise à jour du firmware du MMU par son USB : M709 S2 coupe la communication
+  target_sources(firmware PRIVATE mmu_usb_od3d.cpp)
+endif()
 if(HAS_MMU2 AND HAS_FILAMENT_TRACKER)
   # F13 : suivi du poids des bobines du MMU
   target_sources(firmware PRIVATE spool_usage_math_od3d.cpp spool_usage_od3d.cpp)

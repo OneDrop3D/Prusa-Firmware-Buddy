@@ -11512,3 +11512,38 @@ msgstr "La ligne 1 est devant ; les lignes suivent l'ordre des essais, pas K (vo
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Large PA pattern\nManual: numbered lines, pick by eye"
 msgstr "Grand motif PA\nManuel : lignes numérotées, choix à vue"
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Prepare MMU USB update\nPrinter stops talking to the MMU"
+msgstr "Préparer la mise à jour USB du MMU\nL'imprimante ne parle plus au MMU"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Turn the MMU on first (MMU settings)."
+msgstr "Activez d'abord le MMU (Réglages du MMU)."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU USB update"
+msgstr "Mise à jour USB du MMU"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The MMU stays powered and the printer no longer talks to it. Connect the MMU micro-USB to the computer and start the installation in PrintForge or PrusaSlicer."
+msgstr "Le MMU reste alimenté et l'imprimante ne lui parle plus. Reliez le micro-USB du MMU à l'ordinateur et lancez l'installation dans PrintForge ou PrusaSlicer."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Finish"
+msgstr "Terminer"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Stopping the communication..."
+msgstr "Arrêt de la communication..."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The MMU waits for the computer."
+msgstr "Le MMU attend l'ordinateur."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Installed:"
+msgstr "Installé :"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Restarting the MMU..."
+msgstr "Redémarrage du MMU..."

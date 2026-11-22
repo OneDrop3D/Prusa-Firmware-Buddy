@@ -6,6 +6,7 @@
 #include "screen_collision_od3d.hpp"
 #include "screen_damping_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
+#include "screen_mmu_usb_od3d.hpp"
 #include "screen_music_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "screen_printing_od3d.hpp"
@@ -22,6 +23,7 @@
 #include <feature/od3d/belt_tension_od3d.hpp>
 #include <feature/od3d/collision_od3d.hpp>
 #include <feature/od3d/damping_od3d.hpp>
+#include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/od3d/mpc_control_od3d.hpp>
 #include <feature/od3d/music_player_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
@@ -125,6 +127,10 @@ namespace {
             f.process = Process::hit_test;
             return f;
         }
+        if (mmu_usb::active()) {
+            f.process = Process::mmu_usb;
+            return f;
+        }
         return std::nullopt;
     }
 
@@ -148,6 +154,8 @@ namespace {
             return ScreenFactory::Screen<ScreenMusic>;
         case Process::hit_test:
             return ScreenFactory::Screen<ScreenCollision>;
+        case Process::mmu_usb:
+            return ScreenFactory::Screen<ScreenMmuUsb>;
         }
         return {};
     }
@@ -172,6 +180,8 @@ namespace {
             return _("Music");
         case Process::hit_test:
             return _("Hit test");
+        case Process::mmu_usb:
+            return string_view_utf8::MakeCPUFLASH("MMU USB");
         }
         return {};
     }

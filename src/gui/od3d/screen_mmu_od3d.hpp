@@ -138,8 +138,9 @@ private:
     StringViewUtf8Parameters<8> idler_params; ///< emplacement et secondes restantes
 };
 
-/// Réglages du MMU (éléments Prusa, liste G) : MMU, coupe, mode furtif, longueur du tube, relais de bobine
-using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH, MI_SPOOL_JOIN_SLOTS>;
+/// Réglages du MMU (éléments Prusa, liste G) : MMU, coupe, mode furtif, longueur du tube, relais de bobine, mise à jour
+/// USB du MMU
+using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH, MI_SPOOL_JOIN_SLOTS, MI_MMU_USB>;
 
 class ScreenMenuMMUSettings final : public ScreenMenuMMUSettingsBase {
 public:

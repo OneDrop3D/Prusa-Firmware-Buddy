@@ -7,6 +7,8 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 
 namespace od3d::island {
 
@@ -26,10 +28,15 @@ enum class Tone : uint8_t {
     error,
 };
 
+inline constexpr uint8_t no_slot = 0xff;
+inline constexpr uint16_t no_time = 0xffff;
+
 struct Face {
     Kind kind = Kind::none;
     Tone tone = Tone::normal;
     uint8_t percent = 0; ///< chargement, impression
+    uint8_t slot = no_slot; ///< chargement lancé depuis l'atelier : emplacement 0 à 4
+    uint16_t minutes = no_time; ///< impression : temps restant [min]
     int16_t current = 0; ///< préchauffage : buse [°C]
     int16_t target = 0;
 
@@ -40,6 +47,7 @@ struct Face {
 struct Inputs {
     bool filament_minimized = false;
     uint8_t filament_percent = 0;
+    uint8_t filament_slot = no_slot;
 
     bool print_fsm = false; ///< machine Printing ouverte (du départ à « Accueil » après la fin)
     bool print_ended = false; ///< terminée ou arrêtée : plus de pastille
@@ -47,6 +55,7 @@ struct Inputs {
     bool on_print_screen = false;
     Tone print_tone = Tone::normal;
     uint8_t print_percent = 0;
+    uint16_t print_minutes = no_time;
 
     bool other_fsm = false; ///< une machine à états autre que l'impression : sa chauffe est la sienne
     bool on_temperatures_screen = false;
@@ -57,18 +66,72 @@ struct Inputs {
 
 constexpr Face choose(const Inputs &in) {
     if (in.filament_minimized) {
-        return Face { .kind = Kind::filament, .percent = in.filament_percent };
+        return Face { .kind = Kind::filament, .percent = in.filament_percent, .slot = in.filament_slot };
     }
     if (in.print_fsm) {
         if (in.print_ended || in.print_hidden_by_fsm || in.on_print_screen) {
             return {};
         }
-        return Face { .kind = Kind::print, .tone = in.print_tone, .percent = in.print_percent > 100 ? uint8_t(100) : in.print_percent };
+        return Face { .kind = Kind::print, .tone = in.print_tone, .percent = in.print_percent > 100 ? uint8_t(100) : in.print_percent, .minutes = in.print_minutes };
     }
     if (in.nozzle_heating && !in.other_fsm && !in.on_temperatures_screen) {
         return Face { .kind = Kind::preheat, .current = in.nozzle, .target = in.nozzle_target };
     }
     return {};
+}
+
+/// Texte de la pastille, 9 caractères au plus (la place à côté de l'anneau) : « 2·45% », « 47% 1h23 », « 47% 25min »,
+/// « II 47% » (pause), « ! 47% » (erreur), « 185/215° »
+inline void format_text(const Face &f, char *buf, size_t size) {
+    constexpr size_t max_chars = 9;
+    buf[0] = '\0';
+    switch (f.kind) {
+    case Kind::none:
+        break;
+    case Kind::filament:
+        if (f.slot != no_slot) {
+            snprintf(buf, size, "%d\xC2\xB7%d%%", f.slot + 1, f.percent);
+        } else {
+            snprintf(buf, size, "%d%%", f.percent);
+        }
+        break;
+    case Kind::print: {
+        const char *prefix = f.tone == Tone::paused ? "II " : (f.tone == Tone::error ? "! " : "");
+        const int n = snprintf(buf, size, "%s%d%%", prefix, f.percent);
+        if (f.tone != Tone::normal || f.minutes == no_time || n < 0 || size_t(n) >= size) {
+            break;
+        }
+        char time[12];
+        if (f.minutes >= 6000) {
+            snprintf(time, sizeof(time), " %dh", f.minutes / 60);
+        } else if (f.minutes >= 60) {
+            snprintf(time, sizeof(time), " %dh%02d", f.minutes / 60, f.minutes % 60);
+        } else {
+            snprintf(time, sizeof(time), " %dmin", f.minutes);
+        }
+        if (size_t(n) + strlen(time) <= max_chars && size_t(n) + strlen(time) < size) {
+            strcat(buf, time);
+        }
+        break;
+    }
+    case Kind::preheat:
+        snprintf(buf, size, "%d/%d\xC2\xB0", f.current, f.target);
+        break;
+    }
+}
+
+/// Une opération du filament qui commence (machine Load_unload) s'ouvre-t-elle directement réduite dans la pastille ?
+/// Son écran revient de toute façon dès que Prusa attend l'utilisateur.
+struct BackgroundInputs {
+    bool chained = false; ///< une opération réduite vient de finir (< 3 s) : la suite d'une même commande (MMU)
+    bool printing = false; ///< impression en cours : les changements d'outil du MMU
+    bool kept_for_print = false; ///< « Continuer en arrière-plan » déjà choisi pendant cette impression
+    bool on_print_screen = false;
+};
+
+constexpr bool open_in_background(const BackgroundInputs &in) {
+    // Pendant une impression, on ne prend l'écran que de celui qui regarde l'écran Impression (et ne l'a pas refusé)
+    return in.chained || (in.printing && (in.kept_for_print || !in.on_print_screen));
 }
 
 /// La buse chauffe-t-elle ? Avec une hystérésis, pour que la pastille n'apparaisse pas à chaque oscillation de la

@@ -252,6 +252,12 @@ struct FSMPrintDef {
 #endif
             if constexpr (fsm == ClientFSM::Printing) {
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+            // OneDrop3D : l'impression redevient la machine du dessus après un changement d'outil, une alerte... :
+            // l'utilisateur reste où il est (la pastille de l'en-tête ramène à l'écran Impression)
+            if (shown) {
+                return true;
+            }
+            shown = true;
             screen = ScreenFactory::Screen<od3d::ScreenPrinting>; // OneDrop3D : notre écran Impression remplace celui de Prusa
 #else
             screen = ScreenFactory::Screen<screen_printing_data_t>;
@@ -276,6 +282,16 @@ struct FSMPrintDef {
     }
 
     static void close() {
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+        if constexpr (fsm == ClientFSM::Printing) {
+            // OneDrop3D : seulement recouverte par une autre machine (changement d'outil du MMU, alerte...) : Prusa
+            // fermait tous les écrans à chaque fois, l'utilisateur perdait sa place pendant toute l'impression
+            if (marlin_vars().peek_fsm_states([](const auto &states) { return states.is_active(ClientFSM::Printing); })) {
+                return;
+            }
+            shown = false;
+        }
+#endif
         Screens::Access()->CloseAll();
     }
 
@@ -283,6 +299,10 @@ struct FSMPrintDef {
         // Do nothing
         return true;
     }
+
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    static inline bool shown = false; ///< OneDrop3D : écran Impression déjà ouvert pour cette impression
+#endif
 };
 
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
@@ -292,6 +312,12 @@ struct FSMLoadUnloadDef : public FSMScreenDef<ClientFSM::Load_unload, od3d::Scre
     using Base = FSMScreenDef<ClientFSM::Load_unload, od3d::ScreenLoadUnload>;
 
     [[nodiscard]] static bool open(fsm::BaseData data) {
+        if (gui_get_nesting()) {
+            return false; // comme open_base() : change() suit open() et ne doit pas trouver l'interface imbriquée
+        }
+        if (od3d::island::open_minimized(data)) {
+            return true; // en arrière-plan d'emblée (changement d'outil pendant une impression...) : change() rouvre si besoin
+        }
         od3d::island::end(); // nouvelle opération : à l'écran
         return Base::open(data);
     }
@@ -486,6 +512,12 @@ void DialogHandler::update_screen() {
     const auto new_top = marlin_vars().peek_fsm_states([](const auto &states) { return states.get_top(); });
 
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    // OneDrop3D : impression finie pendant qu'une autre machine la recouvrait (son close() n'a pas été appelé) : la
+    // suivante doit rouvrir l'écran Impression
+    if (FSMPrintDef<ClientFSM::Printing>::shown && !marlin_vars().peek_fsm_states([](const auto &states) { return states.is_active(ClientFSM::Printing); })) {
+        FSMPrintDef<ClientFSM::Printing>::shown = false;
+    }
+
     // OneDrop3D : écran de la machine à états fermé par nos onglets alors qu'elle continue (voir reopen_if_lost)
     if (new_top && current_fsm_top && new_top->fsm_type == current_fsm_top->fsm_type) {
         visit_display_config(new_top->fsm_type, [&]<typename Config>(Config) {

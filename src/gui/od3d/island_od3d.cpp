@@ -9,12 +9,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <common/marlin_server_shared.h>
 #include <common/marlin_vars.hpp>
 #include <fsm/filament_change_phases.hpp>
 #include <fsm_loadunload_type.hpp>
 #include <option/has_tool_mapping.h>
 #include <ScreenFactory.hpp>
 #include <ScreenHandler.hpp>
+#include <timing.h>
 
 namespace od3d::island {
 
@@ -24,7 +26,9 @@ namespace {
     fsm::BaseData last_data;
     std::optional<Origin> last_origin;
     uint8_t last_progress = 0;
-    uint16_t rev = 0;
+    std::optional<uint32_t> chain_start_ms; ///< fin d'une opération réduite : la suivante, si elle suit de près, reste réduite
+    std::optional<uint16_t> kept_job; ///< impression pendant laquelle l'utilisateur a choisi l'arrière-plan
+    constexpr uint32_t chain_ms = 3'000; ///< comme l'atelier : Prusa ferme et rouvre la machine entre deux commandes du MMU
 
     void take(fsm::BaseData data) {
         last_data = data;
@@ -32,7 +36,6 @@ namespace {
         if (GetEnumFromPhaseIndex<PhasesLoadUnload>(data.GetPhase()) != PhasesLoadUnload::MMU_ERRWaitingForUser) {
             last_progress = fsm::deserialize_data<FSMLoadUnloadData>(data.GetData()).progress;
         }
-        ++rev;
     }
 
     PreheatLatch preheat_latch;
@@ -100,6 +103,32 @@ void minimize(fsm::BaseData data, std::optional<Origin> origin) {
     is_minimized = true;
     last_origin = origin;
     take(data);
+    if (print_active()) {
+        kept_job = marlin_vars().job_id.get(); // les changements d'outil suivants de cette impression aussi
+    }
+}
+
+bool open_minimized(fsm::BaseData data) {
+    const bool printing = print_active();
+    const bool chained = chain_start_ms && ticks_ms() - *chain_start_ms < chain_ms; // une seule fois : l'opération qui suit
+    chain_start_ms.reset();
+    const BackgroundInputs in {
+        .chained = chained,
+        .printing = printing,
+        .kept_for_print = printing && kept_job == marlin_vars().job_id.get(),
+        .on_print_screen = Screens::Access()->IsScreenOpened<ScreenPrinting>(),
+    };
+    if (!open_in_background(in)) {
+        return false;
+    }
+    // Pas d'écran pour prendre la demande de l'atelier : la pastille la garde pour le rouvrir avec son nom
+    std::optional<Origin> origin;
+    if (const auto request = atelier::take_request()) {
+        origin = Origin { uint8_t(request->op), request->slot };
+        atelier::release_request();
+    }
+    minimize(data, origin);
+    return true;
 }
 
 void update(fsm::BaseData data) {
@@ -109,9 +138,11 @@ void update(fsm::BaseData data) {
 }
 
 void end() {
+    if (is_minimized) {
+        chain_start_ms = ticks_ms();
+    }
     is_minimized = false;
     last_origin.reset();
-    ++rev;
 }
 
 void prepare_reopen() {
@@ -119,7 +150,6 @@ void prepare_reopen() {
     if (last_origin) {
         atelier::restore_request({ atelier::Op(last_origin->op), last_origin->slot });
     }
-    ++rev;
 }
 
 void restore() {
@@ -132,22 +162,11 @@ void restore() {
     Screens::Access()->Open(screen_node(ScreenFactory::Screen<ScreenLoadUnload>, init));
 }
 
-uint8_t progress() {
-    return last_progress;
-}
-
-std::optional<uint8_t> slot() {
-    return last_origin ? std::optional<uint8_t>(last_origin->slot) : std::nullopt;
-}
-
-uint16_t revision() {
-    return rev;
-}
-
 Face face() {
     Inputs in;
     in.filament_minimized = is_minimized;
     in.filament_percent = std::min<uint8_t>(last_progress, 100);
+    in.filament_slot = last_origin ? last_origin->slot : no_slot;
 
     auto &vars = marlin_vars();
     struct Fsm {
@@ -186,6 +205,9 @@ Face face() {
         }
         in.on_print_screen = Screens::Access()->IsScreenOpened<ScreenPrinting>();
         in.print_percent = std::min<uint8_t>(vars.sd_percent_done, 100);
+        if (const uint32_t left = vars.time_to_end; left != marlin_server::TIME_TO_END_INVALID) {
+            in.print_minutes = static_cast<uint16_t>(std::min<uint32_t>((left + 59) / 60, no_time - 1));
+        }
     }
 
     // Toujours suivie (même pendant une impression), pour que la cible déjà atteinte ne rallume pas la pastille après

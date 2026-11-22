@@ -131,16 +131,13 @@ void draw_qoi(Rect16 rect, AbstractByteReader &reader) {
 void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, std::optional<Color> ring) {
     const spool::Disc disc(look, d);
     if (!ring) {
-        draw_pixels(Rect16(at.x, at.y, d, d), [&](int x, int y) { return disc.pixel(x, y).value_or(back); });
+        draw_pixels(Rect16(at.x, at.y, d, d), [&](int x, int y) { return disc.pixel(x, y, back); });
         return;
     }
-    const int outer = d + 4; // disque de l'anneau, même règle que spool::Disc (demi-pixels)
+    const int outer = d + 4; // anneau de 2 px, même centre que la bobine
     draw_pixels(Rect16(at.x - 2, at.y - 2, outer, outer), [&](int x, int y) {
-        if (const auto c = disc.pixel(x - 2, y - 2)) {
-            return *c;
-        }
-        const int dx = 2 * x + 1 - outer, dy = 2 * y + 1 - outer;
-        return dx * dx + dy * dy < outer * outer ? *ring : back;
+        const float r = spool::radius_in_square(x, y, outer);
+        return disc.at_radius(r, spool::edge_color(r, outer / 2, *ring, back));
     });
 }
 
@@ -656,37 +653,35 @@ namespace {
         return Rect16(x, 0, temps_body(g).Left() - style::ring - header_gap - x, g.h);
     }
 
-    // Pastille de l'opération en arrière-plan, collée au bouton des températures : anneau, « 2 · 100 % »
+    // Pastille de l'opération en arrière-plan, collée au bouton des températures : anneau, « 47% 1h23 »
     constexpr uint16_t island_w = 116;
     constexpr uint8_t island_spinner = 16;
-    constexpr Color island_black = COLOR_BLACK;
+    constexpr int16_t island_pad = 7; ///< bord gauche → anneau
+    constexpr int16_t island_text_gap = 5; ///< anneau → texte
+    constexpr int16_t island_text_end = 4; ///< texte → bord droit
+    static_assert(island_w - island_pad - island_spinner - island_text_gap - island_text_end >= 9 * width(Font::small), "9 caractères (island::format_text)");
+    constexpr uint32_t island_spin_ms = 1200; ///< un tour
+    /// Gris du disque du retour : le noir de la maquette (Apple) ne se voyait pas sur le fond #1B1C1E de l'en-tête
+    constexpr Color island_fill = style::secondary;
     Rect16 island_body(const Geometry &g) {
         return Rect16(temps_body(g).Left() - 2 * style::ring - header_gap - island_w, (g.h - g.island_h) / 2, island_w, g.island_h);
     }
-    /// Ce que montre la pastille, résumé en 32 bits : elle se redessine quand il change
-    uint32_t face_key(const island::Face &f) {
-        if (f.kind == island::Kind::filament) {
-            // L'anneau qui tourne ne repeint que lui-même : le texte change avec la clé (avancement, emplacement)
-            return uint32_t(f.kind) | uint32_t(f.percent) << 2 | uint32_t(island::revision()) << 9 | uint32_t(island::slot().value_or(7) & 7) << 25;
-        }
-        return uint32_t(f.kind) | uint32_t(f.tone) << 2 | uint32_t(f.percent) << 4 | (uint32_t(uint16_t(f.current)) & 0x3ff) << 11 | (uint32_t(uint16_t(f.target)) & 0x3ff) << 21;
-    }
-
     /// Anneau de 3 px dans un carré de island_spinner px : chaque pixel de l'anneau prend arc(angle depuis le haut, dans
-    /// le sens des aiguilles d'une montre, de 0 à 2π) ; hors de l'anneau, bg
+    /// le sens des aiguilles d'une montre, de 0 à 2π) ; hors de l'anneau, bg, mélangé à ses bords (anticrénelage)
     template <class Arc>
     void draw_island_ring(Rect16 rect, Color bg, Arc arc) {
-        constexpr int d = island_spinner, outer = d * d, inner = (d - 6) * (d - 6);
+        constexpr int d = island_spinner;
         draw_pixels(rect, [&](int x, int y) {
-            const int dx = 2 * x + 1 - d, dy = 2 * y + 1 - d, q = dx * dx + dy * dy;
-            if (q >= outer || q < inner) {
+            const float r = spool::radius_in_square(x, y, d);
+            const uint8_t cover = spool::beyond_quarters(r, d / 2.0f - 3) - spool::beyond_quarters(r, d / 2.0f);
+            if (cover == 0) {
                 return bg;
             }
-            float a = std::atan2(float(dx), float(-dy));
+            float a = std::atan2(float(2 * x + 1 - d), float(d - 2 * y - 1));
             if (a < 0) {
                 a += 2 * std::numbers::pi_v<float>;
             }
-            return arc(a);
+            return spool::mix_quarters(bg, arc(a), cover);
         });
     }
 
@@ -730,15 +725,14 @@ void BackButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 }
 
 IslandPill::IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short)
-    : Card(parent, style::with_ring(body), island::activate, island_black, style::screen, body.Height() / 2)
+    : Card(parent, style::with_ring(body), island::activate, island_fill, style::screen, body.Height() / 2)
     , title(title)
     , title_full(title_full)
     , title_short(title_short) {
     set_visible(false);
     set_enabled(false);
-    const island::Face f = island::face();
-    drawn_key = face_key(f);
-    sync(f.kind != island::Kind::none);
+    drawn = island::face();
+    sync(drawn.kind != island::Kind::none);
 }
 
 void IslandPill::sync(bool show) {
@@ -755,41 +749,33 @@ void IslandPill::sync(bool show) {
 void IslandPill::draw_content(Rect16 body) {
     using island::Kind;
     using island::Tone;
-    const island::Face f = island::face();
+    const island::Face &f = drawn;
     const Color bg = fill();
-    const Rect16 mark(body.Left() + 8, body.Top() + (body.Height() - island_spinner) / 2, island_spinner, island_spinner);
-    char text[16] = "";
+    const Rect16 mark(body.Left() + island_pad, body.Top() + (body.Height() - island_spinner) / 2, island_spinner, island_spinner);
     Color fg = style::text_strong;
     switch (f.kind) {
     case Kind::none:
         return; // cachée
     case Kind::filament: {
-        // Anneau d'attente (spinner_od3d.hpp), puis « 2 · 45 % » (emplacement de l'atelier) ou « 45 % »
-        const bool partial = ring_only && HasValidBackground();
-        ring_only = false;
-        const uint8_t step = spinner::step_at(ticks_ms());
-        draw_spinner(mark, 3, step, bg, partial ? ring_drawn : std::nullopt);
-        ring_drawn = step;
-        if (partial) {
-            return; // le texte n'a pas changé
-        }
-        if (const auto slot = island::slot()) {
-            snprintf(text, sizeof(text), "%d\xC2\xB7%d %%", *slot + 1, f.percent);
-        } else {
-            snprintf(text, sizeof(text), "%d %%", f.percent);
-        }
+        // Anneau dont le quart orange tourne, puis « 2·45% » (emplacement de l'atelier) ou « 45% »
+        const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % island_spin_ms) / island_spin_ms;
+        draw_island_ring(mark, bg, [&](float a) {
+            a -= start;
+            if (a < 0) {
+                a += 2 * std::numbers::pi_v<float>;
+            }
+            return a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
+        });
         break;
     }
     case Kind::print: {
         // Anneau de progression : orange en cours, jaune en pause, gris en attente, rouge en erreur
         Color arc = style::accent;
-        const char *prefix = "";
         switch (f.tone) {
         case Tone::normal:
             break;
         case Tone::paused:
             arc = fg = style::warning;
-            prefix = "II ";
             break;
         case Tone::waiting:
             arc = fg = style::text_muted;
@@ -797,24 +783,21 @@ void IslandPill::draw_content(Rect16 body) {
         case Tone::error:
             arc = style::danger;
             fg = Color::from_raw(0xFF8A73); // texte danger (SPEC_G.md §1.1)
-            prefix = "! ";
             break;
         }
-        ring_drawn = std::nullopt;
         const float end = 2 * std::numbers::pi_v<float> * f.percent / 100;
         draw_island_ring(mark, bg, [&](float a) { return a < end ? arc : style::line; });
-        snprintf(text, sizeof(text), "%s%d %%", prefix, f.percent);
         break;
     }
     case Kind::preheat:
         // La buse qui chauffe : « 185/215° »
-        ring_drawn = std::nullopt;
         draw_icon({ mark.Left(), mark.Top() }, img::nozzle_16x16, bg);
-        snprintf(text, sizeof(text), "%d/%d\xC2\xB0", f.current, f.target);
         break;
     }
-    const int16_t x = mark.Right() + 1 + 6;
-    draw_text(Rect16(x, body.Top() + (body.Height() - height(Font::small)) / 2, body.Left() + body.Width() - 8 - x, height(Font::small)), string_view_utf8::MakeRAM(text), Font::small, fg, bg, Align_t::Center());
+    char text[16];
+    island::format_text(f, text, sizeof(text));
+    const int16_t x = mark.Right() + 1 + island_text_gap;
+    draw_text(Rect16(x, body.Top() + (body.Height() - height(Font::small)) / 2, body.Left() + body.Width() - island_text_end - x, height(Font::small)), string_view_utf8::MakeRAM(text), Font::small, fg, bg, Align_t::Center());
 }
 
 void IslandPill::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -822,13 +805,12 @@ void IslandPill::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         const island::Face f = island::face();
         sync(f.kind != island::Kind::none);
         if (IsVisible()) {
-            if (const uint32_t key = face_key(f); key != drawn_key) {
-                drawn_key = key;
-                ring_only = false;
+            const uint32_t now = ticks_ms();
+            const bool spin = f.kind == island::Kind::filament && ticks_diff(now, last_spin_ms) >= 100;
+            if (f != drawn || spin) {
+                drawn = f;
+                last_spin_ms = now;
                 invalidate_content(); // l'anneau et le texte seulement, sans repeindre la pastille ni l'en-tête
-            } else if (f.kind == island::Kind::filament && ring_drawn != spinner::step_at(ticks_ms())) {
-                ring_only = true;
-                invalidate_content();
             }
         }
     }

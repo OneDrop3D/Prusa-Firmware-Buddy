@@ -193,13 +193,11 @@ void PaintButton::unconditionalDraw() {
     const Color halo = IsFocused() ? style::focused(style::surface) : style::screen;
     const Color ring = index == wizard.paint ? style::accent : halo;
     const spool::Disc disc(spool::Look { atelier::paints[index].color, 100 }, 40);
-    const int outer = r.Width(), inner = outer - 4;
+    const int outer = r.Width(); // bobine Ø40 au centre (décalée de 5 px), anneau jusqu'à Ø46, halo jusqu'au bord
     draw_pixels(r, [&](int x, int y) {
-        if (const auto c = disc.pixel(x - 5, y - 5)) {
-            return *c;
-        }
-        const int dx = 2 * x + 1 - outer, dy = 2 * y + 1 - outer, q = dx * dx + dy * dy;
-        return q < inner * inner ? ring : (q < outer * outer ? halo : style::screen);
+        const float rad = spool::radius_in_square(x, y, outer);
+        const Color around = spool::edge_color(rad, outer / 2.0f - 2, ring, spool::edge_color(rad, outer / 2.0f, halo, style::screen));
+        return disc.at_radius(rad, around);
     });
 }
 

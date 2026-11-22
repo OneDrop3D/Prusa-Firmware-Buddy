@@ -252,7 +252,7 @@ void PrintInfo::unconditionalDraw() {
     const Rect16 top_rect(x, r.Top(), w, 34);
     if (data.slot != 0xff) {
         const spool::Disc disc(data.look, d);
-        draw_pixels(Rect16(x, r.Top(), text_dx, top_rect.Height()), [&](int px, int py) { return disc.pixel(px, py - 2).value_or(style::screen); });
+        draw_pixels(Rect16(x, r.Top(), text_dx, top_rect.Height()), [&](int px, int py) { return disc.pixel(px, py - 2, style::screen); });
         StringViewUtf8Parameters<4> params;
         draw_text(Rect16(x + text_dx, r.Top(), w - text_dx, height(Font::small)), _("Now: slot %d").formatted(params, data.slot + 1), Font::small, style::text_muted, style::screen);
         render_text_align(Rect16(x + text_dx, r.Top() + 16, w - text_dx, top_rect.Height() - 16), string_view_utf8::MakeRAM(data.material.data()), Font::small, style::screen, style::text_strong, {}, text_flags(Align_t::LeftTop()));

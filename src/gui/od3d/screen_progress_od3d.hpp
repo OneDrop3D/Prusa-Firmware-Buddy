@@ -27,7 +27,8 @@ public:
     /// Prusa attend l'utilisateur dans cette phase (question, erreur) : l'écran ne reste pas réduit dans l'en-tête
     static bool needs_user(fsm::BaseData data);
 
-    /// La flèche de l'en-tête : l'opération continue, réduite en pastille dans l'en-tête (island_od3d.hpp)
+    /// « Continuer en arrière-plan » ou la flèche de l'en-tête : l'opération continue, réduite en pastille dans
+    /// l'en-tête (island_od3d.hpp)
     void minimize();
 
     void InitState(screen_init_variant var) override;
@@ -44,13 +45,21 @@ private:
         notice, ///< une erreur (MMU, filament coincé…) : titre, texte, lien d'aide, boutons de Prusa
     };
 
-    /// Le cadre du dialogue : ses enfants (contenu, barre, boutons) se redessinent sur son fond
+    /// Le cadre du dialogue : ses enfants (contenu, barre, boutons) se redessinent sur son fond. Il capte la molette et
+    /// le toucher (l'écran n'ouvre rien par-dessus la machine à états), tout l'écran pour le toucher : la flèche de
+    /// l'en-tête, hors du cadre, n'était jamais atteinte.
     class Box : public window_frame_t {
     public:
-        explicit Box(window_t *parent);
+        explicit Box(ScreenLoadUnload &owner);
+
+        Rect16 get_rect_for_touch() const override;
 
     protected:
         void unconditionalDraw() override;
+        void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+    private:
+        ScreenLoadUnload &owner;
     };
 
     /// Bobine (ou icône d'erreur), titre, sous-titre, puis étapes, question ou texte de l'erreur
@@ -116,6 +125,7 @@ private:
     uint8_t history_count = 0;
 
     std::array<Response, 3> responses {};
+    uint8_t background_button = 0xff; ///< bouton « Continuer en arrière-plan » (étape sans question), 0xff : aucun
 
     Header header; ///< températures en direct pendant la chauffe (le pied de page de Prusa les montrait)
     Box box;

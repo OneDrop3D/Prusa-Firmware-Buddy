@@ -11279,3 +11279,7 @@ msgid ""
 msgstr ""
 "Bobine %d : %d g\n"
 "presque vide"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Continue in background"
+msgstr "Continuer en arrière-plan"

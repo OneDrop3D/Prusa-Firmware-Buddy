@@ -40,8 +40,9 @@ namespace {
 
     PreheatLatch preheat_latch;
 
-    /// Couleur de l'état de l'impression ; nullopt : pas de pastille (pas commencée, terminée ou arrêtée).
-    /// Même découpage que ScreenPrinting::update_state().
+    /// Couleur de l'état de l'impression ; nullopt : pas encore commencée (pas de pastille). Terminée ou arrêtée : grise,
+    /// pour retrouver l'écran de fin si on était ailleurs (Prusa n'y ramène pas). Même découpage que
+    /// ScreenPrinting::update_state().
     std::optional<Tone> print_tone(marlin_server::State state) {
         using marlin_server::State;
         switch (state) {
@@ -53,10 +54,11 @@ namespace {
 #if HAS_TOOL_MAPPING()
         case State::PrintPreviewToolsMapping:
 #endif
+            return std::nullopt;
         case State::Aborted:
         case State::Finished:
         case State::Exit:
-            return std::nullopt;
+            return Tone::ended;
         case State::Pausing_Begin:
         case State::Pausing_WaitIdle:
         case State::Pausing_ParkHead:
@@ -182,7 +184,7 @@ Face face() {
 
     if (fsm.print) {
         const auto tone = print_tone(vars.print_state.get());
-        in.print_ended = !tone;
+        in.print_not_started = !tone;
         in.print_tone = tone.value_or(Tone::normal);
         // Par-dessus l'impression : un dialogue (l'en-tête reste visible au-dessus) le dit en couleur ; l'écran d'une
         // autre machine (chargement, collision...) s'affiche lui-même, c'est lui qu'il faut regarder

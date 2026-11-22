@@ -636,8 +636,7 @@ namespace {
             w.label(N_("Max filament accel. per spool, mm/s2 (before):"));
             for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
                 if (a[slot] != none || b[slot] != none) {
-                    w.add("
- %d: ", slot + 1);
+                    w.add("\n %d: ", slot + 1);
                     w.scaled(a[slot], 1);
                     w.add(" (");
                     w.scaled(b[slot], 1);
@@ -647,8 +646,7 @@ namespace {
             w.label(N_("Line 0.45 x 0.2 mm, mm/s2 (estimated):"));
             for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
                 if (a[slot] != none) {
-                    w.add("
- %d: ", slot + 1);
+                    w.add("\n %d: ", slot + 1);
                     w.scaled(line(a[slot]), 1);
                     w.add(" (");
                     w.scaled(line(b[slot]), 1);

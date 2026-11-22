@@ -268,7 +268,7 @@ namespace {
                 break;
             }
         }
-        force_probe::csv_printf(csv, "R,%.4f,%u,%u,%u,%.1f,%.2f,%.3f,%.1f,%.1f,%.3f,%.3f,%.1f,%.4f,%.4f,%.4f,%.3f,%.4f\n", double(k), unsigned(r.saturated),
+        force_probe::csv_printf(csv, "R,%.4f,%u,%u,%u,%.1f,%.2f,%.3f,%.1f,%.1f,%.3f,%.1f,%.4f,%.4f,%.4f,%.3f,%.4f\n", double(k), unsigned(r.saturated),
             unsigned(r.found), unsigned(r.cycles), double(r.amplitude_g), double(r.noise_g), double(r.m[rise_error]), double(r.m[overshoot]),
             double(r.m[undershoot]), double(r.m[tail]), double(r.m[plateau_slope]), double(r.m[rise_delay]), double(r.m[fall_delay]), double(r.m[settling]),
             double(r.fall_area), double(r.k_estimate));

@@ -145,8 +145,9 @@ namespace {
             }
             double s = 0, s2 = 0;
             for (long i = a; i < b; ++i) {
-                s += y(i);
-                s2 += double(y(i)) * y(i);
+                const double v = double(y(i));
+                s += v;
+                s2 += v * v;
             }
             const double n = double(b - a), m = s / n;
             return float(std::sqrt(std::max(0.0, s2 / n - m * m)));
@@ -162,13 +163,13 @@ namespace {
             double st = 0, sy = 0;
             for (long i = a; i < b; ++i) {
                 st += double(i);
-                sy += y(i);
+                sy += double(y(i));
             }
             const double n = double(b - a), mt = st / n, my = sy / n;
             double stt = 0, sty = 0;
             for (long i = a; i < b; ++i) {
-                stt += (i - mt) * (i - mt);
-                sty += (i - mt) * (y(i) - my);
+                stt += (double(i) - mt) * (double(i) - mt);
+                sty += (double(i) - mt) * (double(y(i)) - my);
             }
             if (stt <= 0) {
                 return;
@@ -176,7 +177,7 @@ namespace {
             const double b1 = sty / stt;
             double r2 = 0;
             for (long i = a; i < b; ++i) {
-                const double r = y(i) - (my + b1 * (i - mt));
+                const double r = double(y(i)) - (my + b1 * (double(i) - mt));
                 r2 += r * r;
             }
             slope = float(b1 / double(dt));
@@ -190,7 +191,7 @@ namespace {
             double s = 0;
             for (long i = a; i < b; ++i) {
                 const float v = y(i) - level;
-                s += abs ? std::fabs(v) : v;
+                s += double(abs ? std::fabs(v) : v);
             }
             return float(s * double(dt));
         }
@@ -481,6 +482,35 @@ BlockResult analyse_block(Trace t, float dt, const Params &p, float k, Waveform 
 }
 
 // ---- Choix de K ----
+
+LineFit fit_line(std::span<const float> xs, std::span<const float> ys) {
+    LineFit f;
+    const size_t n = std::min(xs.size(), ys.size());
+    if (n < 2) {
+        return f;
+    }
+    double sx = 0, sy = 0;
+    for (size_t i = 0; i < n; ++i) {
+        sx += double(xs[i]);
+        sy += double(ys[i]);
+    }
+    const double mx = sx / double(n), my = sy / double(n);
+    double sxx = 0, sxy = 0, syy = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const double dx = double(xs[i]) - mx, dy = double(ys[i]) - my;
+        sxx += dx * dx;
+        sxy += dx * dy;
+        syy += dy * dy;
+    }
+    if (sxx <= 0) {
+        return f;
+    }
+    f.b = float(sxy / sxx);
+    f.a = float(my - double(f.b) * mx);
+    f.r2 = syy > 0 ? float((sxy * sxy) / (sxx * syy)) : 1.f;
+    f.ok = true;
+    return f;
+}
 
 float parabola_vertex(float x0, float y0, float x1, float y1, float x2, float y2) {
     // Différences divisées : y = y0 + d1·(x − x0) + d2·(x − x0)(x − x1)

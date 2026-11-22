@@ -16,6 +16,8 @@ endif()
 if(HAS_MMU2)
   # Mise à jour du firmware du MMU par son USB : M709 S2 coupe la communication
   target_sources(firmware PRIVATE mmu_usb_od3d.cpp)
+  # F41 : tube PTFE avant du MMU mesuré (M1999)
+  target_sources(firmware PRIVATE ptfe_od3d.cpp)
 endif()
 if(HAS_MMU2 AND HAS_FILAMENT_TRACKER)
   # F13 : suivi du poids des bobines du MMU

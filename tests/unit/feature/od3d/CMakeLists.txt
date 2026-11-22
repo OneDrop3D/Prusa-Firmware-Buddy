@@ -161,3 +161,7 @@ target_include_directories(
   )
 target_link_libraries(layout_od3d_tests buddy_utils byte_utils)
 add_catch_test(layout_od3d_tests)
+
+add_executable(ptfe_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/ptfe_math_test.cpp)
+target_include_directories(ptfe_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(ptfe_od3d_tests)

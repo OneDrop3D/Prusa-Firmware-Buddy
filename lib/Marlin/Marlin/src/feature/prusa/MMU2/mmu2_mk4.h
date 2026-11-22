@@ -273,6 +273,7 @@ public:
     }
 
     inline uint16_t BowdenLength() const { return logic.BowdenLength(); }
+    inline uint16_t PulleyPosition() const { return logic.PulleyPosition(); } ///< OneDrop3D (F41)
 
     CommandInProgressManager commandInProgressManager;
 

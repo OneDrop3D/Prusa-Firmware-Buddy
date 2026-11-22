@@ -228,7 +228,9 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         }
     }
     if (event == GUI_event_t::HELD_RELEASED && has_back) {
-        close_screen();
+        if (!GetFirstDialog()) { // sous un éditeur de valeur ou une question, l'écran ne se ferme pas derrière
+            close_screen();
+        }
         return;
     }
     // Sans capture, molette, clic et toucher passent par la fenêtre qui a le focus : un dialogue ou un élément détruit

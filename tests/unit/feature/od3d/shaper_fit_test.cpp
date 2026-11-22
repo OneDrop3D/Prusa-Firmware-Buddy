@@ -488,7 +488,7 @@ TEST_CASE("input shaper : même filtre et même fréquence que Prusa, beaucoup p
     // 726 × 3 × 3 × 50 points par axe et attend ~0,75 ms dans idle(true) 4 fois par fréquence.
     const double prusa_s = (726. * 3 * 3 * 50 * 19800 / 168e6) + 726. * 3 * 4 * 0.75e-3;
     const double points = double(total.points) / spectra, exact_points = double(total.exact_points) / spectra;
-    const double od3d_s = (points * 1000 + exact_points * 19800) / 168e6 + (points + exact_points * 20) / 2048 * 0.75e-3;
+    const double od3d_s = (points * 1000 + exact_points * 19800) / 168e6 + (points + exact_points * 20) / 1024 * 0.75e-3;
     WARN("hôte : Prusa " << std::chrono::duration<double>(prusa_time).count() << " s, OneDrop3D "
                          << std::chrono::duration<double>(od3d_time).count() << " s pour " << spectra << " axes, ×" << host_speedup
                          << " ; par axe : " << double(total.exact) / spectra << " fréquences exactes sur 2178, " << points

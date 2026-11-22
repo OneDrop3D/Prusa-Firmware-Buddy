@@ -439,7 +439,7 @@ static PhasesInputShaperCalibration check_result(Context &context) {
     }
 }
 
-/// OneDrop3D : même filtre et même fréquence que find_best_shaper de Prusa (M958.cpp), en ~0,3 s par axe au lieu de ~45
+/// OneDrop3D : même filtre et même fréquence que find_best_shaper de Prusa (M958.cpp), en ~0,3 s par axe au lieu de ~45 (estimation)
 static input_shaper::AxisConfig od3d_find_best_shaper(const vibrate_measure::FindBestShaperProgressHook &progress_hook, const FrequencyRangeSpectrum &psd, input_shaper::AxisConfig default_config) {
     std::array<od3d::shaper_fit::Point, sample_count(frequency_range)> points;
     for (size_t i = 0; i < points.size(); ++i) {

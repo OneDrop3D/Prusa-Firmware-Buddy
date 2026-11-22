@@ -25,9 +25,9 @@ namespace {
     /// Grille grossière (2 Hz) puis ±2 Hz autour de son meilleur point au pas fin : un premier majorant U
     constexpr int coarse_stride = 10;
 
-    /// Rendre la main (affichage, abandon, chauffe) tous les ~10 ms de calcul sur l'imprimante, au lieu de 4 fois par
-    /// fréquence chez Prusa (chaque appel attend 1 ms dans idle(true))
-    constexpr size_t progress_work = 2048;
+    /// Rendre la main (affichage, abandon, chauffe) tous les ~6 ms de calcul sur l'imprimante (~1 000 cycles par point),
+    /// comme Prusa qui le fait 4 fois par fréquence (chaque appel attend jusqu'à 1 ms dans idle(true))
+    constexpr size_t progress_work = 1024;
     /// Un point exact (double logiciel : exp, sin, cos, sqrt) coûte ~20 points float
     constexpr size_t exact_work = 20;
 

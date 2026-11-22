@@ -4,6 +4,7 @@
 #include "value_editor_od3d.hpp"
 #include "widgets_od3d.hpp"
 
+#include <array>
 #include <cmath>
 #include <config_store/store_instance.hpp>
 #include <cstdio>
@@ -24,9 +25,10 @@ namespace od3d {
 
 namespace {
 
-    /// Préréglage ouvert (fil de l'interface seulement) et son nom, titre de son écran
+    /// Préréglage ouvert (fil de l'interface seulement) et titre de son écran, « Filament PLA » (« PLA » seul serait
+    /// mis en casse de titre par l'en-tête : « Pla »)
     PresetFilamentType current = PresetFilamentType::PLA;
-    FilamentTypeParameters::Name current_name;
+    std::array<char, 32> current_title {};
 
     constexpr const char *field_names[] = {
         N_("Nozzle"),
@@ -134,7 +136,9 @@ MI_PRESET::MI_PRESET(uint8_t list_index)
 
 void MI_PRESET::click(IWindowMenu &) {
     current = preset_filament_types[list_index];
-    current_name = preset_filament_parameters(current).name;
+    _("Filament").copyToRAM(current_title.data(), current_title.size());
+    const size_t len = strlen(current_title.data());
+    snprintf(current_title.data() + len, current_title.size() - len, " %s", preset_filament_parameters(current).name.data());
     open_screen<ScreenFilamentPreset>();
 }
 
@@ -199,7 +203,7 @@ void MI_PRESET_RESTORE::click(IWindowMenu &) {
 }
 
 ScreenFilamentPreset::ScreenFilamentPreset()
-    : BasicScreenMenu(string_view_utf8::MakeRAM(current_name.data())) {}
+    : BasicScreenMenu(string_view_utf8::MakeRAM(current_title.data())) {}
 
 // ---- Rétablir la valeur de Prusa ----
 

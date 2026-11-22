@@ -165,9 +165,11 @@ MenuListBase::MenuListBase(window_t *parent, Rect16 rect)
     Enable(); // la molette entre dans la liste depuis l'en-tête ou les onglets
 }
 
-void MenuListBase::attach(IWindowMenu &menu) {
+void MenuListBase::attach(IWindowMenu &menu, bool hide_return) {
     list = &menu;
-    menu.hide_leading_return(); // listes virtuelles de Prusa : le « Retour » en double de l'en-tête
+    if (hide_return) {
+        menu.hide_leading_return(); // listes virtuelles de Prusa : le « Retour » en double de l'en-tête
+    }
     menu.SetFocus();
 }
 

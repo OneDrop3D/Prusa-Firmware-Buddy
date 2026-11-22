@@ -94,7 +94,9 @@ void ScreenMenuPrusaLink::windowEvent(window_t *sender, GUI_event_t event, void 
         break;
 
     default:
-        screen_t::windowEvent(sender, event, param);
+        // OneDrop3D (interface G) : la base du menu, pas screen_t, qui la contournait : appui long = retour, et le focus
+        // rendu à la liste après le clavier du nom d'hôte (sinon plus rien ne répondait)
+        ScreenMenuPrusaLink_::windowEvent(sender, event, param);
         break;
     }
 }

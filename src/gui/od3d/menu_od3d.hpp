@@ -38,7 +38,8 @@ class MenuListBase : public window_frame_t {
 protected:
     MenuListBase(window_t *parent, Rect16 rect);
 
-    void attach(IWindowMenu &menu);
+    /// hide_return : la ligne « Retour » de tête est masquée (le retour passe par l'en-tête)
+    void attach(IWindowMenu &menu, bool hide_return);
 
     void draw() override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
@@ -48,15 +49,16 @@ private:
     uint8_t drawn_rows = 0;
 };
 
-/// Remplace WindowExtendedMenu<Menu> : même membre « menu », la molette passe à l'en-tête et aux onglets aux bouts de la liste
-template <class Menu>
+/// Remplace WindowExtendedMenu<Menu> : même membre « menu », la molette passe à l'en-tête et aux onglets aux bouts de la liste.
+/// hide_return = false dans un dialogue : son en-tête n'a pas de retour, la ligne « Retour » est la seule sortie.
+template <class Menu, bool hide_return = true>
 class MenuList : public MenuListBase {
 public:
     template <typename... Args>
     MenuList(window_t *parent, Rect16 rect, Args &&...args)
         : MenuListBase(parent, rect)
         , menu(this, rect, std::forward<Args>(args)...) {
-        attach(menu);
+        attach(menu, hide_return);
     }
 
     Menu menu;

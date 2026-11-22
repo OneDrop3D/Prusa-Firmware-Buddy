@@ -231,6 +231,13 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         close_screen();
         return;
     }
+    // Sans capture, molette, clic et toucher passent par la fenêtre qui a le focus : un dialogue ou un élément détruit
+    // qui l'avait le laisse à personne, et plus rien ne répondrait. Il revient au premier élément actif.
+    if ((event == GUI_event_t::KNOB || event == GUI_event_t::CLICK || event == GUI_event_t::TOUCH_CLICK) && !get_focused_child_window()) {
+        if (window_t *first = GetFirstEnabledSubWin()) {
+            first->SetFocus();
+        }
+    }
     screen_t::windowEvent(sender, event, param);
 }
 

@@ -9,6 +9,12 @@ void ScreenMenuBase_::windowEvent(window_t *sender, GUI_event_t event, void *par
         Screens::Access()->close_screen();
         return;
     }
+    // OneDrop3D (interface G) : sans capture, molette, clic et toucher passent par la fenêtre qui a le focus. Un dialogue
+    // qui l'avait pris (clavier numérique d'une valeur touchée, liste de choix, couleur, texte) le laisse à personne en se
+    // fermant : plus rien ne répondait, jusqu'au redémarrage. Le focus revient alors à la liste.
+    if ((event == GUI_event_t::KNOB || event == GUI_event_t::CLICK || event == GUI_event_t::TOUCH_CLICK) && !get_focused_child_window()) {
+        i_menu->SetFocus();
+    }
     screen_t::windowEvent(sender, event, param);
 }
 

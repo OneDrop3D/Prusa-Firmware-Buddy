@@ -64,7 +64,7 @@ public:
 
 private:
     od3d::MenuHeader header_;
-    od3d::MenuList<Menu> menu_;
+    od3d::MenuList<Menu, false> menu_; ///< OneDrop3D : le « Retour » reste, seule sortie sans choisir (en-tête sans retour)
 };
 
 void MenuItem::click(IWindowMenu &menu) {

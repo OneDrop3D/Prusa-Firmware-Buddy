@@ -564,13 +564,17 @@ namespace {
         int16_t probe; ///< buse pendant le palpage
     };
 
-    /// Consignes de la mesure, celles de la matière par défaut ; bornées (les maximums de Prusa s'appliquent encore)
+    /// Consignes de la mesure, celles de la matière par défaut ; bornées (les maximums de Prusa s'appliquent encore).
+    /// Palpage à la température de palpage de PrusaSlicer, la plus chaude sans suintement (F44) : la buse ne chauffe
+    /// pas davantage pendant le palpage (goutte sous la buse, dilatation comptée à la consigne), elle monte juste après.
     Temperatures temperatures_for(const FilamentTypeParameters &material, int16_t nozzle, int16_t bed) {
         const int16_t t = std::clamp<int16_t>(nozzle > 0 ? nozzle : material.nozzle_temperature, EXTRUDE_MINTEMP + 10, session::max_temperature);
+        // G-code de départ de PrusaSlicer pour la CORE One : M109 R175 pour les PET, la table de Prusa (170) les met à 170
+        const int16_t probe = material.nozzle_preheat_temperature + (strstr(material.name.data(), "PET") && material.nozzle_preheat_temperature == 170 ? 5 : 0);
         return {
             .nozzle = t,
             .bed = std::clamp<int16_t>(bed > 0 ? bed : material.heatbed_temperature, 0, session::max_bed_temperature),
-            .probe = std::min<int16_t>(material.nozzle_preheat_temperature, t),
+            .probe = std::min<int16_t>(probe, t),
         };
     }
 

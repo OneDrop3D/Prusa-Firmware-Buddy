@@ -110,6 +110,25 @@ public:
     void OnChange(size_t) override;
 };
 
+/// F44 : « Réutiliser le maillage » : le maillage du plateau d'une impression est repris aux suivantes si rien n'a
+/// changé (3 points de contrôle) ; désactivé (par défaut), ou âge maximal 6 h, 24 h, 72 h
+class MI_MESH_REUSE final : public MenuItemSelectMenu {
+public:
+    MI_MESH_REUSE();
+    int item_count() const override;
+    string_view_utf8 build_item_text(int index, StringViewUtf8ParamBase &params) const override;
+
+protected:
+    bool on_item_selected(const OnItemSelectedArgs &args) override;
+};
+
+/// F44 : « Refaire le maillage » : oublie le maillage gardé, la prochaine impression palpe tout
+class MI_MESH_REDO final : public IWindowMenuItem {
+public:
+    MI_MESH_REDO();
+    void click(IWindowMenu &) override;
+};
+
 /// F5 : « limiter au débit mesuré » : le planificateur ralentit ce qui dépasserait le débit maximal de la bobine
 class MI_FLOW_LIMIT final : public WI_ICON_SWITCH_OFF_ON_t {
 public:
@@ -154,7 +173,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_CALIB_ASSISTANT, MI_ACCELEROMETER, MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_COLLISION, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_PA_AUTO, MI_PA_LARGE, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING, MI_MMU_USB, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_CALIB_ASSISTANT, MI_ACCELEROMETER, MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_COLLISION, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_PA_AUTO, MI_PA_LARGE, MI_MESH_REUSE, MI_MESH_REDO, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING, MI_MMU_USB, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

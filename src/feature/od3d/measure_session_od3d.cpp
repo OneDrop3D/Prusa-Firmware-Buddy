@@ -271,6 +271,7 @@ Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
     if (probe.empty()) {
         return Result::no_room;
     }
+    // Peut reprendre le maillage gardé d'une impression (F44, « Réutiliser le maillage ») : 3 points de contrôle seulement
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "G29 P1 X%.1f Y%.1f W%.1f H%.1f", double(probe.x0), double(probe.y0), double(probe.width()), double(probe.height()));
     GcodeSuite::process_subcommands_now(cmd);

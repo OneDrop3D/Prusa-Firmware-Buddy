@@ -4,12 +4,14 @@
 #include "value_editor_od3d.hpp"
 #include "widgets_od3d.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <cstdio>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
 #include <feature/od3d/lookahead_od3d.hpp>
+#include <feature/od3d/mesh_memory_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/pairing_od3d.hpp>
 #include <feature/od3d/spool_calib_od3d.hpp>
@@ -143,6 +145,39 @@ MI_PA_LARGE::MI_PA_LARGE()
 
 void MI_PA_LARGE::OnChange(size_t) {
     pa::set_large_pattern(value());
+}
+
+// ---- Maillage du plateau gardé (F44) ----
+
+// Vaut dès la prochaine impression (G29 P1 du G-code de départ)
+MI_MESH_REUSE::MI_MESH_REUSE()
+    : MenuItemSelectMenu(_("Reuse bed mesh\nNo probing if the bed is unchanged")) {
+    SetIconId(&img::heatbed_16x16);
+    const auto &choices = mesh_memory::age_choices;
+    const auto it = std::find(choices.begin(), choices.end(), mesh_memory::max_age_hours());
+    set_current_item(it == choices.end() ? 0 : int(it - choices.begin()));
+}
+
+int MI_MESH_REUSE::item_count() const {
+    return int(mesh_memory::age_choices.size());
+}
+
+string_view_utf8 MI_MESH_REUSE::build_item_text(int index, StringViewUtf8ParamBase &params) const {
+    const uint8_t hours = mesh_memory::age_choices[size_t(index)];
+    return hours == 0 ? _("Disabled") : _("%d h max").formatted(params, int(hours));
+}
+
+bool MI_MESH_REUSE::on_item_selected(const OnItemSelectedArgs &args) {
+    mesh_memory::set_max_age_hours(mesh_memory::age_choices[size_t(args.new_index)]);
+    return true;
+}
+
+MI_MESH_REDO::MI_MESH_REDO()
+    : IWindowMenuItem(_("Redo bed mesh\nFull probing at the next print"), &img::heatbed_16x16, is_enabled_t::yes, is_hidden_t::no) {}
+
+void MI_MESH_REDO::click(IWindowMenu &) {
+    mesh_memory::forget();
+    MsgBoxInfo(_("The saved bed mesh is cleared: the next print probes the whole print area."), Responses_Ok);
 }
 
 // ---- Limite de débit (F5) ----

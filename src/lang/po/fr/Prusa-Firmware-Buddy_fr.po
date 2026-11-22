@@ -12049,3 +12049,19 @@ msgstr "courroies"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "max flow"
 msgstr "débit max"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Reuse bed mesh\nNo probing if the bed is unchanged"
+msgstr "Réutiliser le maillage du plateau\nPas de palpage s'il n'a pas changé"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "%d h max"
+msgstr "%d h max"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Redo bed mesh\nFull probing at the next print"
+msgstr "Refaire le maillage\nPalpage complet à la prochaine impression"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "The saved bed mesh is cleared: the next print probes the whole print area."
+msgstr "Le maillage gardé est effacé : la prochaine impression palpe toute la zone de la pièce."

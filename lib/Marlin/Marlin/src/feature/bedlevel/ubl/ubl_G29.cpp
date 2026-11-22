@@ -40,6 +40,7 @@
   #include "../../../gcode/gcode.h"
   #include "../../../libs/least_squares_fit.h"
   #include "../../../feature/print_area.h"
+  #include <feature/od3d/mesh_memory_od3d.hpp>
   #include <fanctl.hpp>
   #include <option/has_love_board.h>
   #include <raii/scope_guard.hpp>
@@ -472,6 +473,7 @@
             // Invalidate Entire Mesh and Automatically Probe Mesh in areas that can be reached by the probe
             //
             const bool extend_mesh = parser.seen('C');
+            const bool area_given = (xy_seen.x || xy_seen.y) && g29_size_seen;
 
             if (!extend_mesh) {
               invalidate();
@@ -483,13 +485,26 @@
               crash_s.set_gcode_replay_flags(Crash_s::RECOVER_AXIS_STATE);
             #endif
 
-            const auto probe_area = ((xy_seen.x || xy_seen.y) && g29_size_seen) ?
+            const auto probe_area = area_given ?
               PrintArea::rect_t(g29_pos, g29_pos + g29_size) :
               // probe area is print area enlarged by one major point
               print_area.get_bounding_rect().inset(-MESH_X_DIST * GRID_MAJOR_STEP,
                                                    -MESH_Y_DIST * GRID_MAJOR_STEP);
 
-            probe_major_points(probe_area, parser.seen('T'), parser.seen('E'), extend_mesh);
+            // OneDrop3D (F44) : maillage gardé repris si rien n'a changé (od3d/mesh_memory_od3d.hpp) : ses points remis,
+            // 3 points de contrôle palpés ici comme les autres, puis maillage corrigé de leur écart, ou palpé en entier
+            bool reused = false;
+            if (!extend_mesh) {
+              if (const uint64_t checks = od3d::mesh_memory::restore(probe_area)) {
+                probe_major_points(probe_area, false, parser.seen('E'), true);
+                // Palpage de contrôle raté : échec comme celui d'un palpage complet
+                reused = ubl.g29_probing_failed || od3d::mesh_memory::verify(checks);
+              }
+            }
+            if (!reused) {
+              probe_major_points(probe_area, parser.seen('T'), parser.seen('E'), extend_mesh);
+            }
+            od3d::mesh_memory::on_probed(extend_mesh, !area_given, reused);
 
             report_current_position();
             probe_deployed = true;

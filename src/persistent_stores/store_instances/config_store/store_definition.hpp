@@ -57,6 +57,7 @@
 #include <option/has_auto_retract.h>
 #include <feature/od3d/spool_usage_math_od3d.hpp>
 #include <feature/od3d/pa_math_od3d.hpp>
+#include <feature/od3d/mesh_memory_math_od3d.hpp>
 #include <feature/od3d/spool_calib_math_od3d.hpp>
 #include <feature/od3d/mpc_od3d.hpp>
 #include <feature/od3d/sleep_math_od3d.hpp>
@@ -469,6 +470,10 @@ struct CurrentStore
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D PA Auto")> od3d_pa_auto;
     /// OneDrop3D (F4-b) : « Grand motif PA » en un clic (repères, choix à l'œil) ; false (par défaut) : motif compact
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D PA Large")> od3d_pa_large;
+    /// OneDrop3D (F44) : maillage du plateau gardé (points majeurs, conditions et date du palpage) et « Réutiliser le
+    /// maillage » : âge maximal en heures, 0 = désactivé
+    StoreItem<od3d::mesh_memory::Record, od3d::mesh_memory::Record {}, ItemFlag::calibrations, journal::hash("OD3D Bed Mesh")> od3d_mesh;
+    StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Bed Mesh Reuse Hours")> od3d_mesh_reuse_hours;
     /// OneDrop3D (F5, F6) : débit maximal et température minimale mesurés par emplacement, effacés au changement de bobine.
     StoreItemArray<od3d::calib::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Spool Calib"), 8, VirtualToolIndex::count> od3d_spool_calib;
     /// OneDrop3D (F5) : « limiter au débit mesuré » (coupé par défaut)

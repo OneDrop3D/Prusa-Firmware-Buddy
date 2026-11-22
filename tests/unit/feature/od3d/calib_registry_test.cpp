@@ -55,6 +55,7 @@ TEST_CASE("calib_registry: spools and flow limit") {
     uint32_t m = select(ctx, none, true);
     CHECK_FALSE((m & test_bit(Test::pa)));
     CHECK_FALSE((m & test_bit(Test::min_temp)));
+    CHECK_FALSE((m & test_bit(Test::e_jump))); // une mesure par bobine
     CHECK((m & test_bit(Test::mpc)));
 
     ctx = full();
@@ -107,8 +108,8 @@ TEST_CASE("calib_registry: manual tests never trigger the prompt alone") {
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 5 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateur, puis 3 mesures pour chacune des 2 bobines
-    REQUIRE(n == 5 + 1 + 1 + 1 + 1 + 3 * 2);
+    // 5 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateur, puis 4 mesures pour chacune des 2 bobines
+    REQUIRE(n == 5 + 1 + 1 + 1 + 1 + 4 * 2);
 
     // Accéléromètre d'abord (une seule pose), courroies en premier
     CHECK(steps[0].test == Test::belts);
@@ -123,11 +124,11 @@ TEST_CASE("calib_registry: steps order") {
     CHECK(steps[7].test == Test::nozzle_expansion);
     CHECK(steps[8].test == Test::fan_response);
 
-    // Puis par bobine : PA, débit, température minimale (un seul chargement par bobine)
-    const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp };
-    for (size_t k = 0; k < 6; ++k) {
-        CHECK(steps[9 + k].test == per_slot[k % 3]);
-        CHECK(steps[9 + k].slot == (k < 3 ? 0 : 2));
+    // Puis par bobine : PA, débit, température minimale, accélération du filament (un seul chargement par bobine)
+    const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp, Test::e_jump };
+    for (size_t k = 0; k < 8; ++k) {
+        CHECK(steps[9 + k].test == per_slot[k % 4]);
+        CHECK(steps[9 + k].slot == (k < 4 ? 0 : 2));
     }
 
     // Jamais le test manuel
@@ -192,6 +193,7 @@ TEST_CASE("calib_registry: G-codes") {
     CHECK(gcode({ Test::mmu_ptfe, 1 }) == "M1999 B1 P1");
     CHECK(gcode({ Test::fan_response }) == "M2001");
     CHECK(gcode({ Test::nozzle_expansion }) == "M2003");
+    CHECK(gcode({ Test::e_jump, 3 }) == "M2000 S3");
     CHECK(gcode({ Test::skew }) == "-");
 
     std::array<char, 4> tiny;

@@ -4,8 +4,8 @@
 /// Les mesures **impriment un motif** à hauteur de première couche à l'avant du plateau (pattern_math_od3d.hpp : dans
 /// le vide, la force ne suit pas la pression dans la buse). Une Session :
 /// - garde l'état d'avant (pressure advance, réglages du planificateur, mode furtif, consignes de la buse et du
-///   plateau, maillage actif ou non), suspend la détection de filament coincé et la limite de débit (F5) le temps de la
-///   mesure, et remet tout à sa destruction, même après un arrêt : petite rétraction, buse levée de 10 mm ;
+///   plateau, maillage actif ou non), suspend la détection de filament coincé, la limite de débit (F5) et
+///   l'accélération du filament mesurée (M2000, F de Prusa à la place) le temps de la mesure, et remet tout à sa destruction, même après un arrêt : petite rétraction, buse levée de 10 mm ;
 /// - prépare le plateau comme le G-code de départ de PrusaSlicer pour la CORE One : plateau à la température de la
 ///   matière, buse à sa température de palpage (170 °C pour le PLA), origine, nettoyage de la buse par tapotements
 ///   (G29 P9), nivellement local de la zone du motif et de la purge (G29 P1, P3.2, P3.13, A), buse à la température

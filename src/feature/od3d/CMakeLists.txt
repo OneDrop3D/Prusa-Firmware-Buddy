@@ -49,7 +49,8 @@ if(HAS_MANUAL_BELT_TUNING AND HAS_INPUT_SHAPER_CALIBRATION)
 endif()
 if(HAS_LOADCELL AND HAS_MMU2)
   # F4 : outil de mesure par la cellule de charge et pressure advance par emplacement ; F5, F6 : débit maximal et
-  # température minimale par emplacement ; F38 : sécurité collision / warping ; M2003 : dilatation de la buse mesurée
+  # température minimale par emplacement ; F38 : sécurité collision / warping ; M2003 : dilatation de la buse mesurée ;
+  # M2000 : accélération du filament
   target_sources(
     firmware
     PRIVATE collision_math_od3d.cpp
@@ -64,6 +65,8 @@ if(HAS_LOADCELL AND HAS_MMU2)
             pattern_math_od3d.cpp
             spool_calib_math_od3d.cpp
             spool_calib_od3d.cpp
+            e_jump_math_od3d.cpp
+            e_jump_od3d.cpp
     )
 endif()
 if(HAS_MANUAL_BELT_TUNING

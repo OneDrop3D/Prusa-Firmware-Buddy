@@ -44,6 +44,7 @@ enum class Process : uint8_t {
     calibration, ///< assistant de calibration (M1989) : le test en cours et « étape/étapes »
     fan_response, ///< M2001
     nozzle_expansion, ///< M2003
+    e_jump, ///< M2000
 };
 
 /// Étape d'un processus, écrite après son nom

@@ -164,6 +164,13 @@ Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {
     }
     saved_pa = pressure_advance::get_axis_e_config();
     saved_settings = planner.user_settings;
+    // Accélération max du filament de Prusa le temps de la mesure (F4 à F6 sont réglées avec elle, pas avec celle de
+    // M2000) ; remise avec les réglages à la fin. Pendant la session, e_jump::refresh() n'y touche pas (suspended).
+    if (saved_settings.max_filament_acceleration_mm_per_s2 != DEFAULT_MAX_FILAMENT_ACCELERATION) {
+        auto s = saved_settings;
+        s.max_filament_acceleration_mm_per_s2 = DEFAULT_MAX_FILAMENT_ACCELERATION;
+        planner.apply_settings(s);
+    }
     saved_stealth = config_store().stealth_mode.get();
     saved_target = hotend().nozzle_target_temp();
     saved_bed = thermalManager.degTargetBed();

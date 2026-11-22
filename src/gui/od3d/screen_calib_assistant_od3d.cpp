@@ -5,6 +5,7 @@
 #include "screen_belts_od3d.hpp"
 #include "screen_damping_od3d.hpp"
 #include "screen_fan_response_od3d.hpp"
+#include "screen_e_jump_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
 #include "screen_nozzle_expansion_od3d.hpp"
 #include "screen_pa_od3d.hpp"
@@ -139,6 +140,8 @@ namespace {
             return N_("Part fan");
         case Test::nozzle_expansion:
             return N_("Expansion");
+        case Test::e_jump:
+            return N_("Filament accel.");
         case Test::count:
             break;
         }
@@ -625,6 +628,35 @@ namespace {
                 w.add(")");
             }
             break;
+        case Test::e_jump: {
+            // F avant → après avec le K de chaque emplacement, puis la ligne 0,45 × 0,2 qu'elle permet (calculée)
+            const auto line = [](int16_t f) {
+                return f == none ? none : int16_t(std::lround(e_jump::line_accel(float(f))));
+            };
+            w.label(N_("Max filament accel. per spool, mm/s2 (before):"));
+            for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
+                if (a[slot] != none || b[slot] != none) {
+                    w.add("
+ %d: ", slot + 1);
+                    w.scaled(a[slot], 1);
+                    w.add(" (");
+                    w.scaled(b[slot], 1);
+                    w.add(")");
+                }
+            }
+            w.label(N_("Line 0.45 x 0.2 mm, mm/s2 (estimated):"));
+            for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
+                if (a[slot] != none) {
+                    w.add("
+ %d: ", slot + 1);
+                    w.scaled(line(a[slot]), 1);
+                    w.add(" (");
+                    w.scaled(line(b[slot]), 1);
+                    w.add(")");
+                }
+            }
+            break;
+        }
         case Test::skew:
         case Test::count:
             break;
@@ -687,6 +719,20 @@ namespace {
         if ((flow.started & test_bit(Test::nozzle_expansion)) && assistant::result(Test::nozzle_expansion) == Result::failed) {
             w.label(N_("Expansion:"));
             w.text(nozzle_expansion_result_text(nozzle_expansion::status()));
+        }
+        if (done(Test::e_jump)) {
+            // L'emplacement qui gagne le plus : F avant → après, et la ligne 0,45 × 0,2 permise (calculée)
+            const auto &a = assistant::numbers_after(Test::e_jump);
+            const auto &b = assistant::numbers_before(Test::e_jump);
+            const size_t best = size_t(std::max_element(a.begin(), a.end()) - a.begin());
+            if (a[best] != none) {
+                const int before = b[best] == none ? int(e_jump::prusa_filament_accel) : int(b[best]);
+                next(N_("filament accel."));
+                w.add(" %d->%d mm/s2, ", before, int(a[best]));
+                w.text(N_("lines"));
+                w.add(" %ld->%ld mm/s2 ", std::lround(e_jump::line_accel(float(before))), std::lround(e_jump::line_accel(float(a[best]))));
+                w.text(N_("(estimated)"));
+            }
         }
         // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
         if ((flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed) {
@@ -759,6 +805,8 @@ namespace {
             return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(s.slot);
         case Test::fan_response:
             return ScreenFactory::Screen<ScreenFanResponse>;
+        case Test::e_jump:
+            return ScreenFactory::ScreenWithArg<ScreenEJump>(s.slot);
         default:
             return {};
         }

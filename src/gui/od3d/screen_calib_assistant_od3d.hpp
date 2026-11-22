@@ -78,7 +78,6 @@ private:
     TabBar tabs;
 
     StringViewUtf8Parameters<64> info_params;
-    StringViewUtf8Parameters<96> info_params; ///< 64 de plus : raison d'un échec du tube PTFE (bilan)
     uint32_t shown_key = 0xffffffff; ///< ce qui est affiché (étape, températures, avancement) : redessiné s'il change
     uint8_t buttons_stage = 0xff; ///< étape dont les boutons portent les libellés
     uint8_t focus_stage = 0xff; ///< étape dont le focus a été posé

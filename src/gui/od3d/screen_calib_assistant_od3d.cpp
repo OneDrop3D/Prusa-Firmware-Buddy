@@ -625,6 +625,11 @@ namespace {
                 w.add(" %.1f mm3/s", best / 10.0);
             }
         }
+        // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
+        if ((flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed) {
+            w.label(N_("Front PTFE length:"));
+            w.text(ptfe_result_text(ptfe::status().result));
+        }
     }
 
     /// Le détail d'un test du bilan ; vrai pour le refaire
@@ -930,28 +935,10 @@ void ScreenCalibAssistant::show() {
         text = _("Is the bed empty and clean? Test lines will be printed at the front of the bed.");
         break;
     case Stage::summary: {
-        static char summary[200];
+        static char summary[280]; // + la raison d'un échec du tube PTFE
         Writer w(summary);
         build_summary(w);
         text = string_view_utf8::MakeRAM(summary);
-        int ok = 0, failed = 0;
-        for (const Entry &e : entries) {
-            if ((flow.session & test_bit(e.test)) && (flow.started & test_bit(e.test))) {
-                ok += assistant::result(e.test) == Result::ok;
-                failed += assistant::result(e.test) == Result::failed;
-            }
-        }
-        // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
-        const char *ptfe_reason = (flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed
-            ? ptfe_result_text(ptfe::status().result)
-            : nullptr;
-        if (ptfe_reason) {
-            char reason[64];
-            _(ptfe_reason).copyToRAM(reason, sizeof(reason));
-            text = _("Finished: %d OK, %d failed. Front PTFE: %s.").formatted(info_params, ok, failed, reason);
-        } else {
-            text = _("Finished: %d OK, %d failed. Touch a failed test to run it again.").formatted(info_params, ok, failed);
-        }
         break;
     }
     }

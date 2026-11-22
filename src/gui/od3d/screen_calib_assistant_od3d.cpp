@@ -113,6 +113,8 @@ namespace {
             return N_("Min temp");
         case Test::skew:
             return N_("XY skew");
+        case Test::mmu_ptfe:
+            return N_("Front PTFE");
         case Test::count:
             break;
         }

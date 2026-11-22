@@ -107,8 +107,8 @@ TEST_CASE("calib_registry: manual tests never trigger the prompt alone") {
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 5 à l'accéléromètre, MPC, puis 3 mesures pour chacune des 2 bobines
-    REQUIRE(n == 5 + 1 + 3 * 2);
+    // 5 à l'accéléromètre, MPC, tube PTFE, puis 3 mesures pour chacune des 2 bobines
+    REQUIRE(n == 5 + 1 + 1 + 3 * 2);
 
     // Accéléromètre d'abord (une seule pose), courroies en premier
     CHECK(steps[0].test == Test::belts);
@@ -116,18 +116,38 @@ TEST_CASE("calib_registry: steps order") {
         CHECK((accel & test_bit(steps[i].test)));
     }
     CHECK(steps[5].test == Test::mpc);
+    // Tube PTFE avant les chargements, une fois, avec la première bobine
+    CHECK(steps[6].test == Test::mmu_ptfe);
+    CHECK(steps[6].slot == 0);
 
     // Puis par bobine : PA, débit, température minimale (un seul chargement par bobine)
     const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp };
     for (size_t k = 0; k < 6; ++k) {
-        CHECK(steps[6 + k].test == per_slot[k % 3]);
-        CHECK(steps[6 + k].slot == (k < 3 ? 0 : 2));
+        CHECK(steps[7 + k].test == per_slot[k % 3]);
+        CHECK(steps[7 + k].slot == (k < 3 ? 0 : 2));
     }
 
     // Jamais le test manuel
     for (size_t i = 0; i < n; ++i) {
         CHECK(steps[i].test != Test::skew);
     }
+}
+
+TEST_CASE("calib_registry: front PTFE needs the MMU and a spool") {
+    const Records none {};
+    Context ctx = full();
+    ctx.spools = 0b11000;
+    CHECK((select(ctx, none, true) & test_bit(Test::mmu_ptfe)));
+    std::array<Step, 4> steps;
+    REQUIRE(build_steps(test_bit(Test::mmu_ptfe), ctx, steps) == 1);
+    CHECK(steps[0].slot == 3); // la première bobine
+
+    ctx.mmu = false;
+    CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_ptfe)));
+    ctx = full();
+    ctx.spools = 0;
+    CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_ptfe)));
+    CHECK(build_steps(test_bit(Test::mmu_ptfe), ctx, steps) == 0);
 }
 
 TEST_CASE("calib_registry: steps of a subset and a short buffer") {
@@ -154,6 +174,7 @@ TEST_CASE("calib_registry: G-codes") {
     CHECK(gcode({ Test::speed_map }) == "M1993");
     CHECK(gcode({ Test::damping }) == "M1997");
     CHECK(gcode({ Test::mpc }) == "M306 T");
+    CHECK(gcode({ Test::mmu_ptfe, 1 }) == "M1999 B1 P1");
     CHECK(gcode({ Test::skew }) == "-");
 
     std::array<char, 4> tiny;

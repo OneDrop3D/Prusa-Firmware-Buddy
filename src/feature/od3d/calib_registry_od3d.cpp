@@ -1,6 +1,7 @@
 /// @file
 #include "calib_registry_od3d.hpp"
 
+#include <bit>
 #include <cstdarg>
 #include <cstdio>
 
@@ -29,7 +30,7 @@ namespace {
 bool applicable(const Entry &e, const Context &ctx) {
     return !((e.needs & accelerometer) && ctx.accelerometer == Accelerometer::no)
         && !((e.needs & mmu) && !ctx.mmu)
-        && !((e.needs & filament) && !ctx.spools)
+        && !((e.needs & (filament | one_spool)) && !ctx.spools)
         && !((e.needs & flow_limit) && !ctx.flow_limit);
 }
 
@@ -92,9 +93,10 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
             out[n++] = Step { test, slot };
         }
     };
+    const uint8_t first_spool = uint8_t(std::countr_zero(unsigned(ctx.spools))); // 8 et plus : aucune
     for (const Entry &e : entries) {
-        if (e.automatic && (mask & test_bit(e.test)) && !(e.needs & filament)) {
-            add(e.test, 0);
+        if (e.automatic && (mask & test_bit(e.test)) && !(e.needs & filament) && (!(e.needs & one_spool) || first_spool < 8)) {
+            add(e.test, (e.needs & one_spool) ? first_spool : 0);
         }
     }
     for (uint8_t slot = 0; slot < 8; ++slot) {
@@ -134,6 +136,8 @@ bool step_gcode(const Step &step, std::span<char> out) {
         return write(out, "M1995 P%u", unsigned(step.slot));
     case Test::min_temp:
         return write(out, "M1996 P%u", unsigned(step.slot));
+    case Test::mmu_ptfe:
+        return write(out, "M1999 B1 P%u", unsigned(step.slot)); // emplacement brut du MMU
     case Test::skew:
     case Test::count:
         break;

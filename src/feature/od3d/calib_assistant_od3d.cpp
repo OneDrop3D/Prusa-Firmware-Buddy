@@ -7,6 +7,7 @@
 #include "mpc_control_od3d.hpp"
 #include "mpc_od3d.hpp"
 #include "pa_od3d.hpp"
+#include "ptfe_od3d.hpp"
 #include "speed_map_od3d.hpp"
 #include "spool_calib_od3d.hpp"
 
@@ -49,7 +50,8 @@ namespace {
     /// Résultat de Prusa avant son étape (input shaper, phase stepping) : remis si l'étape est annulée
     TestResult prusa_before = TestResult::unknown;
 
-    /// Chargement de la bobine avant F5 / F6 (mis en file d'injection, lu après le retour de M1989)
+    /// Chargement de la bobine avant F5 / F6, ou déchargement avant le tube PTFE (mis en file d'injection, lu après
+    /// le retour de M1989)
     char load_sequence[96];
 
     bool cold() {
@@ -102,6 +104,8 @@ namespace {
             const pa::Status st = pa::status();
             return st.phase == pa::Phase::done && st.slot == s.slot;
         }
+        case Test::mmu_ptfe:
+            return ptfe::status().result == ptfe::Result::saved;
         case Test::max_flow:
         case Test::min_temp: {
             const calib::Status st = calib::status();
@@ -145,13 +149,16 @@ namespace {
         }
         // F5, F6 : bobine pas dans la buse (pas de PA juste avant) : « Charger dans la buse » de Prusa d'abord, comme
         // M1994 en un clic (origine si besoin, position de chargement levée), par la file d'injection qui passe avant
+        // Tube PTFE : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides : déchargement d'abord
         const auto loaded = VirtualToolIndex::currently_selected_opt();
         const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp) && (!loaded || loaded->to_raw() != s.slot);
-        if (needs_load) {
+        const bool needs_unload = s.test == Test::mmu_ptfe && loaded;
+        if (needs_load || needs_unload) {
             char filament[16];
             StringBuilder sb(filament);
             FilamentType::for_tool(VirtualToolIndex::from_raw(s.slot)).build_encoded_gcode_param(sb);
-            const int n = snprintf(load_sequence, sizeof(load_sequence), "G28 O I\nG27 W2\nM701 S\"%s\" W2 P%u", sb.str(), unsigned(s.slot));
+            const int n = needs_unload ? snprintf(load_sequence, sizeof(load_sequence), "G28 O I\nG27 W2\nM702 W2")
+                                       : snprintf(load_sequence, sizeof(load_sequence), "G28 O I\nG27 W2\nM701 S\"%s\" W2 P%u", sb.str(), unsigned(s.slot));
             if (n <= 0 || size_t(n) >= sizeof(load_sequence)
                 || !marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(load_sequence) })) {
                 return false;

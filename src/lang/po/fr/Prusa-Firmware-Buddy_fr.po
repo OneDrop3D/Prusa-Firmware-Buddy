@@ -11736,3 +11736,7 @@ msgstr "Assistant de calibration\nTous les tests à la suite, seuls"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Accelerometer available\nIts tests are offered"
 msgstr "Accéléromètre disponible\nSes tests sont proposés"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Front PTFE"
+msgstr "PTFE avant"

@@ -32,8 +32,7 @@ enum class Test : uint8_t {
     max_flow, ///< F5, M1995 par emplacement
     min_temp, ///< F6, M1996 par emplacement
     skew, ///< F15 : pièce imprimée à mesurer, à faire à la main
-    // Longueur du PTFE avant du MMU (autre agent) : ajouter `mmu_ptfe` ici, son entrée dans `entries` (après min_temp,
-    // needs mmu | filament ou non selon la mesure) et son G-code dans step_gcode()
+    mmu_ptfe, ///< F41, M1999 B1 : longueur du tube PTFE avant du MMU (une bobine préchargée, rien dans l'extrudeur)
     count,
 };
 
@@ -48,6 +47,7 @@ enum Need : uint8_t {
     mmu = 1 << 3, ///< MMU activé
     empty_bed = 1 << 4, ///< imprime ou palpe : plateau vide et propre confirmé avant
     flow_limit = 1 << 5, ///< seulement avec « Limiter au débit mesuré » (le résultat ne sert qu'à lui)
+    one_spool = 1 << 6, ///< une seule mesure, avec la bobine du premier emplacement qui en a une
 };
 
 struct Entry {
@@ -59,7 +59,8 @@ struct Entry {
 };
 
 /// Dans l'ordre d'exécution : d'abord l'accéléromètre (buse froide, une seule pose), puis le MPC (il part de la buse
-/// froide), puis par emplacement PA, débit, température minimale (un seul chargement par bobine, chauffe gardée)
+/// froide), le tube PTFE (rien dans l'extrudeur : avant les chargements), puis par emplacement PA, débit, température
+/// minimale (un seul chargement par bobine, chauffe gardée)
 inline constexpr std::array entries {
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
@@ -67,6 +68,7 @@ inline constexpr std::array entries {
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 1, true },
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
     Entry { Test::mpc, 0, 12, 1, true },
+    Entry { Test::mmu_ptfe, mmu | one_spool, 3, 1, true },
     Entry { Test::pa, filament | empty_bed, 7, 1, true },
     Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
     Entry { Test::min_temp, filament | empty_bed, 6, 1, true },

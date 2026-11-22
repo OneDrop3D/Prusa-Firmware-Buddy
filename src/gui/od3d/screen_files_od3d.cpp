@@ -1,6 +1,7 @@
 /// @file
 #include "screen_files_od3d.hpp"
 #include "layout_od3d.hpp"
+#include "sleep_gui_od3d.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -731,8 +732,9 @@ void ScreenFiles::start_load(FileTile &tile) {
 
 void ScreenFiles::load_next() {
     const uint32_t now = ticks_ms();
-    // La molette ou le doigt viennent de servir : la clé attend, l'écran répond d'abord
-    if (touching || dragging || fling || ticks_diff(now, last_input_ms) < input_pause_ms) {
+    // La molette ou le doigt viennent de servir : la clé attend, l'écran répond d'abord. Écran en veille (F39) : rien
+    // n'est dessiné.
+    if (touching || dragging || fling || ticks_diff(now, last_input_ms) < input_pause_ms || sleep::screen_off()) {
         return;
     }
     if (loading < 0) {

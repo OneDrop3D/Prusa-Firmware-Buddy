@@ -59,6 +59,7 @@
 #include <feature/od3d/pa_math_od3d.hpp>
 #include <feature/od3d/mesh_memory_math_od3d.hpp>
 #include <feature/od3d/spool_calib_math_od3d.hpp>
+#include <feature/od3d/e_jump_math_od3d.hpp>
 #include <feature/od3d/mpc_od3d.hpp>
 #include <feature/od3d/sleep_math_od3d.hpp>
 #include <feature/od3d/calib_registry_od3d.hpp>
@@ -478,6 +479,9 @@ struct CurrentStore
     StoreItemArray<od3d::calib::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Spool Calib"), 8, VirtualToolIndex::count> od3d_spool_calib;
     /// OneDrop3D (F5) : « limiter au débit mesuré » (coupé par défaut)
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Flow Limit")> od3d_flow_limit;
+    /// OneDrop3D (M2000) : saut de vitesse de l'extrudeur gardé par emplacement (marge comprise), effacé au changement
+    /// de bobine ; accélération max du filament = saut / K
+    StoreItemArray<od3d::e_jump::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D E Jump"), 8, VirtualToolIndex::count> od3d_e_jump;
 #endif
     /// OneDrop3D (F7) : régulation de la buse, false = PID de Prusa (par défaut), true = MPC (seulement avec une
     /// calibration valable) ; paramètres du modèle MPC (M306 T ou M306 P C R A F H), non valables tant que non calibrés

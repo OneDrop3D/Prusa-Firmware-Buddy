@@ -2,6 +2,7 @@
 /// Méthode : inspirée de PrusaPATuner (CNC Kitchen, AGPL-3.0), réimplémentée d'après sa description, sur un motif
 /// imprimé (voir pa_math_od3d.hpp).
 #include "pa_od3d.hpp"
+#include "e_jump_od3d.hpp"
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
 #include "spool_calib_od3d.hpp"
@@ -116,6 +117,7 @@ namespace {
 
 void on_tool_change() {
     calib::refresh_flow_limit(); // F5 : limite de débit de l'emplacement chargé
+    e_jump::refresh(); // M2000 : F de l'emplacement (même K : set_axis_e_config ne serait pas appelé)
     if (!printer_wins()) {
         return;
     }
@@ -135,6 +137,7 @@ void on_print_start(bool from_file) {
     // premier M572 posent le K de l'emplacement
     slicer_requested = NAN;
     calib::refresh_flow_limit(); // F5
+    e_jump::refresh(); // M2000 : mesure faite ou effacée depuis (sans vider les files)
     // Mesure automatique avant le G-code de départ du fichier (file vide au départ : elle passe en premier, comme les
     // G-codes que Prusa y met pour un G-code mono-outil avec le MMU) ; elle décide elle-même s'il y a quelque chose à faire
     if (from_file && auto_mode() != AutoMode::off) {

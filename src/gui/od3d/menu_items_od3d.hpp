@@ -41,6 +41,13 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Réglages › Fonctions OneDrop3D › « Accélération du filament » (M2000) : l'écran de l'emplacement chargé
+class MI_E_JUMP final : public IWindowMenuItem {
+public:
+    MI_E_JUMP();
+    void click(IWindowMenu &) override;
+};
+
 /// Réglages › « Impression » : sécurités et réactions pendant l'impression (éléments de Prusa regroupés)
 class MI_SET_PRINTING final : public IWindowMenuItem {
 public:

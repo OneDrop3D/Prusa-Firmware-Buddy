@@ -4,6 +4,7 @@
 #include "accelerometer_od3d.hpp"
 #include "belt_tension_od3d.hpp"
 #include "damping_od3d.hpp"
+#include "e_jump_od3d.hpp"
 #include "filament_memory_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mpc_od3d.hpp"
@@ -113,6 +114,10 @@ namespace {
         }
         case Test::mmu_ptfe:
             return ptfe::status().result == ptfe::Result::saved;
+        case Test::e_jump: {
+            const e_jump::Status st = e_jump::status();
+            return st.phase == e_jump::Phase::done && st.slot == s.slot;
+        }
         case Test::max_flow:
         case Test::min_temp: {
             const calib::Status st = calib::status();
@@ -191,6 +196,9 @@ namespace {
                 n[s.slot % n.size()] = s.test == Test::max_flow ? int16_t(r.max_flow_e1) : r.min_temperature;
             }
             break;
+        case Test::e_jump: // F de l'emplacement avec son K : la mesure d'avant (ou 120 de Prusa), puis la nouvelle
+            n[s.slot % n.size()] = scaled(e_jump::filament_accel_for(s.slot), 1.f);
+            break;
         case Test::skew:
         case Test::count:
             break;
@@ -233,11 +241,11 @@ namespace {
         if (BUFSIZE - GCodeQueue::length < 2) {
             return false; // la file a été remplie d'ailleurs : l'étape échoue plutôt que de perdre le repère
         }
-        // F5, F6 : bobine pas dans la buse (pas de PA juste avant) : « Charger dans la buse » de Prusa d'abord, comme
+        // F5, F6, M2000 : bobine pas dans la buse (pas de PA juste avant) : « Charger dans la buse » de Prusa d'abord, comme
         // M1994 en un clic (origine si besoin, position de chargement levée), par la file d'injection qui passe avant
         // Tube PTFE : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides : déchargement d'abord
         const auto loaded = VirtualToolIndex::currently_selected_opt();
-        const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp) && filament_memory::loaded_slot() != s.slot; // F43
+        const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp || s.test == Test::e_jump) && filament_memory::loaded_slot() != s.slot; // F43
         const bool needs_unload = s.test == Test::mmu_ptfe && loaded;
         if (needs_load || needs_unload) {
             char filament[16];
@@ -383,6 +391,11 @@ void request_cancel() {
     case Test::min_temp:
         if (calib::is_running()) {
             calib::request_stop();
+        }
+        break;
+    case Test::e_jump:
+        if (e_jump::is_running()) {
+            e_jump::request_stop();
         }
         break;
     default:

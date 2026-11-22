@@ -202,3 +202,9 @@ target_include_directories(
   )
 target_link_libraries(shaper_fit_od3d_tests buddy_utils)
 add_catch_test(shaper_fit_od3d_tests)
+add_executable(
+  e_jump_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/e_jump_math_test.cpp
+                    ${CMAKE_SOURCE_DIR}/src/feature/od3d/e_jump_math_od3d.cpp
+  )
+target_include_directories(e_jump_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(e_jump_od3d_tests)

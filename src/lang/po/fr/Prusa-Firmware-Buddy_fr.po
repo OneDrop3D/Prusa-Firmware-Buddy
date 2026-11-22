@@ -12073,3 +12073,67 @@ msgstr "Tube > 1000 mm (max. du MMU) : inchangé"
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Failed: load interrupted (MMU error?)"
 msgstr "Échec : chargement interrompu (erreur MMU ?)"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Safe jump"
+msgstr "Saut sûr"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Max filament accel."
+msgstr "Accél. max du filament"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Line accel. (estimated)"
+msgstr "Accél. ligne (estimée)"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Jump steps"
+msgstr "Paliers de saut"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Slot %d · Fil. accel."
+msgstr "Empl. %d · Accél. fil."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Extruder jump %s mm/s (%d/%d)"
+msgstr "Saut de l'extrudeur %s mm/s (%d/%d)"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Safe jump saved: %s mm/s. Remove the purged filament."
+msgstr "Saut sûr enregistré : %s mm/s. Retirez le filament purgé."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Stalled from the first step: nothing saved. Check the extruder."
+msgstr "Calage dès le premier palier : rien d'enregistré. Vérifiez l'extrudeur."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Extruder jumps at the purge spot (~60 mm of filament, 1 min). Then filament accel. = jump / K. Line 0.45 x 0.2 mm."
+msgstr "Sauts de l'extrudeur à la position de purge (~60 mm de filament, 1 min), puis accél. du filament = saut / K. Ligne 0,45 x 0,2 mm."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Filament accel.\nExtruder jump, loaded spool"
+msgstr "Accélération du filament\nSaut de l'extrudeur, bobine chargée"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Accel"
+msgstr "Accél."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Filament accel."
+msgstr "Accél. filament"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max filament accel. per spool, mm/s2 (before):"
+msgstr "Accél. max du filament par bobine, mm/s2 (avant) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Line 0.45 x 0.2 mm, mm/s2 (estimated):"
+msgstr "Ligne 0,45 x 0,2 mm, mm/s2 (estimé) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "filament accel."
+msgstr "accél. filament"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "lines"
+msgstr "lignes"

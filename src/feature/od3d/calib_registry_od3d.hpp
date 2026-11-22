@@ -35,6 +35,7 @@ enum class Test : uint8_t {
     min_temp, ///< F6, M1996 par emplacement
     skew, ///< F15 : pièce imprimée à mesurer, à faire à la main
     mmu_ptfe, ///< F41, M1999 B1 : longueur du tube PTFE avant du MMU (une bobine préchargée, rien dans l'extrudeur)
+    e_jump, ///< M2000 par emplacement : saut de vitesse de l'extrudeur, accélération max du filament
     count,
 };
 
@@ -62,7 +63,8 @@ struct Entry {
 
 /// Dans l'ordre d'exécution : d'abord l'accéléromètre (buse froide, une seule pose), puis le MPC (il part de la buse
 /// froide), le tube PTFE (rien dans l'extrudeur : avant les chargements), puis par emplacement PA, débit, température
-/// minimale (un seul chargement par bobine, chauffe gardée)
+/// minimale, accélération du filament (un seul chargement par bobine, chauffe gardée ; l'ordre par emplacement est celui
+/// de cette liste)
 inline constexpr std::array entries {
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
@@ -75,6 +77,7 @@ inline constexpr std::array entries {
     Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
     Entry { Test::min_temp, filament | empty_bed, 6, 1, true },
     Entry { Test::skew, empty_bed, 0, 1, false },
+    Entry { Test::e_jump, filament, 3, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
 };
 static_assert(entries.size() == size_t(Test::count), "une entrée par Test");
 

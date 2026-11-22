@@ -36,6 +36,7 @@ enum class Test : uint8_t {
     skew, ///< F15 : pièce imprimée à mesurer, à faire à la main
     mmu_ptfe, ///< F41, M1999 B1 : longueur du tube PTFE avant du MMU (une bobine préchargée, rien dans l'extrudeur)
     fan_response, ///< N3, M2001 : temps de montée du ventilateur pièce, règle l'avance de F26 (sans besoin)
+    nozzle_expansion, ///< M2003 : dilatation de la buse palpée de 170 à 260 °C (buse vide)
     count,
 };
 
@@ -62,8 +63,8 @@ struct Entry {
 };
 
 /// Dans l'ordre d'exécution : d'abord l'accéléromètre (buse froide, une seule pose), puis le MPC (il part de la buse
-/// froide), le tube PTFE (rien dans l'extrudeur : avant les chargements), puis par emplacement PA, débit, température
-/// minimale (un seul chargement par bobine, chauffe gardée)
+/// froide), le tube PTFE et la dilatation de la buse (rien dans l'extrudeur : avant les chargements), puis par
+/// emplacement PA, débit, température minimale (un seul chargement par bobine, chauffe gardée)
 inline constexpr std::array entries {
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
@@ -72,6 +73,7 @@ inline constexpr std::array entries {
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
     Entry { Test::mpc, 0, 12, 1, true },
     Entry { Test::mmu_ptfe, mmu | one_spool, 3, 1, true },
+    Entry { Test::nozzle_expansion, empty_bed, 15, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
     Entry { Test::pa, filament | empty_bed, 7, 1, true },
     Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
     Entry { Test::min_temp, filament | empty_bed, 6, 1, true },

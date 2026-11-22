@@ -206,3 +206,13 @@ target_include_directories(
   )
 target_link_libraries(shaper_fit_od3d_tests buddy_utils)
 add_catch_test(shaper_fit_od3d_tests)
+
+add_executable(
+  nozzle_expansion_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/nozzle_expansion_test.cpp
+                              ${CMAKE_SOURCE_DIR}/src/feature/od3d/nozzle_expansion_math_od3d.cpp
+  )
+target_include_directories(
+  nozzle_expansion_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src
+                                     ${CMAKE_SOURCE_DIR}/tests/unit/feature/nozzle_thermal_compensation/stub_include
+  )
+add_catch_test(nozzle_expansion_od3d_tests)

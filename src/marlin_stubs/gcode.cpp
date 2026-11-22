@@ -412,6 +412,9 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 2001: // OneDrop3D (N3)
             PrusaGcodeSuite::M2001();
             break;
+        case 2003: // OneDrop3D : dilatation de la buse
+            PrusaGcodeSuite::M2003();
+            break;
 #if ENABLED(OD3D_MPCTEMP)
         case 306: // OneDrop3D (F7) : régulation MPC de la buse (absente du Marlin de Prusa)
             PrusaGcodeSuite::M306();

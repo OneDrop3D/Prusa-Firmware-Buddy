@@ -9,6 +9,7 @@
 #include "filament_memory_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mpc_od3d.hpp"
+#include "nozzle_expansion_od3d.hpp"
 #include "pa_od3d.hpp"
 #include "ptfe_od3d.hpp"
 #include "speed_map_od3d.hpp"
@@ -24,6 +25,7 @@
 #include <common/marlin_server.hpp>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
+#include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
 #include <filament.hpp>
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/gcode/queue.h>
@@ -117,6 +119,8 @@ namespace {
             return ptfe::status().result == ptfe::Result::saved;
         case Test::fan_response:
             return fan_response::status() == fan_response::Status::done;
+        case Test::nozzle_expansion:
+            return nozzle_expansion::status() == nozzle_expansion::Status::saved;
         case Test::max_flow:
         case Test::min_temp: {
             const calib::Status st = calib::status();
@@ -195,6 +199,23 @@ namespace {
                 n[0] = int16_t(length);
             }
             break;
+        case Test::nozzle_expansion: {
+            namespace comp = buddy::nozzle_thermal_compensation;
+            const int16_t prusa_nm = int16_t(comp::slope_to_nm(comp::prusa_slope_mm_per_c));
+            if (!after) {
+                if (const uint16_t nm = comp::measured_nm_per_c(comp::current_nozzle_key()); nm > 0) {
+                    n[0] = int16_t(std::min<uint16_t>(nm, INT16_MAX)); // sinon : modèle de Prusa
+                }
+                break;
+            }
+            const nozzle_expansion::Outcome &o = nozzle_expansion::last().outcome;
+            n[0] = scaled(o.slope_mm_per_c, 1e6f);
+            n[1] = prusa_nm;
+            // Écart avec Prusa à 250 °C, la buse palpée à la référence (170 °C) [0,1 µm]
+            n[2] = scaled((o.slope_mm_per_c - comp::prusa_slope_mm_per_c) * (250.f - comp::reference_temperature_c), 1e4f);
+            n[3] = scaled(o.hysteresis_mm, 1e4f);
+            break;
+        }
         case Test::pa:
             if (const pa::Record r = pa::record(s.slot); r.has_k()) {
                 n[s.slot % n.size()] = int16_t(r.k_e4);
@@ -250,10 +271,11 @@ namespace {
         }
         // F5, F6 : bobine pas dans la buse (pas de PA juste avant) : « Charger dans la buse » de Prusa d'abord, comme
         // M1994 en un clic (origine si besoin, position de chargement levée), par la file d'injection qui passe avant
-        // Tube PTFE : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides : déchargement d'abord
+        // Tube PTFE : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides : déchargement d'abord ; de même
+        // pour la dilatation de la buse (M2003), si le capteur de l'extrudeur voit du filament
         const auto loaded = VirtualToolIndex::currently_selected_opt();
         const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp) && filament_memory::loaded_slot() != s.slot; // F43
-        const bool needs_unload = s.test == Test::mmu_ptfe && loaded;
+        const bool needs_unload = (s.test == Test::mmu_ptfe && loaded) || (s.test == Test::nozzle_expansion && nozzle_expansion::filament_loaded()); // M2003 : buse vide
         if (needs_load || needs_unload) {
             char filament[16];
             StringBuilder sb(filament);
@@ -382,6 +404,11 @@ void request_cancel() {
     case Test::damping:
         if (damping::is_running()) {
             damping::request_stop();
+        }
+        break;
+    case Test::nozzle_expansion:
+        if (nozzle_expansion::is_running()) {
+            nozzle_expansion::request_stop();
         }
         break;
     case Test::mpc:

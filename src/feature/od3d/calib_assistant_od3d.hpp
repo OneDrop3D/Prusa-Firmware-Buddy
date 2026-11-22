@@ -68,6 +68,8 @@ void request_cancel();
 /// - mmu_ptfe : [0] longueur enregistrée (mm), après : [1] longueur relevée (mm) ;
 /// - fan_response : [0] temps de montée (ms), [1] avance de F26 (dixièmes de s), [2] régime final (tr/min) ; avant :
 ///   le temps de montée du dernier succès et l'avance réglée ;
+/// - nozzle_expansion : [0] pente (nm/°C ; avant : no_value pour le modèle de Prusa), après : [1] pente de Prusa
+///   (nm/°C), [2] écart avec Prusa à 250 °C (0,1 µm), [3] retour − aller (0,1 µm) ;
 /// - pa, max_flow, min_temp : [emplacement] K ×10 000, débit ×10 (mm³/s), température (°C).
 /// « Avant » des courroies, de l'amortissement, des vitesses, du phase stepping et du ventilateur : le dernier succès
 /// (OD3D Calib Values).

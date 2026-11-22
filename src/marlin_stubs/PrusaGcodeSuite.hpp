@@ -205,6 +205,7 @@ void M1999(); //< OneDrop3D (F41) : tube PTFE avant du MMU mesuré
 void M1995(); //< OneDrop3D (F5) : débit maximal d'un emplacement (cellule de charge)
 void M1996(); //< OneDrop3D (F6) : température minimale d'un emplacement (cellule de charge)
 void M2001(); //< OneDrop3D (N3) : temps de montée du ventilateur pièce, règle l'avance de F26
+void M2003(); //< OneDrop3D : dilatation de la buse mesurée (cellule de charge), par buse
 void M306(); //< OneDrop3D (F7) : régulation MPC de la buse, calibration (T), mode (M), paramètres
 void M9140(); //< Set normal (non-stealth) mode
 void M9141(); //< Get stealth mode status

@@ -6,6 +6,7 @@
 #include "screen_damping_od3d.hpp"
 #include "screen_fan_response_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
+#include "screen_nozzle_expansion_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "screen_ptfe_od3d.hpp"
 #include "screen_skew_od3d.hpp"
@@ -24,6 +25,7 @@
 #include <config_store/store_instance.hpp>
 #include <feature/od3d/belt_tension_od3d.hpp>
 #include <feature/od3d/calib_assistant_od3d.hpp>
+#include <feature/od3d/nozzle_expansion_od3d.hpp>
 #include <filament.hpp>
 #include <Marlin/src/feature/input_shaper/input_shaper_config.hpp>
 #include <option/has_hotend_type_support.h>
@@ -135,6 +137,8 @@ namespace {
             return N_("Front PTFE");
         case Test::fan_response:
             return N_("Part fan");
+        case Test::nozzle_expansion:
+            return N_("Expansion");
         case Test::count:
             break;
         }
@@ -583,6 +587,24 @@ namespace {
             }
             break;
         }
+        case Test::nozzle_expansion: {
+            constexpr const char *unit = " um/\xC2\xB0""C";
+            w.label(N_("Measured slope:"));
+            w.scaled(a[0], 1000, unit);
+            w.label(N_("Prusa model:"));
+            w.scaled(a[1], 1000, unit);
+            w.label(N_("At 250\xC2\xB0""C vs Prusa:"));
+            w.add("%+.1f um", a[2] == none ? 0.0 : a[2] / 10.0);
+            w.label(N_("Hysteresis:"));
+            w.scaled(a[3], 10, " um");
+            w.label(N_("Before:"));
+            if (b[0] == none) {
+                w.text(N_("Prusa model"));
+            } else {
+                w.scaled(b[0], 1000, unit);
+            }
+            break;
+        }
         case Test::pa:
         case Test::max_flow:
         case Test::min_temp:
@@ -657,6 +679,15 @@ namespace {
             w.text(N_("lead"));
             w.add(" %.1f s", a[1] / 10.0);
         }
+        if (const auto &a = assistant::numbers_after(Test::nozzle_expansion); done(Test::nozzle_expansion) && a[2] != none) {
+            next(N_("nozzle at 250\xC2\xB0""C"));
+            w.add(" %+.1f um", a[2] / 10.0);
+        }
+        // Dilatation de la buse : la raison d'un échec, comme le tube PTFE
+        if ((flow.started & test_bit(Test::nozzle_expansion)) && assistant::result(Test::nozzle_expansion) == Result::failed) {
+            w.label(N_("Expansion:"));
+            w.text(nozzle_expansion_result_text(nozzle_expansion::status()));
+        }
         // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
         if ((flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed) {
             w.label(N_("Front PTFE length:"));
@@ -717,6 +748,8 @@ namespace {
             return ScreenFactory::Screen<ScreenSpeedMap>;
         case Test::damping:
             return ScreenFactory::Screen<ScreenDamping>;
+        case Test::nozzle_expansion:
+            return ScreenFactory::Screen<ScreenNozzleExpansion>;
         case Test::mpc:
             return mpc_calibration_screen();
         case Test::pa:
@@ -969,7 +1002,7 @@ void ScreenCalibAssistant::show() {
         text = _("Is the bed empty and clean? Test lines will be printed at the front of the bed.");
         break;
     case Stage::summary: {
-        static char summary[280]; // + la raison d'un échec du tube PTFE
+        static char summary[360]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse
         Writer w(summary);
         build_summary(w);
         text = string_view_utf8::MakeRAM(summary);

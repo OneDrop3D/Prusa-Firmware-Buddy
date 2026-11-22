@@ -954,6 +954,7 @@ float probe_at_point(const xy_pos_t &pos, const ProbePtRaise raise_after/*=PROBE
       #if HAS_NOZZLE_THERMAL_COMPENSATION()
       // Express the result in the nozzle's length at the reference temperature; see
       // nozzle_thermal_compensation.hpp
+      buddy::nozzle_thermal_compensation::reload(); // OneDrop3D (M2003) : pente de la buse réglée maintenant
       measured_z -= buddy::nozzle_thermal_compensation::current_elongation_vs_reference_mm();
       #endif
     }

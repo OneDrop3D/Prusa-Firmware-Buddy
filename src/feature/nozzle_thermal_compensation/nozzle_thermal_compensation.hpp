@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 
 #include <option/has_nextruder.h>
 
@@ -61,20 +62,61 @@ constexpr float nozzle_thermal_expansion_coef = 1.95e-5f;
 /// filament presets, so the middle of that range is about as close as one constant can get.
 constexpr float reference_temperature_c = 170.0f;
 
+/// Prusa's model as a slope [mm/degC]: 0.41 um/degC.
+constexpr float prusa_slope_mm_per_c = nozzle_expanding_length_mm * nozzle_thermal_expansion_coef;
+
 /// Elongation of the nozzle stack at the given temperature, measured from 0 degC [mm].
 ///
 /// Sub-zero inputs clamp to zero - a nozzle does not get shorter than its own cold length.
-[[nodiscard]] constexpr float elongation_vs_0c_mm(float temperature_c) {
-    return nozzle_expanding_length_mm * nozzle_thermal_expansion_coef * std::max(temperature_c, 0.0f);
+///
+/// OneDrop3D (M2003) : slope_mm_per_c est la pente de la buse en place (slope_mm_per_c()), mesurée ou celle de Prusa.
+[[nodiscard]] constexpr float elongation_vs_0c_mm(float temperature_c, float slope_mm_per_c = prusa_slope_mm_per_c) {
+    return slope_mm_per_c * std::max(temperature_c, 0.0f);
 }
 
 /// How much longer the nozzle is at `temperature_c` than at reference_temperature_c [mm].
 ///
 /// Negative below the reference, which is correct in both directions: a colder nozzle is
 /// genuinely shorter, so its tip needs the carriage lower to reach the same height.
-[[nodiscard]] constexpr float elongation_vs_reference_mm(float temperature_c) {
-    return elongation_vs_0c_mm(temperature_c) - elongation_vs_0c_mm(reference_temperature_c);
+[[nodiscard]] constexpr float elongation_vs_reference_mm(float temperature_c, float slope_mm_per_c = prusa_slope_mm_per_c) {
+    return elongation_vs_0c_mm(temperature_c, slope_mm_per_c) - elongation_vs_0c_mm(reference_temperature_c, slope_mm_per_c);
 }
+
+// ---- OneDrop3D (M2003) : pente mesurée par buse (« OD3D Nozzle Expansion ») ----
+
+/// Buses distinguées, comme réglées dans Prusa : type de hotend (2 bits), haut débit, trempée
+inline constexpr uint8_t nozzle_keys = 16;
+constexpr uint8_t nozzle_key(uint8_t hotend_type, bool high_flow, bool hardened) {
+    return uint8_t((hotend_type & 3u) | (high_flow ? 4u : 0u) | (hardened ? 8u : 0u));
+}
+
+/// Pente gardée [nm/degC] → [mm/degC] ; 0 (jamais mesurée) : le modèle de Prusa
+constexpr float slope_from_nm(uint16_t nm_per_c) {
+    return nm_per_c ? float(nm_per_c) * 1e-6f : prusa_slope_mm_per_c;
+}
+
+/// [mm/degC] → [nm/degC] gardés ; 0 si la pente n'est pas un nombre positif représentable
+constexpr uint16_t slope_to_nm(float slope_mm_per_c) {
+    const float nm = slope_mm_per_c * 1e6f;
+    return nm >= 0.5f && nm < 65535.f ? uint16_t(nm + 0.5f) : 0;
+}
+
+/// Buse réglée pour l'outil 0 (shortcut : une seule buse, la CORE One ; un cache par outil s'il en fallait plusieurs)
+[[nodiscard]] uint8_t current_nozzle_key();
+
+/// Pente gardée pour cette buse [nm/degC], 0 : jamais mesurée
+[[nodiscard]] uint16_t measured_nm_per_c(uint8_t key);
+
+/// Garde la pente de cette buse (0 : retour au modèle de Prusa) ; prise en compte aussitôt. Fil de Marlin, hors impression.
+void set_measured_nm_per_c(uint8_t key, uint16_t nm_per_c);
+
+/// Pente de la buse en place [mm/degC] : mesurée, sinon celle de Prusa. Lue une fois puis gardée (chemin du G-code) ;
+/// reload() la fait relire. Tout fil.
+[[nodiscard]] float slope_mm_per_c();
+
+/// La pente sera relue au prochain usage. Appelée à chaque palpage : le maillage et le G-code qui le suit utilisent
+/// la pente de la buse réglée à ce moment, même si elle a changé dans les réglages depuis.
+void reload();
 
 /// elongation_vs_reference_mm() of the active tool's target temperature. Zero when no tool is
 /// selected.

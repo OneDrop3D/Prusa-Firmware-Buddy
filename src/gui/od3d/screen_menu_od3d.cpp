@@ -208,7 +208,7 @@ void MI_NOZZLE_THERMAL_COMPENSATION::Loop() {
 // Même calcul que le firmware, d'après la cible de la buse (lue côté interface, pas le terme du serveur Marlin)
 MI_NOZZLE_THERMAL_CORRECTION::MI_NOZZLE_THERMAL_CORRECTION()
     : MenuItemAutoUpdatingLabel(_("Current correction"), "%+.3f mm", [](auto *) -> float {
-        return nozzle_comp::is_enabled() ? nozzle_comp::elongation_vs_reference_mm(marlin_vars().active_hotend().target_nozzle.get()) : 0.0f;
+        return nozzle_comp::is_enabled() ? nozzle_comp::elongation_vs_reference_mm(marlin_vars().active_hotend().target_nozzle.get(), nozzle_comp::slope_mm_per_c()) : 0.0f;
     }) {
     SetIconId(&img::z_axis_16x16);
 }

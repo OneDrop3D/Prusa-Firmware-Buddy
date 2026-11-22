@@ -12135,3 +12135,119 @@ msgstr "ventilateur"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "lead"
 msgstr "avance"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Saved for this nozzle: Z follows it from now on. The saved bed mesh is cleared."
+msgstr "Gardée pour cette buse : le Z la suit dès maintenant. Maillage gardé effacé."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Unload the filament first: the nozzle must be empty."
+msgstr "Déchargez d'abord le filament : la buse doit être vide."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Heating failed."
+msgstr "Échec de la chauffe."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Probing failed."
+msgstr "Échec du palpage."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Rejected: probes too far apart. Clean the nozzle tip and the bed."
+msgstr "Refusée : palpages trop dispersés. Nettoyez le bout de la buse et le plateau."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Rejected: steps off the line. Retry with the printer warm."
+msgstr "Refusée : paliers hors de la droite. Réessayez imprimante chaude."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Rejected: implausible slope. Nothing changed."
+msgstr "Refusée : pente impossible. Rien n'a changé."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Empty nozzle, clear bed. Bed center probed at 170, 215, 260°C and back, about 15 min."
+msgstr "Buse vide, plateau dégagé. Centre palpé à 170, 215, 260°C et retour, 15 min env."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Measured"
+msgstr "Mesurée"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Prusa model"
+msgstr "Modèle Prusa"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Saved"
+msgstr "Gardée"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "At 250°C: %+.1f um"
+msgstr "À 250°C : %+.1f um"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Spread %.1f um"
+msgstr "Dispersion %.1f um"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Hysteresis %.1f um"
+msgstr "Hystérésis %.1f um"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "up"
+msgstr "aller"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "back"
+msgstr "retour"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Nozzle expansion"
+msgstr "Dilatation de la buse"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Bed to 60°C and steady, homing, nozzle cleaning... %d%%"
+msgstr "Plateau à 60°C stable, origine, nettoyage de la buse... %d%%"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "%d/%d: nozzle to %d°C, waiting until steady... %d%%"
+msgstr "%d/%d : buse à %d°C, attente de stabilité... %d%%"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "%d/%d: probing at %d°C... %d%%"
+msgstr "%d/%d : palpage à %d°C... %d%%"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Unload the filament and clear the bed: the nozzle probes the bed center up to 260°C. Start?"
+msgstr "Déchargez le filament et dégagez le plateau : la buse palpe le centre du plateau jusqu'à 260°C. Lancer ?"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Measure the expansion\nProbes the bed from 170 to 260°C"
+msgstr "Mesurer la dilatation\nPalpe le plateau de 170 à 260°C"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Expansion"
+msgstr "Dilatation"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Expansion:"
+msgstr "Dilatation :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Measured slope:"
+msgstr "Pente mesurée :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Prusa model:"
+msgstr "Modèle Prusa :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "At 250°C vs Prusa:"
+msgstr "À 250°C, écart avec Prusa :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Hysteresis:"
+msgstr "Hystérésis :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "nozzle at 250°C"
+msgstr "buse à 250°C"

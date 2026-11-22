@@ -10,6 +10,7 @@
 #include "screen_mpc_od3d.hpp"
 #include "screen_mmu_usb_od3d.hpp"
 #include "screen_music_od3d.hpp"
+#include "screen_nozzle_expansion_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "screen_printing_od3d.hpp"
 #include "screen_progress_od3d.hpp"
@@ -30,6 +31,7 @@
 #include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/od3d/mpc_control_od3d.hpp>
 #include <feature/od3d/music_player_od3d.hpp>
+#include <feature/od3d/nozzle_expansion_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/speed_map_od3d.hpp>
 #include <feature/od3d/spool_calib_od3d.hpp>
@@ -130,6 +132,9 @@ namespace {
         if (damping::is_running()) {
             return percent(Process::damping, damping::progress_percent());
         }
+        if (nozzle_expansion::is_running()) {
+            return percent(Process::nozzle_expansion, nozzle_expansion::progress_percent());
+        }
         if (const mpc::TuneStatus s = mpc::tune_status(); s.running) {
             return percent(Process::mpc, s.progress);
         }
@@ -177,6 +182,8 @@ namespace {
             return ScreenFactory::Screen<ScreenCalibAssistant>;
         case Process::fan_response:
             return ScreenFactory::Screen<ScreenFanResponse>;
+        case Process::nozzle_expansion:
+            return ScreenFactory::Screen<ScreenNozzleExpansion>;
         }
         return {};
     }
@@ -207,6 +214,8 @@ namespace {
             return calibration_assistant_name();
         case Process::fan_response:
             return _("Part fan");
+        case Process::nozzle_expansion:
+            return _("Expansion");
         }
         return {};
     }

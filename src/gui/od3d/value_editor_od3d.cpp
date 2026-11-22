@@ -66,7 +66,7 @@ static_assert(sizeof(ValueEditor) <= sizeof(DialogNumericInput));
 std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit) {
     ValueEditor editor(label, value, config, apply, unit);
     Screens::Access()->gui_loop_until_dialog_closed();
-    frost::close(editor);
+    frost::close();
     if (editor.accepted) {
         return editor.value;
     }
@@ -88,12 +88,12 @@ ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const Numer
 }
 
 void ValueEditor::unconditionalDraw() {
-    // Coins du haut arrondis ; au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri par tranches (retour du
-    // 22/11) : les coins prennent la couleur de son fond uni
-    display::draw_rounded_rect(sheet_rect, style::veil, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    // Au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri d'une traite avant la feuille (retour du 22/11 :
+    // « le flou arrive après ») ; coins du haut arrondis, de la couleur que prend son fond uni
     if (!std::exchange(frosted, true)) {
-        frost::start(*this, style::below_header, sheet_rect);
+        frost::run(style::below_header, sheet_rect);
     }
+    display::draw_rounded_rect(sheet_rect, style::veil, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
     // Le nom seul : les libellés des listes G ont souvent une 2e ligne d'explication (« Pas\nBaisse à chaque palier »)
     std::array<char, label_rect.Width() / width(Font::small) + 1> name;
     label.copyToRAM(name.data(), name.size());

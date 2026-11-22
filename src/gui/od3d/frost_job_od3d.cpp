@@ -24,102 +24,121 @@ std::array<Area, 4> margins(Area area, Area hole) {
     };
 }
 
-void Job::start(Area area, Area hole) {
-    bands = margins(area, hole);
-    index = 0;
-    primed = false;
-}
-
 namespace {
 
-    /// Sommes horizontales des n lignes de w pixels du tampon, à la place des pixels (bords de la bande répétés) : chaque
-    /// composante ramenée à 6 bits, somme de 3 ≤ 189
-    void sum_rows(uint8_t *buf, int n, int w) {
-        uint8_t *p = buf;
-        for (int r = 0; r < n; ++r, p += 3 * w) {
-            for (int c = 0; c < 3; ++c) {
-                unsigned left = p[c] >> 2; // pixel d'avant, gardé avant d'être remplacé par sa somme
-                for (int x = 0; x < w; ++x) {
-                    const unsigned cur = p[3 * x + c] >> 2;
-                    const unsigned right = x + 1 < w ? p[3 * (x + 1) + c] >> 2 : cur;
-                    p[3 * x + c] = static_cast<uint8_t>(left + cur + right);
-                    left = cur;
+    constexpr int max_w = 480;
+    constexpr int min_step = 8;
+
+    /// Nœuds de toutes les bandes (3 composantes, moyennes en unités de l'afficheur), lus avant la première écriture.
+    /// Fiche de bobine : 610 nœuds, éditeur de valeur : 671, écran de chargement : 849.
+    std::array<uint8_t, 960 * 3> nodes;
+
+    /// Nœuds sur len pixels : un tous les step, et un sur le dernier
+    constexpr int count(int len, int step) {
+        return len <= 1 ? 1 : (len - 2) / step + 2;
+    }
+    /// Position du nœud i
+    constexpr int at(int i, int len, int step) {
+        return std::min(i * step, len - 1);
+    }
+    /// Pente de a à b sur len pixels, en 16.16
+    constexpr int32_t slope(int a, int b, int len) {
+        return len ? (b - a) * 65536 / len : 0;
+    }
+
+    size_t node_count(const std::array<Area, 4> &bands, int step) {
+        size_t n = 0;
+        for (const Area &b : bands) {
+            if (!b.empty()) {
+                n += size_t(count(b.w, step)) * count(b.h, step);
+            }
+        }
+        return n;
+    }
+
+} // namespace
+
+void run(Area area, Area hole, size_t capacity, Read read, Write write) {
+    const auto bands = margins(area, hole);
+    for (const Area &b : bands) {
+        if (!b.empty() && (b.w > max_w || 2 * size_t(b.w) > capacity)) {
+            return; // le tampon ne tient pas deux lignes : rien
+        }
+    }
+    int step = min_step;
+    while (node_count(bands, step) * 3 > nodes.size()) {
+        step *= 2; // grandes zones : nœuds plus espacés (jamais avec nos dialogues)
+    }
+
+    // 1. Lectures : pour chaque ligne de nœuds, 2 lignes de pixels ; chaque nœud, la moyenne de 8 colonnes autour
+    uint8_t *buffer = nullptr;
+    uint8_t *node = nodes.data();
+    for (const Area &b : bands) {
+        if (b.empty()) {
+            continue;
+        }
+        const int w = b.w, h = b.h, nc = count(w, step), nr = count(h, step);
+        const int k = std::min(h, 2);
+        for (int j = 0; j < nr; ++j) {
+            const int r0 = std::min(at(j, h, step), h - k);
+            buffer = read(Area { b.x, int16_t(b.y + r0), b.w, uint16_t(k) });
+            if (!buffer) {
+                return;
+            }
+            for (int i = 0; i < nc; ++i) {
+                const int cx = at(i, w, step);
+                const int x0 = std::max(cx - step / 2, 0), x1 = std::min(cx + step / 2, w);
+                const unsigned n = unsigned(k * (x1 - x0));
+                for (int c = 0; c < 3; ++c, ++node) {
+                    unsigned sum = 0;
+                    for (int r = 0; r < k; ++r) {
+                        for (int x = x0; x < x1; ++x) {
+                            sum += buffer[(r * w + x) * 3 + c] >> 2;
+                        }
+                    }
+                    *node = static_cast<uint8_t>((sum * 4 + n / 2) / n);
                 }
             }
         }
     }
 
-} // namespace
-
-void Job::step(size_t capacity, Read read, Write write) {
-    while (!done() && bands[index].empty()) {
-        ++index;
-    }
-    if (done()) {
-        return;
-    }
-    const Area band = bands[index];
-    const int w = band.w;
-    const int last = band.y + band.h - 1;
-    const int max_rows = int(capacity / w);
-    if (w > max_w || max_rows < 2) {
-        stop(); // le tampon ne tient pas deux lignes : rien
-        return;
-    }
-    if (!primed) {
-        row = band.y;
-    }
-
-    // Lignes à lire : la 1re de la bande avec celles d'après, ou celles qui suivent les deux sommes en cache. La dernière
-    // ligne de la bande (bord répété) sort avec la tranche qui la lit : il faut alors une ligne de place de plus.
-    const bool first = !primed;
-    const int from = first ? row : row + 1;
-    int to = std::min(last, from + max_rows - 1);
-    if (!first && to == last && to - from + 2 > max_rows) {
-        --to;
-    }
-    const int n = to - from + 1;
-    const int outs = to == last ? (first ? n : n + 1) : (first ? n - 1 : n);
-
-    uint8_t *buf = read(Area { band.x, int16_t(from), uint16_t(w), uint16_t(n) });
-    if (!buf) {
-        stop();
-        return;
-    }
-    sum_rows(buf, n, w);
-
-    // Flou vertical, colonne par colonne : la ligne k sort à la place de la k-ième somme, déjà lue
-    uint8_t *prev = sums.data(), *cur = sums.data() + max_w * 3;
-    const int stride = 3 * w;
-    for (int i = 0; i < stride; ++i) {
-        unsigned hp, hc;
-        int j;
-        if (first) {
-            hp = hc = buf[i]; // bord haut répété
-            j = 1;
-        } else {
-            hp = prev[i];
-            hc = cur[i];
-            j = 0;
+    // 2. Écritures : chaque pixel entre ses 4 nœuds, par paquets de lignes que le tampon tient
+    node = nodes.data();
+    for (const Area &b : bands) {
+        if (b.empty()) {
+            continue;
         }
-        for (int k = 0; k < outs; ++k, ++j) {
-            const unsigned hn = j < n ? buf[j * stride + i] : hc; // bord bas répété
-            buf[k * stride + i] = shade(hp + hc + hn);
-            hp = hc;
-            hc = hn;
+        const int w = b.w, h = b.h, nc = count(w, step), nr = count(h, step);
+        const int rows = int(capacity / w);
+        std::array<uint8_t, (max_w / min_step + 2) * 3> line; // nœuds de la ligne, interpolés entre deux lignes de nœuds
+        int j = 0;
+        for (int y = 0; y < h;) {
+            const int n = std::min(rows, h - y);
+            for (int r = 0; r < n; ++r, ++y) {
+                while (j + 1 < nr && at(j + 1, h, step) <= y) {
+                    ++j;
+                }
+                const int j1 = std::min(j + 1, nr - 1), y0 = at(j, h, step);
+                const uint8_t *above = node + j * nc * 3, *below = node + j1 * nc * 3;
+                for (int i = 0; i < nc * 3; ++i) {
+                    line[i] = static_cast<uint8_t>(above[i] + ((slope(above[i], below[i], at(j1, h, step) - y0) * (y - y0) + 0x8000) >> 16));
+                }
+                uint8_t *px = buffer + r * w * 3;
+                for (int i = 0; i < nc; ++i) {
+                    const int i1 = std::min(i + 1, nc - 1), x0 = at(i, w, step);
+                    const int x1 = i1 == i ? w : at(i1, w, step); // le dernier nœud ne couvre que lui-même
+                    for (int c = 0; c < 3; ++c) {
+                        const int32_t d = slope(line[i * 3 + c], line[i1 * 3 + c], x1 - x0);
+                        int32_t v = (int32_t(line[i * 3 + c]) << 16) + 0x8000;
+                        for (int x = x0; x < x1; ++x, v += d) {
+                            px[x * 3 + c] = shade(unsigned(v >> 16));
+                        }
+                    }
+                }
+            }
+            write(Area { b.x, int16_t(b.y + y - n), b.w, uint16_t(n) }, buffer);
         }
-        prev[i] = static_cast<uint8_t>(hp);
-        cur[i] = static_cast<uint8_t>(hc);
-    }
-    if (outs > 0) {
-        write(Area { band.x, row, uint16_t(w), uint16_t(outs) }, buf);
-    }
-
-    row = int16_t(row + outs);
-    primed = true;
-    if (row > last) {
-        ++index;
-        primed = false;
+        node += nc * nr * 3;
     }
 }
 

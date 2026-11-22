@@ -1,22 +1,24 @@
 /// @file
 /// OneDrop3D (interface G) : fond givré derrière nos dialogues (retour du 22/11 : « il n'y a pas de fond (celui de base),
 /// peut-être mettre un léger flou en arrière-plan »). Ce que l'écran montre autour du dialogue est relu sur l'afficheur
-/// (comme la capture d'écran de Prusa), flouté (boîte 3 × 3) et assombri (× 0,45 : le voile noir à 55 % de la maquette),
-/// puis réécrit. Aucune image de l'écran en mémoire : une tranche de ≤ 1 920 pixels (le tampon de 4 lignes de
-/// l'afficheur) et deux lignes de sommes (2 880 octets).
+/// (comme la capture d'écran de Prusa), flouté et assombri (× 0,45 : le voile noir à 55 % de la maquette), puis réécrit.
 ///
-/// La relecture est lente (SPI à 5,25 MHz, 3 octets par pixel : 4,6 µs par pixel, ~175 ms pour les 38 000 pixels autour
-/// de l'écran de chargement) : le dialogue s'affiche d'abord, le fond se givre ensuite, une tranche (~11 ms) par tour de
-/// la boucle de l'interface quand rien n'est à redessiner, sans bloquer la molette ni le toucher.
+/// Retour du 22/11 (8.0.2.25) : « le flou arrive après, de bas en haut, alors qu'il devait être en même temps ». La
+/// relecture est lente (SPI à 5,25 MHz, 3 octets : 4,6 µs par pixel, et ~1 ms de pause par lecture) ; tout relire
+/// prenait ~175 ms, en tranches après le dialogue. Le givrage se fait maintenant d'une traite, avant le dialogue :
+/// - seules 2 lignes sur 8 sont relues ; un nœud toutes les 8 colonnes et 8 lignes prend la moyenne de ses 8 × 2 pixels,
+///   et chaque pixel est l'interpolation des 4 nœuds autour (un flou plus large que le 3 × 3 d'avant, plus « givré ») ;
+/// - tout est relu avant la première écriture (nœuds gardés : 2 880 octets), puis réécrit en ~20 ms : rien ne progresse
+///   à l'œil.
+/// Fiche de bobine (480 × 73) : 10 lectures, 9 600 pixels, ~55 ms de lecture et ~20 ms d'écriture, puis la fiche.
 ///
-/// Partie pure (Job), testée seule ; l'afficheur et la boucle de l'interface sont dans frost_od3d.cpp.
+/// Partie pure (run avec read et write), testée seule ; l'afficheur est dans frost_od3d.cpp.
 #pragma once
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 
-class window_t;
 class Rect16;
 
 namespace od3d::frost {
@@ -33,62 +35,33 @@ struct Area {
     }
 };
 
-/// Une composante après flou et voile, d'après la somme des 9 composantes voisines ramenées à 6 bits (≤ 567) ; rendue
-/// comme l'afficheur les prend, 6 bits en haut de l'octet. × 0,45 / 9 ≈ 51 / 1024 : le fond #1B1C1E devient #0C0C0C,
-/// la couleur du voile (style::veil).
-constexpr uint8_t shade(unsigned sum9) {
-    return static_cast<uint8_t>(((sum9 * 51 + 512) >> 10) << 2);
+/// Une composante après voile, d'après la moyenne de ses voisines en unités de l'afficheur (6 bits en haut de l'octet,
+/// ≤ 252) ; rendue comme l'afficheur la prend. × 0,45 ≈ 459 / 1024 : le fond #1B1C1E devient #0C0C0C, la couleur du
+/// voile (style::veil).
+constexpr uint8_t shade(unsigned average) {
+    return static_cast<uint8_t>(((average * 459 + 2048) >> 12) << 2);
 }
 
-/// area moins hole, en bandes dans l'ordre du givrage : haut, gauche, droite, bas (vides s'il n'y a rien)
+/// area moins hole, en bandes : haut, gauche, droite, bas (vides s'il n'y a rien)
 std::array<Area, 4> margins(Area area, Area hole);
 
-/// Givrage d'area moins hole, tranche par tranche. Le flou ne lit que dans sa bande (bords répétés) : il ne prend ni le
-/// dialogue, ni une bande voisine déjà givrée.
-class Job {
-public:
-    static constexpr uint16_t max_w = 480;
+/// Lit la fenêtre (3 octets par pixel, ligne après ligne) et rend le tampon qui la contient, nullptr si échec
+using Read = uint8_t *(*)(Area window);
+/// Réécrit la fenêtre depuis le début du tampon que read a rendu
+using Write = void (*)(Area window, const uint8_t *buffer);
 
-    /// Lit la fenêtre (3 octets par pixel, ligne après ligne) et rend le tampon qui la contient, nullptr si échec
-    using Read = uint8_t *(*)(Area window);
-    /// Réécrit la fenêtre depuis le début du tampon
-    using Write = void (*)(Area window, const uint8_t *buffer);
-
-    void start(Area area, Area hole);
-    void stop() {
-        index = bands.size();
-    }
-    bool done() const {
-        return index >= bands.size();
-    }
-
-    /// Une tranche ; capacity : pixels que le tampon de read peut tenir (au moins 2 lignes de la bande la plus large)
-    void step(size_t capacity, Read read, Write write);
-
-private:
-    std::array<Area, 4> bands {};
-    size_t index = bands.size();
-    int16_t row = 0; ///< prochaine ligne à réécrire dans la bande
-    bool primed = false; ///< les sommes des lignes row - 1 et row sont en cache
-    /// Sommes horizontales (3 composantes de 6 bits, ≤ 189) des lignes row - 1 et row, pour la tranche suivante
-    std::array<uint8_t, 2 * max_w * 3> sums {};
-};
+/// Givre area moins hole d'une traite : toutes les lectures, puis toutes les écritures. Le flou ne lit que dans sa bande
+/// (bords répétés) : il ne prend ni le dialogue, ni une bande voisine. capacity : pixels que le tampon de read tient
+/// (au moins 2 lignes de la bande la plus large).
+void run(Area area, Area hole, size_t capacity, Read read, Write write);
 
 // ---- Sur l'imprimante ----
 
-/// Givre ce que l'écran montre dans area autour de hole, pour owner (le dialogue ou l'écran qui s'y dessine) : à
-/// appeler à son premier dessin, une fois son cadre peint
-void start(const window_t &owner, const Rect16 &area, const Rect16 &hole);
+/// Givre ce que l'écran montre dans area autour de hole : au premier dessin du dialogue, avant de le peindre
+void run(const Rect16 &area, const Rect16 &hole);
 
-/// owner disparaît ou se repeint en entier : plus rien à givrer pour lui
-void stop(const window_t &owner);
-
-/// Un dialogue givré se ferme : stop(), et l'écran dessous se repeint d'une passe (le fond entre ses éléments, puis
-/// chacun) au lieu d'un aplat sur toute la place du dialogue avant ses éléments
-void close(const window_t &dialog);
-
-/// Boucle de l'interface, quand rien n'est à redessiner : une tranche si owner est toujours au-dessus ; false s'il n'y a
-/// plus rien à faire
-bool step();
+/// Un dialogue givré se ferme : l'écran dessous se repeint d'une passe (le fond entre ses éléments, puis chacun) au lieu
+/// d'un aplat sur toute la place du dialogue avant ses éléments
+void close();
 
 } // namespace od3d::frost

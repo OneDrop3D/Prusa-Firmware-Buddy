@@ -33,4 +33,33 @@ constexpr GUI_event_t classify(int16_t dx, int16_t dy, uint32_t ms, int16_t clic
     return GUI_event_t::_count;
 }
 
+/// Fiche de bobine tirée vers le bas par sa poignée ou son haut (retour du 22/11 : « prendre la petite tige et la
+/// baisser pour fermer le menu »)
+namespace pull {
+
+    /// Le doigt saisit la fiche dès 6 px vers le bas, surtout vertical ; avant, c'est encore un toucher ou un balayage
+    inline constexpr int16_t grab_min = 6;
+    constexpr bool grabs(int16_t dx, int16_t dy) {
+        return dy >= grab_min && dy > (dx < 0 ? -dx : dx);
+    }
+
+    /// Décalage de la fiche sous un doigt descendu de dy : jamais au-dessus de sa place, au plus max
+    constexpr int16_t offset(int16_t dy, int16_t max) {
+        return dy < 0 ? 0 : (dy > max ? max : dy);
+    }
+
+    /// Lâchée : fermée à partir du tiers de sa hauteur, sinon elle remonte
+    constexpr bool closes(int16_t offset, int16_t height) {
+        return 3 * offset >= height;
+    }
+
+    /// Une image toutes les 40 ms au plus (25 images/s)
+    inline constexpr uint32_t frame_ms = 40;
+    /// Remontée : le décalage de l'image suivante (÷ 3, 4 images depuis le tiers de la fiche : 160 ms)
+    constexpr int16_t spring(int16_t offset) {
+        return offset / 3;
+    }
+
+} // namespace pull
+
 } // namespace od3d::gesture

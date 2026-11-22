@@ -587,7 +587,6 @@ ScreenLoadUnload::ScreenLoadUnload()
 }
 
 ScreenLoadUnload::~ScreenLoadUnload() {
-    frost::stop(*this);
     sound::stop();
     atelier::release_request();
 }
@@ -773,13 +772,13 @@ void ScreenLoadUnload::unconditionalDraw() {
     // L'en-tête garde son fond : ses éléments, peints sur #1B1C1E, faisaient des pavés clairs sur le voile
     display::fill_rect(style::header, style::screen);
     if (!std::exchange(frosted, true)) {
-        // 1er dessin : l'écran d'où l'on vient reste autour du cadre, flouté et assombri par tranches (retour du 22/11 :
-        // « il n'y a pas de fond ») ; les coins du cadre sont peints de la couleur qu'y prend le fond uni
-        frost::start(*this, style::below_header, box_rect);
+        // 1er dessin : l'écran d'où l'on vient reste autour du cadre, flouté et assombri d'une traite avant le cadre
+        // (retour du 22/11 : « il n'y a pas de fond », puis « le flou arrive après ») ; les coins du cadre sont peints
+        // de la couleur qu'y prend le fond uni
+        frost::run(style::below_header, box_rect);
         return;
     }
     // Redessiné en entier : ce qui était autour n'est plus sûr, voile uni
-    frost::stop(*this);
     display::fill_rect(Rect16::fromLTRB(0, style::header_line.Top(), style::screen_w, style::screen_h), veil);
 }
 

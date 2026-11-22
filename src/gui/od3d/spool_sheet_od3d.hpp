@@ -1,7 +1,8 @@
 /// @file
 /// OneDrop3D (F1, interface G) : fiche d'une bobine (SPEC_G.md §3.3), ouverte en touchant ou en cliquant une
-/// bobine de l'accueil ou de l'étagère. Elle couvre le bas de l'écran ; l'écran d'origine reste dessiné au-dessus
-/// (sans voile : pas d'alpha sur l'écran). « Fermer », le toucher au-dessus de la fiche ou l'appui long la ferment.
+/// bobine de l'accueil ou de l'étagère. Elle couvre le bas de l'écran ; au-dessus, l'écran d'origine givré
+/// (frost_od3d.hpp). « Fermer », le toucher du fond givré, le balayage de côté, l'appui long, ou la fiche tirée vers
+/// le bas par sa poignée au-delà du tiers de sa hauteur la ferment.
 #pragma once
 
 #include <cstdint>

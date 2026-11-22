@@ -3,9 +3,11 @@
 
 #include "atelier_od3d.hpp"
 #include "frost_od3d.hpp"
+#include "gesture_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "screen_spool_od3d.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
@@ -14,8 +16,14 @@
 #include <IDialog.hpp>
 #include <img_resources.hpp>
 #include <knob_event.hpp>
+#include <option/has_touch.h>
 #include <ScreenHandler.hpp>
 #include <utility>
+#if HAS_TOUCH()
+    #include <gui.hpp>
+    #include <hw/touchscreen/touchscreen.hpp>
+    #include <timing.h>
+#endif
 
 namespace od3d {
 
@@ -27,12 +35,16 @@ namespace {
     // y 111 avec sa marge) au lieu de la recouvrir de 2 px, ce qui coupait leurs coins du bas
     constexpr int16_t top = 114;
     constexpr Rect16 band = { 0, top, style::screen_w, style::screen_h - top };
-    constexpr Rect16 head_rect = { 0, top + 1, 393, 54 };
+    constexpr Rect16 head_rect = { 0, top, 393, 55 };
     constexpr uint8_t band_radius = style::radius; ///< arrondi normé (18 avant)
     // Le grand bouton (charger / décharger) partage sa ligne avec « Calibrer le PA » (F4, en un clic)
     constexpr Rect16 main_body = { 16, top + 60, 288, 42 };
     constexpr Rect16 calibrate_body = { 312, top + 60, 152, 42 };
     constexpr Rect16 close_body = { 397, top + 16, 67, 28 };
+    /// Où un doigt saisit la fiche pour la tirer vers le bas : la poignée et le haut, sauf « Fermer »
+    constexpr Rect16 grab_rect = { 0, top, style::screen_w, 56 };
+    /// Tirée au plus jusque-là : son bord arrondi reste sur l'écran
+    constexpr int16_t max_pull = band.Height() - style::radius;
 
     enum Tag : uint8_t {
         tag_main,
@@ -73,6 +85,11 @@ namespace {
     static_assert(style::with_ring(main_body).Right() < style::with_ring(calibrate_body).Left() && style::inside(band, style::with_ring(calibrate_body)));
     static_assert(style::with_ring(secondary_body(0)).Bottom() < style::with_ring(chip_body(0)).Top());
 
+    /// Poignée (« tige ») de la fiche dont le haut est en y
+    void draw_handle(int16_t y) {
+        display::draw_rounded_rect(Rect16(222, y + 6, 36, 4), style::surface, Color::from_raw(0x5B5B5B), 2, MIC_ALL_CORNERS);
+    }
+
     /// Haut de la fiche : poignée, bobine, « Emplacement n · matière », état ; rien d'actif
     class Head : public window_t {
     public:
@@ -83,8 +100,9 @@ namespace {
     protected:
         void unconditionalDraw() override {
             const Rect16 r = GetRect();
-            display::fill_rect(r, style::surface);
-            display::draw_rounded_rect(Rect16(222, top + 6, 36, 4), style::surface, Color::from_raw(0x5B5B5B), 2, MIC_ALL_CORNERS);
+            // Son coin arrondi : il se redessine seul après un glissement de la fiche
+            display::draw_rounded_rect(r, style::veil, style::surface, band_radius, MIC_TOP_LEFT);
+            draw_handle(top);
 
             const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
             const FilamentType type = FilamentType::for_tool(tool);
@@ -136,6 +154,29 @@ namespace {
         void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
     private:
+#if HAS_TOUCH()
+        /// Fiche tirée vers le bas par sa poignée, toucher du fond givré : suivis à chaque tour de l'interface
+        void follow_finger();
+        /// Fiche peinte à offset sous sa place : voile au-dessus, bord arrondi et poignée ; ce que le bord a effacé
+        /// dans la fiche se redessine quand elle est revenue (restore)
+        void paint(int16_t offset);
+        void restore();
+
+        enum class Contact : uint8_t {
+            none,
+            veil, ///< posé sur le fond givré (ou l'en-tête) : ferme la fiche au lever
+            grab, ///< posé sur la poignée ou le haut de la fiche
+            other,
+        };
+        Touchscreen_Base::LenientClickGuard lenient; ///< un toucher qui bouge de 3 px reste un toucher (fond givré, boutons)
+        Contact contact = Contact::none;
+        bool pulling = false; ///< la fiche suit le doigt : aucun toucher ni balayage n'agit dedans
+        bool springing = false; ///< lâchée avant le tiers : elle remonte
+        int16_t offset = 0; ///< décalage voulu
+        int16_t drawn = 0; ///< décalage peint
+        int16_t wiped = top; ///< bas de ce que le bord a effacé dans la fiche
+        uint32_t painted_ms = 0;
+#endif
         bool frosted = false; ///< le fond au-dessus de la fiche a été givré (1er dessin)
         StringViewUtf8Parameters<8> usage_params; ///< « Reste 350 g », avant le bouton qui garde le texte formaté
         std::array<char, 12> pa_text {}; ///< « PA 0.035 » ou « PA ? » (F4), avant le bouton qui le montre
@@ -234,20 +275,107 @@ namespace {
     }
 
     SpoolSheet::~SpoolSheet() {
-        frost::close(*this);
+        frost::close();
     }
 
     void SpoolSheet::unconditionalDraw() {
-        // Seulement la bande ; au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri par tranches (retour du
-        // 22/11 : « un léger flou en arrière-plan ») ; les coins de la bande prennent la couleur de son fond uni
-        display::draw_rounded_rect(band, style::veil, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        // Au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri d'une traite avant la fiche (retour du 22/11 :
+        // « le flou arrive après, alors qu'il devait être en même temps ») ; puis seulement la bande, ses coins de la
+        // couleur que prend le fond uni
         if (!std::exchange(frosted, true)) {
-            frost::start(*this, style::below_header, band);
+            frost::run(style::below_header, band);
         }
+        display::draw_rounded_rect(band, style::veil, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+#if HAS_TOUCH()
+        drawn = 0; // repeinte à sa place : si elle est tirée, le voile se repeint au-dessus d'elle
+#endif
     }
 
+#if HAS_TOUCH()
+    void SpoolSheet::follow_finger() {
+        if (const auto at = touchscreen.held_point()) {
+            const point_ui16_t from = touchscreen.held_start();
+            if (contact == Contact::none) {
+                contact = from.y < top ? Contact::veil : (grab_rect.Contain(from) && !close.GetRect().Contain(from) ? Contact::grab : Contact::other);
+            }
+            if (contact == Contact::grab) {
+                const int16_t dy = int16_t(at->y - from.y);
+                pulling = pulling || gesture::pull::grabs(int16_t(at->x - from.x), dy);
+                if (pulling) {
+                    offset = gesture::pull::offset(dy, max_pull);
+                    springing = false;
+                }
+                gui_reset_loop_timer(); // le doigt est suivi à chaque tour de l'interface, pas toutes les 100 ms
+            }
+        } else if (contact != Contact::none) {
+            // Doigt levé : sur le fond givré, ou la fiche tirée jusqu'au tiers, c'est « Fermer » ; sinon elle remonte
+            const bool closing = contact == Contact::veil || (pulling && gesture::pull::closes(offset, band.Height()));
+            springing = pulling && !closing;
+            contact = Contact::none;
+            pulling = false;
+            if (closing) {
+                close_dialog();
+                return;
+            }
+        }
+
+        if (drawn == offset && !springing) {
+            return;
+        }
+        if (const uint32_t now = ticks_ms(); ticks_diff(now, painted_ms) >= int32_t(gesture::pull::frame_ms)) {
+            painted_ms = now;
+            if (springing) {
+                offset = gesture::pull::spring(drawn);
+            }
+            paint(offset);
+            if (springing && drawn == 0) {
+                springing = false;
+                restore();
+                return;
+            }
+        }
+        gui_reset_loop_timer();
+    }
+
+    void SpoolSheet::paint(int16_t to) {
+        // Rien que le bord : la fiche entière se redessinerait à chaque image (~60 ms). Le voile uni (la couleur du fond
+        // givré) couvre ce que la fiche découvre ; en remontant, le fond de la fiche recouvre le voile.
+        const int16_t was = top + drawn, now = top + to;
+        if (now > was) {
+            display::fill_rect(Rect16::fromLTRB(0, was, style::screen_w, now), style::veil);
+        }
+        display::draw_rounded_rect(Rect16(0, now, style::screen_w, band_radius), style::veil, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        if (now < was) {
+            display::fill_rect(Rect16::fromLTRB(0, now + band_radius, style::screen_w, was + band_radius), style::surface);
+        }
+        draw_handle(now);
+        drawn = to;
+        wiped = std::max<int16_t>(wiped, now + band_radius);
+    }
+
+    void SpoolSheet::restore() {
+        // Revenue à sa place, une passe : seulement les éléments que le bord a effacés, sur le fond déjà repeint
+        const Rect16 rect = Rect16::fromLTRB(0, top, style::screen_w, wiped);
+        for (window_t *w = getFirstNormal(); w; w = w->GetNext()) {
+            w->Invalidate(rect);
+        }
+        wiped = top;
+    }
+#endif
+
     void SpoolSheet::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+#if HAS_TOUCH()
+        if (pulling && GUI_event_is_touch_event(event)) {
+            return; // le geste qui lâche la fiche ne touche rien dedans : le lever décide (follow_finger)
+        }
+#endif
         switch (event) {
+        case GUI_event_t::LOOP:
+#if HAS_TOUCH()
+            follow_finger();
+#endif
+            break;
+
         case GUI_event_t::CHILD_CLICK:
             switch (static_cast<Tag>(reinterpret_cast<uintptr_t>(param))) {
             case tag_main:

@@ -37,9 +37,6 @@
 
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
-    #include <gui/od3d/frost_od3d.hpp>
-#endif
 
 #if HAS_MINI_DISPLAY()
     #include "st7789v.hpp"
@@ -181,13 +178,6 @@ void gui_redraw(void) {
             should_sleep = false;
         }
     }
-
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
-    // OneDrop3D (interface G) : le fond givré d'un dialogue avance d'une tranche quand rien d'autre n'est à dessiner
-    if (should_sleep && !dark && od3d::frost::step()) { // OneDrop3D (F39) : pas pendant la veille
-        should_sleep = false;
-    }
-#endif
 
     if (should_sleep) {
         uint32_t sleep = std::clamp(gui_redraw_timer.remaining_cooldown(now), GUI_DELAY_MIN, GUI_DELAY_MAX);

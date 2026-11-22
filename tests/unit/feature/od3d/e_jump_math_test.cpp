@@ -129,10 +129,11 @@ TEST_CASE("e_jump: F = jump / K, bounded") {
 }
 
 TEST_CASE("e_jump: line acceleration (estimated)") {
-    // Prusa (120) : ~3200 mm/s² en 0,45 × 0,2, ~1400 en buse HF 0,68 × 0,3
-    CHECK(line_accel(prusa_filament_accel) == Approx(120.f * filament_area_mm2 / 0.09f));
-    CHECK(line_accel(prusa_filament_accel) == Approx(3207.f).margin(5.f));
-    CHECK(line_accel(prusa_filament_accel, 0.68f, 0.3f) == Approx(1415.f).margin(5.f));
+    // Prusa (120) : ~3500 mm/s² en 0,45 × 0,2 (section du trancheur 0,0814 mm²), ~1560 en buse HF 0,68 × 0,3
+    CHECK(line_accel(prusa_filament_accel) == Approx(3545.f).margin(5.f));
+    CHECK(line_accel(prusa_filament_accel, 0.68f, 0.3f) == Approx(1563.f).margin(5.f));
+    CHECK(line_accel(300.f) == Approx(2.5f * line_accel(prusa_filament_accel)));
+    CHECK(std::isnan(line_accel(120.f, 0.05f, 0.4f))); // cordon impossible (plus haut que large)
     CHECK(line_accel(max_filament_accel) == Approx(xy_accel_cap)); // borné à l'XY de la machine
     CHECK(std::isnan(line_accel(NAN)));
 }

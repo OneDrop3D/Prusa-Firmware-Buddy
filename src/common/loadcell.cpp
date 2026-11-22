@@ -342,7 +342,7 @@ void Loadcell::ProcessSample(int32_t loadcellRaw, uint32_t time_us, uint32_t sou
 #if HAS_MMU2()
     // OneDrop3D (F4) : outil de mesure par la cellule de charge (rien hors enregistrement) ; échantillon indéfini :
     // le dernier valide, comme le reste de la fonction
-    od3d::force_probe::on_loadcell_sample(time_us, get_tared_z_load(this->loadcellRaw, scale, offset), pos_sample.x);
+    od3d::force_probe::on_loadcell_sample(time_us, get_tared_z_load(this->loadcellRaw, scale, offset), pos_sample.x, pos_sample.e);
 #endif
 
     const MetricsData metrics_data {

@@ -9,6 +9,8 @@
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
+#include <mapi/parking.hpp>
+#include <marlin_stubs/skippable_gcode.hpp>
 #include <Marlin.h>
 #include <feature/bedlevel/bedlevel.h>
 #include <feature/pressure_advance/pressure_advance_config.hpp>
@@ -35,6 +37,8 @@ namespace {
 
     /// Drapeau d'arrêt de la session en cours (nullptr sans session)
     const std::atomic<bool> *active_stop = nullptr;
+    /// Session au début d'une impression : « Passer » de Prusa (la mesure est alors une commande qu'on peut sauter)
+    std::optional<SkippableGCode::Guard> skippable;
 
     // État d'avant la session (une seule à la fois, fil de Marlin)
     pressure_advance::Config saved_pa;
@@ -62,8 +66,23 @@ namespace {
 } // namespace
 
 bool must_stop() {
-    return (active_stop && active_stop->load()) || planner.draining() || marlin_server::is_printing() || !marlin_server::printer_idle();
+    if ((active_stop && active_stop->load()) || planner.draining()) {
+        return true;
+    }
+    if (skippable) {
+        return skippable->is_skip_requested() || marlin_server::aborting_or_aborted() || !marlin_server::is_printing();
+    }
+    return marlin_server::is_printing() || !marlin_server::printer_idle();
 }
+
+namespace {
+    /// Mouvement mis en file comme G1 : maillage du plateau appliqué (to_machine_pos) et découpé ; sans débit ni
+    /// vitesse de l'utilisateur (la mesure garde ses valeurs)
+    void queue_to(const xyze_pos_t &target, float speed) {
+        destination = target;
+        prepare_internal_move_to_destination(speed);
+    }
+} // namespace
 
 bool wait_ms(uint32_t ms) {
     const uint32_t start = ticks_ms();
@@ -106,8 +125,11 @@ pattern::Rect printable_zone() {
     return r.grown(-edge_margin, -edge_margin);
 }
 
-Session::Session(const std::atomic<bool> &stop_requested) {
+Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {
     active_stop = &stop_requested;
+    if (in_print) {
+        skippable.emplace();
+    }
     planner.synchronize();
     saved_pa = pressure_advance::get_axis_e_config();
     saved_settings = planner.user_settings;
@@ -125,8 +147,9 @@ Session::~Session() {
         // Un peu de filament en arrière contre le suintement, buse levée au-dessus du motif
         retract();
         if (!axes_need_homing()) {
-            current_position.z = std::min(current_position.z + end_lift, float(soft_endstop.max.z));
-            line_to_current_position(travel_speed_z);
+            xyze_pos_t target = current_position;
+            target.z = std::min(current_position.z + end_lift, float(soft_endstop.max.z));
+            queue_to(target, travel_speed_z);
         }
         planner.synchronize();
     }
@@ -143,6 +166,7 @@ Session::~Session() {
     block_estall.reset();
     flow_limit::suspended = false;
     active_stop = nullptr;
+    skippable.reset();
 }
 
 float Session::smooth_time() const {
@@ -293,12 +317,49 @@ bool Session::purge() {
         if (!wait_queue()) {
             return false;
         }
-        current_position.x = s.x;
-        current_position.z = s.z;
-        current_position.e += s.e;
-        line_to_current_position(s.feedrate_mm_min / 60.f);
+        xyze_pos_t target = current_position;
+        target.x = s.x;
+        target.z = s.z;
+        target.e += s.e;
+        queue_to(target, s.feedrate_mm_min / 60.f);
     }
     return wait_moves();
+}
+
+Result Session::go_to_park(float z, float &x, float &y) {
+    if (axes_need_homing()) {
+        GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
+    }
+    if (interrupted()) {
+        return Result::stopped;
+    }
+    if (axes_need_homing()) {
+        return Result::homing;
+    }
+    // Position de purge de Prusa (M600) ; à défaut, l'avant gauche du plateau
+    const mapi::ParkingPosition purge = mapi::get_parking_position(mapi::ParkPosition::purge);
+    const float *px = std::get_if<float>(&purge.x);
+    const float *py = std::get_if<float>(&purge.y);
+    x = std::clamp(px ? *px : 20.f, float(soft_endstop.min.x) + 5.f, float(soft_endstop.max.x) - 5.f);
+    y = std::clamp(py ? *py : float(soft_endstop.min.y) + 6.f, float(soft_endstop.min.y), float(soft_endstop.max.y));
+    const float zz = std::min(std::max(z, current_position.z), float(soft_endstop.max.z) - 5.f);
+    if (current_position.z < zz) {
+        do_blocking_move_to_z(zz, travel_speed_z);
+    }
+    do_blocking_move_to_xy(x, y, travel_speed_xy);
+    return must_stop() ? Result::stopped : Result::ok;
+}
+
+bool Session::extrude_by(float dx, float de, float duration) {
+    if (!wait_queue() || !(duration > 0)) {
+        return false;
+    }
+    deretract();
+    xyze_pos_t target = current_position;
+    target.x += dx;
+    target.e += de;
+    queue_to(target, std::fabs(dx) / duration); // vitesse de XY : E suit dans la même durée
+    return true;
 }
 
 bool Session::travel_to(float x, float y, float z, bool lower) {
@@ -330,10 +391,11 @@ bool Session::print_to(float x, float y, float e_per_mm, float speed) {
     }
     deretract();
     const float d = std::hypot(x - current_position.x, y - current_position.y);
-    current_position.x = x;
-    current_position.y = y;
-    current_position.e += d * e_per_mm;
-    line_to_current_position(speed);
+    xyze_pos_t target = current_position;
+    target.x = x;
+    target.y = y;
+    target.e += d * e_per_mm;
+    queue_to(target, speed);
     return true;
 }
 
@@ -341,8 +403,9 @@ void Session::retract() {
     if (retracted || !hot()) {
         return;
     }
-    current_position.e -= retract_mm;
-    line_to_current_position(retract_speed);
+    xyze_pos_t target = current_position;
+    target.e -= retract_mm;
+    queue_to(target, retract_speed); // par le chemin de G1 : sans lui, Z perdrait la hauteur du maillage
     retracted = true;
 }
 
@@ -350,8 +413,9 @@ void Session::deretract() {
     if (!retracted) {
         return;
     }
-    current_position.e += retract_mm;
-    line_to_current_position(retract_speed);
+    xyze_pos_t target = current_position;
+    target.e += retract_mm;
+    queue_to(target, retract_speed);
     retracted = false;
 }
 

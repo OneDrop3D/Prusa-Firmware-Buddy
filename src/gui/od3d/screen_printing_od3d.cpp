@@ -3,6 +3,7 @@
 
 #include "print_info_od3d.hpp"
 #include "screen_files_od3d.hpp"
+#include "screen_pa_od3d.hpp"
 #include "value_editor_od3d.hpp"
 
 #include <algorithm>
@@ -654,6 +655,13 @@ void ScreenPrinting::on_stop() {
 
 void ScreenPrinting::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP) {
+        // OneDrop3D (F4) : mesure automatique du PA au début de l'impression : son écran (courbe, « Passer »), une fois
+        // par mesure ; « Passer » est aussi sur le bouton Pause (opération sautable de Prusa)
+        if (const uint16_t run = pa::auto_run(); run != 0 && run != pa_auto_shown) {
+            pa_auto_shown = run;
+            open_pa(pa::status().slot);
+            return;
+        }
         // Arrêt demandé pendant le palpage : renvoyé quand il se termine (screen_printing_data_t)
         if (stop_pressed && waiting_for_abort && marlin_vars().gcode_command.get() != marlin_server::Cmd::G29
             && (state == PrintState::aborting || state == PrintState::paused)) {

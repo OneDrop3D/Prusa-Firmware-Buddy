@@ -1,11 +1,13 @@
 target_sources(
   firmware
-  PRIVATE atelier_od3d.cpp
+  PRIVATE accelerometer_guide_od3d.cpp
+          atelier_od3d.cpp
           island_od3d.cpp
           menu_od3d.cpp
           print_info_od3d.cpp
           screen_belts_od3d.cpp
           screen_climate_od3d.cpp
+          screen_damping_od3d.cpp
           screen_files_od3d.cpp
           screen_home_od3d.cpp
           screen_menu_od3d.cpp

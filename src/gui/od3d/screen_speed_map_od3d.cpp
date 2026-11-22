@@ -1,5 +1,6 @@
 /// @file
 #include "screen_speed_map_od3d.hpp"
+#include "accelerometer_guide_od3d.hpp"
 #include "menu_items_od3d.hpp"
 #include "menu_od3d.hpp"
 #include "thumbnail_od3d.hpp" // draw_pixels
@@ -251,12 +252,31 @@ void ScreenSpeedMap::update() {
     }
     action.enable(now_running || pending || !marlin_client::is_printing());
 
+    // ACC-1 (une fois par mesure) : refusée sans bouger, l'accéléromètre ne répond pas
     if (!now_running && !pending && s == speed_map::Status::no_accelerometer && !warned_accelerometer && !HasDialog()) {
         warned_accelerometer = true;
-        MsgBoxWarning(_("Accelerometer is not responding. "
-                        "Turn off the printer and make sure the accelerometer cable is connected to the main board. "
-                        "You can also abort the calibration and continue using the printer with previous settings."),
-            Responses_Ok);
+        if (ask_accelerometer_retry()) {
+            start();
+        }
+    }
+}
+
+void ScreenSpeedMap::start() {
+    if (marlin_client::is_printing()) {
+        MsgBoxWarning(_("Not while printing."), Responses_Ok);
+        return;
+    }
+    auto &hotend = marlin_vars().active_hotend();
+    if (hotend.temp_nozzle.get() > speed_map::max_nozzle_temperature || hotend.target_nozzle.get() > speed_map::max_nozzle_temperature) {
+        MsgBoxWarning(_("Let the nozzle cool below 50°C, then start again."), Responses_Ok);
+        return;
+    }
+    // ACC-1 : M1993 vérifie l'accéléromètre avant tout mouvement ; s'il ne répond pas, update() guide l'utilisateur
+    const uint16_t before = speed_map::run_count();
+    if (marlin_client::gcode_try("M1993") == marlin_client::GcodeTryResult::Submitted) {
+        runs_at_request = before;
+        pending = true;
+        warned_accelerometer = false;
     }
 }
 
@@ -271,21 +291,8 @@ void ScreenSpeedMap::windowEvent(window_t *sender, GUI_event_t event, void *para
         if (tag == tag_action) {
             if (speed_map::is_running() || pending) {
                 speed_map::request_stop();
-            } else if (marlin_client::is_printing()) {
-                MsgBoxWarning(_("Not while printing."), Responses_Ok);
-            } else if (auto &hotend = marlin_vars().active_hotend();
-                       hotend.temp_nozzle.get() > speed_map::max_nozzle_temperature || hotend.target_nozzle.get() > speed_map::max_nozzle_temperature) {
-                MsgBoxWarning(_("Let the nozzle cool below 50°C, then start again."), Responses_Ok);
-            } else if (MsgBoxInfo(_("Firmly attach the accelerometer to the extruder (remove silicone sock if necessary). "
-                                    "In the next step, extruder will start moving and calibration data will be collected."),
-                           Responses_ContinueAbort)
-                == Response::Continue) {
-                const uint16_t before = speed_map::run_count();
-                if (marlin_client::gcode_try("M1993") == marlin_client::GcodeTryResult::Submitted) {
-                    runs_at_request = before;
-                    pending = true;
-                    warned_accelerometer = false;
-                }
+            } else {
+                start();
             }
         }
         update();

@@ -11230,3 +11230,36 @@ msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe, son
 #: src/gui/od3d/screen_spool_calib_od3d.cpp
 msgid "Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then lines are printed there while the nozzle cools down step by step (8 to 12 min). Start?"
 msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe, son avant est palpé, puis des lignes y sont imprimées pendant que la buse refroidit palier par palier (8 à 12 min). Démarrer ?"
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "The accelerometer does not answer. Attach it to the nozzle and plug it in, then Retry."
+msgstr "L'accéléromètre ne répond pas. Fixez-le sur la buse et branchez-le, puis Réessayer."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Axis damping"
+msgstr "Amortissement"
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Apply"
+msgstr "Appliquer"
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Prusa value"
+msgstr "Valeur Prusa"
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min)."
+msgstr "Fixez l'accéléromètre sur la buse, puis Démarrer (X et Y, 4 min env.)."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+#, c-format
+msgid "Input shaper damping now: X %s, Y %s (Prusa %s)."
+msgstr "Amortissement de l'input shaper : X %s, Y %s (Prusa %s)."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid ""
+"Axis damping\n"
+"Input shaper damping, measured"
+msgstr ""
+"Amortissement des axes\n"
+"Pour l'input shaper, mesuré"

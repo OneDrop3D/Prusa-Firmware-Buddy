@@ -34,4 +34,11 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Réglages › Fonctions OneDrop3D › « Amortissement des axes » (F33) : ζ et Q de X et Y, à appliquer à l'input shaper
+class MI_DAMPING final : public IWindowMenuItem {
+public:
+    MI_DAMPING();
+    void click(IWindowMenu &) override;
+};
+
 } // namespace od3d

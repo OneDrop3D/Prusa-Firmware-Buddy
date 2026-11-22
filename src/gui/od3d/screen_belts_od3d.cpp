@@ -1,5 +1,6 @@
 /// @file
 #include "screen_belts_od3d.hpp"
+#include "accelerometer_guide_od3d.hpp"
 #include "menu_items_od3d.hpp"
 #include "menu_od3d.hpp"
 #include "thumbnail_od3d.hpp" // draw_pixels
@@ -344,13 +345,12 @@ void ScreenBelts::update() {
     }
     action.enable(now_running || pending || !marlin_client::is_printing());
 
-    // Message de Prusa (une fois par mesure) quand l'accéléromètre ne répond pas
+    // ACC-1 (une fois par mesure) : refusée sans bouger, l'accéléromètre ne répond pas
     if (!now_running && !pending && s == belts::Status::no_accelerometer && !warned_accelerometer && !HasDialog()) {
         warned_accelerometer = true;
-        MsgBoxWarning(_("Accelerometer is not responding. "
-                        "Turn off the printer and make sure the accelerometer cable is connected to the main board. "
-                        "You can also abort the calibration and continue using the printer with previous settings."),
-            Responses_Ok);
+        if (ask_accelerometer_retry()) {
+            start();
+        }
     }
 }
 
@@ -364,13 +364,7 @@ void ScreenBelts::start() {
         MsgBoxWarning(_("Let the nozzle cool below 50°C, then start again."), Responses_Ok);
         return;
     }
-    // Texte de l'assistant input shaper de Prusa
-    if (MsgBoxInfo(_("Firmly attach the accelerometer to the extruder (remove silicone sock if necessary). "
-                     "In the next step, extruder will start moving and calibration data will be collected."),
-            Responses_ContinueAbort)
-        != Response::Continue) {
-        return;
-    }
+    // ACC-1 : M1992 vérifie l'accéléromètre avant tout mouvement ; s'il ne répond pas, update() guide l'utilisateur
     const uint16_t before = belts::run_count();
     if (marlin_client::gcode_try("M1992") == marlin_client::GcodeTryResult::Submitted) {
         runs_at_request = before;

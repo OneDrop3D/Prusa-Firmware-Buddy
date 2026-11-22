@@ -84,7 +84,7 @@ private:
     belts::Status shown_status = belts::Status::idle;
     belts::Stage shown_stage = belts::Stage::preparing;
     uint8_t shown_progress = 0xff;
-    bool warned_accelerometer = false; ///< message de Prusa déjà montré pour cette mesure
+    bool warned_accelerometer = true; ///< ACC-1 : guide déjà montré, ou rien demandé depuis cet écran
 };
 
 } // namespace od3d

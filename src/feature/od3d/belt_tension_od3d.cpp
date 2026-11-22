@@ -1,5 +1,6 @@
 /// @file
 #include "belt_tension_od3d.hpp"
+#include "accelerometer_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -130,12 +131,8 @@ namespace {
         if (Temperature::degHotend(0) > max_nozzle_temperature || Temperature::degTargetHotend(0) > max_nozzle_temperature) {
             return Status::hot_nozzle;
         }
-        {
-            // Avant tout mouvement, comme M1959 : l'accéléromètre répond-il ?
-            PrusaAccelerometer accelerometer;
-            if (accelerometer.get_error() != accelerometer::Error::none) {
-                return Status::no_accelerometer;
-            }
+        if (!accel::ready()) { // ACC-1 : avant tout mouvement
+            return Status::no_accelerometer;
         }
 
         current_stage = Stage::preparing;

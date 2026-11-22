@@ -49,6 +49,7 @@ private:
     void update();
     void show_info();
     void show_notes(); ///< vitesses à éviter, au-dessus des barres
+    void start();
 
     Header header;
     SpeedPanel panel_x;
@@ -72,7 +73,7 @@ private:
     speed_map::Status shown_status = speed_map::Status::idle;
     uint8_t shown_axis = 0;
     uint8_t shown_progress = 0xff;
-    bool warned_accelerometer = false;
+    bool warned_accelerometer = true; ///< ACC-1 : guide déjà montré, ou rien demandé depuis cet écran
 };
 
 } // namespace od3d

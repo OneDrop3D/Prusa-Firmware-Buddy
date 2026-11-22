@@ -100,7 +100,7 @@ endif()
 if(HAS_MANUAL_BELT_TUNING)
   target_sources(firmware PRIVATE M961.cpp)
   if(HAS_INPUT_SHAPER_CALIBRATION)
-    target_sources(firmware PRIVATE M1992_od3d.cpp M1993_od3d.cpp) # OneDrop3D (F14, F22)
+    target_sources(firmware PRIVATE M1992_od3d.cpp M1993_od3d.cpp M1997_od3d.cpp) # OneDrop3D (F14, F22, F33)
   endif()
 endif()
 

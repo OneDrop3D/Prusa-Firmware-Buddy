@@ -1,5 +1,6 @@
 /// @file
 #include "speed_map_od3d.hpp"
+#include "accelerometer_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -159,11 +160,8 @@ namespace {
         if (Temperature::degHotend(0) > max_nozzle_temperature || Temperature::degTargetHotend(0) > max_nozzle_temperature) {
             return Status::hot_nozzle;
         }
-        {
-            PrusaAccelerometer accelerometer;
-            if (accelerometer.get_error() != accelerometer::Error::none) {
-                return Status::no_accelerometer;
-            }
+        if (!accel::ready()) { // ACC-1 : avant tout mouvement (et avant de changer les réglages de mouvement)
+            return Status::no_accelerometer;
         }
 
         // Réglages de mouvement : mode furtif coupé (ses limites fausseraient les vitesses), vitesses et accélérations

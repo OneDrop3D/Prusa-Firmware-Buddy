@@ -68,6 +68,13 @@ add_executable(
 target_include_directories(speed_map_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(speed_map_od3d_tests)
 add_executable(
+  damping_od3d_tests
+  ${CMAKE_CURRENT_SOURCE_DIR}/damping_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/damping_math_od3d.cpp
+  ${CMAKE_SOURCE_DIR}/src/feature/od3d/belt_tension_math_od3d.cpp
+  )
+target_include_directories(damping_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(damping_od3d_tests)
+add_executable(
   pa_math_od3d_tests
   ${CMAKE_CURRENT_SOURCE_DIR}/pa_math_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/pa_math_od3d.cpp
   ${CMAKE_SOURCE_DIR}/src/feature/od3d/force_trace_od3d.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/pattern_math_od3d.cpp

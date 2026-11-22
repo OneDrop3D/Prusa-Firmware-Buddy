@@ -25,6 +25,8 @@ static_assert(HAS_PAUSE());
 #include <option/has_mmu2.h>
 #if HAS_MMU2()
     #include "Marlin/src/feature/prusa/MMU2/mmu2_mk4.h"
+    #include <feature/od3d/filament_memory_od3d.hpp> // OneDrop3D (F43)
+    #include <feature/od3d/filament_memory_math_od3d.hpp>
 #endif
 
 #include "Marlin/src/lcd/extensible_ui/ui_api.h"
@@ -788,7 +790,9 @@ void Pause::long_load_process([[maybe_unused]] Response response) {
 
 void Pause::purge_process([[maybe_unused]] Response response) {
     // Extrude filament to get into hotend
-    setPhase(is_unstoppable() ? PhasesLoadUnload::Purging_unstoppable : PhasesLoadUnload::Purging_stoppable);
+    // OneDrop3D (F43) : la purge s'arrête toujours (« Arrêter la purge ») : le filament est déjà chargé, l'arrêt ne
+    // finit que la purge (standard_purge_sequence), même pendant un chargement par le MMU ou un M600
+    setPhase(PhasesLoadUnload::Purging_stoppable);
 
     planner.synchronize(); // Finish any pending moves before starting the purge
 
@@ -826,10 +830,18 @@ bool Pause::standard_purge_sequence() {
     if (purge_result == StopConditions::UserStopped) {
         planner.quick_stop_and_resume();
     }
+    // OneDrop3D (F43) : purge finie ou arrêtée, plus rien à arrêter (un « Arrêter » de plus arrêterait tout le chargement)
+    setPhase(PhasesLoadUnload::Purging_unstoppable);
     // Skip retraction if Failed
     if (purge_result != StopConditions::Failed) {
         std::ignore = do_e_move_notify_progress_hotextrude(
             -STANDARD_RETRACT_LENGTH, standard_feedrates::extruder(standard_feedrates::Extruder::retract, filament::get_type_to_load()), StopConditions::UserStopped);
+    }
+    // OneDrop3D (F43) : « Arrêter la purge » : le filament reste chargé, fin du chargement sans la question de la
+    // couleur (comme nozzle_cleaner_purge_sequence)
+    if (purge_result == StopConditions::UserStopped) {
+        set(LoadState::load_finalize);
+        return false;
     }
 
     return true;
@@ -935,6 +947,13 @@ void Pause::color_correct_ask_process(Response response) {
 
 void Pause::mmu_load_start_process([[maybe_unused]] Response response) {
     if (load_type == LoadType::load) {
+        // OneDrop3D (F43) : l'emplacement demandé est déjà dans la buse (Prusa, FINDA et capteur de l'extrudeur
+        // d'accord), même matière : ni rechargement ni purge (Prusa déchargeait et rechargeait)
+        if (od3d::filament_memory::skip_reload(settings.virtual_tool().to_raw(), od3d::filament_memory::loaded_slot(),
+                filament::get_type_to_load() == FilamentType::for_tool(settings.virtual_tool()))) {
+            set(LoadState::_finished);
+            return;
+        }
         if (!MMU2::mmu2.load_filament_to_nozzle(settings.virtual_tool().to_raw())) {
             // TODO tell user that he has already loaded filament if he really wants to continue
             // TODO check fsensor .. how should I behave if filament is not detected ???

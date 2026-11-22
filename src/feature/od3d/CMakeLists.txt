@@ -18,6 +18,8 @@ if(HAS_MMU2)
   target_sources(firmware PRIVATE mmu_usb_od3d.cpp)
   # F41 : tube PTFE avant du MMU mesuré (M1999)
   target_sources(firmware PRIVATE ptfe_od3d.cpp)
+  # F43 : filament chargé retenu après un redémarrage, ni rechargement ni purge s'il est déjà dans la buse
+  target_sources(firmware PRIVATE filament_memory_od3d.cpp)
 endif()
 if(HAS_MMU2 AND HAS_FILAMENT_TRACKER)
   # F13 : suivi du poids des bobines du MMU

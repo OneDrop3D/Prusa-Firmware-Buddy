@@ -173,6 +173,10 @@ public:
     /// @returns The filament slot index (0 to 4) that will be loaded next, 0xff in case of no active tool change
     uint8_t get_tool_change_tool() const;
 
+    /// OneDrop3D (F43) : filament retrouvé dans la buse au démarrage du MMU (od3d::filament_memory, capteurs d'accord) :
+    /// même état qu'après un changement d'outil réussi (fin de ToolChangeCommon). Sans effet si un emplacement est connu.
+    void RestoreLoadedTool(uint8_t slot);
+
     bool set_filament_type(uint8_t slot, uint8_t type);
 
     /// Issue a "button" click into the MMU - to be used from Error screens of the MMU

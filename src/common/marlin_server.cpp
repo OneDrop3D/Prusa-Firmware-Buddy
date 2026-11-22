@@ -250,6 +250,7 @@
 #endif
 #if HAS_MMU2()
     #include <feature/od3d/ptfe_od3d.hpp> // OneDrop3D (F41)
+    #include <feature/od3d/filament_memory_od3d.hpp> // OneDrop3D (F43)
 #endif
 #if HAS_PAUSE()
     #include <feature/od3d/clean_resume_od3d.hpp> // OneDrop3D (F30)
@@ -983,6 +984,7 @@ static void cycle() {
 #endif
 #if HAS_MMU2()
     od3d::ptfe::step(); // OneDrop3D (F41) : position de la poulie quand le capteur de l'extrudeur voit le filament
+    od3d::filament_memory::step(); // OneDrop3D (F43) : filament chargé retenu après un redémarrage
 #endif
 
     od3d::sleep::step(); // OneDrop3D (F39) : coupures du mode veille ; il remplace la coupure des moteurs de Prusa

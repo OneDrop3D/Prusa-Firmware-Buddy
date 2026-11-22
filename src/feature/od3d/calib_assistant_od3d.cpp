@@ -4,6 +4,7 @@
 #include "accelerometer_od3d.hpp"
 #include "belt_tension_od3d.hpp"
 #include "damping_od3d.hpp"
+#include "filament_memory_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mpc_od3d.hpp"
 #include "pa_od3d.hpp"
@@ -151,7 +152,7 @@ namespace {
         // M1994 en un clic (origine si besoin, position de chargement levée), par la file d'injection qui passe avant
         // Tube PTFE : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides : déchargement d'abord
         const auto loaded = VirtualToolIndex::currently_selected_opt();
-        const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp) && (!loaded || loaded->to_raw() != s.slot);
+        const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp) && filament_memory::loaded_slot() != s.slot; // F43
         const bool needs_unload = s.test == Test::mmu_ptfe && loaded;
         if (needs_load || needs_unload) {
             char filament[16];

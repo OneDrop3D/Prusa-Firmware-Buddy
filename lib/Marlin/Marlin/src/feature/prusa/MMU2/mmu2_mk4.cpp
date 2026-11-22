@@ -783,6 +783,11 @@ uint8_t MMU2::get_tool_change_tool() const {
     return tool_change_extruder == MMU2_NO_TOOL ? (uint8_t)FILAMENT_UNKNOWN : tool_change_extruder;
 }
 
+void MMU2::RestoreLoadedTool(uint8_t slot) {
+    uint8_t none = MMU2_NO_TOOL;
+    extruder.compare_exchange_strong(none, slot);
+}
+
 bool MMU2::set_filament_type(uint8_t /*slot*/, uint8_t /*type*/) {
     if (!WaitForMMUReady()) {
         return false;

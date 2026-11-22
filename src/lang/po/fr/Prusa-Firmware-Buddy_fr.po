@@ -11740,3 +11740,7 @@ msgstr "Accéléromètre disponible\nSes tests sont proposés"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Front PTFE"
 msgstr "PTFE avant"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Stop purging"
+msgstr "Arrêter la purge"

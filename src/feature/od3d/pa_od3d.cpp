@@ -5,6 +5,7 @@
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
 #include "spool_calib_od3d.hpp"
+#include "filament_memory_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -90,11 +91,9 @@ namespace {
     /// Dernière valeur demandée par le trancheur pendant l'impression (M572 / M900), appliquée ou non
     float slicer_requested = NAN;
 
+    /// F43 : bobine dans la buse pour Prusa (retenue après un redémarrage), capteurs d'accord : ni chargement ni purge
     std::optional<uint8_t> loaded_slot() {
-        if (const auto tool = VirtualToolIndex::currently_selected_opt()) {
-            return tool->to_raw();
-        }
-        return std::nullopt;
+        return filament_memory::loaded_slot();
     }
 
     /// Comme M572_internal, sans passer par lui (il ignorerait la valeur) : files vidées avant le changement

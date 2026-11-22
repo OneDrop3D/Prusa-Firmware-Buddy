@@ -61,6 +61,7 @@
 #include <feature/od3d/mpc_od3d.hpp>
 #include <feature/od3d/sleep_math_od3d.hpp>
 #include <feature/od3d/calib_registry_od3d.hpp>
+#include <feature/od3d/filament_memory_math_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -511,6 +512,9 @@ struct CurrentStore
     StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::max_tests> od3d_calib_done;
     StoreItem<od3d::calib_registry::Accelerometer, od3d::calib_registry::Accelerometer::unknown, ItemFlag::features, journal::hash("OD3D Accelerometer")> od3d_accelerometer;
     StoreItem<uint32_t, 0, ItemFlag::features, journal::hash("OD3D Calib Dismissed")> od3d_calib_dismissed;
+    /// OneDrop3D (F43) : emplacement chargé jusqu'à la buse, sa matière et la date (filament_memory_od3d.hpp), repris
+    /// au démarrage du MMU si les capteurs sont d'accord
+    StoreItem<od3d::filament_memory::Record, od3d::filament_memory::Record {}, ItemFlag::printer_state, journal::hash("OD3D Loaded Filament")> od3d_loaded_filament;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

@@ -693,7 +693,8 @@ void ScreenLoadUnload::enter_phase() {
         // Une question si Prusa attend autre chose que « Stop » ; sinon une étape de plus
         const bool question = std::ranges::any_of(responses, [](Response r) { return r != Response::_none && r != Response::Stop; });
         kind = question ? Kind::prompt : Kind::progress;
-        if (!question && phase_text(phase) && (!history_count || history[history_count - 1] != phase)) {
+        // Même texte (« Purge », arrêtable puis non) : une seule ligne
+        if (!question && phase_text(phase) && (!history_count || !same_step(history[history_count - 1], phase))) {
             if (history_count == history.size()) {
                 std::copy(history.begin() + 1, history.end(), history.begin());
                 --history_count;
@@ -748,7 +749,9 @@ void ScreenLoadUnload::setup_buttons() {
         const Response r = i < count ? responses[i] : Response::Stop;
         b.set_enabled(i < count);
         if (r == Response::Stop) {
-            b.set(Button::Look::outline, _("Cancel"));
+            // F43 : pendant la purge, l'arrêt ne finit que la purge (le filament reste chargé, Pause de Prusa)
+            const bool purge = phase == Phase::Purging_stoppable || phase == Phase::Purging_unstoppable;
+            b.set(Button::Look::outline, purge ? _("Stop purging") : _("Cancel"));
         } else {
             b.set(primary_used ? Button::Look::outline : Button::Look::primary, _(get_response_text(r)));
             primary_used = true;

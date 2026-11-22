@@ -82,10 +82,48 @@ namespace {
         return Slot::read(slot).loaded;
     }
 
+    /// La mesure peut amener la bobine dans la buse (MMU actif), ou elle y est déjà
+    bool reachable(uint8_t slot) {
+        return loaded(slot) || atelier::mmu_active();
+    }
+
+    /// Emplacement dont l'écran doit proposer la mesure dès son ouverture (0xff : aucun)
+    uint8_t autostart_slot = 0xff;
+
 } // namespace
 
-void open_pa(uint8_t slot) {
+void open_pa(uint8_t slot, bool start) {
+    autostart_slot = start ? slot : 0xff;
     Screens::Access()->Open(ScreenFactory::ScreenWithArg<ScreenPa>(slot));
+}
+
+void pa_progress(StringBuilder &sb, const pa::Status &s) {
+    StringViewUtf8Parameters<24> params;
+    char k[12];
+    switch (s.phase) {
+    case pa::Phase::bed:
+        sb.append_string_view(_("Heating the bed..."));
+        break;
+    case pa::Phase::leveling:
+        sb.append_string_view(_("Probing bed"));
+        break;
+    case pa::Phase::heating:
+        sb.append_string_view(_("Heating the nozzle to %d°").formatted(params, int(s.temperature)));
+        break;
+    case pa::Phase::loading:
+        sb.append_string_view(_("Loading filament"));
+        break;
+    case pa::Phase::priming:
+        sb.append_string_view(_("Purging..."));
+        break;
+    case pa::Phase::measuring:
+        format_k(k, sizeof(k), s.k_e4);
+        sb.append_string_view(_("Line %d/%d: K = %s").formatted(params, int(s.step), int(s.steps), k));
+        break;
+    default:
+        sb.append_string_view(_("Homing and moving..."));
+        break;
+    }
 }
 
 bool usb_curves() {
@@ -247,27 +285,11 @@ void ScreenPa::show_note() {
     if (shown_pending) {
         text = _("Starting...");
     } else if (shown_running && mine) {
-        switch (shown.phase) {
-        case pa::Phase::bed:
-            text = _("Heating the bed...");
-            break;
-        case pa::Phase::leveling:
-            text = _("Probing bed");
-            break;
-        case pa::Phase::heating:
-            text = _("Heating the nozzle to %d°").formatted(params, int(shown.temperature));
-            break;
-        case pa::Phase::priming:
-            text = _("Purging...");
-            break;
-        case pa::Phase::measuring:
-            format_k(k, sizeof(k), shown.k_e4);
-            text = _("Line %d/%d: K = %s").formatted(params, int(shown.step), int(shown.steps), k);
-            break;
-        default:
-            text = _("Homing and moving...");
-            break;
-        }
+        StringBuilder sb(note_text);
+        pa_progress(sb, shown);
+        note.SetText(string_view_utf8::MakeRAM(note_text.data()));
+        note.Invalidate();
+        return;
     } else if (marlin_client::is_printing()) {
         text = _("Not while printing.");
     } else if (mine && shown.phase == pa::Phase::done) {
@@ -307,12 +329,17 @@ void ScreenPa::show_note() {
         case pa::Error::low_confidence:
             text = _("Unsure (K = %s): pick the best line.").formatted(params, k);
             break;
+        case pa::Error::mmu:
+            text = _("MMU not ready.");
+            break;
         default:
             text = _("Invalid request.");
             break;
         }
-    } else if (!loaded(slot)) {
+    } else if (!reachable(slot)) {
         text = _("Load this spool into the nozzle to measure it.");
+    } else if (!loaded(slot)) {
+        text = _("Loads the spool, then prints test lines in front.");
     } else {
         text = _("Prints one test line per K at the bed front.");
     }
@@ -344,7 +371,7 @@ void ScreenPa::update() {
     const bool busy = running || pending;
     const bool printing = marlin_client::is_printing();
     // Pas pendant une mesure du débit ou de la température (F5, F6) : elle passerait après
-    const bool can_measure = !busy && !calib::is_running() && !printing && loaded(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+    const bool can_measure = !busy && !calib::is_running() && !printing && reachable(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
     measure_button.enable(can_measure);
     if (busy != second_cancels) {
         second_cancels = busy; // libellé changé seulement quand il le faut : pas de redessin à chaque passage
@@ -355,10 +382,11 @@ void ScreenPa::update() {
     lines.enable(has_lines(slot));
     calib.enable(true); // on y regarde les valeurs même pendant une mesure ou une impression
 
-    // Un élément désactivé ne garde pas le focus
+    // Un élément désactivé ne garde pas le focus ; pendant la mesure il va à « Annuler » (le retour de l'en-tête,
+    // premier élément, ferait quitter l'écran au prochain clic)
     if (window_t *focused = get_focused_child_window(); !focused || !focused->IsEnabled()) {
-        if (window_t *first = GetFirstEnabledSubWin()) {
-            first->SetFocus();
+        if (window_t *next = busy && second.IsEnabled() ? &second : GetFirstEnabledSubWin()) {
+            next->SetFocus();
         }
     }
 }
@@ -368,11 +396,14 @@ void ScreenPa::measure() {
         MsgBoxWarning(_("Not while printing."), Responses_Ok);
         return;
     }
-    if (!loaded(slot)) {
+    if (!reachable(slot)) {
         MsgBoxWarning(_("Load this spool into the nozzle to measure it."), Responses_Ok);
         return;
     }
-    if (MsgBoxQuestion(_("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?"), Responses_YesNo) != Response::Yes) {
+    const string_view_utf8 question = loaded(slot)
+        ? _("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?")
+        : _("Clean sheet in place, front of the bed free? This spool is loaded into the nozzle, the bed heats up, its front is probed, then one test line per K is printed there (8 to 12 min). Start?");
+    if (MsgBoxQuestion(question, Responses_YesNo) != Response::Yes) {
         return;
     }
     char gcode[24];
@@ -388,6 +419,13 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     switch (event) {
     case GUI_event_t::LOOP:
         update();
+        // « Calibrer le PA » de la fiche de la bobine : la mesure est proposée une fois, l'écran déjà affiché
+        if (autostart_slot == slot) {
+            autostart_slot = 0xff;
+            if (measure_button.IsEnabled()) {
+                measure();
+            }
+        }
         break;
 
     case GUI_event_t::CHILD_CLICK: {

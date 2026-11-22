@@ -84,6 +84,18 @@ public:
     void OnChange(size_t) override;
 };
 
+/// F4 : « PA automatique » : mesure courte avant l'impression, à côté de la pièce (désactivé, bobine neuve : à la 1re
+/// impression d'une bobine, à chaque impression) ; un mode actif allume « le PA de l'imprimante prime »
+class MI_PA_AUTO final : public MenuItemSelectMenu {
+public:
+    MI_PA_AUTO();
+    int item_count() const override;
+    string_view_utf8 build_item_text(int index, StringViewUtf8ParamBase &params) const override;
+
+protected:
+    bool on_item_selected(const OnItemSelectedArgs &args) override;
+};
+
 /// F5 : « limiter au débit mesuré » : le planificateur ralentit ce qui dépasserait le débit maximal de la bobine
 class MI_FLOW_LIMIT final : public WI_ICON_SWITCH_OFF_ON_t {
 public:
@@ -128,7 +140,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_PA_AUTO, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

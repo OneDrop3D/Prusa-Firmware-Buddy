@@ -11267,3 +11267,53 @@ msgstr ""
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Stopped: leaving this screen stops the measurement."
 msgstr "Arrêté : quitter cet écran arrête la mesure."
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "Slot %d PA measured: K = %s"
+msgstr "PA de l'emplacement %d mesuré : K = %s"
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "Slot %d PA not measured, slicer PA kept"
+msgstr "PA de l'emplacement %d non mesuré, PA du trancheur gardé"
+
+#: src/feature/od3d/pa_od3d.cpp
+msgid "PA not measured: MMU not ready"
+msgstr "PA non mesuré : MMU pas prêt"
+
+#: src/feature/od3d/pa_od3d.cpp
+msgid "PA not measured: no print area in the G-code"
+msgstr "PA non mesuré : pas de zone d'impression dans le G-code"
+
+#: src/feature/od3d/pa_od3d.cpp
+msgid "PA not measured: no room beside the print"
+msgstr "PA non mesuré : pas de place à côté de la pièce"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "MMU not ready."
+msgstr "MMU pas prêt."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Loads the spool, then prints test lines in front."
+msgstr "Charge la bobine, puis imprime des lignes devant."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Clean sheet in place, front of the bed free? This spool is loaded into the nozzle, the bed heats up, its front is probed, then one test line per K is printed there (8 to 12 min). Start?"
+msgstr "Plaque propre en place, avant du plateau libre ? La bobine est chargée dans la buse, le plateau chauffe, son avant est palpé, puis une ligne de test par K y est imprimée (8 à 12 min). Démarrer ?"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Calibrate PA"
+msgstr "Calibrer le PA"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Automatic PA\nShort test before printing"
+msgstr "PA automatique\nCourt test avant d'imprimer"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "New spool"
+msgstr "Bobine neuve"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Every print"
+msgstr "Chaque impression"

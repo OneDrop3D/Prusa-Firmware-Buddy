@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 using namespace od3d;
@@ -417,4 +418,101 @@ TEST_CASE("motif : cordon, repères, lignes, palpage") {
     CHECK_THAT(probe.x1, WithinAbs(area.x1 + 22.0, 1e-4));
     CHECK(bed.contains(probe));
     CHECK(pattern::Rect { 0.f, 0.f, 10.f, 10.f }.clipped({ 20.f, 20.f, 30.f, 30.f }).empty());
+}
+
+TEST_CASE("od3d pa: emplacements de la mesure automatique", "[od3d][pa]") {
+    // Impression : emplacements 1 et 3 (bits 0 et 2) ; matières connues : 1, 2, 3 ; K déjà mesuré : 1
+    const uint8_t used = 0b00101, known = 0b00111, has_k = 0b00001;
+    CHECK(pa::slots_to_measure(pa::AutoMode::off, used, known, has_k) == 0);
+    CHECK(pa::slots_to_measure(pa::AutoMode::first_print, used, known, has_k) == 0b00100);
+    CHECK(pa::slots_to_measure(pa::AutoMode::every_print, used, known, has_k) == 0b00101);
+    // Matière inconnue : jamais mesurée
+    CHECK(pa::slots_to_measure(pa::AutoMode::every_print, 0b10000, known, 0) == 0);
+    // Tout est déjà mesuré : rien à la 1re impression
+    CHECK(pa::slots_to_measure(pa::AutoMode::first_print, used, known, 0b11111) == 0);
+}
+
+namespace {
+
+/// Points majeurs de la grille de la CORE One (21 × 21 points, bord 1, un point majeur sur 3)
+struct Grid {
+    std::vector<float> xs, ys;
+    float grow_x, grow_y;
+    Grid() {
+        const float min_x = -(250.f / 18.f) + 15.f, dist_x = (250.f - 2.f * min_x) / 20.f;
+        const float min_y = -(220.f / 18.f) + 15.f, dist_y = (220.f - 2.f * min_y) / 20.f;
+        for (int i = 1; i <= 19; i += 3) {
+            xs.push_back(min_x + float(i) * dist_x);
+            ys.push_back(min_y + float(i) * dist_y);
+        }
+        grow_x = 3.f * dist_x;
+        grow_y = 3.f * dist_y;
+    }
+};
+
+bool overlap(const pattern::Rect &a, const pattern::Rect &b) {
+    return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+/// La place ne gêne pas l'impression : hors de sa zone, du palpage près de la purge et des points palpés autour
+void check_free(const pattern::Rect &r, const pattern::Rect &zone, const pattern::Rect &print, const Grid &g) {
+    CHECK(zone.contains(r));
+    CHECK_FALSE(overlap(r, print.grown(5.f, 5.f)));
+    CHECK_FALSE(overlap(r, pattern::Rect { 145.f, -5.f, 255.f, 25.f }));
+    const pattern::Rect probed = print.grown(g.grow_x, g.grow_y);
+    for (const float x : g.xs) {
+        for (const float y : g.ys) {
+            if (x >= probed.x0 && x <= probed.x1 && y >= probed.y0 && y <= probed.y1) {
+                CHECK_FALSE(overlap(r, pattern::Rect { x - 5.f, y - 5.f, x + 5.f, y + 5.f }));
+            }
+        }
+    }
+}
+
+} // namespace
+
+TEST_CASE("od3d pa: place du motif automatique à côté de l'impression", "[od3d][pa]") {
+    const Grid g;
+    const pattern::Rect zone { 10.f, 10.f, 240.f, 210.f };
+    const float w = 120.f, h = 28.f; // un emplacement : purge et 5 lignes courtes
+
+    SECTION("pièce de 80 mm au centre : devant, à gauche") {
+        const pattern::Rect print { 85.f, 70.f, 165.f, 150.f };
+        const auto r = pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(r.has_value());
+        check_free(*r, zone, print, g);
+        CHECK(r->y1 <= print.y0);
+        CHECK(r->x0 == zone.x0);
+    }
+    SECTION("pièce à l'avant : derrière") {
+        const pattern::Rect print { 20.f, 0.f, 230.f, 60.f };
+        const auto r = pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(r.has_value());
+        check_free(*r, zone, print, g);
+        CHECK(r->y0 >= print.y1);
+    }
+    SECTION("pièce sur tout le plateau : pas de place") {
+        const pattern::Rect print { 0.f, 0.f, 250.f, 220.f };
+        CHECK_FALSE(pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
+    }
+    SECTION("pas de M555 (zone maximale de Prusa) : pas de place") {
+        const pattern::Rect print { std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max() };
+        CHECK_FALSE(pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
+    }
+    SECTION("motif plus large que le plateau : pas de place") {
+        const pattern::Rect print { 100.f, 100.f, 110.f, 110.f };
+        CHECK_FALSE(pa::auto_spot(zone, print, 300.f, h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
+    }
+    SECTION("motif large devant à droite : la zone palpée près de la purge reste libre") {
+        const pattern::Rect print { 10.f, 150.f, 60.f, 200.f }; // petite pièce au fond à gauche
+        const auto r = pa::auto_spot(zone, print, 200.f, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(r.has_value());
+        check_free(*r, zone, print, g);
+        CHECK(r->y0 >= 25.f); // au-dessus du palpage de la purge (x 150 à 250, y 0 à 20)
+    }
+    SECTION("plusieurs emplacements : la hauteur réduit les places") {
+        const pattern::Rect print { 85.f, 70.f, 165.f, 150.f };
+        CHECK_FALSE(pa::auto_spot(zone, print, w, 3.f * h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
+    }
 }

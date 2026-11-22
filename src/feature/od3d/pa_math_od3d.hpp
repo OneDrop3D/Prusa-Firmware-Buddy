@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace od3d::pa {
@@ -174,5 +175,27 @@ struct Record {
     bool operator==(const Record &) const = default;
 };
 static_assert(sizeof(Record) == 4);
+
+// ---- Mesure automatique au départ d'une impression (comme la calibration de la dynamique du débit des Bambu) ----
+
+/// Réglage « PA automatique » (config_store « OD3D PA Auto »)
+enum class AutoMode : uint8_t {
+    off = 0,
+    first_print = 1, ///< à la 1re impression d'une bobine : emplacements utilisés sans K
+    every_print = 2, ///< à chaque impression : tous les emplacements utilisés
+};
+inline constexpr uint8_t auto_mode_count = 3;
+
+/// Emplacements à mesurer (bit n : emplacement n) parmi ceux qu'utilise l'impression (used) et dont la matière est
+/// connue (known) ; has_k : ceux qui ont déjà un K
+uint8_t slots_to_measure(AutoMode mode, uint8_t used, uint8_t known, uint8_t has_k);
+
+/// Où imprimer un motif de w × h avant l'impression sans la gêner : dans zone, à clearance au moins de la zone
+/// d'impression print (M555), de la zone que le G-code de départ de PrusaSlicer pour la CORE One palpe près de sa
+/// purge (G29 P1 X150 Y0 W100 H20 C ; l'origine Z y est aussi) et de chaque point que Prusa palpera autour de la pièce
+/// (points majeurs xs × ys de la grille dans print agrandie de grow_x, grow_y : G29 P1). Le plus à l'avant possible,
+/// contre le bord gauche, sinon le droit ; vide si rien ne tient.
+std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern::Rect &print, float w, float h, std::span<const float> xs,
+    std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f);
 
 } // namespace od3d::pa

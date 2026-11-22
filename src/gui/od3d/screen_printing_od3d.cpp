@@ -3,6 +3,7 @@
 
 #include "print_info_od3d.hpp"
 #include "screen_files_od3d.hpp"
+#include "screen_pa_od3d.hpp"
 #include "value_editor_od3d.hpp"
 
 #include <algorithm>
@@ -535,8 +536,15 @@ void ScreenPrinting::update_info() {
         }
     }
 
-    // En bas : message d'état de Prusa (chauffe, palpage...), sinon prochain changement (M600), sinon le nom du fichier
-    if (const auto msg = print_status_message().current_message(); msg && !ended) {
+    // En bas : mesure automatique du PA (F4, « Passer » à la place de « Pause »), sinon message d'état de Prusa (chauffe,
+    // palpage...), sinon prochain changement (M600), sinon le nom du fichier
+    if (pa::is_running() && !ended) {
+        const pa::Status s = pa::status();
+        StringBuilder sb(d.bottom);
+        sb.append_printf("PA %u%s", unsigned(s.slot + 1), dot);
+        pa_progress(sb, s);
+        d.bottom_strong = true;
+    } else if (const auto msg = print_status_message().current_message(); msg && !ended) {
         StringBuilder sb(d.bottom);
         PrintStatusMessageFormatterBuddy::format(sb, msg.message);
         d.bottom_strong = true;

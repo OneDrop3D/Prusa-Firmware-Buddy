@@ -109,6 +109,34 @@ void MI_PA_PRINTER_WINS::OnChange(size_t) {
     pa::set_printer_wins(value());
 }
 
+// Vaut dès la prochaine impression (mesure mise en file au départ, avant le G-code de départ du trancheur)
+MI_PA_AUTO::MI_PA_AUTO()
+    : MenuItemSelectMenu(_("Automatic PA\nShort test before printing")) {
+    SetIconId(&img::nozzle_16x16);
+    set_current_item(int(pa::auto_mode()));
+}
+
+int MI_PA_AUTO::item_count() const {
+    return pa::auto_mode_count;
+}
+
+string_view_utf8 MI_PA_AUTO::build_item_text(int index, StringViewUtf8ParamBase &) const {
+    switch (pa::AutoMode(index)) {
+    case pa::AutoMode::off:
+        return _("Disabled");
+    case pa::AutoMode::first_print:
+        return _("New spool");
+    case pa::AutoMode::every_print:
+        return _("Every print");
+    }
+    return string_view_utf8::MakeNULLSTR();
+}
+
+bool MI_PA_AUTO::on_item_selected(const OnItemSelectedArgs &args) {
+    pa::set_auto_mode(pa::AutoMode(args.new_index));
+    return true;
+}
+
 // ---- Limite de débit (F5) ----
 
 // Vaut dès maintenant pour l'emplacement chargé ; la mesure se lance depuis la fiche de la bobine (PA › Débit, temp.).

@@ -27,11 +27,14 @@ namespace {
     constexpr Rect16 band = { 0, top, style::screen_w, style::screen_h - top };
     constexpr Rect16 head_rect = { 0, top + 1, 393, 54 };
     constexpr uint8_t band_radius = style::radius; ///< arrondi normé (18 avant)
-    constexpr Rect16 main_body = { 16, top + 60, 448, 42 };
+    // Le grand bouton (charger / décharger) partage sa ligne avec « Calibrer le PA » (F4, en un clic)
+    constexpr Rect16 main_body = { 16, top + 60, 288, 42 };
+    constexpr Rect16 calibrate_body = { 312, top + 60, 152, 42 };
     constexpr Rect16 close_body = { 397, top + 16, 67, 28 };
 
     enum Tag : uint8_t {
         tag_main,
+        tag_calibrate,
         tag_change,
         tag_material,
         tag_usage,
@@ -54,6 +57,7 @@ namespace {
         eject,
         cut,
         pa,
+        calibrate,
     };
 
     constexpr Rect16 secondary_body(int i) {
@@ -64,6 +68,7 @@ namespace {
     }
     static_assert(style::inside(band, style::with_ring(chip_body(3))) && style::inside(band, style::with_ring(secondary_body(2))));
     static_assert(head_rect.Bottom() < style::with_ring(main_body).Top() && style::with_ring(main_body).Bottom() < style::with_ring(secondary_body(0)).Top());
+    static_assert(style::with_ring(main_body).Right() < style::with_ring(calibrate_body).Left() && style::inside(band, style::with_ring(calibrate_body)));
     static_assert(style::with_ring(secondary_body(0)).Bottom() < style::with_ring(chip_body(0)).Top());
 
     /// Haut de la fiche : poignée, bobine, « Emplacement n · matière », état ; rien d'actif
@@ -128,6 +133,7 @@ namespace {
         std::array<char, 12> pa_text {}; ///< « PA 0.035 » ou « PA ? » (F4), avant le bouton qui le montre
         Head head;
         Button main;
+        Button calibrate; ///< F4 : « Calibrer le PA » en un clic (chargement compris)
         Button change;
         Button material;
         Button usage;
@@ -143,6 +149,7 @@ namespace {
         : IDialog(style::screen_rect) // tout l'écran : un toucher au-dessus de la fiche la ferme
         , head(this, index)
         , main(this, main_body, tag_main, Button::Look::primary, {}, nullptr, style::surface, style::radius_big)
+        , calibrate(this, calibrate_body, tag_calibrate, Button::Look::secondary, _("Calibrate PA"), nullptr, style::surface, style::radius_big)
         , change(this, secondary_body(0), tag_change, Button::Look::secondary, _("Change spool"), &img::spool_16x16)
         , material(this, secondary_body(1), tag_material, Button::Look::secondary, _("Material and colour"), &img::user_filament_16x16)
         , usage(this, secondary_body(2), tag_usage, Button::Look::secondary, _("Spool usage"), &img::info_16x16)
@@ -178,6 +185,8 @@ namespace {
         }
         main.set_font(Font::normal);
 
+        // La mesure charge elle-même la bobine (MMU actif) ; pas pendant une autre mesure
+        calibrate.set_enabled(idle && (loaded || mmu) && !pa::is_running());
         change.set_enabled(mmu_free);
         preload.set_enabled(mmu_free);
         eject.set_enabled(mmu_free);
@@ -201,7 +210,7 @@ namespace {
 
         if (!type) {
             // Emplacement vide : seul le bouton principal (SPEC_G.md §3.3)
-            for (Button *b : { &change, &material, &usage, &preload, &eject, &cut, &pa }) {
+            for (Button *b : { &calibrate, &change, &material, &usage, &preload, &eject, &cut, &pa }) {
                 b->set_enabled(false);
                 b->set_visible(false);
             }
@@ -226,6 +235,9 @@ namespace {
             switch (static_cast<Tag>(reinterpret_cast<uintptr_t>(param))) {
             case tag_main:
                 choice = main_choice;
+                break;
+            case tag_calibrate:
+                choice = Choice::calibrate;
                 break;
             case tag_change:
                 choice = Choice::change;
@@ -317,6 +329,9 @@ void open_sheet(uint8_t index) {
         break;
     case Choice::pa:
         open_pa(index);
+        break;
+    case Choice::calibrate:
+        open_pa(index, true); // l'écran du PA propose la mesure, puis montre ses étapes et « Annuler »
         break;
     }
 }

@@ -40,6 +40,98 @@ constexpr Rect16 spool_cell(Rect16 area, uint8_t tools, uint8_t gap, uint8_t i) 
         w + (col < extra_w ? 1 : 0), h + (row < extra_h ? 1 : 0));
 }
 
+// ---- Coins arrondis ----
+// Retour du 22/11 (8.0.2.29) : « les bobines sont dans un bloc gris clair, coupé en bas, avec un début d'arrondi ». Le
+// fond du texte d'une carte (rect de toute sa largeur) repeignait en carré l'arrondi des coins du bas. Le contenu d'une
+// carte reste dans la partie pleine de son corps.
+
+/// Pixel (x, y) d'un corps w × h aux coins de rayon r (relatif au corps) qui garde la couleur pleine : ni dans l'arrondi,
+/// ni sur son bord lissé (display::draw_rounded_rect mélange dès que le pixel touche le cercle de rayon r - 3/8)
+constexpr bool in_body(int w, int h, int r, int x, int y) {
+    if (x < 0 || y < 0 || x >= w || y >= h) {
+        return false;
+    }
+    const int cx = x < r ? x : w - 1 - x, cy = y < r ? y : h - 1 - y;
+    if (cx >= r || cy >= r) {
+        return true;
+    }
+    const int dx = 2 * (r - cx) - 1, dy = 2 * (r - cy) - 1; // en demi-pixels, du centre du coin au centre du pixel
+    return 16 * (dx * dx + dy * dy) < (8 * r - 3) * (8 * r - 3);
+}
+
+/// rect (absolu) tout entier dans la partie pleine de body : ses 4 coins suffisent (elle est convexe)
+constexpr bool inside_body(Rect16 body, uint8_t r, Rect16 rect) {
+    const int x0 = rect.Left() - body.Left(), x1 = rect.Right() - body.Left();
+    const int y0 = rect.Top() - body.Top(), y1 = rect.Bottom() - body.Top();
+    const int w = body.Width(), h = body.Height();
+    return in_body(w, h, r, x0, y0) && in_body(w, h, r, x1, y0) && in_body(w, h, r, x0, y1) && in_body(w, h, r, x1, y1);
+}
+
+/// rect (absolu) rétréci à gauche et à droite jusqu'à ne plus toucher les coins arrondis de body
+constexpr Rect16 clear_of_corners(Rect16 body, uint8_t r, Rect16 rect) {
+    const int w = body.Width(), h = body.Height();
+    const int y0 = rect.Top() - body.Top(), y1 = rect.Bottom() - body.Top();
+    int x0 = rect.Left() - body.Left(), x1 = rect.Right() - body.Left();
+    while (x0 <= x1 && !(in_body(w, h, r, x0, y0) && in_body(w, h, r, x0, y1))) {
+        ++x0;
+    }
+    while (x1 >= x0 && !(in_body(w, h, r, x1, y0) && in_body(w, h, r, x1, y1))) {
+        --x1;
+    }
+    return Rect16(body.Left() + x0, rect.Top(), x1 >= x0 ? x1 - x0 + 1 : 0, rect.Height());
+}
+
+constexpr bool overlap(Rect16 a, Rect16 b) {
+    return a.Left() <= b.Right() && b.Left() <= a.Right() && a.Top() <= b.Bottom() && b.Top() <= a.Bottom();
+}
+
+/// Hauteurs des polices small et normal (height() n'existe pas hors du firmware ; vérifiées dans screen_home_od3d.cpp)
+inline constexpr uint16_t small_h = 16, normal_h = 19;
+
+/// Contenu d'une carte de bobine de l'accueil (corps body, coins de rayon r) selon sa place : large (sans MMU, INDX 3
+/// têtes) bobine Ø40 à gauche, texte à droite ; basse (INDX 8 têtes, deux rangées) petite bobine et « n MATIÈRE » ;
+/// étroite (MMU3) bobine en haut, « n MATIÈRE » dessous. Rien ne touche les coins arrondis (testé, et vérifié à la
+/// compilation pour 1 à 8 bobines).
+struct SpoolParts {
+    point_i16_t spool; ///< coin haut gauche du disque ; son image (anneau compris) déborde de 2 px tout autour
+    uint8_t d; ///< diamètre
+    Rect16 label; ///< « n MATIÈRE », ou la matière seule en gras (carte large d'une seule bobine)
+    Rect16 state; ///< état (carte large), vide sinon
+
+    constexpr Rect16 spool_image() const {
+        return Rect16(spool.x - 2, spool.y - 2, d + 4, d + 4);
+    }
+};
+
+constexpr SpoolParts spool_parts(Rect16 body, uint8_t r, bool single) {
+    if (body.Height() < 40) { // avant la large : 6 et 7 têtes ont deux rangées de cartes larges
+        constexpr uint8_t d = 20;
+        const point_i16_t at { int16_t(body.Left() + r), int16_t(body.Top() + (body.Height() - d) / 2) }; // anneau hors des coins
+        const int16_t x = at.x + d + 4;
+        return { at, d, clear_of_corners(body, r, Rect16(x, body.Top() + (body.Height() - small_h) / 2, body.Left() + body.Width() - x, small_h)), Rect16() };
+    }
+    if (body.Width() >= 110) {
+        constexpr uint8_t d = 40;
+        const point_i16_t at { int16_t(body.Left() + 10), int16_t(body.Top() + (body.Height() - d) / 2) };
+        const int16_t x = at.x + d + 10;
+        const uint16_t w = body.Left() + body.Width() - 6 - x;
+        const uint16_t label_h = single ? normal_h : small_h;
+        const int16_t y = body.Top() + (body.Height() - label_h - small_h) / 2;
+        return { at, d, clear_of_corners(body, r, Rect16(x, y, w, label_h)), clear_of_corners(body, r, Rect16(x, y + label_h, w, small_h)) };
+    }
+    // Le libellé finit 4 px au-dessus du bas : 7 caractères tiennent entre les arrondis (bobine Ø32 sur 56 px)
+    const uint8_t d = std::min<int>(40, body.Height() - 24);
+    const point_i16_t at { int16_t(body.Left() + (body.Width() - d) / 2), int16_t(body.Top() + 3) };
+    return { at, d, clear_of_corners(body, r, Rect16(body.Left(), body.Top() + d + 5, body.Width(), small_h)), Rect16() };
+}
+
+/// Le contenu tient dans la partie pleine du corps, sans chevauchement
+constexpr bool spool_parts_fit(Rect16 body, uint8_t r, bool single) {
+    const SpoolParts p = spool_parts(body, r, single);
+    return inside_body(body, r, p.spool_image()) && inside_body(body, r, p.label) && !overlap(p.spool_image(), p.label)
+        && (p.state.IsEmpty() || (inside_body(body, r, p.state) && !overlap(p.spool_image(), p.state) && !overlap(p.label, p.state)));
+}
+
 } // namespace od3d::layout
 
 namespace od3d::grid {

@@ -5,6 +5,7 @@
 #include "screen_printing_od3d.hpp"
 #include "screen_temperatures_od3d.hpp"
 #include "island_od3d.hpp"
+#include "layout_od3d.hpp"
 #include "spinner_od3d.hpp"
 #include "thumbnail_od3d.hpp"
 
@@ -487,7 +488,8 @@ void IconButton::draw_content(Rect16 body) {
         return;
     }
     draw_icon({ x, int16_t(body.Top() + 12) }, icon, fill());
-    draw_text(Rect16(body.Left(), body.Top() + 33, body.Width(), height(Font::small)), label, Font::small, style::text_strong, fill(), Align_t::Center());
+    // Le fond du libellé ne repeint pas les coins arrondis du bas (« MMU > » de l'accueil : 56 px de haut)
+    draw_text(layout::clear_of_corners(body, radius, Rect16(body.Left(), body.Top() + 33, body.Width(), height(Font::small))), label, Font::small, style::text_strong, fill(), Align_t::Center());
 }
 
 IconCard::IconCard(window_t *parent, Rect16 body, Action action, const img::Resource &icon, Color tile, const string_view_utf8 &title, const string_view_utf8 &subtitle)
@@ -511,8 +513,9 @@ void IconCard::draw_content(Rect16 body) {
     draw_icon({ int16_t(t.Left() + 3), int16_t(t.Top() + 3) }, icon, tile);
     const int16_t x = t.Left() + t.Width() + 5;
     const uint16_t w = body.Left() + body.Width() - x;
-    draw_text(Rect16(x, body.Top() + 7, w, height(Font::normal)), title, Font::normal, style::text_strong, fill());
-    draw_text(Rect16(x, body.Top() + 27, w, height(Font::small)), subtitle, Font::small, style::text_muted, fill());
+    // Textes jusqu'au bord droit : leur fond s'arrête avant les coins arrondis
+    draw_text(layout::clear_of_corners(body, radius, Rect16(x, body.Top() + 7, w, height(Font::normal))), title, Font::normal, style::text_strong, fill());
+    draw_text(layout::clear_of_corners(body, radius, Rect16(x, body.Top() + 27, w, height(Font::small))), subtitle, Font::small, style::text_muted, fill());
 }
 
 Temps Temps::read() {

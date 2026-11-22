@@ -1,5 +1,6 @@
 /// OneDrop3D (interface G) : bobines selon le nombre d'outils et défilement de la grille des fichiers (layout_od3d.hpp)
 #include <gui/od3d/layout_od3d.hpp>
+#include <gui/od3d/spool_draw.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace od3d;
@@ -92,4 +93,41 @@ TEST_CASE("od3d grid: a fling adds a few rows") {
     CHECK(grid::fling_rows(-1200) == 2);
     CHECK(grid::fling_rows(-9000) == 3); // inertie légère
     CHECK(grid::fling_rows(1200) == -2); // doigt vers le bas : retour au début
+}
+
+TEST_CASE("od3d layout: card content stays off the rounded corners") {
+    // in_body suit exactement les coins de display::draw_rounded_rect (corner_beyond_quarters : 0 = couleur pleine)
+    for (const int r : { 2, 8, 12, 14 }) {
+        for (int y = 0; y < r; ++y) {
+            for (int x = 0; x < r; ++x) {
+                INFO("r " << r << " x " << x << " y " << y);
+                CHECK(layout::in_body(60, 50, r, x, y) == (spool::corner_beyond_quarters(x, y, r) == 0));
+                CHECK(layout::in_body(60, 50, r, 59 - x, 49 - y) == (spool::corner_beyond_quarters(x, y, r) == 0));
+            }
+        }
+    }
+    CHECK_FALSE(layout::in_body(60, 50, 12, -1, 25));
+    CHECK_FALSE(layout::in_body(60, 50, 12, 30, 50));
+
+    // Le libellé de toute la largeur d'une carte de bobine du MMU (74 × 56) : le bas touchait les coins (retour du 22/11)
+    const Rect16 body(100, 40, 74, 56);
+    const Rect16 old_label(100, 40 + 39, 74, 16);
+    CHECK_FALSE(layout::inside_body(body, 12, old_label));
+    const Rect16 cleared = layout::clear_of_corners(body, 12, old_label);
+    CHECK(layout::inside_body(body, 12, cleared));
+    CHECK(cleared.Left() - body.Left() == body.Right() - cleared.Right()); // centré : le texte centré le reste
+    CHECK(layout::clear_of_corners(body, 12, Rect16(110, 60, 30, 16)) == Rect16(110, 60, 30, 16)); // loin des coins : inchangé
+
+    // Les trois dispositions, aux tailles de l'accueil (1, 3, 5 et 8 bobines) : 7 caractères de 9 px tiennent sous la
+    // bobine du MMU, 6 à côté de la petite bobine
+    const auto fits = [](Rect16 b, bool single, int chars) {
+        INFO("corps " << b.Width() << " x " << b.Height());
+        CHECK(layout::spool_parts_fit(b, 12, single));
+        CHECK(layout::spool_parts(b, 12, single).label.Width() >= chars * 9);
+    };
+    fits(Rect16(8, 46, 390, 56), true, 8);
+    fits(Rect16(8, 46, 126, 56), false, 6);
+    fits(Rect16(8, 46, 74, 56), false, 7);
+    fits(Rect16(8, 46, 93, 26), false, 6);
+    fits(Rect16(8, 77, 93, 25), false, 6);
 }

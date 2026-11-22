@@ -46,6 +46,32 @@ namespace {
     static_assert(shelf_rect(4).Right() + 1 == style::screen_w - style::margin);
     static_assert(shelf_rect(4) == Rect16(384, style::top, 88, 133), "les 5 bobines du MMU gardent leur place (SPEC_G.md §3.2)");
 
+    /// Corps d'une carte de l'étagère dans sa fenêtre (son rect et la marge de l'anneau) : 3 px plus haut si la bobine
+    /// est chargée. Avant, il prenait la hauteur de la fenêtre et non celle de son corps : 4 px plus bas que la fenêtre,
+    /// repeints par le fond de l'écran (bas des cartes coupé).
+    constexpr Rect16 shelf_card(Rect16 window, bool loaded) {
+        const Rect16 full(window.Left() + style::ring, window.Top() + style::ring, window.Width() - 2 * style::ring, window.Height() - 2 * style::ring);
+        return Rect16(full.Left(), full.Top() + (loaded ? 0 : lift), full.Width(), full.Height() - lift);
+    }
+    /// Cartes de l'étagère (1 à 8 outils), chargées ou non : dans leur fenêtre, sans chevauchement, au-dessus des raccourcis
+    constexpr bool shelf_fits(uint8_t tools) {
+        for (uint8_t i = 0; i < tools; ++i) {
+            const Rect16 window = style::with_ring(shelf_rect(i, tools));
+            if (!style::inside(window, style::with_ring(shelf_card(window, false))) || !style::inside(window, style::with_ring(shelf_card(window, true)))
+                || window.Bottom() >= style::with_ring(shortcut_body(0)).Top()) {
+                return false;
+            }
+            for (uint8_t j = 0; j < i; ++j) {
+                if (layout::overlap(window, style::with_ring(shelf_rect(j, tools)))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    static_assert(shelf_fits(1) && shelf_fits(2) && shelf_fits(3) && shelf_fits(4) && shelf_fits(5) && shelf_fits(6) && shelf_fits(7) && shelf_fits(8));
+    static_assert(shelf_card(style::with_ring(shelf_rect(0)), true).Height() == shelf_card_h, "une rangée : cartes de 130 px");
+
     enum ShelfTag : uint8_t {
         // 0 à 4 : les bobines
         tag_preload_all = 5,
@@ -112,9 +138,8 @@ void ShelfSpool::update(bool mmu_ready) {
 void ShelfSpool::unconditionalDraw() {
     // Le corps bouge selon l'état : il est repeint avec sa marge, puis la bande de 3 px qu'il laisse, au fond
     const Rect16 r = GetRect();
-    const Rect16 full = body();
-    const uint16_t card_h = r.Height() - lift; // 130 sur une rangée, ~60 sur deux
-    const Rect16 b(full.Left(), full.Top() + (slot.loaded ? 0 : lift), full.Width(), card_h);
+    const Rect16 b = shelf_card(r, slot.loaded);
+    const uint16_t card_h = b.Height(); // 130 sur une rangée, ~60 sur deux
     const Rect16 outer = style::with_ring(b);
     display::fill_rect(slot.loaded ? Rect16(r.Left(), outer.Bottom() + 1, r.Width(), lift) : Rect16(r.Left(), r.Top(), r.Width(), lift), style::screen);
     const Color base = slot.loaded ? style::secondary : style::surface;

@@ -39,8 +39,10 @@ protected:
     /// OneDrop3D (interface G) : appui long = retour
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
-    /// OneDrop3D (interface G) : le fond seulement entre l'en-tête, la liste et les onglets, qui se peignent eux-mêmes
-    void unconditionalDraw() override;
+    /// OneDrop3D (interface G) : le fond seulement entre l'en-tête, la liste et les onglets, qui se peignent eux-mêmes,
+    /// de haut en bas avec chacun (od3d::draw_whole)
+    void draw() override;
+    void unconditionalDraw() override; ///< le fond entre eux d'abord, pour les écrans qui appellent window_frame_t::draw()
 
 protected:
     /// OneDrop3D (interface G) : en-tête G ; la barre d'onglets remplace le pied de page

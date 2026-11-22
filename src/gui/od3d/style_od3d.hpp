@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <Rect16.h>
 #include <span>
 #include <utils/color.hpp>
@@ -86,11 +87,13 @@ static_assert(tab_w * 4 == screen_w);
 static_assert(back_touch.Width() >= 44 && back_touch.Height() >= 44 && tab_bar_rect.Height() >= 44, "cibles tactiles d'au moins 44 px");
 static_assert(top == 46 && content.Bottom() == 274);
 
+inline constexpr size_t max_gap_rects = 40;
+
 /// Appelle fill(morceau) pour chaque partie d'area qu'aucun des rects ne couvre : bandes horizontales coupées aux bords
-/// des rects, puis les intervalles libres de chaque bande. Plus de max_rects rects : fill(area), tout est repeint.
+/// des rects, puis les intervalles libres de chaque bande. Plus de max_gap_rects rects : fill(area), tout est repeint.
 template <class Fill>
 void for_each_gap(Rect16 area, std::span<const Rect16> rects, Fill &&fill) {
-    constexpr size_t max_rects = 40;
+    constexpr size_t max_rects = max_gap_rects;
     if (rects.size() > max_rects) {
         fill(area);
         return;
@@ -131,6 +134,49 @@ void for_each_gap(Rect16 area, std::span<const Rect16> rects, Fill &&fill) {
             fill(Rect16(x, y0, right - x, y1 - y0));
         }
     }
+}
+
+/// Peint area d'une passe, de haut en bas : chaque bande du fond (fill) vient juste après les éléments qui commencent à
+/// sa hauteur ou au-dessus (draw(i), qui repeint tout rects[i]). Un écran n'apparaît plus en grille de fond vide avant
+/// son contenu (retour du 22/11). Un élément qui en chevauche un plus ancien est peint après lui, comme chez Prusa.
+template <class Draw, class Fill>
+void paint_top_down(Rect16 area, std::span<const Rect16> rects, Draw &&draw, Fill &&fill) {
+    if (rects.size() > max_gap_rects) {
+        fill(area); // comme for_each_gap : tout le fond, puis les éléments
+        for (size_t i = 0; i < rects.size(); ++i) {
+            draw(i);
+        }
+        return;
+    }
+    std::array<bool, max_gap_rects> done {};
+    const auto draw_one = [&](const auto &self, size_t k) -> void {
+        for (size_t i = 0; i < k; ++i) {
+            if (!done[i] && rects[i].HasIntersection(rects[k])) {
+                self(self, i);
+            }
+        }
+        done[k] = true;
+        draw(k);
+    };
+    const auto draw_above = [&](int16_t y_end) { // les éléments qui commencent avant y_end, le plus haut d'abord
+        for (;;) {
+            size_t pick = rects.size();
+            for (size_t i = 0; i < rects.size(); ++i) {
+                if (!done[i] && rects[i].Top() < y_end && (pick == rects.size() || rects[i].Top() < rects[pick].Top())) {
+                    pick = i;
+                }
+            }
+            if (pick == rects.size()) {
+                return;
+            }
+            draw_one(draw_one, pick);
+        }
+    };
+    for_each_gap(area, rects, [&](Rect16 gap) {
+        draw_above(gap.Bottom() + 1);
+        fill(gap);
+    });
+    draw_above(INT16_MAX);
 }
 
 } // namespace od3d::style

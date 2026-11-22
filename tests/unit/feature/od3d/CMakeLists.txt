@@ -28,7 +28,7 @@ add_executable(
   draw_od3d_tests
   ${CMAKE_CURRENT_SOURCE_DIR}/draw_od3d_test.cpp ${CMAKE_SOURCE_DIR}/src/gui/od3d/thumbnail_od3d.cpp
   ${CMAKE_SOURCE_DIR}/src/gui/qoi_decoder.cpp ${CMAKE_SOURCE_DIR}/src/common/utils/color.cpp
-  ${CMAKE_SOURCE_DIR}/src/common/str_utils.cpp
+  ${CMAKE_SOURCE_DIR}/src/common/str_utils.cpp ${CMAKE_SOURCE_DIR}/src/guiapi/src/Rect16.cpp
   )
 target_include_directories(
   draw_od3d_tests

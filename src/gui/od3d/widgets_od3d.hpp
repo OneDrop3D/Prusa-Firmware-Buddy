@@ -62,6 +62,12 @@ void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, 
 /// Fond de frame entre ses fenêtres normales visibles (first à last), qui repeignent chacune tout leur rect
 void fill_background(const window_t &frame, window_t *first, window_t *last);
 
+/// draw() d'un cadre G à repeindre en entier : ses fenêtres normales visibles (first à last, qui repeignent chacune tout
+/// leur rect) de haut en bas, chacune avec la bande du fond où elle commence (style::paint_top_down), au lieu de tout
+/// le fond d'abord. Puis on_background (ce que le cadre peint sur son fond, entre ses fenêtres), puis les dialogues.
+/// false si le cadre n'est pas à repeindre en entier : window_frame_t::draw() (seuls les éléments changés).
+bool draw_whole(window_frame_t &frame, window_t *first, window_t *last, void (*on_background)(window_frame_t &) = nullptr);
+
 /// Cadre dont gaps_only ne peint que le fond entre ses fenêtres (qui repeignent chacune tout leur rect) : un écran
 /// apparaît d'une passe, sans être d'abord effacé ; sinon comme window_frame_t (tout le fond, puis les fenêtres)
 class GapFrame : public window_frame_t {
@@ -70,7 +76,7 @@ public:
     bool gaps_only = false;
 
 protected:
-    void unconditionalDraw() override;
+    void draw() override;
 };
 
 /// Anneau d'attente (spinner_od3d.hpp) de bord w dans le carré box, au fond bg, l'arc à la position step : tout, ou
@@ -144,7 +150,8 @@ public:
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
-    void unconditionalDraw() override; ///< le fond seulement entre les éléments
+    void draw() override; ///< à repeindre en entier : draw_whole(), le fond avec chaque élément
+    void unconditionalDraw() override; ///< ce que l'écran peint sur son fond entre ses éléments (rien ici)
 
 private:
     bool has_back;

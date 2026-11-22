@@ -82,7 +82,7 @@ private:
 };
 
 /// Haut d'une carte : la case de la vignette et son icône ; l'image y est dessinée par bandes par ScreenFiles, quand
-/// la molette et le doigt sont au repos
+/// la molette et le doigt sont au repos, ou tout de suite si elle est dans le cache des vignettes
 class FileThumb : public window_t {
 public:
     /// index : celui de la carte, construite après la vignette (son anneau passe sur les coins de la case)
@@ -135,6 +135,9 @@ public:
 
     /// La case d'une vignette vient d'être repeinte : sa lecture en cours est abandonnée (elle reprendra)
     void thumb_cleared(const FileTile &tile);
+
+    /// Dessine la case et la vignette déjà décodée de la carte (cache), d'une passe ; false si elle n'y est pas
+    bool draw_cached(const FileTile &tile, Rect16 box) const;
 
     int item_count() const; ///< entrées affichables, « .. » compris dans un sous-dossier
     int first_item() const { return first; }
@@ -223,6 +226,7 @@ private:
 class ScreenPreview final : public Screen {
 public:
     ScreenPreview();
+    ~ScreenPreview();
 
     static std::array<char, filename_defs::path_buffer_size> path; ///< fichier montré (posé par open_preview)
 

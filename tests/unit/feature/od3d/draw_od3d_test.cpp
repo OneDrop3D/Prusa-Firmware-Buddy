@@ -1,9 +1,12 @@
-// OneDrop3D : dessin d'une passe (images calculées en flux QOI, fond entre les éléments, couleur du focus).
+// OneDrop3D : dessin d'une passe (images calculées en flux QOI, fond entre les éléments, couleur du focus, cache des
+// vignettes).
 #include <gui/od3d/style_od3d.hpp>
 #include <gui/od3d/thumbnail_od3d.hpp>
 
+#include <algorithm>
 #include <array>
 #include <catch2/catch_test_macros.hpp>
+#include <iterator>
 #include <vector>
 
 using namespace od3d;
@@ -223,4 +226,137 @@ TEST_CASE("vignette réduite : image trop large ou illisible") {
     CHECK_FALSE(too_wide.band(5));
     std::array<std::byte, 8> buffer;
     CHECK(too_wide.read(buffer).empty());
+}
+
+TEST_CASE("cache des vignettes : relue telle qu'elle a été dessinée, par bandes, sans relire la source") {
+    std::vector<std::byte> pool(16 * 1024);
+    QoiCache cache(pool);
+
+    // Vignette dessinée par bandes (comme la grille), chaque pixel envoyé aussi au cache
+    PixelQoiReader source(313, 173, [](const void *, int x, int y) { return y < 40 ? Color::from_raw(0x22242A) : gradient(x % 31, y % 13); }, nullptr);
+    ScaledQoiReader bands(source, { .factor = 3, .back = COLOR_BLACK, .radius = 0, .outside = COLOR_BLACK });
+    REQUIRE(bands.open());
+    cache.start(7, bands.width(), bands.height());
+    bands.record = &cache;
+    std::vector<qoi::Pixel> drawn;
+    while (bands.band(8)) {
+        uint32_t bw, bh;
+        const auto part = decode(bands, bw, bh);
+        drawn.insert(drawn.end(), part.begin(), part.end());
+    }
+    CHECK_FALSE(cache.find(7).has_value()); // pas avant la fin
+    cache.finish();
+
+    auto image = cache.find(7);
+    REQUIRE(image);
+    uint32_t w, h;
+    const auto again = decode(*image, w, h);
+    CHECK(w == 104);
+    CHECK(h == 57);
+    REQUIRE(again.size() == drawn.size());
+    for (size_t i = 0; i < again.size(); ++i) {
+        INFO("pixel " << i);
+        CHECK(again[i].r == drawn[i].r);
+        CHECK(again[i].g == drawn[i].g);
+        CHECK(again[i].b == drawn[i].b);
+        CHECK(again[i].a == 255);
+    }
+    CHECK_FALSE(cache.find(8).has_value());
+}
+
+TEST_CASE("cache des vignettes : les plus anciennes partent, une image incomplète ou trop grande n'est pas gardée") {
+    std::vector<std::byte> pool(1000);
+    QoiCache cache(pool);
+    // Un pixel sur deux d'une autre couleur : ~4 octets par pixel, 120 pixels ≈ 480 octets ; deux tiennent, pas trois
+    const auto record = [&](uint32_t key, uint32_t pixels) {
+        cache.start(key, 12, 10);
+        for (uint32_t i = 0; i < pixels; ++i) {
+            cache.push(Color::from_rgb(uint8_t(key * 40 + i * 7), uint8_t(i * 13), uint8_t(i % 2 ? 250 : 3)));
+        }
+        cache.finish();
+    };
+    record(1, 120);
+    record(2, 120);
+    CHECK(cache.find(1).has_value());
+    CHECK(cache.find(2).has_value());
+    record(3, 120);
+    CHECK_FALSE(cache.find(1).has_value());
+    CHECK(cache.find(2).has_value());
+    CHECK(cache.find(3).has_value());
+
+    record(4, 50); // incomplète (la source s'est arrêtée)
+    CHECK_FALSE(cache.find(4).has_value());
+    CHECK(cache.find(3).has_value());
+
+    // Après plusieurs tours du tampon circulaire, l'image se relit toujours entière
+    for (uint32_t key = 10; key < 20; ++key) {
+        record(key, 120);
+    }
+    auto image = cache.find(19);
+    REQUIRE(image);
+    uint32_t w, h;
+    const auto pixels = decode(*image, w, h);
+    REQUIRE(pixels.size() == 120);
+    for (uint32_t i = 0; i < 120; ++i) {
+        CHECK(pixels[i].b == uint8_t(i % 2 ? 250 : 3));
+    }
+
+    std::vector<std::byte> tiny(100);
+    QoiCache small(tiny);
+    small.start(5, 12, 10);
+    for (int i = 0; i < 120; ++i) {
+        small.push(Color::from_rgb(uint8_t(i * 7), uint8_t(i * 13), uint8_t(i % 2 ? 250 : 3)));
+    }
+    small.finish();
+    CHECK_FALSE(small.find(5).has_value());
+
+    record(2, 120);
+    cache.clear();
+    CHECK_FALSE(cache.find(2).has_value());
+}
+
+TEST_CASE("dessin d'une passe : de haut en bas, chaque élément avec le fond à sa hauteur, une seule fois") {
+    constexpr Rect16 area = { 0, 0, 100, 60 };
+    const std::array<Rect16, 5> rects { {
+        { 0, 0, 100, 10 }, // en-tête
+        { 10, 30, 30, 20 }, // carte du bas, inscrite avant celle du haut
+        { 10, 14, 30, 12 },
+        { 50, 12, 40, 40 },
+        { 52, 10, 10, 10 }, // chevauche le précédent, commence plus haut : peint après lui
+    } };
+    std::vector<int> order; // index d'élément, ou -1 - y d'une bande du fond
+    std::array<std::array<int, 100>, 60> painted {};
+    style::paint_top_down(
+        area, rects, [&](size_t i) { order.push_back(int(i)); },
+        [&](Rect16 r) {
+            // Les éléments qui commencent à cette hauteur ou au-dessus sont déjà peints
+            for (size_t i = 0; i < rects.size(); ++i) {
+                if (rects[i].Top() <= r.Top()) {
+                    INFO("bande " << r.Top() << ", élément " << i);
+                    CHECK(std::find(order.begin(), order.end(), int(i)) != order.end());
+                }
+            }
+            for (int y = r.Top(); y <= r.Bottom(); ++y) {
+                for (int x = r.Left(); x <= r.Right(); ++x) {
+                    ++painted[y][x];
+                }
+            }
+            order.push_back(-1 - r.Top());
+        });
+
+    // Chaque élément une fois ; le haut avant le bas ; un élément après celui, plus ancien, qu'il chevauche
+    std::vector<int> elements;
+    std::copy_if(order.begin(), order.end(), std::back_inserter(elements), [](int v) { return v >= 0; });
+    CHECK(elements == std::vector<int> { 0, 3, 4, 2, 1 });
+    // Fond : chaque pixel hors des éléments une fois
+    for (int y = 0; y < 60; ++y) {
+        for (int x = 0; x < 100; ++x) {
+            bool covered = false;
+            for (const Rect16 &r : rects) {
+                covered = covered || (x >= r.Left() && x <= r.Right() && y >= r.Top() && y <= r.Bottom());
+            }
+            INFO("x " << x << " y " << y);
+            CHECK(painted[y][x] == (covered ? 0 : 1));
+        }
+    }
 }

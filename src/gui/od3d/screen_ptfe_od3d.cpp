@@ -51,7 +51,7 @@ namespace {
 } // namespace
 
 MI_PTFE_AUTO::MI_PTFE_AUTO()
-    : IWindowMenuItem(_("Measure automatically\nWith a preloaded spool"), &img::mmu_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(_("Measure automatically\nWith a preloaded spool"), &img::spool_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_PTFE_AUTO::click(IWindowMenu &) {
     open_screen<ScreenPtfe>();
@@ -61,7 +61,7 @@ MI_PTFE_LENGTH_NOW::MI_PTFE_LENGTH_NOW()
     : MenuItemAutoUpdatingLabel(_("Front PTFE Length"), "%d mm", [](auto *) -> int {
         return marlin_vars().mmu2_bowden_length.get();
     }) {
-    SetIconId(&img::mmu_16x16);
+    SetIconId(&img::metrics_16x16);
 }
 
 MI_PTFE_SLOT::MI_PTFE_SLOT()

@@ -138,12 +138,13 @@ void SpoolCard::draw_content(Rect16 body) {
         const uint16_t w = body.Left() + body.Width() - 6 - x;
         // Seule bobine : la matière en gras ; trois têtes (~60 px) : « n MATIÈRE » en petit, 6 caractères
         const Font font = single ? Font::normal : Font::small;
-        const int16_t y = body.Top() + (body.Height() - height(font) - height(Font::small)) / 2;
-        draw_text(Rect16(x, y, w, height(font)), string_view_utf8::MakeRAM(single ? slot.material.data() : label), font, color, fill());
+        const uint16_t font_h = single ? height(Font::normal) : height(Font::small); // height() est consteval
+        const int16_t y = body.Top() + (body.Height() - font_h - height(Font::small)) / 2;
+        draw_text(Rect16(x, y, w, font_h), string_view_utf8::MakeRAM(single ? slot.material.data() : label), font, color, fill());
         char state_text[16];
         Color state_color;
         const string_view_utf8 state = atelier::slot_state(slot, index, state_text, state_color);
-        draw_text(Rect16(x, y + height(font), w, height(Font::small)), state, Font::small, IsEnabled() ? state_color : style::text_faint, fill());
+        draw_text(Rect16(x, y + font_h, w, height(Font::small)), state, Font::small, IsEnabled() ? state_color : style::text_faint, fill());
         return;
     }
     if (body.Height() < 40) {

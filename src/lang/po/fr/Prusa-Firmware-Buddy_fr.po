@@ -11740,3 +11740,80 @@ msgstr "Accéléromètre disponible\nSes tests sont proposés"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Front PTFE"
 msgstr "PTFE avant"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Update the MMU via the front USB\nMMU micro-USB into the front port"
+msgstr "Mettre à jour le MMU par l'USB avant\nMicro-USB du MMU sur le port avant"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU via front USB"
+msgstr "MMU par l'USB avant"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Remove the USB drive, then plug the micro-USB of the MMU board into the front USB port of the printer. The printer writes the MMU firmware it carries, then reads it back."
+msgstr "Retirez la clé USB, puis branchez le micro-USB de la carte du MMU sur le port USB avant de l'imprimante. L'imprimante écrit le firmware du MMU qu'elle contient, puis le relit."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Install"
+msgstr "Installer"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Retry"
+msgstr "Réessayer"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Starting the MMU bootloader..."
+msgstr "Démarrage du chargeur du MMU..."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Writing and reading back:"
+msgstr "Écriture et relecture :"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Verified. Unplug the cable, then Finish."
+msgstr "Vérifié. Débranchez le câble, puis Terminer."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU firmware missing in the printer."
+msgstr "Firmware du MMU absent de l'imprimante."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU disconnected."
+msgstr "MMU débranché."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The MMU did not enter its bootloader."
+msgstr "Le MMU n'est pas passé dans son chargeur."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU bootloader not answering:"
+msgstr "Le chargeur du MMU ne répond pas :"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Command refused by the MMU:"
+msgstr "Commande refusée par le MMU :"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Not an MMU3 board: nothing written."
+msgstr "Pas une carte de MMU3 : rien n'est écrit."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Read-back differs at"
+msgstr "Relecture différente à"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU connected, firmware to install:"
+msgstr "MMU branché, firmware à installer :"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Remove the USB drive from the front port."
+msgstr "Retirez la clé USB du port avant."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Waiting for the MMU on the front USB port..."
+msgstr "En attente du MMU sur le port USB avant..."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+#, c-format
+msgid "Write MMU firmware %s from the printer? Do not unplug anything until it is verified."
+msgstr "Écrire le firmware %s dans le MMU depuis l'imprimante ? Ne débranchez rien avant la vérification."

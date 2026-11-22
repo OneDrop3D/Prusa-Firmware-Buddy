@@ -16,6 +16,8 @@ endif()
 if(HAS_MMU2)
   # Mise à jour du firmware du MMU par son USB : M709 S2 coupe la communication
   target_sources(firmware PRIVATE mmu_usb_od3d.cpp)
+  # Firmware du MMU écrit par l'imprimante, le MMU branché sur le port USB avant (classe de l'hôte USB, AVR109)
+  target_sources(firmware PRIVATE avr109_od3d.cpp mmu_flash_od3d.cpp)
   # F41 : tube PTFE avant du MMU mesuré (M1999)
   target_sources(firmware PRIVATE ptfe_od3d.cpp)
 endif()

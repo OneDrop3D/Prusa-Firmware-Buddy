@@ -8,6 +8,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <buddy/main.h>
+#include <option/has_mmu2.h>
 
 #include "stm32f4xx.h"
 #include "stm32f4xx_hal.h"
@@ -20,7 +21,8 @@ extern "C" {
 
 #define USBH_KEEP_CFG_DESCRIPTOR 1
 
-#define USBH_MAX_NUM_SUPPORTED_CLASS 1
+// OneDrop3D : la clé et, avec un MMU, son firmware écrit par le port avant (feature/od3d/mmu_flash_od3d.hpp)
+#define USBH_MAX_NUM_SUPPORTED_CLASS (1 + HAS_MMU2())
 
 #define USBH_MAX_SIZE_CONFIGURATION 256
 

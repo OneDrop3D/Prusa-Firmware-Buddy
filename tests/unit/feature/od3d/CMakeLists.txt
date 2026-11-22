@@ -172,3 +172,9 @@ add_executable(
   )
 target_include_directories(calib_registry_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(calib_registry_od3d_tests)
+
+add_executable(
+  avr109_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/avr109_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/avr109_od3d.cpp
+  )
+target_include_directories(avr109_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(avr109_od3d_tests)

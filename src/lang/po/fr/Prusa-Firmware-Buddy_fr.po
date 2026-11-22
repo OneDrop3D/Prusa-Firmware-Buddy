@@ -11388,3 +11388,55 @@ msgstr "Bobine neuve"
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Every print"
 msgstr "Chaque impression"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Sleep mode\nScreen, lights, heaters, motors"
+msgstr "Mode veille\nÉcran, lumières, chauffes, moteurs"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Sleep mode"
+msgstr "Mode veille"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Sleep now"
+msgstr "Mettre en veille maintenant"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Not while printing or during an operation."
+msgstr "Pas pendant une impression ni une opération en cours."
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Immediately"
+msgstr "Tout de suite"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Automatic sleep\nAfter the delay without use"
+msgstr "Veille automatique\nAprès le délai sans utilisation"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Delay\nWithout touch, knob or job"
+msgstr "Délai\nSans toucher, molette ni travail"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Screen off\nBacklight off, black screen"
+msgstr "Écran éteint\nRétroéclairage coupé, écran noir"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Lights off\nChamber, status bar and bed"
+msgstr "Lumières éteintes\nChambre, barre d'état et plateau"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Heaters off\nNozzle and bed, never while printing"
+msgstr "Chauffes coupées\nBuse et plateau, jamais en impression"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Heaters delay\nAfter falling asleep"
+msgstr "Délai des chauffes\nAprès la mise en veille"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Motors off\nX, Y and extruder: homing is lost"
+msgstr "Moteurs coupés\nX, Y et extrudeur : origine perdue"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Fans off\nChamber fans and filtration"
+msgstr "Ventilateurs coupés\nChambre et filtration"

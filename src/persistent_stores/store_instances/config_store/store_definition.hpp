@@ -59,6 +59,7 @@
 #include <feature/od3d/pa_math_od3d.hpp>
 #include <feature/od3d/spool_calib_math_od3d.hpp>
 #include <feature/od3d/mpc_od3d.hpp>
+#include <feature/od3d/sleep_math_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -498,6 +499,9 @@ struct CurrentStore
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Collision Enabled")> od3d_collision_enabled;
     StoreItem<uint8_t, 1, ItemFlag::features, journal::hash("OD3D Collision Sensitivity")> od3d_collision_sensitivity;
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Collision Action")> od3d_collision_action;
+    /// OneDrop3D (F39) : mode veille (od3d::sleep::Settings : actif, délai, écran, lumières, chauffes et leur délai,
+    /// moteurs, ventilateurs), à la place de l'atténuation des lumières de Prusa
+    StoreItem<od3d::sleep::Settings, od3d::sleep::Settings {}, ItemFlag::user_interface, journal::hash("OD3D Sleep Settings")> od3d_sleep;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

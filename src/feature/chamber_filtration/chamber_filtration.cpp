@@ -6,6 +6,7 @@
 #include <tools_mapping.hpp>
 #include <config_store/store_definition.hpp>
 #include <bsod/bsod.h>
+#include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
 
 #include <option/has_xbuddy_extension.h>
 #if HAS_XBUDDY_EXTENSION()
@@ -111,7 +112,8 @@ void ChamberFiltration::step() {
         output_pwm_ = config_store().chamber_print_filtration_enable.get() ? config_store().chamber_mid_print_filtration_pwm.get() : PWM255(0);
         last_filtration_need_s_ = now_s;
 
-    } else if (last_filtration_need_s_.has_value() && config_store().chamber_post_print_filtration_enable.get() && ticks_diff(now_s, *last_filtration_need_s_) <= config_store().chamber_post_print_filtration_duration_min.get() * 60) {
+    } else if (last_filtration_need_s_.has_value() && config_store().chamber_post_print_filtration_enable.get() && ticks_diff(now_s, *last_filtration_need_s_) <= config_store().chamber_post_print_filtration_duration_min.get() * 60
+        && !od3d::sleep::fans_off()) { // OneDrop3D (F39) : la veille arrête la filtration d'après impression
         // Filtration is not currently needed, running post print filtration
         output_pwm_ = config_store().chamber_post_print_filtration_pwm.get();
 

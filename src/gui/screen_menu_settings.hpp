@@ -41,12 +41,14 @@
 #include <option/has_nozzle_thermal_compensation.h>
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     #include <gui/od3d/screen_menu_od3d.hpp>
+    #include <gui/od3d/screen_sleep_od3d.hpp>
 #endif
 
 using ScreenMenuSettingsBase = BasicScreenMenu<
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     od3d::MI_FEATURES, // OneDrop3D : en tête des réglages
     od3d::MI_PRINTER_INFO, // OneDrop3D (interface G) : « Infos de l'imprimante » en deuxième
+    od3d::MI_SLEEP, // OneDrop3D (F39) : mode veille (remplace l'atténuation des lumières de Prusa)
 #endif
     MI_USER_INTERFACE,
     MI_TOOLHEAD_SETTINGS,

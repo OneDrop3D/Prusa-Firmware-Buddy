@@ -8,6 +8,7 @@
 #include <feature/chamber_filtration/chamber_filtration.hpp>
 #include <marlin_server.hpp>
 #include <leds/side_strip_handler.hpp>
+#include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
 #include <bsod/bsod.h>
 #include <fanctl/CFanCtl3Wire.hpp> // for FANCTL_START_TIMEOUT
 #include <utils/timing/rate_limiter.hpp>
@@ -133,6 +134,11 @@ void XBuddyExtension::step() {
             filtration_fan_actual_pwm_ = filtration_fan_target_pwm_.value_or(FanPWM { 0 });
             can_auto_cool_ = (cooling_fans_target_pwm_ == pwm_auto);
             break;
+        }
+
+        if (od3d::sleep::fans_off()) { // OneDrop3D (F39) : veille ; les secours de surchauffe ci-dessous restent
+            cooling_fans_actual_pwm_ = {};
+            filtration_fan_actual_pwm_ = {};
         }
 
         // Apply emergency & spinup fan control

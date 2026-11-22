@@ -1,6 +1,7 @@
 #include "leds/side_strip_handler.hpp"
 #include <led_animation_controller/simple_transition_controller.hpp>
 #include "marlin_server.hpp"
+#include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
 
 namespace leds {
 
@@ -39,14 +40,9 @@ void SideStripHandler::update() {
         change_state(SideStripState::custom_color);
     } else {
         custom_color.reset();
-        const bool dont_dim = dimming_enabled == DimmingEnabled::never || (dimming_enabled == DimmingEnabled::not_printing && marlin_server::is_printing());
-        if (dont_dim || (active_timestamp_ms != 0 && time_ms - active_timestamp_ms < active_timeout_ms)) {
-            change_state(SideStripState::active);
-        } else {
-            // Clear to prevent overflow bugs
-            active_timestamp_ms = 0;
-            change_state(SideStripState::dimmed);
-        }
+        // OneDrop3D (F39) : le mode veille remplace l'atténuation après 2 min (ses réglages sont masqués) :
+        // allumées, éteintes en veille
+        change_state(od3d::sleep::lights_off() ? SideStripState::off : SideStripState::active);
     }
 
     controller.update();

@@ -49,6 +49,13 @@
     #include <gui/screen_menu_selftest_snake.hpp>
 #endif
 
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    #include <gui/od3d/sleep_gui_od3d.hpp> // OneDrop3D (F39) : mode veille
+    #define OD3D_SLEEP() 1
+#else
+    #define OD3D_SLEEP() 0
+#endif
+
 LOG_COMPONENT_REF(GUI);
 LOG_COMPONENT_REF(Touch);
 
@@ -91,6 +98,9 @@ void gui_handle_jogwheel() {
     int32_t encoder_diff = jogwheel.ConsumeEncoderDiff();
 
     if (encoder_diff != 0 || is_btn) {
+#if OD3D_SLEEP()
+        od3d::sleep::filter_knob(encoder_diff, is_btn, btn_ev); // OneDrop3D (F39) : le geste qui réveille l'écran n'agit pas
+#endif
         gui::knob::EventEncoder(encoder_diff);
 
         if (is_btn) {
@@ -115,6 +125,12 @@ void gui_handle_touch() {
     // we clicked on something, does not really matter on what we clicked
     // we must notify serve to so it knows user is doing something and resets menu timeout, heater timeout ...
     Screens::Access()->ResetTimeout();
+
+#if OD3D_SLEEP()
+    if (od3d::sleep::swallow_touch()) {
+        return; // OneDrop3D (F39) : le toucher qui réveille l'écran n'agit pas
+    }
+#endif
 
     if (touch_event.type == GUI_event_t::TOUCH_CLICK) {
         sound::play(SoundType::button_echo);
@@ -153,7 +169,12 @@ void gui_redraw(void) {
     }
 
     bool should_sleep = true;
-    if (gui_invalid && !Screens::Access()->is_change_pending()) { // OneDrop3D : pas de dessin de l'écran qui se ferme
+#if OD3D_SLEEP()
+    const bool dark = od3d::sleep::screen_off(); // OneDrop3D (F39) : écran éteint, rien n'est dessiné
+#else
+    constexpr bool dark = false;
+#endif
+    if (gui_invalid && !dark && !Screens::Access()->is_change_pending()) { // OneDrop3D : pas de dessin de l'écran qui se ferme
         if (gui_redraw_timer.check(now)) {
             Screens::Access()->Draw();
             gui_invalid = false;
@@ -163,7 +184,7 @@ void gui_redraw(void) {
 
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     // OneDrop3D (interface G) : le fond givré d'un dialogue avance d'une tranche quand rien d'autre n'est à dessiner
-    if (should_sleep && od3d::frost::step()) {
+    if (should_sleep && !dark && od3d::frost::step()) { // OneDrop3D (F39) : pas pendant la veille
         should_sleep = false;
     }
 #endif
@@ -228,6 +249,9 @@ void gui_loop(void) {
         }
     }
 
+#if OD3D_SLEEP()
+    od3d::sleep::gui_step(); // OneDrop3D (F39) : mode veille
+#endif
     gui_redraw();
     GuiMediaEventsHandler::Tick();
 

@@ -9,6 +9,7 @@
 #include <device/peripherals.hpp>
 
 #include <config_store/store_instance.hpp>
+#include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
 
 #if HAS_SIDE_LEDS()
     #include "leds/side_strip_handler.hpp"
@@ -110,15 +111,16 @@ void LEDManager::update() {
     auto &status_leds_handler = leds::StatusLedsHandler::instance();
     status_leds_handler.update();
     auto data = status_leds_handler.led_data();
+    const bool dark = od3d::sleep::lights_off(); // OneDrop3D (F39) : barre d'état et LED du plateau éteintes en veille
 
     auto &status_leds = get_status_leds();
     for (uint8_t i = 0; i < data.size(); ++i) {
-        status_leds.set(data[i].data, i);
+        status_leds.set(dark ? 0 : data[i].data, i);
     }
 
 #if XBUDDY_EXTENSION_VARIANT_IS_STANDARD()
     // Bed LEDs copy LCD status bar strip
-    buddy::xbuddy_extension().set_bed_leds_color(data[1].data);
+    buddy::xbuddy_extension().set_bed_leds_color(dark ? 0 : data[1].data);
 #elif XBUDDY_EXTENSION_VARIANT_IS_iX()
     // Colored leds show the status LEDs color, unanimated
     auto &design_strip_handler = AFSDesignStripHandler::instance();

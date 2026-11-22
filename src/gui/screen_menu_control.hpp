@@ -20,6 +20,7 @@
 #include <option/has_nozzle_thermal_compensation.h>
 #if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
     #include <gui/od3d/menu_items_od3d.hpp> // OneDrop3D
+    #include <gui/od3d/screen_sleep_od3d.hpp> // OneDrop3D (F39)
 #endif
 
 #if XL_ENCLOSURE_SUPPORT()
@@ -46,6 +47,7 @@ using ScreenMenuControlSpec = ScreenMenu<EFooter::On,
 #endif
     MI_DISABLE_MOTORS,
 #if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
+    od3d::MI_SLEEP_NOW, // OneDrop3D (F39) : mise en veille depuis l'accueil (carte Contrôle)
     od3d::MI_MOTOR_MUSIC, // OneDrop3D (F18) : musique des moteurs
 #endif
 #if HAS_SHEET_PROFILES()

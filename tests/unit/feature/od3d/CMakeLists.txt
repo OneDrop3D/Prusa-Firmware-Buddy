@@ -146,3 +146,10 @@ add_executable(
   )
 target_include_directories(frost_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(frost_od3d_tests)
+
+add_executable(
+  sleep_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/sleep_od3d_test.cpp
+                   ${CMAKE_SOURCE_DIR}/src/feature/od3d/sleep_math_od3d.cpp
+  )
+target_include_directories(sleep_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(sleep_od3d_tests)

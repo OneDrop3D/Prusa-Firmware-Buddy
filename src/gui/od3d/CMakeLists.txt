@@ -21,10 +21,12 @@ target_sources(
           screen_resume_od3d.cpp
           screen_progress_od3d.cpp
           screen_skew_od3d.cpp
+          screen_sleep_od3d.cpp
           screen_speed_map_od3d.cpp
           screen_spool_calib_od3d.cpp
           screen_spool_od3d.cpp
           screen_temperatures_od3d.cpp
+          sleep_gui_od3d.cpp
           spinner_od3d.cpp
           frost_job_od3d.cpp
           frost_od3d.cpp

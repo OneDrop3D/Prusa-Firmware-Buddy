@@ -10,6 +10,7 @@
 #include <feature/od3d/skew_od3d.hpp> // OneDrop3D (F15)
 #include <feature/od3d/mpc_control_od3d.hpp> // OneDrop3D (F7)
 #include <feature/od3d/lookahead_od3d.hpp> // OneDrop3D (F26)
+#include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
 #include <mapi/parking.hpp>
 #include <mapi/feedrates/standard_feedrates.hpp>
 #include "marlin_client_events.hpp"
@@ -977,6 +978,8 @@ static void cycle() {
 #if HAS_LOADCELL() && HAS_MMU2()
     od3d::collision::step(); // OneDrop3D (F38) : sécurité collision pendant l'impression
 #endif
+
+    od3d::sleep::step(); // OneDrop3D (F39) : coupures du mode veille ; il remplace la coupure des moteurs de Prusa
 
     buddy::safety_timer().step();
 

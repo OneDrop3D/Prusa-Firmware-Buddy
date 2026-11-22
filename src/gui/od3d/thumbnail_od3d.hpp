@@ -9,6 +9,7 @@
 #include <gui/qoi_decoder.hpp>
 #include <optional>
 #include <Rect16.h>
+#include <span>
 #include <utils/abstract_byte_reader.hpp>
 #include <utils/color.hpp>
 
@@ -18,6 +19,8 @@ namespace od3d {
 /// (transparence), coins arrondis. Le résultat est encore un flux QOI : display::draw_img() l'affiche sans rien garder en
 /// mémoire. band() le coupe en bandes de quelques lignes : la source reste ouverte entre deux et l'interface répond
 /// pendant la lecture (une vignette de la clé prend ~0,1 s).
+class QoiCache;
+
 class ScaledQoiReader final : public AbstractByteReader {
 public:
     static constexpr uint16_t max_width = 192; ///< largeur maximale de l'image réduite [px]
@@ -47,6 +50,8 @@ public:
 
     WritableBytes read(WritableBytes buffer) override;
 
+    QoiCache *record = nullptr; ///< reçoit aussi chaque pixel envoyé (cache des vignettes de la grille)
+
 private:
     /// Prépare le morceau suivant (en-tête ou un pixel) ; false à la fin de la bande
     bool next();
@@ -74,6 +79,63 @@ private:
     uint16_t col = 0, col_next = 0; ///< colonne réduite de src_x, et première colonne de la source de la suivante
     uint16_t out_w = 0, out_h = 0, out_x = 0, out_y = 0, band_end = 0;
     std::array<std::array<uint16_t, 3>, max_width> sums; ///< somme R, V, B des pixels de chaque colonne de la ligne en cours
+};
+
+/// Images déjà décodées (vignettes réduites de la grille des fichiers), gardées compressées en QOI dans un tampon fourni :
+/// une rangée qui revient se redessine sans relire la clé (~2,5 Ko par vignette 104 × 57 au lieu de 11,9 Ko en RGB565).
+/// Les plus anciennes sont chassées par les nouvelles. Une image s'enregistre pixel par pixel pendant son premier dessin.
+class QoiCache {
+public:
+    explicit QoiCache(std::span<std::byte> pool)
+        : pool(pool) {}
+
+    void clear();
+
+    /// Commence l'image key de w × h pixels (une autre en cours est abandonnée, l'ancienne image key oubliée)
+    void start(uint32_t key, uint16_t w, uint16_t h);
+    void push(Color c); ///< pixel suivant de l'image en cours (rien sans image en cours)
+    void finish(); ///< l'image en cours est gardée, si elle est complète et a tenu dans le tampon
+    void cancel();
+
+    /// Relit une image gardée en flux QOI (en-tête compris), pour display::draw_img()
+    class Reader final : public AbstractByteReader {
+    public:
+        WritableBytes read(WritableBytes buffer) override;
+
+    private:
+        friend class QoiCache;
+        Reader(const QoiCache &cache, size_t entry);
+        const QoiCache &cache;
+        std::array<std::byte, qoi::Decoder::HEADER_SIZE> header;
+        size_t start, len, pos = 0; ///< données dans le tampon (circulaire) ; pos compte l'en-tête
+    };
+
+    /// L'image key, si elle est gardée
+    std::optional<Reader> find(uint32_t key) const;
+
+private:
+    struct Entry {
+        uint32_t key; ///< 0 : place oubliée (ses octets restent jusqu'à leur tour)
+        uint16_t w, h;
+        size_t start, len;
+    };
+    static constexpr size_t max_entries = 16;
+
+    void put(uint8_t byte);
+    void flush_run();
+    void drop_oldest();
+
+    std::span<std::byte> pool;
+    std::array<Entry, max_entries> entries {}; ///< dans l'ordre du tampon : la plus ancienne à first
+    size_t first = 0, count = 0;
+    size_t used = 0; ///< octets des images gardées et de celle en cours, à partir de la plus ancienne
+    // Image en cours
+    bool recording = false;
+    Entry rec {};
+    uint32_t pixels = 0;
+    Color prev;
+    uint8_t run = 0;
+    std::array<uint32_t, 64> index {}; ///< couleurs déjà vues (RGB + alpha 255, 0 : vide), comme le décodeur
 };
 
 /// Image calculée pixel par pixel (bobines, anneau qui tourne, courbes, contours), relue en flux QOI : display::draw_img()

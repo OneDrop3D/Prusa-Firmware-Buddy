@@ -18,6 +18,12 @@ void ScreenMenuBase_::windowEvent(window_t *sender, GUI_event_t event, void *par
     screen_t::windowEvent(sender, event, param);
 }
 
+void ScreenMenuBase_::draw() {
+    if (!od3d::draw_whole(*this, getFirstNormal(), getLastNormal())) {
+        screen_t::draw();
+    }
+}
+
 void ScreenMenuBase_::unconditionalDraw() {
     od3d::fill_background(*this, getFirstNormal(), getLastNormal());
 }

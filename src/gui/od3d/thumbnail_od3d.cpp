@@ -96,6 +96,9 @@ bool ScaledQoiReader::next() {
     pending[2] = std::byte(c.g);
     pending[3] = std::byte(c.b);
     pending_len = 4;
+    if (record) {
+        record->push(c);
+    }
 
     if (++out_x == out_w) {
         ++out_y;
@@ -158,6 +161,150 @@ bool ScaledQoiReader::outside_corner(int x, int y) const {
     const int dx = x < r ? r - 1 - x : (x >= out_w - r ? x - (out_w - r) : -1);
     const int dy = y < r ? r - 1 - y : (y >= out_h - r ? y - (out_h - r) : -1);
     return dx >= 0 && dy >= 0 && dx * dx + dy * dy >= r * r;
+}
+
+// ---- Images gardées ----
+
+void QoiCache::clear() {
+    count = used = 0;
+    recording = false;
+}
+
+void QoiCache::start(uint32_t key, uint16_t w, uint16_t h) {
+    cancel();
+    for (size_t i = 0; i < count; ++i) {
+        if (Entry &e = entries[(first + i) % max_entries]; e.key == key) {
+            e.key = 0; // ses octets partiront à leur tour
+        }
+    }
+    if (pool.empty()) {
+        return;
+    }
+    rec = { .key = key, .w = w, .h = h, .start = count ? (entries[first].start + used) % pool.size() : 0, .len = 0 };
+    if (!count) {
+        used = 0; // tampon vide : l'image commence au début
+    }
+    recording = true;
+    pixels = 0;
+    prev = Color::from_rgb(0, 0, 0); // comme le décodeur : noir opaque, index vide
+    run = 0;
+    index = {};
+}
+
+void QoiCache::push(Color c) {
+    if (!recording) {
+        return;
+    }
+    ++pixels;
+    // Encodeur QOI de référence (qoi.h), pixels opaques seulement : série, index, petite différence, luma, RGB
+    if (c == prev) {
+        if (++run == 62) {
+            flush_run();
+        }
+        return;
+    }
+    flush_run();
+    const uint8_t h = (c.r * 3 + c.g * 5 + c.b * 7 + 255 * 11) & 0x3f;
+    const uint32_t packed = c.r | c.g << 8 | c.b << 16 | 0xffu << 24;
+    if (index[h] == packed) {
+        put(h); // QOI_OP_INDEX
+    } else {
+        index[h] = packed;
+        const int dr = int8_t(c.r - prev.r), dg = int8_t(c.g - prev.g), db = int8_t(c.b - prev.b); // modulo 256
+        const int dr_dg = dr - dg, db_dg = db - dg;
+        if (dr >= -2 && dr <= 1 && dg >= -2 && dg <= 1 && db >= -2 && db <= 1) {
+            put(0x40 | (dr + 2) << 4 | (dg + 2) << 2 | (db + 2)); // QOI_OP_DIFF
+        } else if (dg >= -32 && dg <= 31 && dr_dg >= -8 && dr_dg <= 7 && db_dg >= -8 && db_dg <= 7) {
+            put(0x80 | (dg + 32)); // QOI_OP_LUMA
+            put((dr_dg + 8) << 4 | (db_dg + 8));
+        } else {
+            put(0xfe); // QOI_OP_RGB
+            put(c.r);
+            put(c.g);
+            put(c.b);
+        }
+    }
+    prev = c;
+}
+
+void QoiCache::flush_run() {
+    if (run) {
+        put(0xc0 | (run - 1)); // QOI_OP_RUN
+        run = 0;
+    }
+}
+
+void QoiCache::put(uint8_t byte) {
+    if (!recording) {
+        return;
+    }
+    while (used == pool.size()) {
+        if (!count) {
+            cancel(); // l'image seule ne tient pas dans le tampon
+            return;
+        }
+        drop_oldest();
+    }
+    pool[(rec.start + rec.len) % pool.size()] = std::byte(byte);
+    ++rec.len;
+    ++used;
+}
+
+void QoiCache::drop_oldest() {
+    used -= entries[first].len;
+    first = (first + 1) % max_entries;
+    --count;
+}
+
+void QoiCache::finish() {
+    flush_run();
+    if (!recording || pixels != uint32_t(rec.w) * rec.h) {
+        cancel(); // la source s'est arrêtée avant la fin
+        return;
+    }
+    if (count == max_entries) {
+        drop_oldest();
+    }
+    entries[(first + count++) % max_entries] = rec;
+    recording = false;
+}
+
+void QoiCache::cancel() {
+    if (recording) {
+        recording = false;
+        used -= rec.len;
+    }
+}
+
+std::optional<QoiCache::Reader> QoiCache::find(uint32_t key) const {
+    for (size_t i = 0; i < count; ++i) {
+        if (entries[(first + i) % max_entries].key == key) {
+            return Reader(*this, (first + i) % max_entries);
+        }
+    }
+    return std::nullopt;
+}
+
+QoiCache::Reader::Reader(const QoiCache &cache, size_t entry)
+    : cache(cache)
+    , start(cache.entries[entry].start)
+    , len(cache.entries[entry].len) {
+    constexpr std::array<char, 4> magic { 'q', 'o', 'i', 'f' };
+    for (size_t i = 0; i < magic.size(); ++i) {
+        header[i] = std::byte(magic[i]);
+    }
+    put_be32(&header[4], cache.entries[entry].w);
+    put_be32(&header[8], cache.entries[entry].h);
+    header[12] = std::byte(3); // RGB
+    header[13] = std::byte(0);
+}
+
+WritableBytes QoiCache::Reader::read(WritableBytes buffer) {
+    size_t n = 0;
+    for (; n < buffer.size() && pos < header.size() + len; ++n, ++pos) {
+        buffer[n] = pos < header.size() ? header[pos] : cache.pool[(start + pos - header.size()) % cache.pool.size()];
+    }
+    return buffer.first(n);
 }
 
 // ---- Image calculée ----

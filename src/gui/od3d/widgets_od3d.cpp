@@ -162,6 +162,44 @@ void fill_background(const window_t &frame, window_t *first, window_t *last) {
     });
 }
 
+bool draw_whole(window_frame_t &frame, window_t *first, window_t *last, void (*on_background)(window_frame_t &)) {
+    if (!frame.IsVisible() || !frame.IsInvalid()) {
+        return false;
+    }
+    // Comme window_frame_t::draw() : tout est à peindre, sauf une fenêtre cachée dont la place est couverte
+    for (window_t *w = first; w; w = w->GetNext()) {
+        if (w->IsVisible() || !frame.GetFirstEnabledSubWin(w->GetRect())) {
+            w->Invalidate();
+        } else {
+            w->Validate();
+        }
+    }
+    std::array<window_t *, style::max_gap_rects> wins;
+    std::array<Rect16, style::max_gap_rects> rects;
+    size_t n = 0;
+    for (window_t *w = first; w && n < wins.size(); w = w == last ? nullptr : w->GetNext()) {
+        if (w->IsVisible() && !w->GetRect().IsEmpty()) {
+            wins[n] = w;
+            rects[n++] = w->GetRect();
+        }
+    }
+    if (n == wins.size()) {
+        fill_background(frame, first, last); // trop d'éléments : comme avant, le fond puis les éléments
+    } else {
+        style::paint_top_down(frame.GetRect(), std::span<const Rect16>(rects.data(), n), [&](size_t i) { wins[i]->Draw(); }, [&](Rect16 r) { display::fill_rect(r, frame.GetBackColor()); });
+    }
+    for (window_t *w = first; w; w = w == last ? nullptr : w->GetNext()) {
+        w->Draw(); // le reste (cachés, ou au-delà de 40) ; ceux déjà peints sont valides et passent
+    }
+    if (on_background) {
+        on_background(frame);
+    }
+    for (window_t *w = last ? last->GetNext() : nullptr; w; w = w->GetNext()) {
+        w->Draw(); // dialogues, par-dessus
+    }
+    return true;
+}
+
 // ---- Navigation ----
 
 void open_filament_menu() {
@@ -331,15 +369,19 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     screen_t::windowEvent(sender, event, param);
 }
 
-void Screen::unconditionalDraw() {
-    fill_background(*this, getFirstNormal(), getLastNormal());
+void Screen::draw() {
+    if (!draw_whole(*this, getFirstNormal(), getLastNormal(), [](window_frame_t &screen) { static_cast<Screen &>(screen).unconditionalDraw(); })) {
+        screen_t::draw();
+    }
 }
 
-void GapFrame::unconditionalDraw() {
-    if (gaps_only) {
-        fill_background(*this, getFirstNormal(), getLastNormal());
-    } else {
-        window_frame_t::unconditionalDraw();
+void Screen::unconditionalDraw() {
+    // Le fond est peint par draw_whole(), avec chaque élément
+}
+
+void GapFrame::draw() {
+    if (!gaps_only || !draw_whole(*this, getFirstNormal(), getLastNormal())) {
+        window_frame_t::draw();
     }
 }
 

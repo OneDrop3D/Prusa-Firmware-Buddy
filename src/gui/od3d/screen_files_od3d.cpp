@@ -9,21 +9,25 @@
 #include <common/marlin_vars.hpp>
 #include <common/thumbnail_sizes.hpp>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
+#include <FreeRTOS.h>
 #include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <gcode/gcode_reader_any.hpp>
 #include <gui/event/gui_event.hpp>
 #include <gui/event/knob_event.hpp>
 #include <gui.hpp>
+#include <heap.h>
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <lfn.h>
 #include <marlin_client.hpp>
 #include <media_state.hpp>
 #include <metric.h>
+#include <new>
 #include <option/has_touch.h>
 #include <sound.hpp>
 #include <strings.h>
@@ -36,7 +40,8 @@
 // Durées des lectures de la clé, en ms (M331 od3d_files pour les activer) : dir = liste du dossier, info = métadonnées
 // d'un fichier (ouverture comprise), thumb = vignette (de l'ouverture du fichier à sa dernière bande, pauses comprises),
 // band = la plus longue bande de cette vignette (temps où l'interface ne répond pas), ready = de l'affichage de la page
-// à sa dernière vignette
+// à sa dernière vignette, scroll = rangée ou page tournée (dossier relu et cartes), cache = octets du cache des vignettes
+// (0 : pas assez de mémoire libre)
 METRIC_DEF(metric_od3d_files, "od3d_files", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
 
 namespace od3d {
@@ -226,6 +231,42 @@ namespace {
     /// Titre « Fichiers 5-8/23 » (position dans la liste), gardé tant que l'en-tête le montre
     std::array<char, 40> title_text;
 
+    // Cache des vignettes de la grille : une rangée qui revient (molette, doigt, retour d'« Avant l'impression ») se
+    // redessine sans relire la clé. Avant (8.0.2.26), chaque rangée relisait ses 4 vignettes, même les 2 encore à l'écran.
+    // RAM : 104 × 57 en RGB565 = 11,9 Ko par vignette (47 Ko la page : impossible) ; en QOI ~2,5 Ko (mesuré sur une
+    // vignette PrusaSlicer). Emprunté au tas tant que la grille ou son « Avant l'impression » est ouvert, rendu ensuite
+    // (pas pendant une impression), et seulement s'il reste au moins heap_margin pour le reste (réseau, ouvertures de
+    // fichiers par 4 Ko) : 16 Ko (~6 vignettes, la page et une rangée), sinon 8 Ko, sinon rien (lecture comme avant).
+    QoiCache *thumb_cache = nullptr;
+    constexpr size_t heap_margin = 16 * 1024;
+
+    void open_thumb_cache() {
+        for (const size_t bytes : { 16 * 1024, 8 * 1024 }) {
+            if (thumb_cache || xPortGetFreeHeapSize() < sizeof(QoiCache) + bytes + heap_margin) {
+                continue;
+            }
+            if (void *block = malloc_fallible(sizeof(QoiCache) + bytes)) {
+                thumb_cache = new (block) QoiCache(std::span(static_cast<std::byte *>(block) + sizeof(QoiCache), bytes));
+                metric_record_custom(&metric_od3d_files, " cache=%ui", unsigned(bytes));
+            }
+        }
+        if (!thumb_cache) {
+            metric_record_custom(&metric_od3d_files, " cache=0i");
+        }
+    }
+
+    /// Rendu au tas quand ni la grille ni son « Avant l'impression » ne sont plus dans la pile des écrans
+    void close_thumb_cache() {
+        if (thumb_cache && !Screens::Access()->IsScreenOnStack<ScreenFiles>()) {
+            thumb_cache->~QoiCache();
+            free(thumb_cache);
+            thumb_cache = nullptr;
+        }
+    }
+
+    /// Taille de la vignette de la grille (la 313 × 173 réduite au tiers), centrée dans sa case
+    constexpr uint16_t grid_img_w = thumb_w / grid_factor, grid_img_h = thumb_h / grid_factor;
+
 } // namespace
 
 std::optional<FileInfo> cached_file_info(const char *path) {
@@ -237,6 +278,9 @@ std::optional<FileInfo> cached_file_info(const char *path) {
 
 void forget_file_infos() {
     info_cache.keys = {};
+    if (thumb_cache) {
+        thumb_cache->clear();
+    }
 }
 
 bool open_gcode(AnyGcodeFormatReader &gcode, const char *path) {
@@ -410,6 +454,10 @@ void FileThumb::unconditionalDraw() {
         display::fill_rect(box, style::screen);
         return;
     }
+    if (tile.kind == FileTile::Kind::file && screen.draw_cached(tile, box)) {
+        image_drawn = true;
+        return;
+    }
     // La case et son icône ; pour un fichier, l'image vient ensuite par bandes (ScreenFiles::load_next), ou l'icône reste
     display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT | MIC_TOP_RIGHT);
     const img::Resource &icon = tile.kind == FileTile::Kind::file ? img::print_16x16
@@ -454,10 +502,12 @@ ScreenFiles::ScreenFiles()
     , scroll(*this, scroll_rect)
     , tabs(this, TabBar::Tab::print) {
     instance = this;
+    open_thumb_cache();
 }
 
 ScreenFiles::~ScreenFiles() {
     stop_load();
+    close_thumb_cache();
     if (instance == this) {
         instance = nullptr;
     }
@@ -551,8 +601,10 @@ void ScreenFiles::fill() {
 void ScreenFiles::scroll_to(int new_first) {
     new_first = grid::clamp_first(item_count(), cols, rows, new_first);
     if (new_first != first) {
+        const uint32_t start_ms = ticks_ms();
         first = new_first;
         fill(); // la carte ciblée garde sa place
+        metric_record_custom(&metric_od3d_files, " scroll=%ui", unsigned(ticks_diff(ticks_ms(), start_ms)));
     }
 }
 
@@ -639,6 +691,27 @@ void ScreenFiles::thumb_cleared(const FileTile &tile) {
     }
 }
 
+bool ScreenFiles::draw_cached(const FileTile &tile, Rect16 box) const {
+    std::array<char, filename_defs::path_buffer_size> path;
+    if (!thumb_cache || !entry_path(tile, path)) {
+        return false;
+    }
+    auto image = thumb_cache->find(InfoCache::key(path.data()));
+    if (!image) {
+        return false;
+    }
+    // La case autour de l'image (bandes gauche et droite avec les coins arrondis, haut et bas), puis l'image : chaque
+    // pixel une fois, pas d'aplat sous l'image (une rangée qui revient ne clignote pas)
+    const Rect16 img(box.Left() + (box.Width() - grid_img_w) / 2, box.Top() + (box.Height() - grid_img_h) / 2, grid_img_w, grid_img_h);
+    static_assert(style::radius_big <= (tile_body(0).Width() - grid_img_w) / 2);
+    display::draw_rounded_rect(Rect16::fromLTRB(box.Left(), box.Top(), img.Left(), box.Bottom() + 1), style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT);
+    display::draw_rounded_rect(Rect16::fromLTRB(img.Right() + 1, box.Top(), box.Right() + 1, box.Bottom() + 1), style::screen, style::thumb_back, style::radius_big, MIC_TOP_RIGHT);
+    display::fill_rect(Rect16::fromLTRB(img.Left(), box.Top(), img.Right() + 1, img.Top()), style::thumb_back);
+    display::fill_rect(Rect16::fromLTRB(img.Left(), img.Bottom() + 1, img.Right() + 1, box.Bottom() + 1), style::thumb_back);
+    display::draw_img(point_ui16(img.Left(), img.Top()), *image);
+    return true;
+}
+
 void ScreenFiles::unconditionalDraw() {
     Screen::unconditionalDraw();
     if (item_count() == 0) {
@@ -695,6 +768,9 @@ void ScreenFiles::end_drag() {
 }
 
 void ScreenFiles::stop_load() {
+    if (thumb_cache) {
+        thumb_cache->cancel(); // vignette pas finie : pas gardée
+    }
     scaler.reset(); // avant le G-code : il lit sa vignette
     band_gcode.reset();
     loading = -1;
@@ -722,6 +798,10 @@ void ScreenFiles::start_load(FileTile &tile) {
             scaler.emplace(*qoi, grid_params);
             if (scaler->open()) {
                 loading = tile.index; // les bandes aux LOOP suivants
+                if (thumb_cache) {
+                    thumb_cache->start(InfoCache::key(path.data()), scaler->width(), scaler->height());
+                    scaler->record = thumb_cache; // gardée en dessinant
+                }
                 return;
             }
         }
@@ -767,6 +847,9 @@ void ScreenFiles::load_next() {
         }
         longest_band_ms = std::max<uint32_t>(longest_band_ms, ticks_diff(ticks_ms(), now));
         if (scaler->done() || scaler->row() == row) { // fini, ou la source s'arrête avant
+            if (thumb_cache) {
+                thumb_cache->finish(); // gardée si elle est complète
+            }
             thumb.set_drawn();
             metric_record_custom(&metric_od3d_files, " thumb=%ui,band=%ui", unsigned(ticks_diff(ticks_ms(), load_start_ms)), unsigned(longest_band_ms));
             stop_load();
@@ -907,6 +990,10 @@ ScreenPreview::ScreenPreview()
     display_name(lfn.data(), true, name, (style::screen_w - style::margin - info_x) / width(Font::normal));
     update_buttons();
     print.SetFocus();
+}
+
+ScreenPreview::~ScreenPreview() {
+    close_thumb_cache(); // ouvert depuis la grille : le cache reste pour son retour, sinon il est rendu
 }
 
 void ScreenPreview::update_buttons() {

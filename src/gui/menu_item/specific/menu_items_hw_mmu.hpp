@@ -9,4 +9,5 @@ public:
 
 protected:
     virtual void OnClick() override;
+    void Loop() override; ///< OneDrop3D (F41) : affiche la longueur que le MMU utilise vraiment
 };

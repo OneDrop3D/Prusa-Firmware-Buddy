@@ -278,6 +278,7 @@ public:
 
     inline uint16_t BowdenLength() const { return logic.BowdenLength(); }
     inline uint16_t PulleyPosition() const { return logic.PulleyPosition(); } ///< OneDrop3D (F41)
+    inline ProgressCode Progress() const { return logic.Progress(); } ///< OneDrop3D (F41) : progression relue
 
     CommandInProgressManager commandInProgressManager;
 

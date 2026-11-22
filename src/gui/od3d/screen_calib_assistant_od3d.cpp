@@ -6,6 +6,7 @@
 #include "screen_damping_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
 #include "screen_pa_od3d.hpp"
+#include "screen_ptfe_od3d.hpp"
 #include "screen_skew_od3d.hpp"
 #include "screen_speed_map_od3d.hpp"
 #include "screen_spool_calib_od3d.hpp"
@@ -933,6 +934,24 @@ void ScreenCalibAssistant::show() {
         Writer w(summary);
         build_summary(w);
         text = string_view_utf8::MakeRAM(summary);
+        int ok = 0, failed = 0;
+        for (const Entry &e : entries) {
+            if ((flow.session & test_bit(e.test)) && (flow.started & test_bit(e.test))) {
+                ok += assistant::result(e.test) == Result::ok;
+                failed += assistant::result(e.test) == Result::failed;
+            }
+        }
+        // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
+        const char *ptfe_reason = (flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed
+            ? ptfe_result_text(ptfe::status().result)
+            : nullptr;
+        if (ptfe_reason) {
+            char reason[64];
+            _(ptfe_reason).copyToRAM(reason, sizeof(reason));
+            text = _("Finished: %d OK, %d failed. Front PTFE: %s.").formatted(info_params, ok, failed, reason);
+        } else {
+            text = _("Finished: %d OK, %d failed. Touch a failed test to run it again.").formatted(info_params, ok, failed);
+        }
         break;
     }
     }

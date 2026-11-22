@@ -222,6 +222,9 @@ namespace {
     /// Met en file l'étape i et son repère ; false si elle ne peut pas partir
     bool enqueue(uint8_t i) {
         const Step &s = steps[i];
+        if (s.test == Test::mmu_ptfe) {
+            ptfe::forget(); // le bilan lit le résultat de cette mesure, jamais celui d'une mesure d'avant
+        }
         char gcode[24];
         char marker[16];
         if (!step_gcode(s, gcode) || snprintf(marker, sizeof(marker), "M1989 N%u", unsigned(i)) <= 0) {

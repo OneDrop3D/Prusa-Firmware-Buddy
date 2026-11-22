@@ -11593,10 +11593,6 @@ msgid "Refused: filament in the selector"
 msgstr "Refusée : filament dans le sélecteur"
 
 #: src/gui/od3d/screen_ptfe_od3d.cpp
-msgid "Failed: the sensor saw nothing"
-msgstr "Échec : le capteur n'a rien vu"
-
-#: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Tube under 341 mm: unchanged"
 msgstr "Tube sous 341 mm : inchangé"
 
@@ -12065,3 +12061,19 @@ msgstr "Le maillage gardé est effacé : la prochaine impression palpe toute la 
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Spool to use\nPreloaded in the MMU"
 msgstr "Bobine utilisée\nPréchargée dans le MMU"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Failed: sensor not reached within 1000 mm"
+msgstr "Échec : capteur pas atteint en 1000 mm"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Tube over 1000 mm (MMU max): unchanged"
+msgstr "Tube > 1000 mm (max. du MMU) : inchangé"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Failed: load interrupted (MMU error?)"
+msgstr "Échec : chargement interrompu (erreur MMU ?)"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed. Front PTFE: %s."
+msgstr "Terminé : %d OK, %d en échec. PTFE avant : %s."

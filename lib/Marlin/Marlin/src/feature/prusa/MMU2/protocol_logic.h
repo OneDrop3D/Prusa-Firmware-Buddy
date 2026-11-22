@@ -215,8 +215,8 @@ public:
         return regs16[2];
     }
 
-    /// OneDrop3D (F41) : position de la poulie [mm] relue à chaque interrogation (registre 0x1a, remise à zéro par le MMU
-    /// au départ de l'avance vers le capteur de l'extrudeur)
+    /// OneDrop3D (F41) : position de la poulie [mm] relue à chaque interrogation (registre 0x1a). Elle s'additionne
+    /// depuis l'allumage du MMU (jamais remise à zéro) : seuls ses écarts ont un sens
     inline uint16_t PulleyPosition() const {
         return regs16[1];
     }

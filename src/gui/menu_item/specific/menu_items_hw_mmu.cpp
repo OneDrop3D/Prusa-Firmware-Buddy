@@ -30,3 +30,12 @@ void MI_MMU_FRONT_PTFE_LENGTH::OnClick() {
     snprintf(gcode.data(), gcode.size(), "M708 A0x22 X%u", new_mmu_bowden_length);
     gui_try_gcode_with_msg(gcode.data());
 }
+
+void MI_MMU_FRONT_PTFE_LENGTH::Loop() {
+    // OneDrop3D (F41) : le registre 0x22 relu à chaque interrogation du MMU, sauf pendant le réglage. Chez Prusa, la
+    // valeur n'était lue qu'à l'ouverture du menu : une écriture perdue ou une mesure en cours ne se voyait pas.
+    const uint16_t mmu = marlin_vars().mmu2_bowden_length.get();
+    if (!is_edited() && mmu >= mmu_bowden_limits.min_value && mmu <= mmu_bowden_limits.max_value) {
+        set_value(float(mmu));
+    }
+}

@@ -22,7 +22,7 @@ bool start() {
         return false;
     }
     // Plus de requête vers l'extension, donc plus rien sur l'UART du MMU ; l'alimentation et nreset restent tels quels
-    MMU2::mmu2.StopKeepPowered();
+    MMU2::mmu2.StopForUsbUpdate();
     on = true;
     return true;
 }

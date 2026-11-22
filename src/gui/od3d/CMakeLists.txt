@@ -12,6 +12,7 @@ target_sources(
           screen_collision_od3d.cpp
           screen_damping_od3d.cpp
           screen_files_od3d.cpp
+          screen_filament_presets_od3d.cpp
           screen_home_od3d.cpp
           screen_menu_od3d.cpp
           screen_mmu_od3d.cpp
@@ -22,6 +23,7 @@ target_sources(
           screen_pa_od3d.cpp
           screen_printing_od3d.cpp
           screen_resume_od3d.cpp
+          screen_settings_od3d.cpp
           screen_progress_od3d.cpp
           screen_ptfe_od3d.cpp
           screen_skew_od3d.cpp

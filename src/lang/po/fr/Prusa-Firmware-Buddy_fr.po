@@ -538,7 +538,7 @@ msgstr "Prise d'origine Auto"
 
 #: src/gui/menu_item/specific/menu_items_auto_retract.cpp:7
 msgid "Auto Retract"
-msgstr "Auto Rétracter"
+msgstr "Rétraction automatique"
 
 #: src/gui/menu_item/specific/menu_items_auto_retract.cpp:10
 msgid ""
@@ -1099,7 +1099,7 @@ msgstr "Limite des ventilateurs de la chambre"
 #: src/gui/MItem_menus.hpp:243
 #: src/gui/menu_item/specific/menu_items_chamber_filtration.cpp:17
 msgid "Chamber Filtration"
-msgstr "Filtration de la Chambre"
+msgstr "Filtration de la chambre"
 
 #: tmp_error_headers/error_list.hpp:1590
 msgid "Chamber Filtration Fan Error"
@@ -1111,7 +1111,7 @@ msgstr "Lumières de la chambre"
 
 #: src/gui/MItem_tools.hpp:538
 msgid "Chamber Lights Dimmed"
-msgstr "Éclairage de l'enceinte atténué"
+msgstr "Lumières atténuées"
 
 #: tmp_error_headers/error_list.hpp:561
 msgid "Chamber Overheating"
@@ -1553,7 +1553,7 @@ msgstr "Personnalisé"
 
 #: src/gui/MItem_loadcell.hpp:13
 msgid "Custom Loadcell Scale"
-msgstr "Formules Entreprise personnalisées"
+msgstr "Échelle de la cellule de charge"
 
 #: src/gui/screen/filament/screen_filament_detail.cpp:239
 msgid "Customize"
@@ -1578,7 +1578,7 @@ msgstr "Couper le filament %i"
 
 #: src/gui/MItem_mmu.hpp:168
 msgid "Cutter"
-msgstr "Cutter"
+msgstr "Coupe-filament"
 
 #: src/gui/screen/screen_filament_change.cpp:171
 msgid "Cutting filament"
@@ -1697,7 +1697,7 @@ msgstr "Détection de la plaque en acier"
 
 #: src/gui/MItem_tools.hpp:493
 msgid "Device Hash In QR"
-msgstr "Hachage de l'appareil dans le QR"
+msgstr "Empreinte de l'appareil dans le QR"
 
 #: src/gui/MItem_tools.cpp:766
 msgid "Direct"
@@ -2511,7 +2511,7 @@ msgstr "FW mis à jour"
 
 #: src/gui/MItem_menus.hpp:147
 msgid "Factory Reset"
-msgstr "Réinitalisation d'Usine"
+msgstr "Réinitialisation d'usine"
 
 #: src/gui/screen/screen_printer_type_changed.cpp:124
 msgid "Factory reset is required. Don't worry, your settings will be kept."
@@ -2660,7 +2660,7 @@ msgstr ""
 
 #: src/gui/MItem_tools.hpp:277
 msgid "Fan Check"
-msgstr "Vérification des Ventilateurs"
+msgstr "Contrôle des ventilateurs"
 
 #: src/gui/MItem_menus.hpp:72
 msgid "Fan Info"
@@ -2677,7 +2677,7 @@ msgstr "Test Ventilateur"
 #. translation: experimental menu item enabling faster display routines
 #: src/gui/MItem_experimental_tools.cpp:268
 msgid "Fast Draw"
-msgstr "Tirage rapide"
+msgstr "Dessin rapide"
 
 #. //MSG_PROGRESS_UNLOAD_PULLEY c=20
 #: src/gui/screen/screen_filament_change.cpp:62
@@ -3209,7 +3209,7 @@ msgstr "Pied de page"
 
 #: src/gui/MItem_tools.cpp:757
 msgid "For Filament Change, Preheat"
-msgstr "Pour le changement de filament, Préchauffez"
+msgstr "Préchauffe au changement de filament"
 
 #: src/gui/screen/screen_menu_internal_storage.cpp:82
 msgid "Format Internal Storage"
@@ -4338,7 +4338,7 @@ msgstr ""
 #: src/gui/screen_menu_footer_settings.cpp:17
 #, c-format
 msgid "Item %i"
-msgstr "Objet %i"
+msgstr "Élément %i"
 
 #: src/feature/print_status_message/print_status_message_formatter_buddy.cpp:43
 msgid "Joining spool"
@@ -4424,7 +4424,7 @@ msgstr "Langue"
 
 #: src/gui/MItem_menus.hpp:116
 msgid "Language & Time"
-msgstr "Langue & Heure"
+msgstr "Langue et heure"
 
 #: src/gui/MItem_crash.hpp:80
 msgid "Last Print Crashes on X Axis"
@@ -4521,7 +4521,7 @@ msgstr "Charger les Réglages"
 
 #: src/gui/MItem_tools.hpp:501
 msgid "Load Settings From File"
-msgstr "Charger les Paramètres à partir du fichier"
+msgstr "Charger les réglages (clé USB)"
 
 #: src/gui/MItem_mmu.hpp:102
 msgid "Load To Nozzle"
@@ -5077,7 +5077,7 @@ msgstr "Échec de l'allocation de mémoire pour l'animation LED planifiée"
 
 #: src/gui/MItem_tools.hpp:200
 msgid "Menu Timeout"
-msgstr "Timeout Menu"
+msgstr "Fermeture auto. des menus"
 
 #: src/gui/MItem_tools.hpp:172
 msgid "Mesh Bed Leveling"
@@ -5089,7 +5089,7 @@ msgstr "Historique des Messages"
 
 #: src/gui/MItem_menus.hpp:93
 msgid "Metrics & Log"
-msgstr "Métriques & Journal"
+msgstr "Métriques et journal"
 
 #: src/gui/screen_menu_metrics.cpp:73
 msgid "Metrics List"
@@ -6481,7 +6481,7 @@ msgstr "Filtration de l'impression"
 
 #: src/gui/MItem_tools.hpp:332
 msgid "Print Progress Screen"
-msgstr "Écran de Progression de l'Impression"
+msgstr "Écran de progression"
 
 #: src/gui/MItem_print.hpp:92
 msgid "Print Speed"
@@ -7163,7 +7163,7 @@ msgstr ""
 #. Yes, this covers all GCode interupts, but try to explain what GCode interrupts mean to the user
 #: src/gui/MItem_crash.cpp:158
 msgid "Runout Reaction"
-msgstr "Réaction sur fin de filament"
+msgstr "Réaction à la fin du filament"
 
 #: src/gui/screen/openprinttag/screen_opt_filament_detail.cpp:36
 msgid "SCAN OPENPRINTTAG"
@@ -7289,7 +7289,7 @@ msgstr "sam"
 
 #: src/gui/MItem_tools.hpp:190
 msgid "Save Crash Dump"
-msgstr "Sauv. Suppression Mémoire"
+msgstr "Enregistrer le vidage mémoire"
 
 #: src/gui/MItem_tools.cpp:1006
 msgid "Save Logs To File"
@@ -7506,7 +7506,7 @@ msgstr "Remappage du FSensor latéral"
 #: src/feature/filament_sensor/filament_sensors_handler_remap.cpp:50
 #: src/gui/MItem_tools.cpp:630 src/gui/screen_menu_filament_sensors.cpp:21
 msgid "Side Filament Sensor"
-msgstr "Capteur de Filament Latéral"
+msgstr "Capteur latéral"
 
 #.
 #: src/gui/screen_menu_filament_sensors.cpp:20
@@ -7526,7 +7526,7 @@ msgstr "Capteur de filament latéral non connecté, vérifiez le câblage."
 
 #: src/gui/MItem_network.cpp:105
 msgid "Signal"
-msgstr "Signaler"
+msgstr "Signal"
 
 #: src/gui/MItem_tools.cpp:382
 msgid "Silent"
@@ -7588,11 +7588,11 @@ msgstr ""
 
 #: src/gui/MItem_tools.cpp:421
 msgid "Sort Files"
-msgstr "Trier les Fichiers"
+msgstr "Tri des fichiers"
 
 #: src/gui/MItem_tools.cpp:391 src/gui/MItem_tools.hpp:213
 msgid "Sound Mode"
-msgstr "Mode Sonore"
+msgstr "Mode sonore"
 
 #: src/gui/MItem_tools.hpp:229
 msgid "Sound Volume"
@@ -7644,7 +7644,7 @@ msgstr "Statut"
 
 #: src/gui/MItem_mmu.hpp:176 src/gui/MItem_tools.hpp:72
 msgid "Stealth Mode"
-msgstr "Mode Furtif"
+msgstr "Mode silencieux"
 
 #: src/gui/screen_menu_steel_sheets.hpp:107
 msgid "Steel Sheets"
@@ -8694,19 +8694,19 @@ msgstr "Temps"
 
 #: src/gui/MItem_tools.cpp:481
 msgid "Time Format"
-msgstr "Format Heure"
+msgstr "Format de l'heure"
 
 #: src/gui/MItem_tools.hpp:238
 msgid "Time Zone Hour Offset"
-msgstr "Décalage horaire du fuseau horaire"
+msgstr "Fuseau horaire (heures)"
 
 #: src/gui/MItem_tools.cpp:455
 msgid "Time Zone Minute Offset"
-msgstr "Décalage des minutes du fuseau horaire"
+msgstr "Fuseau horaire (minutes)"
 
 #: src/gui/MItem_tools.hpp:252
 msgid "Time Zone Summertime"
-msgstr "Fuseau horaire Heure d'été"
+msgstr "Heure d'été"
 
 #: src/gui/wizard/selftest_frame_firstlayer_questions.cpp:46
 msgid ""
@@ -8880,7 +8880,7 @@ msgstr "Tête d'outil"
 
 #: src/gui/screen_menu_filament_sensors.cpp:17
 msgid "Toolhead Filament Sensor"
-msgstr "Capteur de filament de tête d'outil"
+msgstr "Capteur de la tête"
 
 #.
 #: src/gui/screen_menu_filament_sensors.cpp:16
@@ -8906,7 +8906,7 @@ msgstr "Tactile"
 
 #: src/gui/MItem_touch.hpp:18
 msgid "Touch Sig Workaround"
-msgstr "Solution de contournement du Touch Sig"
+msgstr "Correctif du signal tactile"
 
 #: src/gui/screen/initial/screen_touch_driver_failed.cpp:19
 msgid "Touch driver failed to initialize, touch functionality disabled"
@@ -9278,7 +9278,7 @@ msgstr "Utilisateur"
 
 #: src/gui/MItem_menus.hpp:113
 msgid "User Interface"
-msgstr "Interface Utilisateur"
+msgstr "Interface utilisateur"
 
 #: src/feature/factory_reset/factory_reset.hpp:58
 msgid "User Presets"
@@ -9295,7 +9295,7 @@ msgstr "Contrôle de validité"
 
 #: src/gui/MItem_tools.hpp:485
 msgid "Verify GCode"
-msgstr "Vérifier le GCode"
+msgstr "Vérifier le G-code"
 
 #: src/gui/menu_item/menu_item_cyphal_node_status.cpp:32
 msgid "Verifying"
@@ -11740,3 +11740,107 @@ msgstr "Accéléromètre disponible\nSes tests sont proposés"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Front PTFE"
 msgstr "PTFE avant"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Nozzle standby"
+msgstr "Buse en attente"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Chamber minimum"
+msgstr "Chambre minimale"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Chamber maximum"
+msgstr "Chambre maximale"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Filaments\nTemperatures of PLA, PETG... editable"
+msgstr "Filaments\nTempératures de PLA, PETG... modifiables"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "modified"
+msgstr "modifié"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "chamber"
+msgstr "chambre"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "My filaments\nYour own, order and visibility (Prusa)"
+msgstr "Mes filaments\nLes vôtres, ordre et affichage (Prusa)"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Filaments"
+msgstr "Filaments"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Restore Prusa value\nOne value or the whole preset"
+msgstr "Rétablir la valeur de Prusa\nUne valeur ou tout le préréglage"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Whole preset\nAll values back to Prusa's"
+msgstr "Tout le préréglage\nToutes les valeurs de Prusa"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Prusa values"
+msgstr "Valeurs de Prusa"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Printing\nSafety checks, runout, G-code"
+msgstr "Impression\nSécurités, fin de filament, G-code"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Filament and MMU\nSensors, MMU, cutter, OpenPrintTag"
+msgstr "Filament et MMU\nCapteurs, MMU, coupe, OpenPrintTag"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Filament and MMU"
+msgstr "Filament et MMU"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Chamber\nFiltration, lights, camera"
+msgstr "Chambre\nFiltration, lumières, caméra"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Diagnostics\nLogs, crash dump, metrics (support)"
+msgstr "Diagnostic\nJournaux, vidage mémoire, métriques"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Diagnostics"
+msgstr "Diagnostic"
+
+#: src/gui/screen_menu_settings.cpp
+msgid "Printer info\nVersion, statistics, sensors"
+msgstr "Infos de l'imprimante\nVersion, statistiques, capteurs"
+
+#: src/gui/screen_menu_settings.cpp
+msgid "Printhead\nNozzle diameter and type, sock"
+msgstr "Tête d'impression\nDiamètre et type de buse, chaussette"
+
+#: src/gui/screen_menu_settings.cpp
+msgid "Hardware\nDoor, belts, input shaper, MMU tube"
+msgstr "Matériel\nPorte, courroies, input shaper, tube MMU"
+
+#: src/gui/screen_menu_settings.cpp
+msgid "Interface\nSounds, file order, touch, footer"
+msgstr "Interface\nSons, fichiers, tactile, pied de page"
+
+#: src/gui/screen_menu_settings.cpp
+msgid "Network\nWi-Fi, PrusaLink, Prusa Connect"
+msgstr "Réseau\nWi-Fi, PrusaLink, Prusa Connect"
+
+#: src/gui/screen_menu_settings.cpp
+msgid "Language and time\nLanguage, time zone, clock"
+msgstr "Langue et heure\nLangue, fuseau horaire, format"
+
+#: src/gui/screen_menu_settings.cpp
+msgid "System\nFactory reset, settings file, diagnostics"
+msgstr "Système\nRéinitialisation, réglages, diagnostic"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "OneDrop3D features\nCalibrations, PA, MPC, chamber climate"
+msgstr "Fonctions OneDrop3D\nCalibrations, PA, MPC, climat chambre"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Chamber per filament\nTarget, min and max in Filaments"
+msgstr "Chambre par filament\nCible, min. et max. dans Filaments"

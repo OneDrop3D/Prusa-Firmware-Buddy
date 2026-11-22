@@ -61,6 +61,7 @@
 #include <feature/od3d/mpc_od3d.hpp>
 #include <feature/od3d/sleep_math_od3d.hpp>
 #include <feature/od3d/calib_registry_od3d.hpp>
+#include <feature/od3d/filament_presets_math_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -484,6 +485,9 @@ struct CurrentStore
     StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Soft Cooldown Step")> od3d_cooldown_step;
     StoreItem<uint8_t, 5, ItemFlag::features, journal::hash("OD3D Cooldown Interval")> od3d_cooldown_interval;
     StoreItem<uint8_t, 50, ItemFlag::features, journal::hash("OD3D Cooldown Floor")> od3d_cooldown_floor;
+    /// OneDrop3D (UI-13) : températures des préréglages de Prusa modifiées par l'utilisateur, indice = PresetFilamentType
+    /// (filament_presets_math_od3d.hpp : -1 = valeur de Prusa) ; lues par FilamentType::parameters() seulement
+    StoreItemArray<od3d::filament_presets::Override, AnyDefaultConstructor {}, ItemFlag::user_presets, journal::hash("OD3D Preset Overrides"), 32, std::to_underlying(PresetFilamentType::_count_sparse)> od3d_preset_overrides;
     /// OneDrop3D (F30) : reprise sans cicatrice (coupée par défaut) ; purge (mm), rétraction (dixièmes de mm), vitesse
     /// de la dernière descente (mm/s)
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Clean Resume Enabled")> od3d_clean_resume;

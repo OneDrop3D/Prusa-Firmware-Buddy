@@ -172,3 +172,7 @@ add_executable(
   )
 target_include_directories(calib_registry_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(calib_registry_od3d_tests)
+
+add_executable(filament_presets_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/filament_presets_test.cpp)
+target_include_directories(filament_presets_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(filament_presets_od3d_tests)

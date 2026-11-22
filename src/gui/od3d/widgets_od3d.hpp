@@ -235,8 +235,11 @@ public:
     Rect16 get_rect_for_touch() const override;
 };
 
-/// Pastille de l'opération du filament mise en arrière-plan (island_od3d.hpp) : anneau qui tourne, emplacement et
-/// avancement ; entre le titre et les températures, qu'elle raccourcit. La toucher rouvre l'écran de progression.
+/// Pastille « Dynamic Island » (island_od3d.hpp), entre le titre et les températures, qu'elle raccourcit :
+/// - chargement réduit : anneau qui tourne, emplacement et avancement ; la toucher rouvre l'écran de progression ;
+/// - impression : anneau de progression et « 47 % », en couleur selon l'état ; la toucher ramène à l'écran Impression ;
+/// - préchauffage : icône de la buse et « 185/215° » ; la toucher ouvre l'aperçu des températures.
+/// Seul son contenu se redessine, et seulement quand ce qu'elle montre change (l'anneau qui tourne : 10 images/s).
 class IslandPill : public Card {
 public:
     IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short);
@@ -246,11 +249,11 @@ protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
-    void sync(); ///< visible si une opération est réduite ; le titre se raccourcit pour lui laisser la place
+    void sync(bool show); ///< visible s'il y a quelque chose à montrer ; le titre se raccourcit pour lui laisser la place
     window_text_t &title;
     Rect16 title_full;
     Rect16 title_short;
-    uint16_t drawn_revision = 0;
+    uint32_t drawn_key = 0; ///< ce qui est dessiné, résumé (face_key)
     uint32_t last_spin_ms = 0;
 };
 

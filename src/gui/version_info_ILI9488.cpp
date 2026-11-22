@@ -42,8 +42,9 @@ MI_INFO_MMU::MI_INFO_MMU()
     if (FSensors_instance().HasMMU()) {
         const auto mmu_version = MMU2::mmu2.GetMMUFWVersion();
         if (mmu_version.major != 0) {
-            ArrayStringBuilder<12> sb;
-            sb.append_printf("%d.%d.%d", mmu_version.major, mmu_version.minor, mmu_version.build);
+            // OneDrop3D : le build distingue notre firmware du MMU (3.0.4+940) de celui de Prusa (3.0.4+936)
+            ArrayStringBuilder<18> sb;
+            sb.append_printf("%d.%d.%d+%u", mmu_version.major, mmu_version.minor, mmu_version.build, unsigned(MMU2::mmu2.GetMMUFWVersionBuild()));
             ChangeInformation(sb.str());
         } else {
             ChangeInformation("N/A");

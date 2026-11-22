@@ -1,5 +1,6 @@
 /// @file
-/// Méthode : PrusaPATuner (CNC Kitchen, AGPL-3.0), réimplémentée d'après sa description (voir pa_math_od3d.hpp).
+/// Méthode : inspirée de PrusaPATuner (CNC Kitchen, AGPL-3.0), réimplémentée d'après sa description, sur un motif
+/// imprimé (voir pa_math_od3d.hpp).
 #include "pa_od3d.hpp"
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
@@ -157,75 +158,96 @@ namespace {
     using session::must_stop;
     using session::wait_moves;
     using session::wait_ms;
-    using session::wait_queue;
 
     constexpr float accel_xy = 5000.f; ///< comme PrusaPATuner ; la limite d'accélération du filament de Prusa reste
-    constexpr float prime_mm = 8.f; ///< purge avant la mesure [mm de filament]
-    constexpr float prime_speed = 2.f; ///< [mm/s de filament]
-    constexpr uint8_t min_confidence = 30; ///< en dessous, rien n'est enregistré
-    constexpr float travel_speed_xy = session::travel_speed_xy;
-
-    /// Un mouvement en X avec extrusion proportionnelle (le PA de Prusa n'agit qu'avec du XY) ; false s'il faut s'arrêter
-    bool extrude_x(float dx, float speed, float e_per_mm) {
-        if (!wait_queue()) {
-            return false;
-        }
-        current_position.x += dx;
-        current_position.e += std::fabs(dx) * e_per_mm;
-        line_to_current_position(speed);
-        return true;
-    }
+    constexpr uint8_t min_confidence = 30; ///< en dessous, rien n'est enregistré (le choix à l'œil reste possible)
+    constexpr float tick_speed = 10.f; ///< traits des repères [mm/s]
+    constexpr float tick_hop = 0.4f; ///< levée entre deux traits [mm]
 
     void fail(Error e) {
         st_error = e;
         st_phase = e == Error::none ? Phase::done : Phase::failed;
     }
 
-    /// Un bloc de mesure : PA = k, créneaux, trace analysée. Position de départ : centre p0 (après l'arrêt)
-    bool measure_block(float k, float smooth_time, const Params &params, float p0, Waveform *wave, BlockResult &result, FILE *csv) {
+    /// Une ligne du motif : PA = k, lancement lent puis cycles × (rapide, lent) le long de +X, trace analysée, puis les
+    /// traits du numéro de la ligne à sa droite. false s'il faut s'arrêter.
+    bool measure_line(session::Session &session, float k, float smooth_time, const Params &params, const pattern::Lines &lines, uint8_t index, Waveform *wave,
+        BlockResult &result, FILE *csv) {
         const Profile prof = profile(params);
         const float ls = prof.v_lo * params.slow_s, lf = prof.v_hi * params.fast_s;
+        const float e_mm = pattern::e_per_mm(params.bead);
+        const float z = params.bead.height;
+        const float y = lines.y(index);
 
+        // Buse au départ de la ligne, posée à hauteur de couche (déplacement levé, rétraction)
+        if (!session.travel_to(lines.x0, y, z)) {
+            return false;
+        }
         planner.synchronize();
         if (must_stop()) {
             return false;
         }
         pressure_advance::set_axis_e_config({ .pressure_advance = k, .smooth_time = smooth_time });
-        do_blocking_move_to_x(p0, travel_speed_xy); // chaque bloc part du même point
 
-        // Cellule en haute précision (320 Hz, sans le canal du capteur de filament) le temps du bloc seulement
-        Loadcell::HighPrecisionEnabler high_precision(loadcell);
-        if (!wait_ms(250)) {
-            return false;
-        }
-        force_probe::start();
-        ScopeGuard stop_probe = [] { force_probe::stop(); };
-        if (!wait_ms(150)) { // tête arrêtée : zéro de la force
-            return false;
-        }
-
-        // Lancement lent (aller-retour), puis créneaux : rapide, demi-lent, demi-tour, demi-lent
-        if (!extrude_x(-ls / 2, prof.v_lo, params.e_per_mm) || !extrude_x(ls / 2, prof.v_lo, params.e_per_mm)) {
-            return false;
-        }
-        float d = 1.f;
-        for (uint8_t c = 0; c < params.cycles; ++c) {
-            if (!extrude_x(d * lf, prof.v_hi, params.e_per_mm) || !extrude_x(d * ls / 2, prof.v_lo, params.e_per_mm)
-                || !extrude_x(-d * ls / 2, prof.v_lo, params.e_per_mm)) {
+        // Cellule en haute précision (320 Hz, sans le canal du capteur de filament) le temps de la ligne seulement
+        {
+            Loadcell::HighPrecisionEnabler high_precision(loadcell);
+            if (!wait_ms(250)) {
                 return false;
             }
-            d = -d;
+            force_probe::start();
+            ScopeGuard stop_probe = [] { force_probe::stop(); };
+            if (!wait_ms(150)) { // tête arrêtée : zéro de la force
+                return false;
+            }
+            float x = lines.x0;
+            const auto segment = [&](float length, float speed) {
+                x += length;
+                return session.print_to(x, y, e_mm, speed);
+            };
+            if (!segment(ls, prof.v_lo)) {
+                return false;
+            }
+            for (uint8_t c = 0; c < params.cycles; ++c) {
+                if (!segment(lf, prof.v_hi) || !segment(ls, prof.v_lo)) {
+                    return false;
+                }
+            }
+            if (!wait_moves() || !wait_ms(150)) {
+                return false;
+            }
+            force_probe::stop();
+            result = analyse_block(force_probe::trace(), force_probe::dt(), prof, wave);
+            if (csv) {
+                std::ignore = force_probe::write_csv(csv, k);
+            }
         }
-        if (!wait_moves() || !wait_ms(150)) {
-            return false;
-        }
-        force_probe::stop();
 
-        const float dt = force_probe::dt();
-        result = analyse_block(force_probe::trace(), dt, prof, wave);
-        if (csv) {
-            std::ignore = force_probe::write_csv(csv, k);
+        // Repères : numéro de la ligne en traits vers l'arrière, un sur cinq plus long
+        std::array<pattern::Tick, max_lines> ticks;
+        const size_t n = pattern::tally(uint8_t(index + 1), ticks);
+        const float x_ticks = lines.x0 + lines.length + pattern::tick_gap;
+        for (size_t i = 0; i < n; ++i) {
+            const float tx = x_ticks + ticks[i].dx;
+            if (i == 0) {
+                if (!session.travel_to(tx, y, z)) {
+                    return false;
+                }
+            } else {
+                // Petit saut sans rétraction d'un trait au suivant
+                if (!session.move_z(z + tick_hop)) {
+                    return false;
+                }
+                do_blocking_move_to_xy(tx, y, session::travel_speed_xy);
+                if (!session.move_z(z)) {
+                    return false;
+                }
+            }
+            if (!session.print_to(tx, y + ticks[i].length, e_mm, tick_speed) || !wait_moves()) {
+                return false;
+            }
         }
+        session.retract();
         return true;
     }
 
@@ -250,6 +272,8 @@ namespace {
             return Error::no_room;
         case session::Result::heating:
             return Error::heating;
+        case session::Result::leveling:
+            return Error::leveling;
         }
         return Error::stopped;
     }
@@ -301,6 +325,18 @@ const LastRun &last_run() {
     return last;
 }
 
+bool choose_line(uint8_t slot, uint8_t line) {
+    if (running || last.slot != slot || line >= last.points || slot >= VirtualToolIndex::count) {
+        return false;
+    }
+    const uint16_t e4 = k_to_e4(last.k[line]);
+    if (e4 == k_none) {
+        return false;
+    }
+    set_record(slot, { .k_e4 = e4, .confidence = 100, .source = Record::chosen });
+    return true;
+}
+
 void calibrate(const Request &rq) {
     stop_requested = false;
     ScopeGuard count_run = [] { ++runs; }; // après l'état : l'interface lit l'état une fois runs changé
@@ -318,7 +354,8 @@ void calibrate(const Request &rq) {
     }
     std::array<float, LastRun::max_points> ks;
     const size_t coarse = sweep_values(rq.k_min, rq.k_max, rq.k_step, std::span(ks.data(), ks.size() - 8));
-    if (rq.slot >= VirtualToolIndex::count || !is_valid(rq.params) || coarse < 3 || rq.k_min < 0.f || rq.k_max > 1.f || rq.refine > 8) {
+    if (rq.slot >= VirtualToolIndex::count || !is_valid(rq.params) || coarse < 3 || coarse + rq.refine > max_lines || rq.k_min < 0.f || rq.k_max > 1.f
+        || rq.refine > 8 || !(rq.pitch >= 3.f && rq.pitch <= 20.f) || !std::isfinite(rq.x) || !std::isfinite(rq.y)) {
         fail(Error::bad_request);
         return;
     }
@@ -328,18 +365,39 @@ void calibrate(const Request &rq) {
         fail(Error::not_loaded);
         return;
     }
-    // La consigne est encore bornée par Prusa (température maximale de la buse) : on attend la consigne réelle
-    const int16_t temperature = std::clamp<int16_t>(rq.temperature > 0 ? rq.temperature : type.parameters().nozzle_temperature, EXTRUDE_MINTEMP + 10, session::max_temperature);
+    const FilamentTypeParameters material = type.parameters();
+    // Les consignes sont encore bornées par Prusa (températures maximales) : on attend les consignes réelles
+    const int16_t temperature = std::clamp<int16_t>(rq.temperature > 0 ? rq.temperature : material.nozzle_temperature, EXTRUDE_MINTEMP + 10, session::max_temperature);
+    const int16_t bed = std::clamp<int16_t>(rq.bed_temperature > 0 ? rq.bed_temperature : material.heatbed_temperature, 0, session::max_bed_temperature);
+    const int16_t probe = std::min<int16_t>(material.nozzle_preheat_temperature, temperature);
     st_temperature = temperature;
+
+    // Motif : une ligne par K (grossier + fin), de l'avant vers l'arrière, repères à droite ; il doit tenir dans la
+    // zone imprimable (bords du plateau et course)
+    const uint8_t line_count = uint8_t(coarse + rq.refine);
+    pattern::Lines lines;
+    lines.x0 = rq.x;
+    lines.y0 = rq.y;
+    lines.pitch = rq.pitch;
+    lines.length = line_length(rq.params);
+    lines.marks = pattern::tally_width(line_count);
+    lines.count = line_count;
+    lines.bead = rq.params.bead;
+    if (!session::printable_zone().contains(lines.area())) {
+        fail(Error::no_room);
+        return;
+    }
 
     running = true;
     ScopeGuard not_running = [] { running = false; };
-    st_steps = uint8_t(coarse + rq.refine);
+    st_steps = line_count;
+    last = {};
+    last.slot = rq.slot;
 
-    // Réglages remis à la fin, même sur un arrêt de Marlin : PA, mouvements, consigne de la buse (session commune)
+    // Réglages remis à la fin, même sur un arrêt de Marlin : PA, mouvements, consignes, maillage (session commune)
     session::Session session(stop_requested);
     const float smooth_time = session.smooth_time();
-    planner.set_stealth_mode(false); // ses limites fausseraient les créneaux
+    planner.set_stealth_mode(false); // ses limites fausseraient les changements de vitesse
     {
         auto s = planner.user_settings;
         for (const AxisEnum axis : { X_AXIS, Y_AXIS }) {
@@ -351,27 +409,30 @@ void calibrate(const Request &rq) {
         planner.apply_settings(s); // les limites matérielles de Prusa s'appliquent encore
     }
 
-    // Origine si nécessaire, hauteur sûre, avant du plateau ; la tête va de p0 − ls/2 à p0 + lf + ls/2 : centrée sur x
-    const Profile prof = profile(rq.params);
-    const float ls = prof.v_lo * rq.params.slow_s, lf = prof.v_hi * rq.params.fast_s;
-    const float x_center = std::isfinite(rq.x) ? rq.x : X_BED_SIZE / 2.f;
-    const float p0 = x_center - lf / 2.f;
-    float y = rq.y;
-    if (const session::Result r = session.go_to(p0 - ls / 2, p0 + lf + ls / 2, p0, y, 0.f, rq.z); r != session::Result::ok) {
+    // Plateau, puis origine et nivellement local de la zone du motif (buse à sa température de palpage)
+    st_phase = Phase::bed;
+    if (const session::Result r = session.heat_bed(bed, probe); r != session::Result::ok) {
+        fail(error_of(r));
+        return;
+    }
+    st_phase = Phase::leveling;
+    if (const session::Result r = session.level(lines.area(), probe); r != session::Result::ok) {
         fail(error_of(r));
         return;
     }
 
-    // Buse à la température de la matière
+    // Buse à la température de la matière au-dessus de la purge, puis ligne de purge au bord avant
     st_phase = Phase::heating;
+    if (const session::Result r = session.go_to_purge(); r != session::Result::ok) {
+        fail(error_of(r));
+        return;
+    }
     if (const session::Result r = session.heat(temperature); r != session::Result::ok) {
         fail(error_of(r));
         return;
     }
-
-    // Purge sur place (hors de la zone des pièces), le filament tombe sur l'avant du plateau
     st_phase = Phase::priming;
-    if (!session.prime(prime_mm, prime_speed)) {
+    if (!session.purge()) {
         fail(Error::stopped);
         return;
     }
@@ -383,11 +444,11 @@ void calibrate(const Request &rq) {
         snprintf(path, sizeof(path), "/usb/OD3D_PA%u.CSV", unsigned(rq.slot + 1));
         csv = fopen(path, "w");
         if (csv) {
-            const auto name = type.parameters().name;
-            fprintf(csv, "# OneDrop3D PA (F4) slot %u, %s, %d C, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, e/mm %.3f, cycles %u\n",
-                unsigned(rq.slot + 1), name.data(), int(temperature), double(rq.params.slow_flow), double(rq.params.slow_s),
-                double(rq.params.fast_flow), double(rq.params.fast_s), double(rq.params.e_per_mm), unsigned(rq.params.cycles));
-            fprintf(csv, "# D,k,t_s,x_mm,force_g / R,k,lag_s,cost,overshoot,undershoot,amplitude_g,noise,cycles / C,k,confidence,fit,slope,k_lag,k_cost\n");
+            fprintf(csv, "# OneDrop3D PA (F4) slot %u, %s, nozzle %d C, bed %d C, printed lines %.2f x %.2f mm from X%.1f Y%.1f pitch %.1f, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, cycles %u\n",
+                unsigned(rq.slot + 1), material.name.data(), int(temperature), int(bed), double(rq.params.bead.width), double(rq.params.bead.height),
+                double(rq.x), double(rq.y), double(rq.pitch), double(rq.params.slow_flow), double(rq.params.slow_s), double(rq.params.fast_flow),
+                double(rq.params.fast_s), unsigned(rq.params.cycles));
+            fprintf(csv, "# force up positive. D,k,t_s,x_mm,force_g / R,k,lag_s,cost,overshoot,undershoot,amplitude_g,noise,cycles / C,k,confidence,fit,slope,k_lag,k_cost\n");
         }
     }
     ScopeGuard close_csv = [&] {
@@ -397,19 +458,17 @@ void calibrate(const Request &rq) {
     };
     st_csv = csv != nullptr;
 
-    // Balayage grossier, puis fin autour du premier choix
+    // Balayage grossier, puis fin autour du premier choix ; une ligne par K, dans l'ordre
     st_phase = Phase::measuring;
-    last = {};
-    last.slot = rq.slot;
     std::array<SweepPoint, LastRun::max_points> sweep;
     size_t n = 0;
     float best_cost = INFINITY;
     Waveform wave;
-    const auto run_block = [&](float k, bool first, bool keep_high) -> bool {
+    const auto run_line = [&](float k, bool first, bool keep_high) -> bool {
         st_step = uint8_t(n + 1);
         st_k = k_to_e4(k);
         BlockResult r;
-        if (!measure_block(k, smooth_time, rq.params, p0, &wave, r, csv)) {
+        if (!measure_line(session, k, smooth_time, rq.params, lines, uint8_t(n), &wave, r, csv)) {
             return false;
         }
         sweep[n] = { k, r };
@@ -437,7 +496,7 @@ void calibrate(const Request &rq) {
         return true;
     };
     for (size_t i = 0; i < coarse; ++i) {
-        if (!run_block(ks[i], i == 0, i + 1 == coarse)) {
+        if (!run_line(ks[i], i == 0, i + 1 == coarse)) {
             fail(Error::stopped);
             return;
         }
@@ -447,8 +506,8 @@ void calibrate(const Request &rq) {
         std::array<float, 8> fine;
         const size_t m = refine_values(choice.k, rq.k_step / 4.f, rq.refine, 0.f, 1.f, fine);
         st_steps = uint8_t(coarse + m);
-        for (size_t i = 0; i < m && n < sweep.size(); ++i) {
-            if (!run_block(fine[i], false, false)) {
+        for (size_t i = 0; i < m && n < line_count; ++i) {
+            if (!run_line(fine[i], false, false)) {
                 fail(Error::stopped);
                 return;
             }
@@ -471,7 +530,7 @@ void calibrate(const Request &rq) {
         fail(Error::low_confidence);
         return;
     }
-    set_record(rq.slot, { .k_e4 = k_to_e4(choice.k), .confidence = choice.confidence });
+    set_record(rq.slot, { .k_e4 = k_to_e4(choice.k), .confidence = choice.confidence, .source = Record::measured });
     st_k = k_to_e4(choice.k);
     fail(Error::none); // done
 }

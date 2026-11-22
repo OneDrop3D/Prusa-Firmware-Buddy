@@ -33,6 +33,7 @@ if(HAS_LOADCELL AND HAS_MMU2)
             measure_session_od3d.cpp
             pa_math_od3d.cpp
             pa_od3d.cpp
+            pattern_math_od3d.cpp
             spool_calib_math_od3d.cpp
             spool_calib_od3d.cpp
     )

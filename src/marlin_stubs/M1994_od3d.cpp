@@ -17,25 +17,27 @@
  *
  *#### Usage
  *
- *    M1994 [P<slot>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [E<mm/mm>] [C<n>] [T<C>] [X<mm>] [Y<mm>] [Z<mm>] [O<0|1>]
+ *    M1994 [P<slot>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [W<mm>] [Z<mm>] [C<n>] [T<C>] [Q<C>] [X<mm>] [Y<mm>] [I<mm>] [O<0|1>]
  *
  *#### Parameters
  *
  * - `P` - emplacement 0 à 4 (celui chargé dans la buse, obligatoire) ; sans P, l'emplacement chargé
  * - `L`, `H`, `S` - balayage de K : de L à H par pas de S (0, 0,10, 0,02)
- * - `R` - points du second balayage au pas S/4 autour du premier choix (5 ; 0 : aucun)
- * - `B`, `F` - débits lent et rapide (2 et 15 mm³/s)
- * - `U`, `D` - durées des paliers lent et rapide (1 et 0,3 s)
- * - `E` - filament par mm de déplacement en X (0,08)
- * - `C` - créneaux par K (5)
- * - `T` - température de la buse (celle de la matière)
- * - `X`, `Y`, `Z` - centre de la séquence (milieu du plateau), avant du plateau (10 mm), hauteur minimale (20 mm)
+ * - `R` - lignes du second balayage au pas S/4 autour du premier choix (5 ; 0 : aucune) ; 15 lignes au plus en tout
+ * - `B`, `F` - débits lent et rapide (1,5 et 10 mm³/s)
+ * - `U`, `D` - durées des tronçons lent et rapide (0,8 et 0,3 s)
+ * - `W`, `Z` - largeur et hauteur du cordon (0,45 et 0,2 mm)
+ * - `C` - tronçons rapides par ligne (3)
+ * - `T`, `Q` - températures de la buse et du plateau (celles de la matière)
+ * - `X`, `Y`, `I` - début des lignes (X20), première ligne à l'avant (Y12), écart entre les lignes (5 mm)
  * - `O1` - écrit la trace et les résultats dans /usb/OD3D_PA<n>.CSV
  *
- * Buse chauffée à la température de la matière, purge puis extrusion en créneaux dans le vide avec un déplacement en
- * X (le PA n'agit qu'avec du XY), K balayé, réponse de la cellule de charge analysée (méthode de PrusaPATuner,
- * réimplémentée). Le K retenu est enregistré pour l'emplacement. Refusé pendant une impression ; arrêtable depuis
- * l'écran. Réglages (PA, accélérations, consigne de la buse) remis à la fin.
+ * Plateau chauffé, origine, nivellement local de la zone du motif (comme le G-code de départ de la CORE One), buse à
+ * la température de la matière, ligne de purge au bord avant, puis une ligne imprimée par K à hauteur de première
+ * couche, lente / rapide / lente, avec à sa droite des traits qui donnent son numéro. La force verticale de la cellule
+ * de charge pendant les changements de vitesse donne le K (méthode inspirée de PrusaPATuner, réimplémentée), enregistré
+ * pour l'emplacement ; l'écran permet aussi de choisir la meilleure ligne à l'œil. Refusé pendant une impression ;
+ * arrêtable depuis l'écran. Réglages (PA, accélérations, consignes, maillage) remis à la fin, buse levée.
  */
 void PrusaGcodeSuite::M1994() {
     od3d::pa::Request rq;
@@ -58,10 +60,11 @@ void PrusaGcodeSuite::M1994() {
     read('F', rq.params.fast_flow);
     read('U', rq.params.slow_s);
     read('D', rq.params.fast_s);
-    read('E', rq.params.e_per_mm);
+    read('W', rq.params.bead.width);
+    read('Z', rq.params.bead.height);
     read('X', rq.x);
     read('Y', rq.y);
-    read('Z', rq.z);
+    read('I', rq.pitch);
     if (parser.seenval('R')) {
         rq.refine = parser.value_byte();
     }
@@ -70,6 +73,9 @@ void PrusaGcodeSuite::M1994() {
     }
     if (parser.seenval('T')) {
         rq.temperature = parser.value_int();
+    }
+    if (parser.seenval('Q')) {
+        rq.bed_temperature = parser.value_int();
     }
     rq.csv = parser.seen('O') && parser.value_bool();
     od3d::pa::calibrate(rq);

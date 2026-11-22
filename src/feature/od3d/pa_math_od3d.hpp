@@ -2,24 +2,30 @@
 /// OneDrop3D (F4) : calibration du pressure advance (PA) par la cellule de charge, partie pure (sans firmware),
 /// testée dans tests/unit/feature/od3d avec des courbes synthétiques.
 ///
-/// Méthode : celle de PrusaPATuner (CNC Kitchen, https://github.com/CNCKitchen/PrusaPATuner, AGPL-3.0),
-/// **réimplémentée ici d'après sa description, sans reprendre son code**. Elle-même s'inspire de la calibration
-/// automatique des Bambu Lab A1, du calibrateur de débit du Snapmaker U1 (extrusion en créneaux dans le vide) et de
-/// bd_pressure de markniu (analyse de la réponse à un échelon) ; lecture physique du guide d'Ellis (PA trop faible :
-/// la force est en retard sur la commande ; trop fort : elle est en avance).
+/// Méthode : inspirée de PrusaPATuner (CNC Kitchen, https://github.com/CNCKitchen/PrusaPATuner, AGPL-3.0),
+/// **réimplémentée ici d'après sa description, sans reprendre son code**, et des motifs PA des Bambu Lab / d'Orca
+/// (lignes avec changements de vitesse) ; lecture physique du guide d'Ellis (PA trop faible : la force est en retard
+/// sur la commande ; trop fort : elle est en avance). PrusaPATuner extrude dans le vide ; ici la buse **imprime** :
+/// dans le vide la poussée de l'extrudeur et la contre-pression de la buse se compensent presque dans l'ensemble pesé
+/// par la cellule de charge, alors que le plastique écrasé entre la buse et le plateau la repousse vers le haut avec
+/// une force qui suit la pression dans la buse (retour de l'utilisateur, 22/11 : « la force ne suit pas K » dans le vide).
 ///
-/// Principe : la buse extrude dans le vide en créneaux (débit lent, rapide, lent…) avec un déplacement en X (le PA
-/// de Prusa n'agit que sur les mouvements avec XY), pour chaque K d'un balayage. La pression dans la buse se lit sur
-/// la cellule de charge. Modèle du premier ordre : τ·dr/dt + r = u + K·du/dt (r : force normalisée, u : débit
-/// commandé normalisé, τ : constante de temps de la buse). Le K idéal vaut τ : la force suit alors la commande.
+/// Principe : pour chaque K d'un balayage, une ligne à hauteur de première couche le long de X, imprimée lente,
+/// rapide, lente… (lancement lent, puis `cycles` fois rapide + lent). La force verticale (positive vers le haut) se lit
+/// sur la cellule de charge. Modèle : τ·dp/dt + p = débit commandé + K·d(débit)/dt (p : pression, τ : constante de temps
+/// de la buse) ; la force a deux parts, la pression elle-même et l'écrasement du cordon (filament déposé par mm, qui ne
+/// bouge qu'aux changements de vitesse si le PA est faux). Le K idéal vaut τ : les deux parts suivent alors la commande.
 /// Pour chaque K on mesure :
-/// - le retard (« lag ») : aire entre commande et force, à la montée et à la descente, en secondes ; il vaut τ − K
-///   dans le modèle (positif : PA trop faible, négatif : trop fort). Le K retenu est le zéro de la droite lag(K).
+/// - le retard (« lag ») : aire entre commande et force normalisées, à la montée et à la descente, en secondes ; il
+///   s'annule au bon K (positif : PA trop faible, négatif : trop fort) et décroît avec K (pente −1 pour la pression
+///   seule, plus raide avec l'écrasement). Le K retenu est le zéro de lag(K) : interpolé entre les deux K voisins qui
+///   l'encadrent, sinon celui de la droite des moindres carrés.
 /// - le coût : intégrale du carré de l'écart force − commande ; minimal au bon K (contrôle croisé).
 /// - le dépassement à la montée, le creux à la descente, l'amplitude du créneau et le bruit (seuils de validité).
 #pragma once
 
 #include "force_trace_od3d.hpp"
+#include "pattern_math_od3d.hpp"
 
 #include <array>
 #include <cstddef>
@@ -28,16 +34,16 @@
 
 namespace od3d::pa {
 
-inline constexpr float filament_area_mm2 = 2.4053f; ///< filament de 1,75 mm
+inline constexpr float filament_area_mm2 = pattern::filament_area_mm2; ///< filament de 1,75 mm
 
-/// Séquence de mesure d'un K (réglable par M1994) ; valeurs par défaut prudentes, à affiner sur la machine
+/// Ligne de mesure d'un K (réglable par M1994) ; valeurs par défaut prudentes, à affiner sur la machine
 struct Params {
-    float slow_flow = 2.0f; ///< débit lent [mm³/s]
-    float fast_flow = 15.0f; ///< débit rapide [mm³/s]
-    float slow_s = 1.0f; ///< durée d'un palier lent [s] (la tête change de sens en son milieu)
-    float fast_s = 0.3f; ///< durée d'un palier rapide [s]
-    float e_per_mm = 0.08f; ///< filament par mm de déplacement XY [mm/mm] : fixe le rapport débit / vitesse
-    uint8_t cycles = 5; ///< créneaux par K
+    float slow_flow = 1.5f; ///< débit lent [mm³/s]
+    float fast_flow = 10.0f; ///< débit rapide [mm³/s]
+    float slow_s = 0.8f; ///< durée d'un tronçon lent [s]
+    float fast_s = 0.3f; ///< durée d'un tronçon rapide [s]
+    pattern::Bead bead { 0.45f, 0.2f }; ///< cordon : largeur et hauteur de première couche [mm]
+    uint8_t cycles = 3; ///< tronçons rapides par ligne
 };
 
 /// Vitesses XY de la séquence [mm/s] et durées des paliers
@@ -50,11 +56,17 @@ struct Profile {
 
 Profile profile(const Params &p);
 
-/// Paramètres valides (débits, durées, rapport et nombre de créneaux dans des bornes raisonnables)
+inline constexpr float max_line_length = 200.f; ///< [mm]
+inline constexpr float max_line_speed = 300.f; ///< [mm/s]
+
+/// Paramètres valides (cordon, débits, durées, rapport, nombre de tronçons, vitesse et longueur de la ligne)
 bool is_valid(const Params &p);
 
-/// Durée d'un bloc (un K) : lancement lent (2 demi-paliers), créneaux, sans les rampes [s]
+/// Durée d'une ligne (un K) : lancement lent, puis cycles × (rapide + lent), sans les rampes [s]
 float block_duration_s(const Params &p);
+
+/// Longueur d'une ligne [mm]
+float line_length(const Params &p);
 
 /// Forme moyenne d'un créneau (pour l'écran) : force et commande normalisées (×64 : 64 = palier rapide), depuis
 /// 0,1 s avant la montée
@@ -87,8 +99,8 @@ struct Thresholds {
     float min_amplitude_g = 3.0f; ///< créneau plus faible : signal trop faible
     float max_noise = 0.25f; ///< bruit relatif au-delà duquel le bloc est écarté
     float local_span = 0.04f; ///< second ajustement sur les K à ±local_span du premier zéro
-    float min_slope = -3.0f; ///< pente lag(K) attendue vers −1 : hors de [min_slope, max_slope], refus
-    float max_slope = -0.2f;
+    float min_slope = -8.0f; ///< pente lag(K) : −1 (pression seule) ou plus raide (écrasement du cordon) ; hors de
+    float max_slope = -0.2f; ///< [min_slope, max_slope], refus
 };
 
 struct SweepPoint {
@@ -149,9 +161,14 @@ float k_from_e4(uint16_t e4);
 /// Ce qui est gardé par emplacement (config_store, « OD3D PA Slot »). Taille fixe : pour changer la structure, créer
 /// un nouvel élément (nouveau nom) sans réutiliser celui-ci.
 struct Record {
+    enum Source : uint8_t {
+        measured = 0, ///< mesure par la cellule de charge
+        chosen = 1, ///< ligne du motif choisie à l'œil par l'utilisateur
+    };
+
     uint16_t k_e4 = k_none; ///< K mesuré [1e-4 s] ; k_none : à mesurer
-    uint8_t confidence = 0; ///< confiance de la mesure, 0 à 100
-    uint8_t reserved = 0;
+    uint8_t confidence = 0; ///< confiance de la mesure, 0 à 100 (100 pour une ligne choisie)
+    uint8_t source = measured; ///< ancien octet de réserve, à 0 dans les mémoires d'avant : « mesuré »
 
     bool has_k() const { return k_e4 != k_none; }
     bool operator==(const Record &) const = default;

@@ -5,9 +5,14 @@
 ///   l'assistant de l'Atelier ; réglage général « le PA de l'imprimante prime » (« OD3D PA Printer Wins », coupé par
 ///   défaut) : K est appliqué à chaque changement d'outil et le M572 / M900 du trancheur est alors ignoré pour un
 ///   emplacement qui a un K (gardé pour un emplacement sans K).
-/// - Mesure : M1994 (calibrate()), séquence décrite dans pa_math_od3d.hpp (méthode PrusaPATuner réimplémentée).
-///   Buse à la température de la matière, au-dessus de l'avant du plateau à hauteur sûre, refusée pendant une
-///   impression, arrêtable à tout moment (request_stop()). Trace et résultats exportables en CSV sur la clé.
+/// - Mesure : M1994 (calibrate()), principe dans pa_math_od3d.hpp. **Motif imprimé** à l'avant du plateau (la mesure
+///   dans le vide ne marchait pas, retour du 22/11) : plateau à la température de la matière, origine, nivellement
+///   local de la zone (comme le G-code de départ de la CORE One), ligne de purge au bord avant, puis une ligne par K à
+///   hauteur de première couche (lente, rapide, lente…) ; chaque ligne porte à sa droite des traits qui donnent son
+///   numéro (un sur cinq plus long). La force verticale pendant les changements de vitesse donne le K ; à défaut,
+///   l'utilisateur choisit la meilleure ligne à l'œil (choose_line()), comme le test PA d'Orca.
+///   Refusée pendant une impression, arrêtable à tout moment (request_stop()), état remis à la fin (session commune).
+///   Trace et résultats exportables en CSV sur la clé.
 /// La mesure automatique au début de la 1re impression d'une bobine neuve et le PA adaptatif sont pour plus tard.
 #pragma once
 
@@ -57,10 +62,12 @@ std::optional<float> override_slicer_pa(float requested);
 
 enum class Phase : uint8_t {
     idle, ///< rien depuis le démarrage
-    preparing, ///< origine, position, préparation
-    heating,
-    priming,
-    measuring,
+    preparing, ///< vérifications, réglages
+    bed, ///< le plateau chauffe (la buse va à sa température de palpage)
+    leveling, ///< origine, nettoyage de la buse, palpage de la zone du motif
+    heating, ///< la buse chauffe à la température d'impression
+    priming, ///< ligne de purge
+    measuring, ///< lignes du motif
     done, ///< K mesuré et enregistré
     failed, ///< voir Error
 };
@@ -71,8 +78,9 @@ enum class Error : uint8_t {
     bad_request, ///< emplacement ou paramètres invalides
     not_loaded, ///< la bobine de l'emplacement n'est pas chargée dans la buse
     homing, ///< origine impossible
-    no_room, ///< la séquence ne tient pas dans la course
-    heating, ///< la buse n'a pas chauffé à temps
+    no_room, ///< le motif ne tient pas dans la zone imprimable
+    heating, ///< la buse ou le plateau n'a pas chauffé à temps
+    leveling, ///< palpage du plateau impossible
     stopped, ///< annulé
     weak_signal, ///< créneau de force trop faible ou trop bruité
     no_crossing, ///< la force ne répond pas à K comme prévu
@@ -85,7 +93,7 @@ struct Status {
     Phase phase = Phase::idle;
     Error error = Error::none;
     uint8_t slot = 0;
-    uint8_t step = 0; ///< bloc en cours (1 à steps)
+    uint8_t step = 0; ///< ligne en cours (1 à steps)
     uint8_t steps = 0;
     uint16_t k_e4 = k_none; ///< K en cours de mesure, puis K retenu
     int16_t temperature = 0; ///< consigne de la buse
@@ -105,29 +113,33 @@ uint16_t run_count();
 /// Demande l'arrêt (depuis l'interface) : les mouvements déjà en file finissent (3 s au plus)
 void request_stop();
 
+inline constexpr uint8_t max_lines = 15; ///< lignes du motif au plus (grossier + fin)
+
 struct Request {
     uint8_t slot = 0;
     float k_min = 0.f;
     float k_max = 0.10f;
     float k_step = 0.02f;
-    uint8_t refine = 5; ///< points du second balayage, au pas k_step / 4, autour du premier choix (0 : aucun)
+    uint8_t refine = 5; ///< lignes du second balayage, au pas k_step / 4, autour du premier choix (0 : aucune)
     Params params;
-    int16_t temperature = 0; ///< 0 : celle de la matière de l'emplacement
-    float x = NAN; ///< centre de la séquence ; NAN : milieu du plateau
-    float y = 10.f; ///< à l'avant du plateau (le filament tombe hors de la zone des pièces)
-    float z = 20.f; ///< hauteur minimale de la buse (et 10 mm au-dessus de ce qui a été imprimé)
+    int16_t temperature = 0; ///< buse ; 0 : celle de la matière de l'emplacement
+    int16_t bed_temperature = 0; ///< plateau ; 0 : celle de la matière
+    float x = 20.f; ///< début des lignes (gauche)
+    float y = 12.f; ///< première ligne, à l'avant du plateau (les suivantes vers l'arrière)
+    float pitch = 5.f; ///< écart entre deux lignes [mm]
     bool csv = false; ///< écrit /usb/OD3D_PA<n>.CSV
 };
 
 /// Corps de M1994 : mesure le K de l'emplacement et l'enregistre ; bloque jusqu'à la fin ou l'arrêt
 void calibrate(const Request &request);
 
-/// Dernière mesure (en mémoire vive seulement), pour l'écran : K par bloc, retard, coût, et forme moyenne d'un
-/// créneau au K le plus bas, au meilleur coût et au K le plus haut. Lire quand is_running() est faux.
+/// Dernière mesure (en mémoire vive seulement), pour l'écran : K de chaque ligne imprimée **dans l'ordre des lignes**
+/// (ligne 1 à l'avant), retard, coût, et forme moyenne d'un créneau au K le plus bas, au meilleur coût et au K le plus
+/// haut. Lire quand is_running() est faux.
 struct LastRun {
     static constexpr size_t max_points = 24;
     uint8_t slot = 0xff; ///< 0xff : pas de mesure depuis le démarrage
-    uint8_t points = 0;
+    uint8_t points = 0; ///< lignes imprimées en entier (repères compris)
     std::array<float, max_points> k {};
     std::array<float, max_points> lag {};
     std::array<float, max_points> cost {};
@@ -136,5 +148,9 @@ struct LastRun {
     float k_low = 0, k_best = 0, k_high = 0;
 };
 const LastRun &last_run();
+
+/// Repli visuel : enregistre pour l'emplacement le K de la ligne line (0 : la première, à l'avant) de la dernière
+/// mesure de cet emplacement ; false sans mesure de cet emplacement, ligne non imprimée ou mesure en cours
+bool choose_line(uint8_t slot, uint8_t line);
 
 } // namespace od3d::pa

@@ -22,7 +22,7 @@ namespace {
     constexpr Rect16 graph_rect = { 200, style::top, 272, 128 };
     constexpr Rect16 note_rect = { style::margin, 180, 464, 16 };
     constexpr Rect16 wins_body = { style::margin, 202, 228, 30 };
-    constexpr Rect16 csv_body = { 244, 202, 228, 30 };
+    constexpr Rect16 lines_body = { 244, 202, 228, 30 };
     // Rangée du bas : trois boutons de 148 px
     constexpr Rect16 measure_body = { style::margin, 238, 148, 34 };
     constexpr Rect16 second_body = { 166, 238, 148, 34 };
@@ -34,7 +34,7 @@ namespace {
 
     enum Tag : uint8_t {
         tag_wins,
-        tag_csv,
+        tag_lines,
         tag_measure,
         tag_second,
         tag_calib,
@@ -45,8 +45,29 @@ namespace {
     constexpr Color color_high = style::danger;
     constexpr Color color_command = Color::from_raw(0x8A8E94);
 
-    /// Courbes exportées sur la clé : choix gardé jusqu'au redémarrage
+    /// Courbes exportées sur la clé : choix gardé jusqu'au redémarrage (réglé sur l'écran Débit/T°)
     bool csv_on = true;
+
+    /// La dernière mesure de l'emplacement a imprimé au moins une ligne : le choix à l'œil est possible
+    bool has_lines(uint8_t slot) {
+        const pa::LastRun &run = pa::last_run();
+        return !pa::is_running() && run.slot == slot && run.points > 0;
+    }
+
+    // Écran « Meilleure ligne » : aide sur 3 lignes, puis les lignes en colonnes de 5
+    constexpr Rect16 lines_help_rect = { style::margin, style::top, 464, 48 };
+    constexpr int16_t line_top = 100;
+    constexpr uint16_t line_w = 148, line_h = 28, line_gap_y = 6;
+    constexpr uint8_t lines_per_column = 5;
+    constexpr Rect16 line_body(uint8_t index) {
+        const uint8_t column = index / lines_per_column, row = index % lines_per_column;
+        return { int16_t(style::margin + column * 158), int16_t(line_top + row * (line_h + line_gap_y)), line_w, line_h };
+    }
+    static_assert(pa::max_lines <= 3 * lines_per_column);
+    static_assert(lines_help_rect.Bottom() < style::with_ring(line_body(0)).Top());
+    static_assert(style::inside(style::content, style::with_ring(line_body(pa::max_lines - 1))));
+    static_assert(style::with_ring(line_body(0)).Bottom() < style::with_ring(line_body(1)).Top());
+    static_assert(style::with_ring(line_body(0)).Right() < style::with_ring(line_body(lines_per_column)).Left());
 
     /// « 0.0350 » ; « - » sans valeur
     void format_k(char *buf, size_t size, uint16_t k_e4) {
@@ -94,7 +115,9 @@ void PaValueCard::unconditionalDraw() {
     draw_text(Rect16(x, r.Top() + 30, w, height(Font::big)), string_view_utf8::MakeRAM(value), Font::big, rec.has_k() ? style::text_strong : style::text_faint, style::surface);
 
     StringViewUtf8Parameters<4> params;
-    if (rec.has_k()) {
+    if (rec.has_k() && rec.source == pa::Record::chosen) {
+        draw_text(Rect16(x, r.Top() + 60, w, height(Font::small)), _("Chosen by eye"), Font::small, style::text_soft, style::surface);
+    } else if (rec.has_k()) {
         draw_text(Rect16(x, r.Top() + 60, w, height(Font::small)), _("Confidence %d/100").formatted(params, int(rec.confidence)), Font::small, style::text_soft, style::surface);
     } else {
         draw_text(Rect16(x, r.Top() + 60, w, height(Font::small)), _("Not measured"), Font::small, style::text_soft, style::surface);
@@ -188,7 +211,7 @@ ScreenPa::ScreenPa(uint8_t slot)
     , graph(this, graph_rect, slot)
     , note(this, note_rect, is_multiline::no)
     , wins(this, wins_body, tag_wins, Button::Look::secondary, {}, nullptr, style::screen)
-    , csv(this, csv_body, tag_csv, Button::Look::secondary, {}, nullptr, style::screen)
+    , lines(this, lines_body, tag_lines, Button::Look::secondary, _("Best line"), nullptr, style::screen)
     , measure_button(this, measure_body, tag_measure, Button::Look::primary, _("Measure"), &img::nozzle_16x16, style::screen)
     , second(this, second_body, tag_second, Button::Look::outline, _("Clear"), nullptr, style::screen)
     , calib(this, calib_body, tag_calib, Button::Look::secondary, _("Flow, temp."), nullptr, style::screen)
@@ -214,7 +237,6 @@ ScreenPa::ScreenPa(uint8_t slot)
 void ScreenPa::show_toggles() {
     const bool on = pa::printer_wins();
     wins.set(on ? Button::Look::selected : Button::Look::secondary, on ? _("Printer PA: on") : _("Printer PA: off"));
-    csv.set(csv_on ? Button::Look::selected : Button::Look::secondary, csv_on ? _("USB curves: on") : _("USB curves: off"));
 }
 
 void ScreenPa::show_note() {
@@ -226,6 +248,12 @@ void ScreenPa::show_note() {
         text = _("Starting...");
     } else if (shown_running && mine) {
         switch (shown.phase) {
+        case pa::Phase::bed:
+            text = _("Heating the bed...");
+            break;
+        case pa::Phase::leveling:
+            text = _("Probing bed");
+            break;
         case pa::Phase::heating:
             text = _("Heating the nozzle to %d°").formatted(params, int(shown.temperature));
             break;
@@ -234,7 +262,7 @@ void ScreenPa::show_note() {
             break;
         case pa::Phase::measuring:
             format_k(k, sizeof(k), shown.k_e4);
-            text = _("Measuring K = %s (%d/%d)").formatted(params, k, int(shown.step), int(shown.steps));
+            text = _("Line %d/%d: K = %s").formatted(params, int(shown.step), int(shown.steps), k);
             break;
         default:
             text = _("Homing and moving...");
@@ -258,23 +286,26 @@ void ScreenPa::show_note() {
             text = _("No room for the test.");
             break;
         case pa::Error::heating:
-            text = _("The nozzle did not heat up.");
+            text = _("The nozzle or the bed did not heat up.");
+            break;
+        case pa::Error::leveling:
+            text = _("Bed probing failed.");
             break;
         case pa::Error::stopped:
             text = _("Measurement cancelled.");
             break;
         case pa::Error::weak_signal:
-            text = _("Force signal too weak: nothing saved.");
+            text = _("Weak force: pick the best line by eye.");
             break;
         case pa::Error::no_crossing:
         case pa::Error::too_few_points:
-            text = _("Force does not follow K: nothing saved.");
+            text = _("Force does not follow K: pick the best line.");
             break;
         case pa::Error::out_of_range:
-            text = _("K out of range (%s): nothing saved.").formatted(params, k);
+            text = _("K out of range (%s): pick the best line.").formatted(params, k);
             break;
         case pa::Error::low_confidence:
-            text = _("Unsure result (K = %s): nothing saved.").formatted(params, k);
+            text = _("Unsure (K = %s): pick the best line.").formatted(params, k);
             break;
         default:
             text = _("Invalid request.");
@@ -283,7 +314,7 @@ void ScreenPa::show_note() {
     } else if (!loaded(slot)) {
         text = _("Load this spool into the nozzle to measure it.");
     } else {
-        text = _("Heats, then extrudes ~1 g at the bed front.");
+        text = _("Prints one test line per K at the bed front.");
     }
     text.copyToRAM(note_text.data(), note_text.size());
     note.SetText(string_view_utf8::MakeRAM(note_text.data()));
@@ -321,7 +352,7 @@ void ScreenPa::update() {
     }
     second.enable(busy || pa::record(slot).has_k());
     wins.enable(true);
-    csv.enable(!busy);
+    lines.enable(has_lines(slot));
     calib.enable(true); // on y regarde les valeurs même pendant une mesure ou une impression
 
     // Un élément désactivé ne garde pas le focus
@@ -341,7 +372,7 @@ void ScreenPa::measure() {
         MsgBoxWarning(_("Load this spool into the nozzle to measure it."), Responses_Ok);
         return;
     }
-    if (MsgBoxQuestion(_("The nozzle heats up, then extrudes about 1 g of filament in the air above the front of the bed (2 to 3 min). Clear the bed. Start?"), Responses_YesNo) != Response::Yes) {
+    if (MsgBoxQuestion(_("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?"), Responses_YesNo) != Response::Yes) {
         return;
     }
     char gcode[24];
@@ -366,9 +397,11 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             show_toggles();
             card.Invalidate(); // « PA à mesurer » suit le réglage
             break;
-        case tag_csv:
-            csv_on = !csv_on;
-            show_toggles();
+        case tag_lines:
+            if (has_lines(slot)) {
+                Screens::Access()->Open(ScreenFactory::ScreenWithArg<ScreenPaLines>(slot));
+                return;
+            }
             break;
         case tag_measure:
             measure();
@@ -391,6 +424,74 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 
     default:
         break;
+    }
+    Screen::windowEvent(sender, event, param); // BUG-2 : la base reçoit tous les autres événements
+}
+
+// ---- Meilleure ligne ----
+
+ScreenPaLines::LineButton::LineButton(window_t *parent, uint8_t index)
+    : Button(parent, line_body(index), index, Look::card, {}, nullptr, style::screen) {}
+
+ScreenPaLines::ScreenPaLines(uint8_t slot)
+    : Screen(true)
+    , slot(slot)
+    , header(this, _("Slot %d · Best line").formatted(title_params, slot + 1), true)
+    , help(this, lines_help_rect, is_multiline::yes, is_closed_on_click_t::no, _("Line 1 is at the front; count the ticks right of each line (long tick = 5). Pick the line with the most even width."))
+    , buttons { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 }, { this, 4 }, { this, 5 }, { this, 6 }, { this, 7 }, { this, 8 }, { this, 9 }, { this, 10 }, { this, 11 }, { this, 12 }, { this, 13 }, { this, 14 } }
+    , tabs(this, TabBar::Tab::workshop) {
+    static_assert(pa::max_lines == 15, "une entrée de buttons par ligne");
+    help.set_font(Font::small);
+    help.SetTextColor(style::text_soft);
+    help.SetBackColor(style::screen);
+    help.SetPadding({ 0, 0, 0, 0 });
+
+    const pa::LastRun &run = pa::last_run();
+    const uint8_t count = run.slot == slot ? std::min<uint8_t>(run.points, pa::max_lines) : 0;
+    const pa::Record rec = pa::record(slot);
+    window_t *focus = nullptr;
+    for (uint8_t i = 0; i < pa::max_lines; ++i) {
+        LineButton &b = buttons[i];
+        if (i >= count) {
+            b.Hide();
+            b.enable(false);
+            continue;
+        }
+        snprintf(b.text.data(), b.text.size(), "%u: K %.3f", unsigned(i + 1), double(run.k[i]));
+        const bool saved = rec.has_k() && rec.k_e4 == pa::k_to_e4(run.k[i]);
+        b.set(saved ? Button::Look::selected : Button::Look::card, string_view_utf8::MakeRAM(b.text.data()));
+        if (!focus || saved) {
+            focus = &b;
+        }
+    }
+    if (focus) {
+        focus->SetFocus();
+    }
+}
+
+void ScreenPaLines::choose(uint8_t index) {
+    const pa::LastRun &run = pa::last_run();
+    if (run.slot != slot || index >= run.points) {
+        return;
+    }
+    char k[12];
+    format_k(k, sizeof(k), pa::k_to_e4(run.k[index]));
+    StringViewUtf8Parameters<16> params;
+    if (MsgBoxQuestion(_("Save K = %s (line %d) for this spool?").formatted(params, k, int(index + 1)), Responses_YesNo) != Response::Yes) {
+        return;
+    }
+    if (pa::choose_line(slot, index)) {
+        Screens::Access()->Close();
+    }
+}
+
+void ScreenPaLines::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::CHILD_CLICK) {
+        const uintptr_t tag = reinterpret_cast<uintptr_t>(param);
+        if (tag < pa::max_lines) {
+            choose(uint8_t(tag));
+        }
+        return;
     }
     Screen::windowEvent(sender, event, param); // BUG-2 : la base reçoit tous les autres événements
 }

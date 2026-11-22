@@ -1,7 +1,7 @@
 /// @file
 /// OneDrop3D (F4, et plus tard F5, F6, F9) : outil de mesure commun par la cellule de charge.
 ///
-/// Enregistre la force de la cellule de charge pendant une séquence (extrusion, balayage de température…) dans une
+/// Enregistre la force de la cellule de charge pendant une séquence (lignes imprimées, balayage de température…) dans une
 /// trace en mémoire (force_trace_od3d.hpp) : chaque échantillon de la cellule (320 Hz sur la CORE One en haute
 /// précision) arrive par Loadcell::ProcessSample(), dans une interruption ; deux échantillons sont moyennés (160 Hz)
 /// avec la position X de la tête au même instant (positionLookback de Prusa). Rien n'est fait hors enregistrement.
@@ -20,8 +20,9 @@ namespace od3d::force_probe {
 inline constexpr size_t capacity = 1536; ///< points (6 Ko) : 9,6 s à 160 Hz
 inline constexpr uint8_t decimation = 2; ///< échantillons de la cellule moyennés par point
 
-/// Appelée par Loadcell::ProcessSample (interruption) avec la force tarée [g] et la position X [mm] à l'instant de
-/// l'échantillon ; ne fait rien hors enregistrement
+/// Appelée par Loadcell::ProcessSample (interruption) avec la charge tarée [g] (négative quand la buse appuie, comme au
+/// palpage) et la position X [mm] à l'instant de l'échantillon ; ne fait rien hors enregistrement. La trace garde la
+/// force **vers le haut positive** (plateau ou plastique écrasé qui repousse la buse).
 void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm);
 
 /// Efface la trace et commence l'enregistrement (fil de Marlin) ; le premier échantillon sert de zéro (force et X)

@@ -42,6 +42,7 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm) {
     if (!std::isfinite(force_g)) {
         return;
     }
+    force_g = -force_g; // la cellule donne une charge négative quand la buse appuie : force vers le haut positive
     if (std::isfinite(x_mm)) {
         last_x = x_mm;
     } else {

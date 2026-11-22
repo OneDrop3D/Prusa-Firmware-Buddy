@@ -1,9 +1,11 @@
 /// @file
 /// OneDrop3D (F4) : écran « Emplacement n · PA », ouvert par la puce « PA » de la fiche d'une bobine. Valeur mesurée
-/// et confiance, courbe de force de la dernière mesure (forme moyenne d'un créneau au K le plus bas, au meilleur K et
-/// au K le plus haut, avec la commande), « Mesurer » (M1994, feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer »,
-/// réglage général « le PA de l'imprimante prime » et export des courbes sur la clé (CSV). « Débit, temp. » ouvre l'écran
-/// frère des autres calibrations de la bobine (F5, F6 : screen_spool_calib_od3d.hpp).
+/// (ou choisie) et confiance, courbe de force de la dernière mesure (forme moyenne d'un créneau au K le plus bas, au
+/// meilleur K et au K le plus haut, avec la commande), « Mesurer » (M1994 : motif imprimé à l'avant du plateau,
+/// feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer », réglage général « le PA de l'imprimante prime » et
+/// « Meilleure ligne » : repli visuel, l'utilisateur choisit lui-même la ligne la plus régulière du motif (écran
+/// ScreenPaLines). « Débit, temp. » ouvre l'écran frère des autres calibrations de la bobine (F5, F6 :
+/// screen_spool_calib_od3d.hpp), où se règle aussi l'export des courbes sur la clé (commun).
 #pragma once
 
 #include "atelier_od3d.hpp"
@@ -64,7 +66,7 @@ private:
     PaGraph graph;
     window_text_t note;
     Button wins;
-    Button csv;
+    Button lines; ///< « Meilleure ligne » : choix à l'œil sur le dernier motif imprimé
     Button measure_button;
     Button second; ///< « Annuler » pendant la mesure, « Effacer » sinon
     Button calib; ///< « Débit, temp. » : écran des autres calibrations de la bobine (F5, F6)
@@ -78,6 +80,34 @@ private:
     bool second_cancels = false; ///< « second » montre « Annuler »
     pa::Status shown {};
     uint16_t shown_runs = 0;
+};
+
+/// « Meilleure ligne » : les lignes du dernier motif de l'emplacement dans leur ordre sur le plateau (1 à l'avant), avec
+/// leur K ; toucher (ou cliquer) une ligne enregistre son K pour l'emplacement après confirmation, comme le test PA
+/// d'Orca. La ligne du K enregistré est en surbrillance.
+class ScreenPaLines final : public Screen {
+public:
+    explicit ScreenPaLines(uint8_t slot);
+
+protected:
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+private:
+    /// Bouton d'une ligne, placé d'après son numéro (colonnes de 5) ; garde son libellé
+    class LineButton : public Button {
+    public:
+        LineButton(window_t *parent, uint8_t index);
+        std::array<char, 20> text {};
+    };
+
+    void choose(uint8_t index);
+
+    uint8_t slot;
+    StringViewUtf8Parameters<4> title_params;
+    Header header;
+    window_text_t help;
+    LineButton buttons[pa::max_lines];
+    TabBar tabs;
 };
 
 } // namespace od3d

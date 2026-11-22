@@ -18,7 +18,7 @@
  *
  *#### Usage
  *
- *    M1996 [P<slot>] [T<C>] [L<C>] [S<C>] [F<mm3/s>] [R<ratio>] [D<s>] [W<s>] [X<mm>] [Y<mm>] [Z<mm>] [O<0|1>]
+ *    M1996 [P<slot>] [T<C>] [L<C>] [S<C>] [F<mm3/s>] [R<ratio>] [D<s>] [W<s>] [Q<C>] [B<mm>] [Z<mm>] [X<mm>] [Y<mm>] [I<mm>] [M<mm>] [O<0|1>]
  *
  *#### Parameters
  *
@@ -30,13 +30,17 @@
  * - `R` - force acceptable jusqu'à R × la force à la température de départ (1,5)
  * - `D` - durée d'un palier d'extrusion (3 s, de 2 à 6 s)
  * - `W` - stabilisation à ±1 °C avant chaque palier (5 s, de 0 à 30 s)
- * - `X`, `Y`, `Z` - centre des paliers (milieu du plateau), avant du plateau (10 mm), hauteur minimale (20 mm)
+ * - `Q` - température du plateau (celle de la matière)
+ * - `B`, `Z` - largeur et hauteur du cordon imprimé (0,6 et 0,3 mm)
+ * - `X`, `Y`, `I`, `M` - centre des lignes (milieu du plateau), première ligne à l'avant (Y12), écart entre les lignes
+ *   (3 mm), longueur maximale d'une ligne (180 mm)
  * - `O1` - écrit les paliers et le résultat dans /usb/OD3D_TM<n>.CSV
  *
- * Buse chauffée à la température de départ, purge, puis descente par paliers : à chaque palier, la buse se stabilise
- * et extrude à débit constant ; la descente s'arrête dès que la force dépasse le seuil. La plus basse température
- * acceptable est enregistrée pour l'emplacement. Refusé pendant une impression ; arrêtable depuis l'écran. Réglages et
- * consigne de la buse remis à la fin.
+ * Plateau chauffé, origine, nivellement local, purge au bord avant (comme le G-code de départ de la CORE One), buse à
+ * la température de départ, puis une ligne imprimée par palier à débit constant ; entre deux lignes, la buse levée
+ * descend au palier suivant et se stabilise. La descente s'arrête dès que la force dépasse le seuil. La plus basse
+ * température acceptable est enregistrée pour l'emplacement. Refusé pendant une impression ; arrêtable depuis l'écran.
+ * Réglages et consignes remis et buse levée à la fin.
  */
 void PrusaGcodeSuite::M1996() {
     od3d::calib::TempRequest rq;
@@ -64,9 +68,15 @@ void PrusaGcodeSuite::M1996() {
     read('R', rq.max_ratio);
     read('D', rq.step_s);
     read('W', rq.hold_s);
-    read('X', rq.x);
-    read('Y', rq.y);
-    read('Z', rq.z);
+    read('X', rq.place.x);
+    read('Y', rq.place.y);
+    read('I', rq.place.pitch);
+    read('M', rq.place.max_length);
+    read('B', rq.place.bead.width);
+    read('Z', rq.place.bead.height);
+    if (parser.seenval('Q')) {
+        rq.place.bed_temperature = int16_t(parser.value_int());
+    }
     rq.csv = parser.seen('O') && parser.value_bool();
     od3d::calib::measure_temperature(rq);
 }

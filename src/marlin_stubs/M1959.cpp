@@ -5,6 +5,8 @@
 #include <bsod/bsod.h>
 #include <common/marlin_server.hpp>
 #include <Marlin/src/gcode/calibrate/M958.hpp>
+#include <Marlin/src/feature/input_shaper/input_shaper.hpp>
+#include <feature/od3d/shaper_fit_math_od3d.hpp>
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/gcode/parser.h>
 #include <mapi/motion.hpp>
@@ -437,6 +439,27 @@ static PhasesInputShaperCalibration check_result(Context &context) {
     }
 }
 
+/// OneDrop3D : même filtre et même fréquence que find_best_shaper de Prusa (M958.cpp), en ~0,3 s par axe au lieu de ~45
+static input_shaper::AxisConfig od3d_find_best_shaper(const vibrate_measure::FindBestShaperProgressHook &progress_hook, const FrequencyRangeSpectrum &psd, input_shaper::AxisConfig default_config) {
+    std::array<od3d::shaper_fit::Point, sample_count(frequency_range)> points;
+    for (size_t i = 0; i < points.size(); ++i) {
+        const vibrate_measure::FrequencyGain fg = psd.get(i);
+        points[i] = { fg.frequency, fg.gain };
+    }
+    const auto make_pulses = [](input_shaper::Type type, float frequency, const input_shaper::AxisConfig &config) {
+        const input_shaper::Shaper shaper = input_shaper::get(config.damping_ratio, frequency, config.vibration_reduction, type);
+        od3d::shaper_fit::Pulses pulses;
+        static_assert(INPUT_SHAPER_MAX_PULSES >= std::tuple_size_v<decltype(pulses.a)>);
+        std::copy_n(shaper.a, pulses.a.size(), pulses.a.begin());
+        std::copy_n(shaper.t, pulses.t.size(), pulses.t.begin());
+        pulses.num_pulses = shaper.num_pulses;
+        return pulses;
+    };
+    return od3d::shaper_fit::find_best_shaper(points, default_config, make_pulses, [&](input_shaper::Type type, float progress) {
+        return progress_hook(type, progress).has_value();
+    });
+}
+
 static PhasesInputShaperCalibration computing(Context &context) {
     AxisEnum logicalAxis;
     bool aborted = false;
@@ -459,7 +482,7 @@ static PhasesInputShaperCalibration computing(Context &context) {
 
     {
         logicalAxis = X_AXIS;
-        context.axis_config_x = find_best_shaper(progress_hook, context.spectrum_x, input_shaper::axis_defaults[logicalAxis]);
+        context.axis_config_x = od3d_find_best_shaper(progress_hook, context.spectrum_x, input_shaper::axis_defaults[logicalAxis]);
         if (aborted) {
             return PhasesInputShaperCalibration::finish;
         }
@@ -469,7 +492,7 @@ static PhasesInputShaperCalibration computing(Context &context) {
 
     {
         logicalAxis = Y_AXIS;
-        context.axis_config_y = find_best_shaper(progress_hook, context.spectrum_y, input_shaper::axis_defaults[logicalAxis]);
+        context.axis_config_y = od3d_find_best_shaper(progress_hook, context.spectrum_y, input_shaper::axis_defaults[logicalAxis]);
         if (aborted) {
             return PhasesInputShaperCalibration::finish;
         }

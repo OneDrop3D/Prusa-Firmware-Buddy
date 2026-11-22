@@ -191,3 +191,14 @@ add_executable(
   )
 target_include_directories(avr109_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(avr109_od3d_tests)
+
+add_executable(
+  shaper_fit_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/shaper_fit_test.cpp
+                        ${CMAKE_SOURCE_DIR}/src/feature/od3d/shaper_fit_math_od3d.cpp
+  )
+target_include_directories(
+  shaper_fit_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/lib/Marlin ${CMAKE_SOURCE_DIR}/include
+                               ${CMAKE_SOURCE_DIR}/src/common/utils
+  )
+target_link_libraries(shaper_fit_od3d_tests buddy_utils)
+add_catch_test(shaper_fit_od3d_tests)

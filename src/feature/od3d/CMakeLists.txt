@@ -29,6 +29,10 @@ if(HAS_MMU2 AND HAS_FILAMENT_TRACKER)
   # F13 : suivi du poids des bobines du MMU
   target_sources(firmware PRIVATE spool_usage_math_od3d.cpp spool_usage_od3d.cpp)
 endif()
+if(HAS_INPUT_SHAPER_CALIBRATION)
+  # Choix du filtre de M1959 accéléré, même résultat que Prusa
+  target_sources(firmware PRIVATE shaper_fit_math_od3d.cpp)
+endif()
 if(HAS_MANUAL_BELT_TUNING AND HAS_INPUT_SHAPER_CALIBRATION)
   # F14 : tension des courroies mesurée par l'accéléromètre (M1992) ; F22 : vitesses critiques (M1993) ; F33 :
   # amortissement des axes (M1997) ; ACC-1 : vérification commune de l'accéléromètre

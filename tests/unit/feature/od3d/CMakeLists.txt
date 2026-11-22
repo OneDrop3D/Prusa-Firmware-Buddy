@@ -116,3 +116,10 @@ add_catch_test(lookahead_od3d_tests)
 add_executable(island_face_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/island_face_test.cpp)
 target_include_directories(island_face_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(island_face_od3d_tests)
+
+add_executable(
+  collision_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/collision_test.cpp
+                       ${CMAKE_SOURCE_DIR}/src/feature/od3d/collision_math_od3d.cpp
+  )
+target_include_directories(collision_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(collision_od3d_tests)

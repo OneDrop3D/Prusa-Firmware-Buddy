@@ -60,6 +60,24 @@ void prusa_accelerometer_local_init() {
 #endif
 }
 
+bool prusa_accelerometer_local_try_get_sample(RawAcceleration &sample) {
+#if PRINTER_IS_PRUSA_MK3_5()
+    (void)sample;
+    return false; // poller créé seulement pendant une mesure
+#else
+    // Emprunté : le seul lecteur de la file est la mesure en cours (M958, M1959…), on n'y touche pas
+    if (s_borrowed.load() || !poller().hw_good()) {
+        return false;
+    }
+    const auto s = poller().get_sample();
+    if (!s) {
+        return false;
+    }
+    sample = *s;
+    return true;
+#endif
+}
+
 PrusaAccelerometer::PrusaAccelerometer()
 #if PRINTER_IS_PRUSA_MK3_5()
     : output_enabler { buddy::hw::fanPrintTach, buddy::hw::Pin::State::high, buddy::hw::OMode::pushPull, buddy::hw::OSpeed::high }

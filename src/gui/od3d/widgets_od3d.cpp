@@ -15,6 +15,7 @@
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
+#include <feature/od3d/collision_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <filament.hpp>
@@ -225,6 +226,17 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             const auto usage = spool_usage::report(*slot);
             StringViewUtf8Parameters<16> params;
             MsgBoxWarning(_("Spool %d is running low: about %d g left.").formatted(params, *slot + 1, usage ? int(usage->remaining_g) : 0), Responses_Ok);
+        }
+        // F38 : chocs répétés au même endroit (la pause, si demandée, est déjà faite par le fil de Marlin)
+        if (const auto hit = collision::take_alert()) {
+            StringViewUtf8Parameters<24> params;
+            if (hit->test) {
+                MsgBoxWarning(_("Collision test: %d hits at the same spot. Detection works.").formatted(params, int(hit->hits)), Responses_Ok);
+            } else {
+                const string_view_utf8 text = hit->paused ? _("Collision: %d hits near X %d, Y %d mm. Print paused: check the part, then resume or stop.")
+                                                          : _("Collision: %d hits near X %d, Y %d mm. The print goes on.");
+                MsgBoxWarning(text.formatted(params, int(hit->hits), int(hit->x_mm), int(hit->y_mm)), Responses_Ok);
+            }
         }
     }
     if (event == GUI_event_t::HELD_RELEASED && has_back) {

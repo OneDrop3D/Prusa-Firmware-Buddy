@@ -83,6 +83,12 @@ public:
         return enabled;
     }
 
+    /// OneDrop3D (F38) : une phase bloque la détection (changement d'outil, chargement, G28, G29…) ; la sécurité
+    /// collision s'y désarme aussi
+    bool Blocked() const {
+        return blocked > 0;
+    }
+
     void SetEnabled(bool set = true);
 
     /// Performs evaluation of various runtime conditions.

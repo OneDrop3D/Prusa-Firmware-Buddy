@@ -8,6 +8,7 @@
 #include <basic_screen_menu.hpp>
 #include <gui/menu_item/specific/menu_items_hw_mmu.hpp>
 #include <gui/od3d/screen_menu_od3d.hpp>
+#include <gui/od3d/screen_ptfe_od3d.hpp>
 #include <MItem_mmu.hpp>
 #include <tool_index.hpp>
 #include <utility>
@@ -141,6 +142,9 @@ private:
 /// Réglages du MMU (éléments Prusa, liste G) : MMU, coupe, mode furtif, longueur du tube, relais de bobine, mise à jour
 /// USB du MMU
 using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH, MI_SPOOL_JOIN_SLOTS, MI_MMU_USB, MI_MMU_USB_FRONT>;
+/// Réglages du MMU (éléments Prusa, liste G) : MMU, coupe, mode furtif, longueur du tube et sa mesure automatique (F41,
+/// même écran que Réglages › Matériel › MMU), relais de bobine, mise à jour USB du MMU
+using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH, MI_PTFE_AUTO, MI_SPOOL_JOIN_SLOTS, MI_MMU_USB>;
 
 class ScreenMenuMMUSettings final : public ScreenMenuMMUSettingsBase {
 public:

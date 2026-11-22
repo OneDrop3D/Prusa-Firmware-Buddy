@@ -13,6 +13,8 @@
 
 namespace od3d::ptfe {
 
+inline constexpr uint8_t slots = 5; ///< MMU3 : emplacements 0 à 4
+
 enum class Result : uint8_t {
     none, ///< pas encore mesuré depuis le démarrage
     running,

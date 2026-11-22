@@ -56,6 +56,11 @@ Pass pass_for(float v, float accel, float cruise_s, float margin_mm, float delay
 /// La distance parcourue d (mm, depuis le départ du passage) est dans la partie à vitesse constante mesurée
 bool in_cruise(const Pass &pass, float d);
 
+/// Bout commun (coordonnée basse) des passages d'un axe : chaque vitesse va de là à là + length et en revient. Elle
+/// repart donc où la précédente s'est arrêtée, sans déplacement de recentrage, et l'aller vaut le retour. Le plus long
+/// passage (top_length, la vitesse la plus haute) est centré sur centre.
+float sweep_from(float centre, float top_length);
+
 /// Médiane des valeurs finies (0 sans valeur)
 float median(std::span<const float> values);
 

@@ -75,10 +75,13 @@ namespace {
     /// Prusa découpe le mouvement (maillage tous les LEVELED_SEGMENT_LENGTH, arrêt d'urgence tous les 0,05 mm en Z et
     /// toutes les 0,1 s) : la descente de 15 mm de la purge en faisait ~300, et buffer_segment attendait ses places avec
     /// idle() au fond de la pile de la mesure (débordement de la pile de Marlin en 8.0.2.24, juste après la purge). Ici,
-    /// des morceaux d'au plus `pieces` segments, chacun après une place dans la file : buffer_segment n'attend jamais.
+    /// des morceaux d'au plus `pieces` segments, chacun après une place pour lui seul : buffer_segment n'attend jamais.
+    /// La file reste pleine entre les morceaux d'un même mouvement, comme un G1 de Prusa (jusqu'à la 8.0.2.27, chaque
+    /// morceau attendait qu'elle retombe à queue_depth blocs : 4 blocs de 0,05 mm, 20 ms à 10 mm/s, vidés pendant un
+    /// idle() : Z saccadé à la levée finale et à la descente de la purge, retour du 22/11)
     void queue_to(const xyze_pos_t &target, float speed) {
-        constexpr float pieces = 16.f; // + queue_depth déjà en file < BLOCK_BUFFER_SIZE
-        static_assert(pieces + queue_depth + 2 < BLOCK_BUFFER_SIZE);
+        constexpr float pieces = 8.f;
+        static_assert(pieces + 2 < BLOCK_BUFFER_SIZE);
         const xyze_pos_t start = current_position;
         const xyze_pos_t diff = target - start;
         const float xy = std::hypot(diff.x, diff.y);
@@ -90,7 +93,7 @@ namespace {
         const int count = std::max(1, int(std::ceil(n)));
         for (int i = 1; i <= count; ++i) {
             // Même après un arrêt demandé (levée finale) : la file se vide d'elle-même ; vidée par Marlin, le mouvement est écarté
-            while (planner.movesplanned() >= queue_depth && !planner.draining()) {
+            while (planner.moves_free() <= uint8_t(pieces) && !planner.draining()) {
                 idle(true);
             }
             destination = i == count ? target : start + diff * (float(i) / float(count));
@@ -352,7 +355,7 @@ bool Session::purge(float x, float dir) {
         { purge_length, 0.2f, 0.f, 8000.f },
     };
     for (const Segment &s : segments) {
-        if (!wait_queue()) {
+        if (must_stop()) { // pas d'attente de la file entre deux tronçons : elle se viderait (à-coups)
             return false;
         }
         xyze_pos_t target = current_position;

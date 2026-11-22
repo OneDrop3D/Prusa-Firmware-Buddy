@@ -29,7 +29,7 @@
 ///   (mode manuel, réglage « Grand motif PA ») : balayage complet, repères, choix à l'œil.
 /// - Départ rapide (F4-b) : plateau et buse (température de palpage) chauffent ensemble, origine pendant que le plateau
 ///   chauffe, nettoyage et palpage une fois le plateau chaud (comme le G-code de départ de la CORE One) ; la purge
-///   commence pendant la montée de la buse (20 °C sous la consigne), les lignes une fois la température stable (K dépend
+///   commence à 5 °C de la consigne (20 °C jusqu'à la 8.0.2.27), les lignes une fois la température stable (K dépend
 ///   de la viscosité). En automatique, les températures de l'impression (fichier) ; en un clic, celles de la matière,
 ///   et le plateau chauffe pendant le chargement par le MMU.
 /// Le PA adaptatif est pour plus tard.

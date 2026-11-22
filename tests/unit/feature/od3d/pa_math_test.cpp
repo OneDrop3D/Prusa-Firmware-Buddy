@@ -47,9 +47,9 @@ struct Random {
 };
 
 /// Simule une ligne de mesure (un K), comme le firmware : 0,3 s d'arrêt, lancement lent, puis cycles × (rapide, lent),
-/// toujours vers +X, 0,3 s d'arrêt ; échantillonné au pas dt (moyenne de la force et de X sur chaque pas, comme
-/// l'interruption de la cellule de charge)
-std::vector<force::TracePoint> simulate(const pa::Params &params, const Nozzle &nozzle, float k, float dt, uint32_t seed) {
+/// dans le sens dir (1 : vers +X, −1 : vers −X), 0,3 s d'arrêt ; échantillonné au pas dt (moyenne de la force et de X
+/// sur chaque pas, comme l'interruption de la cellule de charge)
+std::vector<force::TracePoint> simulate(const pa::Params &params, const Nozzle &nozzle, float k, float dt, uint32_t seed, float dir = 1.f) {
     const pa::Profile p = pa::profile(params);
     constexpr float h = 0.00025f; // pas de la simulation
     constexpr float accel = 5000.f;
@@ -86,7 +86,7 @@ std::vector<force::TracePoint> simulate(const pa::Params &params, const Nozzle &
             v = std::min({ s.speed, v + accel * h, std::sqrt(v_end * v_end + 2.f * accel * remaining) });
             v = std::max(v, 0.5f);
             done += v * h;
-            x += v * h;
+            x += dir * v * h;
             xs.push_back(x);
             vs.push_back(v);
         }
@@ -770,6 +770,107 @@ TEST_CASE("PA compact : K retrouvé sur lignes imprimées simulées, en 4 à 6 l
             CHECK(c.fit == pa::Fit::ok);
             CHECK(c.confidence >= 30);
             CHECK_THAT(c.k, WithinAbs(tau, 0.004));
+        }
+    }
+}
+
+// ---- Lignes dans les deux sens (demande du 22/11 : plus de retour à gauche entre deux lignes) ----
+
+TEST_CASE("PA : ligne vers −X analysée comme vers +X") {
+    const pa::Params params;
+    const pa::Profile p = pa::profile(params);
+    for (float k : { 0.f, 0.04f, 0.08f }) {
+        const Nozzle nozzle; // écrasement, bruit, dérive, non-linéarité
+        const pa::BlockResult forward = pa::analyse_block(simulate(params, nozzle, k, dt, 11, 1.f), dt, p);
+        const pa::BlockResult backward = pa::analyse_block(simulate(params, nozzle, k, dt, 11, -1.f), dt, p);
+        INFO("K = " << k << ", retard +X " << forward.lag_s << ", −X " << backward.lag_s);
+        REQUIRE(forward.valid());
+        CHECK(backward.cycles == forward.cycles);
+        CHECK_THAT(backward.lag_s, WithinAbs(forward.lag_s, 1e-5));
+        CHECK_THAT(backward.cost, WithinAbs(forward.cost, 1e-5));
+        CHECK_THAT(backward.amplitude_g, WithinAbs(forward.amplitude_g, 1e-3));
+        CHECK_THAT(backward.overshoot, WithinAbs(forward.overshoot, 1e-4));
+    }
+    // Trace vers −X : X décroît, fronts de vitesse trouvés quand même
+    const auto t = simulate(params, Nozzle {}, 0.04f, dt, 3, -1.f);
+    CHECK(force::x_mm(t.back()) < -100.f);
+    std::array<force::Edge, 16> edges;
+    CHECK(force::find_edges(t, dt, 0.5f * (p.v_lo + p.v_hi), 3, edges) == 2u * params.cycles);
+}
+
+TEST_CASE("PA : K retrouvé avec des lignes alternées (grand motif et compact)") {
+    const pa::Params params;
+    for (float tau : { 0.025f, 0.04f, 0.065f }) {
+        Nozzle nozzle;
+        nozzle.tau = tau;
+        // Grand motif : balayage grossier puis fin, une ligne sur deux vers −X
+        std::vector<pa::SweepPoint> all;
+        std::array<float, 32> ks;
+        const size_t n = pa::sweep_values(0.f, 0.10f, 0.02f, ks);
+        uint32_t seed = 1;
+        const auto line = [&](float k) {
+            const float dir = all.size() % 2 ? -1.f : 1.f;
+            all.push_back({ k, pa::analyse_block(simulate(params, nozzle, k, dt, seed++, dir), dt, pa::profile(params)) });
+        };
+        for (size_t i = 0; i < n; ++i) {
+            line(ks[i]);
+        }
+        const pa::Choice coarse = pa::choose_k(all, 0.f, 0.10f, 0.02f);
+        REQUIRE(coarse.fit == pa::Fit::ok);
+        std::array<float, 8> fine;
+        const size_t m = pa::refine_values(coarse.k, 0.005f, 5, 0.f, 0.3f, fine);
+        for (size_t i = 0; i < m; ++i) {
+            line(fine[i]);
+        }
+        const pa::Choice c = pa::choose_k(all, 0.f, 0.10f, 0.02f);
+        INFO("grand, τ = " << tau << ", K = " << c.k);
+        CHECK(c.fit == pa::Fit::ok);
+        CHECK_THAT(c.k, WithinAbs(tau, 0.003));
+
+        // Compact : recherche adaptative, une ligne sur deux vers −X
+        pa::Request rq;
+        pa::make_compact(rq);
+        pa::Search s;
+        std::vector<pa::SweepPoint> done;
+        while (const auto k = pa::next_k(done, s)) {
+            const float dir = done.size() % 2 ? -1.f : 1.f;
+            done.push_back({ *k, pa::analyse_block(simulate(rq.params, nozzle, *k, dt, seed++, dir), dt, pa::profile(rq.params)) });
+        }
+        const pa::Choice cc = pa::choose_k(done, s.k_min, s.k_max, s.step);
+        INFO("compact, τ = " << tau << ", lignes : " << ks_of(done) << ", K = " << cc.k);
+        CHECK(done.size() <= 6);
+        CHECK(cc.fit == pa::Fit::ok);
+        CHECK_THAT(cc.k, WithinAbs(tau, 0.004));
+    }
+}
+
+TEST_CASE("motif : lignes alternées, chaque ligne part de la fin de la précédente") {
+    for (const bool compact : { true, false }) {
+        pa::Request rq;
+        if (compact) {
+            pa::make_compact(rq);
+        }
+        pattern::Lines lines;
+        lines.x0 = rq.x;
+        lines.y0 = rq.y;
+        lines.pitch = rq.pitch;
+        lines.length = pa::line_length(rq.params);
+        lines.count = compact ? pa::compact_cap : 11;
+        lines.marks = compact ? 0.f : pattern::tally_width(lines.count);
+        lines.bead = rq.params.bead;
+        const pattern::Rect area = lines.area();
+        // Même emprise qu'avant : il tient toujours à l'avant du plateau (250 × 220, 10 mm de marge)
+        CHECK(pattern::Rect { 10.f, 10.f, 240.f, 210.f }.contains(area));
+        for (uint8_t i = 0; i < lines.count; ++i) {
+            const float start = lines.x_start(i), end = start + lines.dir(i) * lines.length;
+            INFO((compact ? "compact" : "grand") << ", ligne " << int(i));
+            CHECK(lines.dir(i) == (i % 2 ? -1.f : 1.f));
+            CHECK(std::min(start, end) >= area.x0);
+            CHECK(std::max(start, end) <= area.x1);
+            CHECK_THAT(std::min(start, end), WithinAbs(lines.x0, 1e-4));
+            if (i + 1 < lines.count) {
+                CHECK_THAT(lines.x_start(uint8_t(i + 1)), WithinAbs(end, 1e-4)); // pas de retour en X
+            }
         }
     }
 }

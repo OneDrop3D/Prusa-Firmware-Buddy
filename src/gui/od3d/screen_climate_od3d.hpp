@@ -38,6 +38,9 @@ class MI_SOFT_COOLDOWN_STATE final : public MenuItemAutoUpdatingLabel<uint32_t> 
 public:
     MI_SOFT_COOLDOWN_STATE();
     void click(IWindowMenu &) override;
+
+protected:
+    void Loop() override; ///< grisé (« Arrêt ») quand il n'y a rien à arrêter : le toucher ne faisait rien
 };
 
 class MI_COOLDOWN_STEP final : public WiSpin {

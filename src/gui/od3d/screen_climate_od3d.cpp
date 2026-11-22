@@ -84,6 +84,13 @@ MI_SOFT_COOLDOWN_STATE::MI_SOFT_COOLDOWN_STATE()
         },
         [](auto *) -> uint32_t { return packed_status(); }) {
     SetIconId(&img::heatbed_16x16);
+    set_show_disabled_extension(true); // « Arrêt » reste lisible, grisé
+    set_enabled(cc::status().active);
+}
+
+void MI_SOFT_COOLDOWN_STATE::Loop() {
+    MenuItemAutoUpdatingLabel::Loop();
+    set_enabled(value() >> 31);
 }
 
 void MI_SOFT_COOLDOWN_STATE::click(IWindowMenu &) {

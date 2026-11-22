@@ -5,6 +5,7 @@
 #include "widgets_od3d.hpp"
 
 #include <config_store/store_instance.hpp>
+#include <algorithm>
 #include <cstdio>
 #include <feature/od3d/skew_od3d.hpp>
 #include <img_resources.hpp>
@@ -17,7 +18,8 @@ namespace od3d {
 namespace {
 
     /// Mesures saisies (mm), gardées tant que l'imprimante est allumée ; au départ, un carré de 100 mm d'équerre
-    float measures[3] = { 141.42f, 141.42f, 100.0f };
+    constexpr float square[3] = { 141.42f, 141.42f, 100.0f };
+    float measures[3] = { square[0], square[1], square[2] };
     uint8_t measures_revision = 0;
 
     constexpr const char *length_labels[3] = { N_("Diagonal AC"), N_("Diagonal BD"), N_("Side AD") };
@@ -38,6 +40,11 @@ namespace {
     is_enabled_t enabled_unless_printing() {
         // Pendant une impression, la correction décalerait la suite de la pièce
         return marlin_client::is_printing() ? is_enabled_t::no : is_enabled_t::yes;
+    }
+
+    /// Loop() des éléments grisés pendant une impression : construits pendant elle, ils restaient grisés ensuite
+    void follow_printing(IWindowMenuItem &item) {
+        item.set_enabled(enabled_unless_printing() == is_enabled_t::yes);
     }
 
 } // namespace
@@ -118,10 +125,18 @@ void MI_SKEW_APPLY::click(IWindowMenu &) {
     }
     // M852 enregistre le facteur (config_store) et l'applique dans le fil de Marlin
     marlin_client::gcode_printf("M852 I%.6f", static_cast<double>(total));
+    // Mesures consommées : un 2e « Appliquer » ajoutait encore l'écart (REV-1). Revenues au carré d'équerre (écart
+    // nul, testé dans skew_od3d_test.cpp), elles attendent la pièce réimprimée ; la boîte refermée les redessine.
+    std::copy(std::begin(square), std::end(square), measures);
+    ++measures_revision;
     char angle[16];
     format_degrees(total, angle, sizeof(angle));
     StringViewUtf8Parameters<16> params;
     MsgBoxInfo(_("XY correction saved: %s (measured skew added to the current one). Used for prints with bed leveling. Print the test piece again to check.").formatted(params, angle), Responses_Ok);
+}
+
+void MI_SKEW_APPLY::Loop() {
+    follow_printing(*this);
 }
 
 MI_SKEW_CURRENT::MI_SKEW_CURRENT()
@@ -136,6 +151,10 @@ MI_SKEW_RESET::MI_SKEW_RESET()
 
 void MI_SKEW_RESET::click(IWindowMenu &) {
     marlin_client::gcode("M852 I0");
+}
+
+void MI_SKEW_RESET::Loop() {
+    follow_printing(*this);
 }
 
 ScreenSkew::ScreenSkew()

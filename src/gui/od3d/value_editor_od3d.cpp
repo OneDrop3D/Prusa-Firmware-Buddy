@@ -6,11 +6,13 @@
 #include "widgets_od3d.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
 #include <event/knob_event.hpp>
+#include <dialog_numeric_input.hpp>
 #include <ScreenHandler.hpp>
 #include <option/has_touch.h>
 #include <sound.hpp>
@@ -31,11 +33,16 @@ namespace {
     constexpr Rect16 bar_rect = { 40, 234, 400, 6 };
     constexpr Rect16 bar_zone = { 30, 226, 420, 22 }; ///< barre et son disque Ø18
     constexpr Rect16 drag_zone = { 0, 216, 480, 44 }; ///< où un glissement saisit la barre : plus haut que le dessin, pour le doigt
-    constexpr Rect16 ok_rect = { 140, 262, 200, 40 };
+    // « Annuler » (bouton discret) et « OK » (principal) côte à côte, alignés sur la barre ; avant, seul un glissement
+    // annulait : le clavier de Prusa refusait OK hors des limites et laissait l'utilisateur bloqué (BUG-6)
+    constexpr Rect16 cancel_rect = { 40, 262, 194, 40 };
+    constexpr Rect16 ok_rect = { 246, 262, 194, 40 };
     constexpr Rect16 view_rect = { 30, 156, 420, 94 }; ///< valeur et barre ; les disques − et + n'y sont pas repeints
     constexpr uint8_t knob_d = 18;
 
     static_assert(style::inside(sheet_rect, view_rect) && style::inside(view_rect, value_rect) && style::inside(view_rect, bar_zone));
+    static_assert(cancel_rect.Top() > drag_zone.Bottom() && ok_rect.Top() > drag_zone.Bottom(), "un toucher sur les boutons ne règle pas la barre");
+    static_assert(style::inside(sheet_rect, cancel_rect) && style::inside(sheet_rect, ok_rect) && cancel_rect.Right() < ok_rect.Left());
 
     /// Texte centré dans rect, sur une case juste à sa taille (draw_text repeint toute sa case : pas les coins arrondis)
     void draw_centered(Rect16 rect, const string_view_utf8 &text, Font font, uint16_t text_w, Color fg, Color bg) {
@@ -49,6 +56,10 @@ namespace {
     }
 
 } // namespace
+
+// Ouvert au bout d'une longue chaîne d'événements (toucher d'une ligne WiSpin, pile de l'interface : 6 Ko) : il ne doit
+// pas prendre plus de pile que le clavier numérique de Prusa qu'il remplace (UI-15)
+static_assert(sizeof(ValueEditor) <= sizeof(DialogNumericInput));
 
 std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit) {
     ValueEditor editor(label, value, config, apply, unit);
@@ -76,9 +87,18 @@ ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const Numer
 void ValueEditor::unconditionalDraw() {
     // Coins du haut arrondis ; l'écran dessous n'est pas voilé (pas de transparence)
     display::draw_rounded_rect(GetRect(), style::screen, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
-    draw_text(label_rect, label, Font::small, style::text_muted, style::surface, Align_t::Center());
+    // Le nom seul : les libellés des listes G ont souvent une 2e ligne d'explication (« Pas\nBaisse à chaque palier »)
+    std::array<char, label_rect.Width() / width(Font::small) + 1> name;
+    label.copyToRAM(name.data(), name.size());
+    if (char *nl = strchr(name.data(), '\n')) {
+        *nl = '\0';
+    }
+    draw_text(label_rect, string_view_utf8::MakeRAM(name.data()), Font::small, style::text_muted, style::surface, Align_t::Center());
     draw_round_button(minus_rect, "-");
     draw_round_button(plus_rect, "+");
+    draw_rounded_frame(cancel_rect, style::surface, style::line, style::surface, style::radius, 1);
+    const string_view_utf8 cancel = _("Cancel");
+    draw_centered(cancel_rect, cancel, Font::small, cancel.computeNumUtf8Chars() * width(Font::small), style::text_soft, style::surface);
     display::draw_rounded_rect(ok_rect, style::surface, style::accent, style::radius, MIC_ALL_CORNERS);
     const string_view_utf8 ok = _("OK");
     draw_centered(ok_rect, ok, Font::small, ok.computeNumUtf8Chars() * width(Font::small), style::on_accent, style::accent);
@@ -100,6 +120,9 @@ void ValueEditor::windowEvent(window_t *sender, GUI_event_t event, void *param) 
         accepted = true;
         close_dialog();
         return;
+    case GUI_event_t::HELD_RELEASED: // appui long sur la molette = Annuler, comme le retour partout ailleurs
+        close_dialog();
+        return;
     case GUI_event_t::TOUCH_CLICK: {
         const point_ui16_t at = event_conversion_union { .pvoid = param }.point;
         if (minus_rect.Contain(at)) {
@@ -111,6 +134,8 @@ void ValueEditor::windowEvent(window_t *sender, GUI_event_t event, void *param) 
             set(config.min_value + f * (config.max_value - config.min_value));
         } else if (ok_rect.Contain(at)) {
             accepted = true;
+            close_dialog();
+        } else if (cancel_rect.Contain(at)) {
             close_dialog();
         }
         return;
@@ -162,7 +187,8 @@ void ValueEditor::set(float set, bool quiet) {
     value = config.clamp(std::round(set / config.step) * config.step);
     if (value == previous) {
         if (!quiet) {
-            sound::play(SoundType::blind_alert);
+            // Butée : audible aussi hors du mode « Assistance », le seul où blind_alert sonne
+            sound::play(sound::get_mode() == SoundMode::assist ? SoundType::blind_alert : SoundType::button_echo);
         }
         return;
     }
@@ -201,7 +227,9 @@ void ValueEditor::ValueView::unconditionalDraw() {
         }
     }
     const string_view_utf8 unit = special ? _(editor.config.special_value_str) : (editor.unit ? string_view_utf8::MakeCPUFLASH(editor.unit) : editor.config.unit_str());
-    const uint16_t digits_w = strlen(digits) * width(Font::large);
+    // Chiffres en « large » ; plus de 10 caractères (valeurs brutes de capteurs) n'y tiennent pas : « big »
+    const Font digits_font = strlen(digits) * width(Font::large) + 3 * width(Font::big) <= value_rect.Width() ? Font::large : Font::big;
+    const uint16_t digits_w = strlen(digits) * (digits_font == Font::large ? width(Font::large) : width(Font::big));
     const uint16_t gap = digits_w && !unit.isNULLSTR() ? 8 : 0;
     const uint16_t unit_w = std::min<int>(unit.computeNumUtf8Chars() * width(Font::big), value_rect.Width() - digits_w - gap);
     const int16_t x = value_rect.Left() + (value_rect.Width() - digits_w - gap - unit_w) / 2;
@@ -210,7 +238,7 @@ void ValueEditor::ValueView::unconditionalDraw() {
 
     display::fill_rect(Rect16(value_rect.Left(), top, x - value_rect.Left(), h), bg);
     if (digits_w) {
-        draw_text(Rect16(x, top, digits_w, h), string_view_utf8::MakeRAM(digits), Font::large, style::text_strong, bg);
+        draw_text(Rect16(x, top, digits_w, h), string_view_utf8::MakeRAM(digits), digits_font, style::text_strong, bg);
     }
     const int16_t unit_x = x + digits_w + gap;
     display::fill_rect(Rect16(x + digits_w, top, gap, h), bg);

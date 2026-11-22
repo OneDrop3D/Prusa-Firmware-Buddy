@@ -568,7 +568,9 @@ void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) 
         if (!loaded) {
             load(); // si InitState n'a pas été appelé
         }
-        load_next();
+        if (!GetFirstDialog()) {
+            load_next(); // pas sous un dialogue : chaque lecture de la clé le ralentirait de ~0,1 s
+        }
         break;
     case GUI_event_t::KNOB:
     case GUI_event_t::CLICK:

@@ -12,8 +12,18 @@
 #include <bsod/bsod.h>
 
 #if HAS_TOUCH()
-    #include <dialog_numeric_input.hpp>
     #include <gui/event/touch_event.hpp>
+    #include <option/has_mmu2.h>
+    #include <option/has_nozzle_thermal_compensation.h>
+    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+        // OneDrop3D (UI-15, BUG-6) : notre éditeur de valeur à la place du clavier numérique de Prusa, qui refusait OK
+        // hors des limites et ne s'annulait ni à la molette ni par un bouton visible (« écran figé »)
+        #include <gui/od3d/value_editor_od3d.hpp>
+using NumericEditor = od3d::ValueEditor;
+    #else
+        #include <dialog_numeric_input.hpp>
+using NumericEditor = DialogNumericInput;
+    #endif
 #endif
 
 WiSpin::WiSpin(float value, const NumericInputConfig &config, const string_view_utf8 &label, const img::Resource *id_icon, is_enabled_t enabled, is_hidden_t hidden)
@@ -38,17 +48,16 @@ void WiSpin::click(IWindowMenu & /*window_menu*/) {
         OnClick();
     }
     toggle_edit_mode();
+    Invalidate(); // OneDrop3D : toute la ligne, qui montre le réglage à la molette (menu_od3d.cpp), pas la valeur seule
 }
 
 void WiSpin::event(WindowMenuItemEventContext &ctx) {
 #if HAS_TOUCH()
-    if (auto e = ctx.event.value_maybe<gui_event::TouchEvent>()) {
-        if (is_touch_in_extension_rect(*ctx.menu, e->relative_touch_point)) {
-            const auto r = DialogNumericInput::exec(GetLabel(), value(), config_);
-            if (r.has_value()) {
-                set_value(*r);
-                OnClick();
-            }
+    if (ctx.event.value_maybe<gui_event::TouchEvent>()) {
+        // Toute la ligne ouvre l'éditeur (chez Prusa, la valeur seule : toucher le libellé ne faisait rien)
+        if (const auto r = NumericEditor::exec(GetLabel(), value(), config_)) {
+            set_value(*r);
+            OnClick();
         }
 
         // Accept touch in every case - we don't want the event to keep propagating
@@ -61,7 +70,8 @@ void WiSpin::event(WindowMenuItemEventContext &ctx) {
 
     if (auto e = ctx.event.value_maybe<gui_event::KnobEvent>()) {
         const bool has_changed = change(e->diff);
-        sound::play(has_changed ? SoundType::encoder_move : SoundType::blind_alert);
+        // OneDrop3D : la butée s'entend aussi hors du mode « Assistance », le seul où blind_alert sonne
+        sound::play(has_changed ? SoundType::encoder_move : sound::get_mode() == SoundMode::assist ? SoundType::blind_alert : SoundType::button_echo);
         ctx.accept();
     }
 

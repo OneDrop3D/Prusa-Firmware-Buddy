@@ -29,6 +29,7 @@ namespace {
 
     constexpr Color tile_network = Color::from_raw(0x1F4436);
     constexpr Color scrollbar = style::text_faint;
+    constexpr Color edited_row = Color::from_raw(0x3A2618); ///< valeur réglée à la molette : fond du choix sélectionné (SPEC_G.md §1.5)
     constexpr uint16_t row_w = 464; ///< le cadre : x 8 à 472
     constexpr int16_t tile_x = 12, tile_size = 26, label_x = 48, value_right = 12;
 
@@ -59,8 +60,9 @@ namespace {
                                                          : style::tile;
     }
 
-    /// Libellé sur une ligne, ou deux si le texte en a deux (nom, puis explication en gris)
-    void draw_label(Rect16 rect, const string_view_utf8 &label, Color fg, Color bg) {
+    /// Libellé sur une ligne, ou deux si le texte en a deux (nom, puis explication en gris) ; hint remplace l'explication,
+    /// en orange
+    void draw_label(Rect16 rect, const string_view_utf8 &label, Color fg, Color bg, const string_view_utf8 &hint = string_view_utf8::MakeNULLSTR()) {
         std::array<char, 160> buf;
         label.copyToRAM(buf.data(), buf.size());
         char *second = strchr(buf.data(), '\n');
@@ -69,6 +71,12 @@ namespace {
         }
         const size_t chars = rect.Width() / width(Font::small);
         text::ellipsize(buf.data(), chars);
+        Color second_fg = style::text_muted;
+        if (!hint.isNULLSTR()) {
+            second = buf.data() + strlen(buf.data()) + 1; // après la 1re ligne coupée (≤ 52 caractères) : la place reste
+            hint.copyToRAM(second, buf.data() + buf.size() - second);
+            second_fg = style::accent;
+        }
         const uint16_t h = height(Font::small);
         if (!second) {
             draw_text(Rect16(rect.Left(), rect.Top() + (rect.Height() - h) / 2, rect.Width(), h), string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
@@ -76,14 +84,17 @@ namespace {
         }
         text::ellipsize(second, chars);
         draw_text(Rect16(rect.Left(), rect.Top() + 1, rect.Width(), h), string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
-        draw_text(Rect16(rect.Left(), rect.Top() + 18, rect.Width(), h), string_view_utf8::MakeRAM(second), Font::small, style::text_muted, bg);
+        draw_text(Rect16(rect.Left(), rect.Top() + 18, rect.Width(), h), string_view_utf8::MakeRAM(second), Font::small, second_fg, bg);
     }
 
     /// Une ligne de la liste (SPEC_G.md §1.7) ; extension_only : seule la valeur a changé
     void draw_row(IWindowMenuItem &item, Rect16 row, bool first, bool last, bool extension_only) {
         const bool focused = item.is_focused();
         const bool enabled = item.IsEnabled();
-        const Color bg = focused ? style::focused(style::surface) : style::surface;
+        // Réglage à la molette (WiSpin) : la molette change la valeur au lieu de passer à la ligne suivante, et la ligne
+        // le dit (avant, seule la valeur passait à l'orange : on croyait l'écran figé, BUG-6)
+        const bool edited = item.is_edited();
+        const Color bg = edited ? edited_row : focused ? style::focused(style::surface) : style::surface;
 
         // Contenu entre l'anneau (2 px en haut et en bas) et les marges de 12 px
         const Rect16 content(row.Left() + label_x, row.Top() + 2, row.Width() - label_x - value_right, row.Height() - 4);
@@ -114,7 +125,8 @@ namespace {
                 enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
 
             const int16_t label_end = has_extension ? extension.Left() - 10 : content.Left() + content.Width();
-            draw_label(Rect16(content.Left(), content.Top(), std::max<int>(label_end - content.Left(), 0), content.Height()), item.GetLabel(), enabled ? style::text : style::text_faint, bg);
+            draw_label(Rect16(content.Left(), content.Top(), std::max<int>(label_end - content.Left(), 0), content.Height()), item.GetLabel(), enabled ? style::text : style::text_faint, bg,
+                edited ? _("Knob: adjust, click: OK") : string_view_utf8::MakeNULLSTR());
         }
 
         if (has_extension) {

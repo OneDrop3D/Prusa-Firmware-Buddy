@@ -129,6 +129,14 @@ namespace {
         }
     }
 
+    /// Les cartes de la chambre sont grisées quand elles ne peuvent rien régler (leur toucher ne faisait rien)
+    bool chamber_settable() {
+        return buddy::chamber().capabilities().temperature_control_at_this_moment();
+    }
+    bool chamber_fans_settable() {
+        return buddy::xbuddy_extension().status() != buddy::XBuddyExtension::Status::disabled;
+    }
+
     void toggle_filtration() {
         // « Filtration pendant l'impression » de Réglages › Filtration de la chambre
         config_store().chamber_print_filtration_enable.set(!config_store().chamber_print_filtration_enable.get());
@@ -207,6 +215,7 @@ HeaterCard::HeaterCard(window_t *parent, Heater heater)
     , reading(read(heater))
     , last_sample_ms(ticks_ms()) {
     history.fill(reading.current);
+    set_enabled(heater != Heater::chamber || chamber_settable());
 }
 
 HeaterCard::Reading HeaterCard::read(Heater heater) {
@@ -235,8 +244,9 @@ void HeaterCard::draw_content(Rect16 body) {
     const int16_t x = body.Left() + 10;
     const uint16_t w = body.Width() - 20;
 
-    draw_icon({ x, int16_t(body.Top() + 9) }, *heater_icons[int(heater)], bg);
-    draw_text(Rect16(x + 22, body.Top() + 9, w - 22, height(Font::small)), _(heater_labels[int(heater)]), Font::small, style::text_muted, bg);
+    const bool on = IsEnabled();
+    draw_icon({ x, int16_t(body.Top() + 9) }, *heater_icons[int(heater)], bg, on ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+    draw_text(Rect16(x + 22, body.Top() + 9, w - 22, height(Font::small)), _(heater_labels[int(heater)]), Font::small, on ? style::text_muted : style::text_faint, bg);
 
     char value[8];
     degrees(value, reading.current);
@@ -283,6 +293,10 @@ void HeaterCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             reading = r;
             changed = true;
         }
+        if (heater == Heater::chamber && chamber_settable() != IsEnabled()) {
+            set_enabled(!IsEnabled());
+            changed = true;
+        }
         if (const uint32_t now = ticks_ms(); ticks_diff(now, last_sample_ms) >= int32_t(sample_ms)) {
             last_sample_ms = now;
             std::rotate(history.begin(), history.begin() + 1, history.end());
@@ -301,7 +315,9 @@ void HeaterCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 FanCard::FanCard(window_t *parent, Fan fan)
     : Card(parent, style::with_ring(fan_body(int(fan))), fan_actions[int(fan)])
     , fan(fan)
-    , value(read(fan)) {}
+    , value(read(fan)) {
+    set_enabled(fan != Fan::chamber || chamber_fans_settable());
+}
 
 int16_t FanCard::read(Fan fan) {
     switch (fan) {
@@ -325,8 +341,9 @@ void FanCard::draw_content(Rect16 body) {
     const int16_t text_x = x + 22;
     const uint16_t text_w = body.Left() + body.Width() - 8 - text_x;
 
-    draw_icon({ x, int16_t(body.Top() + (body.Height() - 16) / 2) }, *icons[int(fan)], bg);
-    draw_text(Rect16(text_x, body.Top() + 4, text_w, height(Font::small)), _(labels[int(fan)]), Font::small, style::text_muted, bg);
+    const bool on = IsEnabled();
+    draw_icon({ x, int16_t(body.Top() + (body.Height() - 16) / 2) }, *icons[int(fan)], bg, on ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+    draw_text(Rect16(text_x, body.Top() + 4, text_w, height(Font::small)), _(labels[int(fan)]), Font::small, on ? style::text_muted : style::text_faint, bg);
 
     const Rect16 value_rect(text_x, body.Top() + 21, text_w, height(Font::small));
     if (fan == Fan::filtration) {
@@ -348,6 +365,10 @@ void FanCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             value = v;
             invalidate_content();
         }
+        if (fan == Fan::chamber && chamber_fans_settable() != IsEnabled()) {
+            set_enabled(!IsEnabled());
+            invalidate_content();
+        }
     }
     Card::windowEvent(sender, event, param);
 }
@@ -360,6 +381,17 @@ TextButton::TextButton(window_t *parent, Rect16 body, Action action, const strin
     , icon(icon)
     , fg(fg) {}
 
+void TextButton::enable(bool set) {
+    if (set == IsEnabled()) {
+        return;
+    }
+    set_enabled(set);
+    if (fg == style::on_accent) {
+        body_color = set ? style::accent : style::secondary;
+    }
+    Invalidate();
+}
+
 void TextButton::draw_content(Rect16 body) {
     const Color color = IsEnabled() ? fg : style::text_faint;
     const uint16_t text_w = std::min<int>(label.computeNumUtf8Chars() * width(Font::small), body.Width() - 16);
@@ -368,7 +400,8 @@ void TextButton::draw_content(Rect16 body) {
     const int16_t y = body.Top() + (body.Height() - height(Font::small)) / 2;
     if (icon) {
         // Sur l'orange, l'icône blanche est inversée (noire)
-        draw_icon({ x, y }, *icon, fill(), fg == style::on_accent ? ropfn { .swap_bw = has_swapped_bw::yes } : ropfn {});
+        const ropfn rop = !IsEnabled() ? ropfn { .shadow = is_shadowed::yes } : fg == style::on_accent ? ropfn { .swap_bw = has_swapped_bw::yes } : ropfn {};
+        draw_icon({ x, y }, *icon, fill(), rop);
     }
     draw_text(Rect16(x + icon_w, y, text_w, height(Font::small)), label, Font::small, color, fill());
 }
@@ -396,10 +429,7 @@ void ScreenTemperatures::update_buttons() {
     // Comme Prusa : pas de préchauffage (M1700) ni de « Refroidir » pendant une impression
     const bool idle = !marlin_client::is_printing();
     for (TextButton *button : { &preheat, &cooldown }) {
-        if (button->IsEnabled() != idle) {
-            button->set_enabled(idle);
-            button->Invalidate();
-        }
+        button->enable(idle);
     }
     if (window_t *focused = get_focused_child_window(); focused && !focused->IsEnabled()) {
         nozzle.SetFocus();

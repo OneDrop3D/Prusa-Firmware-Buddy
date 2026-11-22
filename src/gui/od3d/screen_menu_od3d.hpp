@@ -69,6 +69,9 @@ class MI_NOZZLE_THERMAL_COMPENSATION final : public WI_ICON_SWITCH_OFF_ON_t {
 public:
     MI_NOZZLE_THERMAL_COMPENSATION();
     void OnChange(size_t) override;
+
+protected:
+    void Loop() override; ///< grisé pendant une impression seulement : réévalué à chaque LOOP
 };
 
 /// F2 : correction appliquée maintenant (cible de la buse), en lecture seule

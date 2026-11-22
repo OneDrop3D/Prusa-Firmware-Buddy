@@ -259,10 +259,11 @@ void ScreenMusic::update() {
     play_button.enable(!busy && !printing && index >= 0);
     stop_button.enable(busy);
 
-    // Un élément désactivé ne garde pas le focus
+    // Un élément désactivé ne garde pas le focus : il va à « Arrêter » au lancement, à « Jouer » à la fin, pas au
+    // retour de l'en-tête
     if (window_t *focused = get_focused_child_window(); !focused || !focused->IsEnabled()) {
-        if (window_t *first = GetFirstEnabledSubWin()) {
-            first->SetFocus();
+        if (window_t *to = busy ? &stop_button : play_button.IsEnabled() ? &play_button : GetFirstEnabledSubWin()) {
+            to->SetFocus();
         }
     }
 }

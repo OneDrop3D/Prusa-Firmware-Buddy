@@ -4,6 +4,7 @@
 /// (ordre de la molette = ordre de construction ; clic = toucher ; appui long = retour sur les sous-écrans).
 #pragma once
 
+#include "island_face_od3d.hpp"
 #include "spool_draw.hpp"
 #include "style_od3d.hpp"
 
@@ -237,7 +238,7 @@ public:
 
 /// Pastille « Dynamic Island » (island_od3d.hpp), entre le titre et les températures, qu'elle raccourcit :
 /// - chargement réduit : anneau qui tourne, emplacement et avancement ; la toucher rouvre l'écran de progression ;
-/// - impression : anneau de progression et « 47 % », en couleur selon l'état ; la toucher ramène à l'écran Impression ;
+/// - impression : anneau de progression, « 47% 1h23 », en couleur selon l'état ; la toucher ramène à l'écran Impression ;
 /// - préchauffage : icône de la buse et « 185/215° » ; la toucher ouvre l'aperçu des températures.
 /// Seul son contenu se redessine, et seulement quand ce qu'elle montre change (l'anneau qui tourne : 10 images/s).
 class IslandPill : public Card {
@@ -253,7 +254,7 @@ private:
     window_text_t &title;
     Rect16 title_full;
     Rect16 title_short;
-    uint32_t drawn_key = 0; ///< ce qui est dessiné, résumé (face_key)
+    island::Face drawn; ///< ce qui est dessiné
     uint32_t last_spin_ms = 0;
 };
 

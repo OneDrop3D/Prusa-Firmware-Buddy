@@ -11267,3 +11267,7 @@ msgstr ""
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Stopped: leaving this screen stops the measurement."
 msgstr "Arrêté : quitter cet écran arrête la mesure."
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Continue in background"
+msgstr "Continuer en arrière-plan"

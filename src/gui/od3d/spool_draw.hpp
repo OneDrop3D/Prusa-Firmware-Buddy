@@ -17,34 +17,40 @@ struct Look {
     bool operator==(const Look &) const = default;
 };
 
-/// Disque d'une bobine de diamètre d : jante, flasque, partie vide, enroulement en anneaux
-/// (2 px de la couleur, 1 px plus sombre), moyeu.
+/// Anticrénelage (retour du 22/11 : « les icônes de filament ne sont pas lisses ») : un pixel à cheval sur le bord de
+/// deux zones rondes prend le mélange de leurs couleurs, en quarts, selon la part d'une fenêtre de 1 px posée le long du
+/// rayon qui tombe de chaque côté du bord. Distance au centre en px, depuis le centre du pixel.
+
+/// Distance du centre du pixel (x, y) au centre du carré side × side
+float radius_in_square(int x, int y, int side);
+
+/// Quarts (0 à 4) du pixel à la distance r du centre qui tombent au-delà du cercle de rayon edge
+uint8_t beyond_quarters(float r, float edge);
+
+/// inner pour 4 - q quarts, outer pour q quarts (q de 0 à 4)
+Color mix_quarters(Color inner, Color outer, uint8_t q);
+
+/// Couleur d'un pixel à la distance r : inside dans le cercle de rayon edge, outside au-delà, mélangées au bord
+inline Color edge_color(float r, float edge, Color inside, Color outside) {
+    return mix_quarters(inside, outside, beyond_quarters(r, edge));
+}
+
+/// Disque d'une bobine de diamètre d (pair) : jante, flasque, partie vide, enroulement en anneaux
+/// (2 px de la couleur, 1 px plus sombre), moyeu. Chaque bord de bande est anticrénelé.
 class Disc {
 public:
     Disc(const Look &look, uint8_t diameter);
 
-    /// Couleur du pixel (x, y) du carré d × d, nullopt hors du disque
-    std::optional<Color> pixel(int x, int y) const;
+    /// Couleur du pixel (x, y) du carré d × d ; back hors du disque, mélangé au bord de la jante
+    Color pixel(int x, int y, Color back) const;
 
-    /// Parcourt la ligne y par segments de même couleur, en sautant ce qui est hors du disque :
-    /// f(x, longueur, couleur)
-    template <class F>
-    void for_each_run(int y, F &&f) const {
-        int start = 0;
-        std::optional<Color> current = pixel(0, y);
-        for (int x = 1; x <= d; ++x) {
-            const std::optional<Color> c = x < d ? pixel(x, y) : std::nullopt;
-            if (c != current) {
-                if (current) {
-                    f(start, x - start, *current);
-                }
-                start = x;
-                current = c;
-            }
-        }
-    }
+    /// Même chose à la distance r du centre (déjà calculée par l'appelant)
+    Color at_radius(float r, Color back) const;
 
 private:
+    /// Couleur de la bande au rayon entier rho (centre du pixel entre rho et rho + 1), back au-delà du disque
+    Color band(int rho, Color back) const;
+
     Color filament;
     Color filament_dark;
     bool has_filament;

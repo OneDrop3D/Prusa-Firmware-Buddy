@@ -11,6 +11,7 @@ namespace {
 
 constexpr Color orange = Color::from_raw(0xF8651B);
 constexpr Color dark_orange = Color::from_raw(0xB34913); // la maquette : chaque canal × 0,72
+constexpr Color back = Color::from_raw(0x1B1C1E); // fond de l'écran
 
 /// Couleurs du rayon horizontal d'une bobine Ø40, du centre (rayon 0) au bord (rayon 19)
 std::vector<Color> radius_colors(const Look &look) {
@@ -18,7 +19,7 @@ std::vector<Color> radius_colors(const Look &look) {
     std::vector<Color> out;
     for (int r = 0; r < 20; ++r) {
         // Ligne 20, colonne 20 + r : le centre du pixel est à r + 0,5 px du centre
-        out.push_back(disc.pixel(20 + r, 20).value());
+        out.push_back(disc.pixel(20 + r, 20, back));
     }
     return out;
 }
@@ -38,14 +39,14 @@ TEST_CASE("bobine : bandes d'une bobine pleine, comme la maquette") {
     CHECK(c == expected);
 }
 
-TEST_CASE("bobine : hors du disque, rien n'est dessiné") {
+TEST_CASE("bobine : hors du disque, le fond") {
     const Disc disc({ orange, 100 }, 40);
-    CHECK_FALSE(disc.pixel(0, 0).has_value());
-    CHECK_FALSE(disc.pixel(39, 39).has_value());
-    CHECK_FALSE(disc.pixel(-1, 20).has_value());
-    CHECK_FALSE(disc.pixel(40, 20).has_value());
-    CHECK(disc.pixel(0, 20).has_value()); // bord gauche, au milieu
-    CHECK(disc.pixel(39, 19).has_value());
+    CHECK(disc.pixel(0, 0, back) == back);
+    CHECK(disc.pixel(39, 39, back) == back);
+    CHECK(disc.pixel(-1, 20, back) == back);
+    CHECK(disc.pixel(40, 20, back) == back);
+    CHECK(disc.pixel(0, 20, back) != back); // bord gauche, au milieu
+    CHECK(disc.pixel(39, 19, back) != back);
 }
 
 TEST_CASE("bobine : le niveau de remplissage déplace le bord de l'enroulement") {
@@ -67,25 +68,76 @@ TEST_CASE("bobine : un emplacement vide n'a pas d'enroulement") {
     }
 }
 
-TEST_CASE("bobine : les segments couvrent exactement le disque") {
-    for (uint8_t d : { 14, 40, 64, 104 }) {
+TEST_CASE("anticrénelage : part du pixel au-delà d'un bord") {
+    CHECK(beyond_quarters(10.0f, 10) == 2); // centre du pixel sur le bord : moitié de chaque côté
+    CHECK(beyond_quarters(9.5f, 10) == 0); // fenêtre [9 ; 10] : toute dedans
+    CHECK(beyond_quarters(9.75f, 10) == 1);
+    CHECK(beyond_quarters(10.25f, 10) == 3);
+    CHECK(beyond_quarters(10.5f, 10) == 4);
+    CHECK(beyond_quarters(3.0f, 10) == 0); // loin des bords
+    CHECK(beyond_quarters(30.0f, 10) == 4);
+    for (float r = 0; r < 20; r += 0.01f) { // croissante avec r
+        CHECK(beyond_quarters(r + 0.01f, 10) >= beyond_quarters(r, 10));
+    }
+}
+
+TEST_CASE("anticrénelage : mélange en quarts") {
+    const Color black = Color::from_rgb(0, 0, 0), white = Color::from_rgb(255, 255, 255);
+    CHECK(mix_quarters(black, white, 0) == black);
+    CHECK(mix_quarters(black, white, 4) == white);
+    CHECK(mix_quarters(black, white, 2) == Color::from_rgb(128, 128, 128));
+    CHECK(mix_quarters(black, white, 1) == Color::from_rgb(64, 64, 64));
+    CHECK(mix_quarters(black, white, 3) == Color::from_rgb(191, 191, 191));
+    CHECK(mix_quarters(orange, orange, 2) == orange);
+}
+
+TEST_CASE("anticrénelage : la couverture d'un disque a l'aire du cercle") {
+    // Somme des parts dedans de chaque pixel ≈ π R² (à 1,5 % près)
+    for (int d : { 14, 16, 26, 40, 44, 64, 104 }) {
+        int quarters = 0;
+        for (int y = 0; y < d; ++y) {
+            for (int x = 0; x < d; ++x) {
+                quarters += 4 - beyond_quarters(radius_in_square(x, y, d), d / 2.0f);
+            }
+        }
+        const float area = 3.14159265f * d * d / 4;
+        CHECK(quarters / 4.0f > area * 0.985f);
+        CHECK(quarters / 4.0f < area * 1.015f);
+    }
+}
+
+TEST_CASE("anticrénelage : le bord de la jante est un dégradé vers le fond") {
+    const Color rim = Color::from_raw(0x5F636A), black = Color::from_rgb(0, 0, 0);
+    const Disc disc({ orange, 100 }, 40);
+    // Les pixels que le cercle extérieur coupe : ni jante ni fond, plus sombres que la jante
+    int blended = 0;
+    for (int y = 0; y < 40; ++y) {
+        for (int x = 0; x < 40; ++x) {
+            const uint8_t q = beyond_quarters(radius_in_square(x, y, 40), 20);
+            if (q == 0 || q == 4) {
+                continue;
+            }
+            const Color c = disc.pixel(x, y, black);
+            CHECK(c != black);
+            CHECK(c.r < rim.r);
+            CHECK(c.g < rim.g);
+            CHECK(c.b < rim.b);
+            ++blended;
+        }
+    }
+    CHECK(blended >= 40); // tout le tour, sauf aux axes où le bord passe entre deux pixels
+}
+
+TEST_CASE("anticrénelage : la bobine reste symétrique") {
+    for (uint8_t d : { 14, 26, 40, 64 }) {
         const Disc disc({ orange, 60 }, d);
         for (int y = 0; y < d; ++y) {
-            int covered = 0, last_end = -1;
-            disc.for_each_run(y, [&](int x, int len, Color color) {
-                CHECK(x > last_end - 1);
-                CHECK(len > 0);
-                for (int i = x; i < x + len; ++i) {
-                    CHECK(disc.pixel(i, y) == color);
-                }
-                covered += len;
-                last_end = x + len;
-            });
-            int inside = 0;
             for (int x = 0; x < d; ++x) {
-                inside += disc.pixel(x, y).has_value();
+                const Color c = disc.pixel(x, y, back);
+                CHECK(c == disc.pixel(d - 1 - x, y, back));
+                CHECK(c == disc.pixel(x, d - 1 - y, back));
+                CHECK(c == disc.pixel(y, x, back));
             }
-            CHECK(covered == inside);
         }
     }
 }

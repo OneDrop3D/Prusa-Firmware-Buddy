@@ -333,13 +333,31 @@ namespace {
 
 // ---- Cadre, contenu, barre ----
 
-ScreenLoadUnload::Box::Box(window_t *parent)
-    : window_frame_t(parent, box_rect) {
+ScreenLoadUnload::Box::Box(ScreenLoadUnload &owner)
+    : window_frame_t(&owner, box_rect)
+    , owner(owner) {
     SetBackColor(style::surface); // ce qu'un enfant caché laisse derrière lui
+}
+
+Rect16 ScreenLoadUnload::Box::get_rect_for_touch() const {
+    return Rect16(0, 0, style::screen_w, style::screen_h);
 }
 
 void ScreenLoadUnload::Box::unconditionalDraw() {
     display::draw_rounded_rect(GetRect(), veil, style::surface, box_radius, MIC_ALL_CORNERS);
+}
+
+void ScreenLoadUnload::Box::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::TOUCH_CLICK) {
+        const point_ui16_t at = event_conversion_union { .pvoid = param }.point;
+        if (!GetRect().Contain(at)) {
+            if (style::back_touch.Contain(at)) {
+                owner.minimize(); // la flèche de l'en-tête (seulement pendant une étape : minimize() le vérifie)
+            }
+            return;
+        }
+    }
+    window_frame_t::windowEvent(sender, event, param);
 }
 
 ScreenLoadUnload::Body::Body(window_t *parent, const ScreenLoadUnload &owner)
@@ -453,22 +471,22 @@ void ScreenLoadUnload::SpoolMark::unconditionalDraw() {
     // une image d'une passe, la case n'est plus effacée avant chaque image (10 par seconde, elle clignotait)
     if (owner.request) {
         const spool::Disc disc(Slot::read(owner.request->slot).look, spinner_d);
-        draw_pixels(r, [&](int x, int y) { return disc.pixel(x, y - 2).value_or(style::surface); });
+        draw_pixels(r, [&](int x, int y) { return disc.pixel(x, y - 2, style::surface); });
         return;
     }
     const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % spinner_turn_ms) / spinner_turn_ms;
-    constexpr int outer = spinner_d * spinner_d; // distances en demi-pixels, comme spool::Disc
-    constexpr int inner = (spinner_d - 8) * (spinner_d - 8);
     draw_pixels(r, [&](int x, int y) {
-        const int dx = 2 * x + 1 - spinner_d, dy = 2 * (y - 2) + 1 - spinner_d, q = dx * dx + dy * dy;
-        if (x >= spinner_d || q >= outer || q < inner) {
+        // Part du pixel dans l'anneau (bords anticrénelés), puis sa couleur selon l'angle
+        const float rad = spool::radius_in_square(x, y - 2, spinner_d);
+        const uint8_t cover = spool::beyond_quarters(rad, spinner_d / 2.0f - 4) - spool::beyond_quarters(rad, spinner_d / 2.0f);
+        if (cover == 0) {
             return style::surface;
         }
-        float a = std::atan2(float(dx), float(-dy)) - start; // 0 = en haut, sens horaire
+        float a = std::atan2(float(2 * x + 1 - spinner_d), float(spinner_d - 2 * (y - 2) - 1)) - start; // 0 = en haut, sens horaire
         while (a < 0) {
             a += 2 * std::numbers::pi_v<float>;
         }
-        return a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
+        return spool::mix_quarters(style::surface, a < std::numbers::pi_v<float> / 2 ? style::accent : style::line, cover);
     });
 }
 
@@ -549,7 +567,7 @@ void ScreenLoadUnload::minimize() {
 ScreenLoadUnload::ScreenLoadUnload()
     : request(atelier::take_request())
     , header(this, _("Filament"), true, minimize_current) // la flèche réduit l'opération, elle ne ferme rien
-    , box(this)
+    , box(*this)
     , body(&box, *this)
     , spool_mark(&box, *this)
     , bar(&box, *this)
@@ -694,8 +712,12 @@ void ScreenLoadUnload::setup_buttons() {
     while (count < responses.size() && responses[count] != Response::_none) {
         ++count;
     }
-    // Sans réponse, un « Annuler » éteint : Prusa ne permet pas d'arrêter cette étape (chargement par le MMU…)
-    const size_t shown = std::max<size_t>(count, 1);
+    // Sans réponse, un « Annuler » éteint : Prusa ne permet pas d'arrêter cette étape (chargement par le MMU…). Pendant
+    // une étape, « Continuer en arrière-plan » à droite : on peut aller ailleurs, la pastille de l'en-tête ramène ici
+    const size_t answers = std::max<size_t>(count, 1);
+    const bool background = kind == Kind::progress && has_data && answers < std::size(buttons);
+    background_button = background ? uint8_t(answers) : 0xff;
+    const size_t shown = answers + background;
     constexpr int16_t gap = 6;
     const uint16_t w = (content_w - gap * (shown - 1)) / shown;
     bool primary_used = false;
@@ -708,6 +730,11 @@ void ScreenLoadUnload::setup_buttons() {
         }
         b.SetRect(style::with_ring(Rect16(content_x + i * (w + gap), buttons_y, w, buttons_h)));
         b.set_visible(true);
+        if (i == background_button) {
+            b.set_enabled(true);
+            b.set(Button::Look::secondary, _("Continue in background"));
+            continue;
+        }
         const Response r = i < count ? responses[i] : Response::Stop;
         b.set_enabled(i < count);
         if (r == Response::Stop) {
@@ -717,9 +744,9 @@ void ScreenLoadUnload::setup_buttons() {
             primary_used = true;
         }
     }
-    // Sans bouton actif, le cadre garde le focus (pas l'en-tête, qui n'est pas atteignable ici)
-    if (buttons[0].IsEnabled()) {
-        buttons[0].SetFocus();
+    // Le premier bouton actif ; sans bouton actif, le cadre garde le focus (pas l'en-tête, qui n'est pas atteignable ici)
+    if (const auto b = std::ranges::find_if(buttons, [](const Button &x) { return x.IsEnabled(); }); b != std::end(buttons)) {
+        b->SetFocus();
     } else {
         box.SetFocus();
     }
@@ -741,7 +768,9 @@ void ScreenLoadUnload::windowEvent(window_t *sender, GUI_event_t event, void *pa
     switch (event) {
     case GUI_event_t::CHILD_CLICK: {
         const size_t i = reinterpret_cast<uintptr_t>(param);
-        if (i < responses.size()) {
+        if (i == background_button) {
+            minimize();
+        } else if (i < responses.size()) {
             respond(responses[i]);
         }
         return;

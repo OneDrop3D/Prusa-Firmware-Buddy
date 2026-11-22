@@ -2,6 +2,7 @@
 #include <gui/od3d/island_face_od3d.hpp>
 
 #include <catch2/catch_test_macros.hpp>
+#include <string>
 
 using namespace od3d::island;
 
@@ -88,4 +89,61 @@ TEST_CASE("island: hystérésis du préchauffage") {
     CHECK_FALSE(latch.update(240, 170)); // cible baissée : rien à chauffer
     CHECK_FALSE(latch.update(240, 0));
     CHECK(latch.update(100, 170)); // à nouveau une cible
+}
+
+namespace {
+std::string text_of(const Face &f) {
+    char buf[16];
+    format_text(f, buf, sizeof(buf));
+    return buf;
+}
+} // namespace
+
+TEST_CASE("island: texte de la pastille") {
+    CHECK(text_of({}).empty());
+    CHECK(text_of({ .kind = Kind::filament, .percent = 45, .slot = 1 }) == "2\xC2\xB7"
+                                                                           "45%");
+    CHECK(text_of({ .kind = Kind::filament, .percent = 45 }) == "45%");
+    CHECK(text_of({ .kind = Kind::preheat, .current = 185, .target = 215 }) == "185/215\xC2\xB0");
+
+    SECTION("impression : avancement et temps restant") {
+        CHECK(text_of({ .kind = Kind::print, .percent = 47, .minutes = 83 }) == "47% 1h23");
+        CHECK(text_of({ .kind = Kind::print, .percent = 47, .minutes = 25 }) == "47% 25min");
+        CHECK(text_of({ .kind = Kind::print, .percent = 3, .minutes = 725 }) == "3% 12h05");
+        CHECK(text_of({ .kind = Kind::print, .percent = 3, .minutes = 6100 }) == "3% 101h");
+        CHECK(text_of({ .kind = Kind::print, .percent = 47 }) == "47%"); // temps inconnu
+        CHECK(text_of({ .kind = Kind::print, .percent = 100, .minutes = 59 }) == "100%"); // trop long : sans le temps
+    }
+    SECTION("impression : pause, attente, erreur sans le temps") {
+        CHECK(text_of({ .kind = Kind::print, .tone = Tone::paused, .percent = 47, .minutes = 83 }) == "II 47%");
+        CHECK(text_of({ .kind = Kind::print, .tone = Tone::waiting, .percent = 47, .minutes = 83 }) == "47%");
+        CHECK(text_of({ .kind = Kind::print, .tone = Tone::error, .percent = 47, .minutes = 83 }) == "! 47%");
+    }
+    SECTION("9 caractères au plus (la place de la pastille)") {
+        for (uint16_t m : { 0, 1, 59, 60, 61, 599, 600, 5999, 6000, 65000 }) {
+            for (uint8_t p : { 0, 9, 10, 99, 100 }) {
+                CHECK(text_of({ .kind = Kind::print, .percent = p, .minutes = m }).size() <= 9);
+            }
+        }
+    }
+}
+
+TEST_CASE("island: temps restant passé à la pastille") {
+    Inputs in;
+    in.print_fsm = true;
+    in.print_percent = 47;
+    in.print_minutes = 83;
+    CHECK(choose(in).minutes == 83);
+    in.filament_minimized = true;
+    in.filament_slot = 2;
+    CHECK(choose(in).slot == 2);
+}
+
+TEST_CASE("island: opération du filament ouverte en arrière-plan") {
+    CHECK_FALSE(open_in_background({})); // hors impression : à l'écran
+    CHECK(open_in_background({ .chained = true })); // suite d'une opération réduite
+    CHECK(open_in_background({ .printing = true })); // changement d'outil pendant qu'on est ailleurs
+    CHECK_FALSE(open_in_background({ .printing = true, .on_print_screen = true })); // on regarde l'impression
+    CHECK(open_in_background({ .printing = true, .kept_for_print = true, .on_print_screen = true })); // refusé une fois
+    CHECK_FALSE(open_in_background({ .kept_for_print = true })); // l'impression est finie
 }

@@ -44,17 +44,48 @@ Disc::Disc(const Look &look, uint8_t diameter)
     hole = std::max(0, std::min(pct(15, r), hub_ring - 1));
 }
 
-std::optional<Color> Disc::pixel(int x, int y) const {
-    // Distance du centre du pixel au centre du disque, en demi-pixels : tout reste entier
-    const int dx = 2 * x + 1 - d;
-    const int dy = 2 * y + 1 - d;
-    const int q = dx * dx + dy * dy;
-    if (x < 0 || y < 0 || x >= d || y >= d || q >= d * d) {
-        return std::nullopt;
-    }
-    const int rho = static_cast<int>(std::sqrt(static_cast<float>(q))) / 2; // rayon du pixel [px]
+float radius_in_square(int x, int y, int side) {
+    // En demi-pixels, les carrés restent entiers
+    const int dx = 2 * x + 1 - side;
+    const int dy = 2 * y + 1 - side;
+    return std::sqrt(static_cast<float>(dx * dx + dy * dy)) * 0.5f;
+}
 
-    if (rho >= rim) {
+uint8_t beyond_quarters(float r, float edge) {
+    // La fenêtre [r - 0,5 ; r + 0,5] : la part au-delà du bord, arrondie au quart
+    // (tronquer + 0,5 arrondit les valeurs positives ; les négatives finissent à 0 de toute façon)
+    return static_cast<uint8_t>(std::clamp(static_cast<int>((r - edge + 0.5f) * 4 + 0.5f), 0, 4));
+}
+
+Color mix_quarters(Color inner, Color outer, uint8_t q) {
+    if (q == 0 || inner == outer) {
+        return inner;
+    }
+    if (q >= 4) {
+        return outer;
+    }
+    const auto ch = [q](uint8_t a, uint8_t b) { return static_cast<uint8_t>((a * (4 - q) + b * q + 2) / 4); };
+    return Color::from_rgb(ch(inner.r, outer.r), ch(inner.g, outer.g), ch(inner.b, outer.b));
+}
+
+Color Disc::pixel(int x, int y, Color back) const {
+    if (x < 0 || y < 0 || x >= d || y >= d) {
+        return back;
+    }
+    return at_radius(radius_in_square(x, y, d), back);
+}
+
+Color Disc::at_radius(float r, Color back) const {
+    // Le bord de bande le plus proche (les bandes ont des rayons entiers) : mélange des deux bandes qui le bordent
+    const int edge = static_cast<int>(r + 0.5f);
+    const uint8_t q = beyond_quarters(r, edge);
+    return q == 0 ? band(edge - 1, back) : mix_quarters(band(edge - 1, back), band(edge, back), q);
+}
+
+Color Disc::band(int rho, Color back) const {
+    if (rho >= d / 2) {
+        return back;
+    } else if (rho >= rim) {
         return rim_color;
     } else if (rho >= flange) {
         return flange_color;

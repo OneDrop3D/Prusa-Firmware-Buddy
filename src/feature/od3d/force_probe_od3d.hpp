@@ -63,4 +63,10 @@ WindowStats window();
 /// Écrit la trace en CSV, une ligne « D,<étiquette>,t_s,x_mm,force_g » par point ; false si l'écriture échoue
 bool write_csv(FILE *file, float label);
 
+/// Une ligne de CSV, comme fprintf mais avec les décimales. Sur l'imprimante, fprintf vient de newlib-nano, qui les
+/// laisse vides : seuls printf, snprintf et vsnprintf passent par lib/printf (lib/AddPrintf.cmake). Exemple : le relevé
+/// OD3D_PA3.CSV du 22/11, 4 600 lignes sans un nombre, alors que les tests sur ordinateur passaient. 255 caractères
+/// au plus ; rend le nombre écrit, ou -1. La CI refuse fprintf dans notre code.
+[[gnu::format(printf, 2, 3)]] int csv_printf(FILE *file, const char *format, ...);
+
 } // namespace od3d::force_probe

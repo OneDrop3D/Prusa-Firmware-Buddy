@@ -17,6 +17,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Écrans de menus Prusa et relais des événements
         run: python3 utils/od3d/check_window_events.py
+      - name: Pas de fprintf dans notre code (newlib-nano y laisse les décimales vides)
+        run: |
+          if grep -rnE '\bv?fprintf *\(' src/feature/od3d src/gui/od3d src/marlin_stubs/*od3d*; then
+            echo "::error::Sur l'imprimante, fprintf écrit des champs vides à la place des décimales : utiliser od3d::force_probe::csv_printf"
+            exit 1
+          fi
 
   firmware:
     runs-on: ubuntu-24.04

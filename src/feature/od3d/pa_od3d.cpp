@@ -255,7 +255,7 @@ namespace {
         metric_record_custom(&metric_od3d_pa, " k=%.4f,lag=%.5f,cost=%.5f,over=%.3f,under=%.3f,amp=%.2f,noise=%.3f,cyc=%ui",
             double(k), double(r.lag_s), double(r.cost), double(r.overshoot), double(r.undershoot), double(r.amplitude_g), double(r.noise), unsigned(r.cycles));
         if (csv) {
-            fprintf(csv, "R,%.4f,%.5f,%.5f,%.3f,%.3f,%.2f,%.3f,%u\n", double(k), double(r.lag_s), double(r.cost), double(r.overshoot),
+            force_probe::csv_printf(csv, "R,%.4f,%.5f,%.5f,%.3f,%.3f,%.2f,%.3f,%u\n", double(k), double(r.lag_s), double(r.cost), double(r.overshoot),
                 double(r.undershoot), double(r.amplitude_g), double(r.noise), unsigned(r.cycles));
         }
     }
@@ -444,11 +444,11 @@ void calibrate(const Request &rq) {
         snprintf(path, sizeof(path), "/usb/OD3D_PA%u.CSV", unsigned(rq.slot + 1));
         csv = fopen(path, "w");
         if (csv) {
-            fprintf(csv, "# OneDrop3D PA (F4) slot %u, %s, nozzle %d C, bed %d C, printed lines %.2f x %.2f mm from X%.1f Y%.1f pitch %.1f, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, cycles %u\n",
+            force_probe::csv_printf(csv, "# OneDrop3D PA (F4) slot %u, %s, nozzle %d C, bed %d C, printed lines %.2f x %.2f mm from X%.1f Y%.1f pitch %.1f, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, cycles %u\n",
                 unsigned(rq.slot + 1), material.name.data(), int(temperature), int(bed), double(rq.params.bead.width), double(rq.params.bead.height),
                 double(rq.x), double(rq.y), double(rq.pitch), double(rq.params.slow_flow), double(rq.params.slow_s), double(rq.params.fast_flow),
                 double(rq.params.fast_s), unsigned(rq.params.cycles));
-            fprintf(csv, "# force up positive. D,k,t_s,x_mm,force_g / R,k,lag_s,cost,overshoot,undershoot,amplitude_g,noise,cycles / C,k,confidence,fit,slope,k_lag,k_cost\n");
+            force_probe::csv_printf(csv, "# force up positive. D,k,t_s,x_mm,force_g / R,k,lag_s,cost,overshoot,undershoot,amplitude_g,noise,cycles / C,k,confidence,fit,slope,k_lag,k_cost\n");
         }
     }
     ScopeGuard close_csv = [&] {
@@ -516,7 +516,7 @@ void calibrate(const Request &rq) {
     }
     last.choice = choice;
     if (csv) {
-        fprintf(csv, "C,%.4f,%u,%u,%.3f,%.4f,%.4f\n", double(choice.k), unsigned(choice.confidence), unsigned(choice.fit), double(choice.slope),
+        force_probe::csv_printf(csv, "C,%.4f,%u,%u,%.3f,%.4f,%.4f\n", double(choice.k), unsigned(choice.confidence), unsigned(choice.fit), double(choice.slope),
             double(choice.k_lag), double(choice.k_cost));
     }
 

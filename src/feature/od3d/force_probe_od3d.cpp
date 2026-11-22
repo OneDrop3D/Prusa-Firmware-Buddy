@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdarg>
 
 namespace od3d::force_probe {
 
@@ -45,6 +46,8 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm) {
     force_g = -force_g; // la cellule donne une charge négative quand la buse appuie : force vers le haut positive
     if (std::isfinite(x_mm)) {
         last_x = x_mm;
+    } else if (!have_base) {
+        return; // pas encore de position connue : un zéro de X indéfini fausserait toute la trace
     } else {
         x_mm = last_x; // positionLookback ne connaît pas encore cet instant : dernière position connue
     }
@@ -146,6 +149,19 @@ bool overflowed() {
     return overflow.load(std::memory_order_relaxed);
 }
 
+int csv_printf(FILE *file, const char *format, ...) {
+    char line[256];
+    va_list args;
+    va_start(args, format);
+    const int n = vsnprintf(line, sizeof(line), format, args);
+    va_end(args);
+    if (n < 0) {
+        return -1;
+    }
+    const size_t length = std::min(size_t(n), sizeof(line) - 1);
+    return fwrite(line, 1, length, file) == length ? int(length) : -1;
+}
+
 bool write_csv(FILE *file, float label) {
     if (!file) {
         return false;
@@ -153,7 +169,7 @@ bool write_csv(FILE *file, float label) {
     const force::Trace t = trace();
     const float step = dt();
     for (size_t i = 0; i < t.size(); ++i) {
-        if (fprintf(file, "D,%.4f,%.4f,%.2f,%.2f\n", double(label), double(float(i) * step), double(force::x_mm(t[i])), double(force::force_g(t[i]))) < 0) {
+        if (csv_printf(file, "D,%.4f,%.4f,%.2f,%.2f\n", double(label), double(float(i) * step), double(force::x_mm(t[i])), double(force::force_g(t[i]))) < 0) {
             return false;
         }
     }

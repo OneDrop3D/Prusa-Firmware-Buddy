@@ -215,7 +215,7 @@ namespace {
     void record_step(FILE *csv, Kind kind, const StepPoint &p) {
         metric_record_custom(&metric_od3d_calib, " kind=%ui,x=%.2f,force=%.2f,noise=%.3f", unsigned(kind), double(p.x), double(p.force_g), double(p.noise_g));
         if (csv) {
-            fprintf(csv, "R,%.2f,%.3f,%.3f\n", double(p.x), double(p.force_g), double(p.noise_g));
+            force_probe::csv_printf(csv, "R,%.2f,%.3f,%.3f\n", double(p.x), double(p.force_g), double(p.noise_g));
         }
     }
 
@@ -373,10 +373,10 @@ void measure_flow(const FlowRequest &rq) {
     };
     st_csv = csv != nullptr;
     if (csv) {
-        fprintf(csv, "# OneDrop3D max flow (F5) slot %u, %s, %d C, %.1f to %.1f mm3/s by %.1f, %.1f s per step (max %.0f mm), printed lines %.2f x %.2f mm, excess %.2f\n",
+        force_probe::csv_printf(csv, "# OneDrop3D max flow (F5) slot %u, %s, %d C, %.1f to %.1f mm3/s by %.1f, %.1f s per step (max %.0f mm), printed lines %.2f x %.2f mm, excess %.2f\n",
             unsigned(rq.slot + 1), material.name.data(), int(temperature), double(rq.flow_min), double(flow_max), double(rq.flow_step), double(rq.step_s),
             double(layout.lines.length), double(rq.place.bead.width), double(rq.place.bead.height), double(rq.excess));
-        fprintf(csv, "# force up positive, zero above the line start. D,flow,t_s,x_mm,force_g / R,flow,force_g,noise_g / C,fit,flow,a,n,index,skipping\n");
+        force_probe::csv_printf(csv, "# force up positive, zero above the line start. D,flow,t_s,x_mm,force_g / R,flow,force_g,noise_g / C,fit,flow,a,n,index,skipping\n");
     }
 
     st_phase = Phase::measuring;
@@ -417,7 +417,7 @@ void measure_flow(const FlowRequest &rq) {
     }
     last.knee = knee;
     if (csv) {
-        fprintf(csv, "C,%u,%.2f,%.4f,%.4f,%u,%u\n", unsigned(knee.fit), double(knee.flow), double(knee.a), double(knee.n), unsigned(knee.index), unsigned(knee.skipping));
+        force_probe::csv_printf(csv, "C,%u,%.2f,%.4f,%.4f,%u,%u\n", unsigned(knee.fit), double(knee.flow), double(knee.a), double(knee.n), unsigned(knee.index), unsigned(knee.skipping));
     }
     if (knee.fit == KneeFit::weak_signal) {
         fail(Error::weak_signal);
@@ -484,10 +484,10 @@ void measure_temperature(const TempRequest &rq) {
     };
     st_csv = csv != nullptr;
     if (csv) {
-        fprintf(csv, "# OneDrop3D min temperature (F6) slot %u, %s, %d to %d C by %d, %.1f mm3/s, %.1f s per step, printed lines %.2f x %.2f mm, ratio %.2f\n",
+        force_probe::csv_printf(csv, "# OneDrop3D min temperature (F6) slot %u, %s, %d to %d C by %d, %.1f mm3/s, %.1f s per step, printed lines %.2f x %.2f mm, ratio %.2f\n",
             unsigned(rq.slot + 1), material.name.data(), int(start), int(floor), int(rq.step), double(rq.flow), double(rq.step_s), double(rq.place.bead.width),
             double(rq.place.bead.height), double(rq.max_ratio));
-        fprintf(csv, "# force up positive, zero above the line start. D,temp,t_s,x_mm,force_g / R,temp,force_g,noise_g / C,fit,temp,reference_g,index\n");
+        force_probe::csv_printf(csv, "# force up positive, zero above the line start. D,temp,t_s,x_mm,force_g / R,temp,force_g,noise_g / C,fit,temp,reference_g,index\n");
     }
 
     last = {};
@@ -542,7 +542,7 @@ void measure_temperature(const TempRequest &rq) {
     }
     last.min_temp = mt;
     if (csv) {
-        fprintf(csv, "C,%u,%.1f,%.3f,%u\n", unsigned(mt.fit), double(mt.temperature), double(mt.reference_g), unsigned(mt.index));
+        force_probe::csv_printf(csv, "C,%u,%.1f,%.3f,%u\n", unsigned(mt.fit), double(mt.temperature), double(mt.reference_g), unsigned(mt.index));
     }
     if (mt.fit == MinTempFit::weak_signal) {
         fail(Error::weak_signal);

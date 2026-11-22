@@ -42,14 +42,34 @@
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     #include <gui/od3d/screen_menu_od3d.hpp>
     #include <gui/od3d/screen_sleep_od3d.hpp>
+    #include <gui/od3d/screen_filament_presets_od3d.hpp>
+    #include <gui/od3d/menu_items_od3d.hpp>
 #endif
 
-using ScreenMenuSettingsBase = BasicScreenMenu<
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
-    od3d::MI_FEATURES, // OneDrop3D : en tête des réglages
-    od3d::MI_PRINTER_INFO, // OneDrop3D (interface G) : « Infos de l'imprimante » en deuxième
-    od3d::MI_SLEEP, // OneDrop3D (F39) : mode veille (remplace l'atténuation des lumières de Prusa)
+// OneDrop3D (interface G, retour du 22/11 « clarifier les menus de Prusa ») : 13 lignes au lieu de 23, chacune avec une
+// ligne d'explication ; les interrupteurs de Prusa sont rangés dans « Impression », « Filament et MMU » et « Chambre »
+// (gui/od3d/screen_settings_od3d.hpp), rien n'est retiré. L'ordre de Prusa reste ci-dessous pour les autres imprimantes.
+using ScreenMenuSettingsBase = BasicScreenMenu<
+    od3d::MI_FEATURES,
+    od3d::MI_PRINTER_INFO, // « Infos de l'imprimante » en deuxième, comme la maquette G
+    od3d::MI_FILAMENT_PRESETS, // UI-13 : températures des préréglages de Prusa
+    od3d::MI_SET_PRINTING,
+    od3d::MI_SET_FILAMENT,
+    MI_TOOLHEAD_SETTINGS,
+    od3d::MI_SET_CHAMBER,
+    MI_HARDWARE,
+    MI_USER_INTERFACE,
+    od3d::MI_SLEEP, // F39 : mode veille (remplace l'atténuation des lumières de Prusa)
+    MI_NETWORK,
+    MI_LANG_AND_TIME,
+#if DEVELOPMENT_ITEMS()
+    MI_DEVELOPMENT,
 #endif
+    // MI_SYSTEM needs to be last to ensure we can safely hit factory reset even in presence of unknown languages
+    MI_SYSTEM>;
+#else
+using ScreenMenuSettingsBase = BasicScreenMenu<
     MI_USER_INTERFACE,
     MI_TOOLHEAD_SETTINGS,
 #if HAS_FILAMENT_SENSORS_MENU()
@@ -98,6 +118,7 @@ using ScreenMenuSettingsBase = BasicScreenMenu<
 #endif
     // MI_SYSTEM needs to be last to ensure we can safely hit factory reset even in presence of unknown languages
     MI_SYSTEM>;
+#endif
 
 class ScreenMenuSettings final : public ScreenMenuSettingsBase {
     gui::knob::screen_action_cb old_action;

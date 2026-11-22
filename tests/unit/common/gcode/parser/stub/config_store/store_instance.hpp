@@ -3,6 +3,7 @@
 #include <bitset>
 
 #include <filament.hpp>
+#include "../../../../../../../src/feature/od3d/filament_presets_math_od3d.hpp"
 
 struct ConfigStoreStub {
     template <typename T>
@@ -23,6 +24,8 @@ struct ConfigStoreStub {
     Item<FilamentTypeParameters_EEPROM5> adhoc_filament_parameters_5;
 
     Item<FilamentTypeParameters_EEPROM1> user_filament_parameters;
+
+    Item<od3d::filament_presets::Override> od3d_preset_overrides; // OneDrop3D (UI-13)
 };
 
 ConfigStoreStub &config_store() {

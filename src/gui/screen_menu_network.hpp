@@ -11,6 +11,8 @@
 #include "MItem_network.hpp"
 #include <option/buddy_enable_connect.h>
 #include <option/has_esp.h>
+#include <option/has_mmu2.h>
+#include <option/has_nozzle_thermal_compensation.h>
 
 using ScreenMenuNetwork__ = ScreenMenu<EFooter::Off,
     MI_RETURN,
@@ -28,7 +30,10 @@ using ScreenMenuNetwork__ = ScreenMenu<EFooter::Off,
 #if !PRINTER_IS_PRUSA_iX()
     MI_PRUSALINK,
 #endif
-    MI_METRICS_SETTINGS>;
+#if !(HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()) // OneDrop3D : dans Système › Diagnostic
+    MI_METRICS_SETTINGS,
+#endif
+    MI_ALWAYS_HIDDEN>;
 
 class ScreenMenuNetwork : public ScreenMenuNetwork__ {
 public:

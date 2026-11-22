@@ -1,6 +1,7 @@
 #include "filament.hpp"
 #include "filament_list.hpp"
 #include "filament_eeprom.hpp"
+#include "../feature/od3d/filament_presets_od3d.hpp" // OneDrop3D (UI-13)
 
 #include <cstring>
 #include <algorithm>
@@ -223,7 +224,8 @@ FilamentTypeParameters FilamentType::parameters() const {
 
     return std::visit([]<typename T>(const T &v) -> FilamentTypeParameters {
         if constexpr (std::is_same_v<T, PresetFilamentType>) {
-            return preset_filament_parameters(v);
+            // OneDrop3D (UI-13) : les températures modifiées par l'utilisateur passent avant celles de Prusa
+            return od3d::filament_presets::apply(preset_filament_parameters(v), config_store().od3d_preset_overrides.get(std::to_underlying(v)));
 
         } else if constexpr (std::is_same_v<T, UserFilamentType>) {
             return build_eeprom(

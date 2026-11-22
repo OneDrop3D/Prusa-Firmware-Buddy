@@ -1,5 +1,6 @@
 /// @file
 #include "screen_climate_od3d.hpp"
+#include "screen_filament_presets_od3d.hpp"
 
 #include "widgets_od3d.hpp"
 
@@ -12,7 +13,6 @@
 #include <iterator>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
-#include <screen/filament/screen_filament_management_list.hpp>
 #include <tool_index.hpp>
 #include <window_msgbox.hpp>
 
@@ -151,10 +151,11 @@ void MI_COOLDOWN_START::click(IWindowMenu &) {
 }
 
 MI_CLIMATE_FILAMENTS::MI_CLIMATE_FILAMENTS()
-    : IWindowMenuItem(_("Chamber per filament\nTarget, max, filtration (Prusa)"), &img::enclosure_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(_("Chamber per filament\nTarget, min and max in Filaments"), &img::enclosure_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
+// Réglages › Filaments : préréglages de Prusa modifiables (UI-13), et « Mes filaments » (ceux de l'utilisateur)
 void MI_CLIMATE_FILAMENTS::click(IWindowMenu &) {
-    open_screen<ScreenFilamentManagementList>();
+    open_screen<ScreenFilamentPresets>();
 }
 
 ScreenChamberClimate::ScreenChamberClimate()

@@ -24,7 +24,7 @@ namespace nozzle_comp = buddy::nozzle_thermal_compensation;
 // ---- Fonctions OneDrop3D ----
 
 MI_FEATURES::MI_FEATURES()
-    : IWindowMenuItem(_("OneDrop3D Features"), &img::wizard_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(_("OneDrop3D features\nCalibrations, PA, MPC, chamber climate"), &img::wizard_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_FEATURES::click(IWindowMenu &) {
     open_screen<ScreenMenuFeatures>();

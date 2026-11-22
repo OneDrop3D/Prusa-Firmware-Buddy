@@ -41,4 +41,32 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Réglages › « Impression » : sécurités et réactions pendant l'impression (éléments de Prusa regroupés)
+class MI_SET_PRINTING final : public IWindowMenuItem {
+public:
+    MI_SET_PRINTING();
+    void click(IWindowMenu &) override;
+};
+
+/// Réglages › « Filament et MMU » : capteurs, MMU, coupe-filament, OpenPrintTag (éléments de Prusa regroupés)
+class MI_SET_FILAMENT final : public IWindowMenuItem {
+public:
+    MI_SET_FILAMENT();
+    void click(IWindowMenu &) override;
+};
+
+/// Réglages › « Chambre » : filtration, lumières, caméra (éléments de Prusa regroupés)
+class MI_SET_CHAMBER final : public IWindowMenuItem {
+public:
+    MI_SET_CHAMBER();
+    void click(IWindowMenu &) override;
+};
+
+/// Réglages › Système › « Diagnostic » : outils de développement et de support de Prusa, sortis des autres menus
+class MI_DIAGNOSTICS final : public IWindowMenuItem {
+public:
+    MI_DIAGNOSTICS();
+    void click(IWindowMenu &) override;
+};
+
 } // namespace od3d

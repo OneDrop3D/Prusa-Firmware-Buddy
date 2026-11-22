@@ -11,6 +11,7 @@ target_sources(
           screen_climate_od3d.cpp
           screen_collision_od3d.cpp
           screen_damping_od3d.cpp
+          screen_fan_response_od3d.cpp
           screen_files_od3d.cpp
           screen_filament_presets_od3d.cpp
           screen_home_od3d.cpp

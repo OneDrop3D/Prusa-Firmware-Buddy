@@ -9,11 +9,14 @@
 /// - F8 : vitesse moyenne du filament sur les ~500 ms à venir (pondérée par la durée des blocs).
 /// - F26 : ventilateur pièce le plus fort demandé par les blocs qui commencent dans l'avance choisie (seules les
 ///   hausses sont avancées ; une baisse reste à l'heure de Prusa).
+/// - N3 (M2001) : temps de montée du ventilateur pièce, d'après les fronts du tachymètre comptés par créneaux de
+///   50 ms, et l'avance de F26 qui s'en déduit.
 #pragma once
 
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <span>
 
 namespace od3d::lookahead {
 
@@ -93,5 +96,31 @@ void scan_ring(uint8_t tail, uint8_t head, uint8_t size, Scan &scan, Get &&get) 
         }
     }
 }
+
+// ---- N3 : réponse du ventilateur pièce (M2001, fan_response_od3d.hpp) ----
+
+/// Créneau de comptage des fronts du tachymètre [s] (Prusa : 1 s)
+inline constexpr float fan_bin_s = 0.05f;
+
+/// Régime [tr/min] de edges fronts comptés en un créneau : 4 fronts par tour, comme Prusa (CFanCtlTach :
+/// rpm = 15 × fronts par seconde)
+constexpr float fan_rpm(float edges) {
+    return edges * 15.f / fan_bin_s;
+}
+
+struct FanRise {
+    bool found = false; ///< faux : régime final sous min_rpm (pas de signal) ou trop peu de créneaux
+    float rise_s = 0; ///< temps de montée : commande → 90 % du régime final [s]
+    float rpm = 0; ///< régime final [tr/min]
+};
+
+/// edges[i] : fronts du créneau i (créneaux consécutifs de fan_bin_s) ; command_s : commande 0 → 100 %, depuis le
+/// début du créneau 0. Régime final : moyenne des settle_bins derniers créneaux (4 au moins). Le passage à 90 % est
+/// cherché sur des fenêtres glissantes de 4 créneaux datées en leur milieu, interpolé entre deux fenêtres et confirmé
+/// par la suivante (un front de bruit ne suffit pas).
+FanRise fan_rise(std::span<const uint8_t> edges, float command_s, float min_rpm, size_t settle_bins = 10);
+
+/// Avance de F26 [dixièmes de seconde] pour un temps de montée : arrondie, de 1 à max_fan_lead_s
+uint8_t fan_lead_for(float rise_s);
 
 } // namespace od3d::lookahead

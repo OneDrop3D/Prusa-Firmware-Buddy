@@ -4,6 +4,7 @@
 #include "menu_od3d.hpp" // section_tab
 #include "screen_belts_od3d.hpp"
 #include "screen_damping_od3d.hpp"
+#include "screen_fan_response_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "screen_ptfe_od3d.hpp"
@@ -132,6 +133,8 @@ namespace {
             return N_("XY skew");
         case Test::mmu_ptfe:
             return N_("Front PTFE");
+        case Test::fan_response:
+            return N_("Part fan");
         case Test::count:
             break;
         }
@@ -557,6 +560,29 @@ namespace {
                 w.scaled(b[0], 1, " mm");
             }
             break;
+        case Test::fan_response: {
+            const auto lead = [&](int16_t ds) {
+                if (ds == 0) {
+                    w.text(N_("Off"));
+                } else {
+                    w.scaled(ds, 10, " s");
+                }
+            };
+            w.label(N_("Part fan rise time:"));
+            w.scaled(a[0], 1000, " s");
+            w.add(" (%d RPM)", int(a[2]));
+            w.label(N_("Fan lead applied:"));
+            lead(a[1]);
+            if (b[1] != none) {
+                w.label(N_("Before:"));
+                lead(b[1]);
+                if (b[0] != none) {
+                    w.add(", ");
+                    w.scaled(b[0], 1000, " s");
+                }
+            }
+            break;
+        }
         case Test::pa:
         case Test::max_flow:
         case Test::min_temp:
@@ -625,6 +651,12 @@ namespace {
                 w.add(" %.1f mm3/s", best / 10.0);
             }
         }
+        if (const auto &a = assistant::numbers_after(Test::fan_response); done(Test::fan_response) && a[0] != none) {
+            next(N_("part fan"));
+            w.add(" %.2f s, ", a[0] / 1000.0);
+            w.text(N_("lead"));
+            w.add(" %.1f s", a[1] / 10.0);
+        }
         // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
         if ((flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed) {
             w.label(N_("Front PTFE length:"));
@@ -692,6 +724,8 @@ namespace {
         case Test::max_flow:
         case Test::min_temp:
             return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(s.slot);
+        case Test::fan_response:
+            return ScreenFactory::Screen<ScreenFanResponse>;
         default:
             return {};
         }

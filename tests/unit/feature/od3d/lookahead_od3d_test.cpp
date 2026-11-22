@@ -240,3 +240,65 @@ TEST_CASE("lookahead F26 : ventilateur appliqué en avance") {
         }
     }
 }
+
+namespace {
+
+/// Fronts du tachymètre par créneau de 50 ms d'un ventilateur simulé, commandé de 0 à 100 % à command_s : retard
+/// dead_s, puis montée du premier ordre (constante tau_s) vers rpm. Compteur entier, comme dans l'interruption.
+std::vector<uint8_t> simulated_bins(size_t bins, float command_s, float dead_s, float tau_s, float rpm) {
+    const auto revolutions_edges = [&](float t) { // fronts cumulés depuis 0 (4 par tour)
+        const float on = t - command_s - dead_s;
+        if (on <= 0) {
+            return 0.f;
+        }
+        const float turns = rpm / 60.f * (on - tau_s * (1.f - std::exp(-on / tau_s)));
+        return 4.f * turns;
+    };
+    std::vector<uint8_t> out(bins);
+    for (size_t i = 0; i < bins; ++i) {
+        out[i] = uint8_t(std::floor(revolutions_edges((i + 1) * fan_bin_s)) - std::floor(revolutions_edges(i * fan_bin_s)));
+    }
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("lookahead N3 : temps de montée du ventilateur pièce") {
+    CHECK_THAT(fan_rpm(23), WithinAbs(6900, 1e-3)); // 23 fronts en 50 ms = 6 900 tr/min
+
+    // Commande à 0,3 s (créneau 6), retard 80 ms, constante 0,25 s, 6 600 tr/min : 90 % à 80 ms + 0,25 × ln 10
+    const float expected = 0.08f + 0.25f * std::log(10.f);
+    const auto bins = simulated_bins(60, 0.3f, 0.08f, 0.25f, 6600.f);
+    const FanRise r = fan_rise(bins, 0.3f, 1000.f);
+    REQUIRE(r.found);
+    CHECK_THAT(r.rise_s, WithinAbs(expected, 0.04));
+    CHECK_THAT(r.rpm, WithinAbs(6600, 6600 * 0.03));
+    CHECK(fan_lead_for(r.rise_s) == 7); // 0,66 s → avance 0,7 s
+
+    // Ventilateur plus lent : plus d'avance, bornée à 1 s (max de F26)
+    const FanRise slow = fan_rise(simulated_bins(60, 0.3f, 0.1f, 0.6f, 5000.f), 0.3f, 1000.f);
+    REQUIRE(slow.found);
+    CHECK(slow.rise_s > 1.f);
+    CHECK(fan_lead_for(slow.rise_s) == 10);
+
+    // Un front de bruit avant la montée n'est pas confirmé par le créneau suivant
+    auto noisy = bins;
+    noisy[7] = 30;
+    const FanRise n = fan_rise(noisy, 0.3f, 1000.f);
+    REQUIRE(n.found);
+    CHECK_THAT(n.rise_s, WithinAbs(expected, 0.04));
+}
+
+TEST_CASE("lookahead N3 : pas de mesure exploitable") {
+    const std::vector<uint8_t> silent(60, 0); // tachymètre muet : ventilateur débranché
+    CHECK_FALSE(fan_rise(silent, 0.3f, 1000.f).found);
+    const std::vector<uint8_t> weak(60, 2); // 600 tr/min à fond : sous le minimum
+    CHECK_FALSE(fan_rise(weak, 0.3f, 1000.f).found);
+    const auto bins = simulated_bins(60, 0.3f, 0.08f, 0.25f, 6600.f);
+    CHECK_FALSE(fan_rise(std::span(bins).first(12), 0.3f, 1000.f).found); // trop peu de créneaux après la commande
+    CHECK_FALSE(fan_rise(bins, 0.3f, 1000.f, 0).found);
+
+    CHECK(fan_lead_for(0.01f) == 1); // une mesure donne toujours une avance
+    CHECK(fan_lead_for(0.34f) == 3);
+    CHECK(fan_lead_for(NAN) == 0);
+}

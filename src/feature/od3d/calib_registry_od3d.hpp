@@ -35,6 +35,7 @@ enum class Test : uint8_t {
     min_temp, ///< F6, M1996 par emplacement
     skew, ///< F15 : pièce imprimée à mesurer, à faire à la main
     mmu_ptfe, ///< F41, M1999 B1 : longueur du tube PTFE avant du MMU (une bobine préchargée, rien dans l'extrudeur)
+    fan_response, ///< N3, M2001 : temps de montée du ventilateur pièce, règle l'avance de F26 (sans besoin)
     count,
 };
 
@@ -75,6 +76,7 @@ inline constexpr std::array entries {
     Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
     Entry { Test::min_temp, filament | empty_bed, 6, 1, true },
     Entry { Test::skew, empty_bed, 0, 1, false },
+    Entry { Test::fan_response, 0, 1, 1, true }, // sans besoin : avec les tests sans bobine (build_steps)
 };
 static_assert(entries.size() == size_t(Test::count), "une entrée par Test");
 

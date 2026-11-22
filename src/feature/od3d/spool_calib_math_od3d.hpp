@@ -131,4 +131,9 @@ static_assert(sizeof(Record) == 8);
 /// Limite de vitesse du filament [mm/s] pour un débit maximal [mm³/s], bornée à [floor, ceiling] mm³/s ; 0 sans débit
 float e_speed_limit(float max_flow, float floor, float ceiling, float filament_area_mm2);
 
+/// Purge après un chargement (pause.cpp, standard_purge_sequence) : purge_flow_ratio × le débit maximal mesuré de la
+/// bobine (borné à ceiling [mm³/s]), en vitesse du filament [mm/s], jamais sous prusa_mm_s ; sans mesure : prusa_mm_s
+inline constexpr float purge_flow_ratio = 0.6f;
+float purge_feedrate(float prusa_mm_s, const Record &r, float ceiling, float filament_area_mm2);
+
 } // namespace od3d::calib

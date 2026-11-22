@@ -152,6 +152,8 @@ bool step_gcode(const Step &step, std::span<char> out) {
         return write(out, "M1996 P%u", unsigned(step.slot));
     case Test::mmu_ptfe:
         return write(out, "M1999 B1 P%u", unsigned(step.slot)); // emplacement brut du MMU
+    case Test::fan_response:
+        return write(out, "M2001");
     case Test::skew:
     case Test::count:
         break;

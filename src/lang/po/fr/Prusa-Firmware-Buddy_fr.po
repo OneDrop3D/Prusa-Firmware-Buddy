@@ -11848,3 +11848,19 @@ msgstr "Fonctions OneDrop3D\nCalibrations, PA, MPC, climat chambre"
 #: src/gui/od3d/screen_climate_od3d.cpp
 msgid "Chamber per filament\nTarget, min and max in Filaments"
 msgstr "Chambre par filament\nCible, min. et max. dans Filaments"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Reuse bed mesh\nNo probing if the bed is unchanged"
+msgstr "Réutiliser le maillage du plateau\nPas de palpage s'il n'a pas changé"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "%d h max"
+msgstr "%d h max"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Redo bed mesh\nFull probing at the next print"
+msgstr "Refaire le maillage\nPalpage complet à la prochaine impression"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "The saved bed mesh is cleared: the next print probes the whole print area."
+msgstr "Le maillage gardé est effacé : la prochaine impression palpe toute la zone de la pièce."

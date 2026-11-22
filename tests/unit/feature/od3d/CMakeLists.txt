@@ -82,6 +82,12 @@ add_executable(
 target_include_directories(pa_math_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(pa_math_od3d_tests)
 add_executable(
+  mesh_memory_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/mesh_memory_test.cpp
+                         ${CMAKE_SOURCE_DIR}/src/feature/od3d/mesh_memory_math_od3d.cpp
+  )
+target_include_directories(mesh_memory_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(mesh_memory_od3d_tests)
+add_executable(
   mpc_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/mpc_od3d_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/mpc_od3d.cpp
   )
 target_include_directories(mpc_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)

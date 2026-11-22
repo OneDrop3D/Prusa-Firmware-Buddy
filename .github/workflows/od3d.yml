@@ -66,6 +66,8 @@ jobs:
       - run: python utils/bootstrap.py  # les tests lisent aussi .dependencies (SDK ESP)
       - run: sudo apt-get install -y gettext  # msgfmt, pour les tests de traduction
       - name: Tests unitaires de Prusa
+        env:
+          CTEST_OUTPUT_ON_FAILURE: '1'  # détail des assertions d'un test qui échoue
         run: python utils/build_tests.py --run
 
   release:

@@ -925,15 +925,20 @@ void calibrate_auto() {
     uint8_t used = 0, known = 0, has_k = 0;
     // Une seule matière dans le fichier : sa température de première couche vaut pour la mesure (F4-b ; le fichier ne
     // donne pas la température de chaque outil)
-    const char *file_material = nullptr;
-    bool single_material = true;
-    GCodeInfo::getInstance().for_each_used_extruder([&](GcodeToolIndex, VirtualToolIndex tool, const GCodeInfo::ExtruderInfo &info) {
+    struct {
+        uint8_t used = 0;
+        const char *material = nullptr;
+        bool single_material = true;
+    } scan; // une seule capture : la place de l'inplace_function est comptée
+    GCodeInfo::getInstance().for_each_used_extruder([&scan](GcodeToolIndex, VirtualToolIndex tool, const GCodeInfo::ExtruderInfo &info) {
         if (tool.to_raw() < VirtualToolIndex::count) {
-            used |= uint8_t(1u << tool.to_raw());
+            scan.used |= uint8_t(1u << tool.to_raw());
         }
-        single_material = single_material && (!file_material || info.filament_name == file_material);
-        file_material = info.filament_name.data();
+        scan.single_material = scan.single_material && (!scan.material || info.filament_name == scan.material);
+        scan.material = info.filament_name.data();
     });
+    used = scan.used;
+    const bool single_material = scan.single_material;
     for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(slot);
         if (tool.is_enabled() && FilamentType::for_tool(tool)) {

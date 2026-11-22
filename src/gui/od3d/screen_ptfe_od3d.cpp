@@ -18,8 +18,6 @@ namespace {
 
     namespace pt = ptfe;
 
-    // Les numéros s'écrivent pareil en français : pas de traduction (_() rend le texte tel quel)
-    constexpr const char *slot_items[] = { "1", "2", "3", "4", "5" };
     uint8_t chosen_slot = 0; ///< gardé tant que l'imprimante reste allumée
 
     const char *result_text(pt::Result result) {
@@ -65,13 +63,23 @@ MI_PTFE_LENGTH_NOW::MI_PTFE_LENGTH_NOW()
 }
 
 MI_PTFE_SLOT::MI_PTFE_SLOT()
-    : MenuItemSwitch(_("Measured slot\nIts spool must be preloaded"), slot_items, chosen_slot) {
+    : MenuItemSelectMenu(_("Spool to use\nPreloaded in the MMU")) {
     SetIconId(&img::spool_16x16);
+    set_behavior(Behavior::quick_cycle); // comme les relais de bobine (MI_SPOOL_JOIN_TARGET)
+    set_current_item(chosen_slot);
+}
+
+int MI_PTFE_SLOT::item_count() const {
+    return pt::slots;
+}
+
+string_view_utf8 MI_PTFE_SLOT::build_item_text(int index, StringViewUtf8ParamBase &params) const {
+    return _("Slot %i").formatted(params, index + 1);
 }
 
 bool MI_PTFE_SLOT::on_item_selected(const OnItemSelectedArgs &args) {
     chosen_slot = uint8_t(args.new_index);
-    return MenuItemSwitch::on_item_selected(args);
+    return true;
 }
 
 MI_PTFE_START::MI_PTFE_START()

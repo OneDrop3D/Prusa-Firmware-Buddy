@@ -59,6 +59,10 @@ bool in_cruise(const Pass &pass, float d) {
     return to > from && d >= from && d <= to;
 }
 
+float sweep_from(float centre, float top_length) {
+    return centre - top_length / 2.f;
+}
+
 float median(std::span<const float> values) {
     std::array<float, 64> buf;
     size_t n = 0;

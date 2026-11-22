@@ -9,7 +9,7 @@
 #include <basic_screen_menu.hpp>
 #include <WindowItemFormatableLabel.hpp>
 #include <WindowMenuItems.hpp>
-#include <WindowMenuSwitch.hpp>
+#include <gui/menu_item/menu_item_select_menu.hpp>
 
 namespace od3d {
 
@@ -26,10 +26,13 @@ public:
     MI_PTFE_LENGTH_NOW();
 };
 
-/// Emplacement dont la bobine préchargée sert à la mesure
-class MI_PTFE_SLOT final : public MenuItemSwitch {
+/// Emplacement dont la bobine préchargée sert à la mesure : « Emplacement n », chaque appui passe au suivant. La liste de
+/// choix G n'a que 5 lignes, « Retour » compris : l'emplacement 5 y était caché sous le bas (retour du 22/11)
+class MI_PTFE_SLOT final : public MenuItemSelectMenu {
 public:
     MI_PTFE_SLOT();
+    int item_count() const override;
+    string_view_utf8 build_item_text(int index, StringViewUtf8ParamBase &params) const override;
 
 protected:
     bool on_item_selected(const OnItemSelectedArgs &args) override;

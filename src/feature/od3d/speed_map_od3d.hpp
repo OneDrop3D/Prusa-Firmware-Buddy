@@ -2,7 +2,8 @@
 /// OneDrop3D (F22) : carte des vitesses critiques (VFA) mesurée par l'accéléromètre de l'input shaper (M1993).
 ///
 /// Pour chaque axe (X puis Y) et chaque vitesse de 20 à 300 mm/s par pas de 10, la tête fait un aller et un retour à
-/// vitesse constante autour du centre du plateau ; l'énergie vibratoire (moyenne quadratique de l'accélération après un
+/// vitesse constante depuis un même bout (sweep_from : sans recentrage entre deux vitesses, ensemble centré sur le
+/// plateau) ; l'énergie vibratoire (moyenne quadratique de l'accélération après un
 /// passe-haut, speed_map_math_od3d.hpp) n'est mesurée que dans la partie à vitesse constante, repérée par la position
 /// réelle des moteurs. Les vitesses dont l'énergie ressort nettement sont « à éviter ».
 ///

@@ -122,22 +122,26 @@ namespace {
     Status measure_axis(uint8_t axis_index, const Geometry &g, float sample_period, float max_speed, PrusaAccelerometer &accelerometer) {
         const AxisEnum axis = axis_index == 0 ? X_AXIS : Y_AXIS;
         const float centre = axis_index == 0 ? g.centre.x : g.centre.y;
+        const float max_length = 2.f * g.bound[axis_index];
+
+        // Tous les passages partent du même bout (retour du 22/11 : chaque passage était centré, donc plus long que le
+        // précédent, et la tête s'arrêtait au bout gauche puis repartait un peu plus à gauche vers le départ suivant).
+        // Les longueurs croissent avec la vitesse : le passage de max_speed borne tous les autres.
+        const float from = sweep_from(centre, pass_for(std::min(max_speed, speed_end), accel, cruise_s, margin_mm, delay_s, max_length).length);
+        do_blocking_move_to_xy(axis_index == 0 ? from : g.centre.x, axis_index == 0 ? g.centre.y : from, travel_speed_xy);
+        if (must_stop()) {
+            return Status::stopped;
+        }
+
         for (size_t k = 0; k < speed_count; ++k) {
             const float v = speed_start + float(k) * speed_step;
             if (v > max_speed + 0.01f) {
                 break; // au-delà de la vitesse maximale de la machine : pas mesuré
             }
-            const Pass p = pass_for(v, accel, cruise_s, margin_mm, delay_s, 2.f * g.bound[axis_index]);
-
-            // Départ à une extrémité du passage, centré
-            const float from = centre - p.length / 2.f;
-            do_blocking_move_to_xy(axis_index == 0 ? from : g.centre.x, axis_index == 0 ? g.centre.y : from, travel_speed_xy);
-            if (must_stop()) {
-                return Status::stopped;
-            }
+            const Pass p = pass_for(v, accel, cruise_s, margin_mm, delay_s, max_length);
 
             VibrationMeter meter(sample_period, filter_tau);
-            for (const float target : { centre + p.length / 2.f, centre - p.length / 2.f }) {
+            for (const float target : { from + p.length, from }) {
                 if (const Status s = pass(axis, target, v, p, accelerometer, meter); s != Status::done) {
                     return s;
                 }

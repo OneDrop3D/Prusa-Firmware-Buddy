@@ -13,8 +13,6 @@ namespace od3d::ptfe {
 
 namespace {
 
-    constexpr uint8_t slots = 5; ///< MMU3
-
     std::atomic<Result> last_result = Result::none;
     std::atomic<uint16_t> last_measured = 0;
     std::atomic<uint16_t> last_saved = 0;

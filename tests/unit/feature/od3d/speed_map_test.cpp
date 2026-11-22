@@ -85,6 +85,30 @@ TEST_CASE("vitesses : longueur d'un passage") {
     CHECK(pass_for(100, 0, 0.4f, 5, 0.03f, 200).length == 0.f);
 }
 
+TEST_CASE("vitesses : passages d'un axe sans recentrage") {
+    // Comme measure_axis : 4 000 mm/s², 0,4 s de mesure, course de 100 mm de part et d'autre du centre, 300 mm/s au plus
+    constexpr float centre = 125, bound = 100;
+    const auto pass_at = [&](float v) { return pass_for(v, 4000, 0.4f, 5, 0.03f, 2 * bound); };
+    const float from = sweep_from(centre, pass_at(300).length);
+    CHECK_THAT(centre - from, WithinAbs(pass_at(300).length / 2, 1e-3)); // le plus long passage est centré
+
+    float previous = 0;
+    for (float v = 20; v <= 300; v += 10) {
+        const Pass p = pass_at(v);
+        // Aller de from à from + length, retour à from : la vitesse suivante repart de from, aucun autre déplacement
+        CHECK(p.length >= previous);
+        CHECK(from >= centre - bound);
+        CHECK(from + p.length <= centre + bound);
+        // Aller et retour de même longueur : même fenêtre de mesure, dans la vitesse constante
+        const float window_from = p.ramp + p.margin, window_to = p.length - p.ramp - p.margin;
+        CHECK(window_to > window_from);
+        CHECK(in_cruise(p, (window_from + window_to) / 2));
+        CHECK_FALSE(in_cruise(p, p.ramp / 2));
+        CHECK_FALSE(in_cruise(p, p.length - p.ramp / 2));
+        previous = p.length;
+    }
+}
+
 TEST_CASE("vitesses : médiane") {
     CHECK(median(std::vector<float> {}) == 0.f);
     CHECK(median(std::vector<float> { 3, 1, 2 }) == 2.f);

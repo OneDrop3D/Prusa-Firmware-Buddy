@@ -11553,10 +11553,6 @@ msgid "Measure automatically\nWith a preloaded spool"
 msgstr "Mesurer automatiquement\nAvec une bobine préchargée"
 
 #: src/gui/od3d/screen_ptfe_od3d.cpp
-msgid "Measured slot\nIts spool must be preloaded"
-msgstr "Emplacement mesuré\nSa bobine doit être préchargée"
-
-#: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Start the measurement\nAbout 1 minute, cold nozzle OK"
 msgstr "Lancer la mesure\nEnviron 1 minute, buse froide possible"
 
@@ -11848,3 +11844,7 @@ msgstr "Fonctions OneDrop3D\nCalibrations, PA, MPC, climat chambre"
 #: src/gui/od3d/screen_climate_od3d.cpp
 msgid "Chamber per filament\nTarget, min and max in Filaments"
 msgstr "Chambre par filament\nCible, min. et max. dans Filaments"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Spool to use\nPreloaded in the MMU"
+msgstr "Bobine utilisée\nPréchargée dans le MMU"

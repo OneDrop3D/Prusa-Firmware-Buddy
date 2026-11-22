@@ -31,8 +31,10 @@ void Detector::accel(float az_g) {
 void Detector::restart(uint32_t time_us, float up_g) {
     have_base = true;
     in_pulse = false;
+    rest_valid = false; // le repos d'avant (autre filament, autre outil) ne vaut plus
     armed_us = time_us;
     base_g = up_g;
+    last_up = NAN;
     noise = 0;
 }
 
@@ -42,9 +44,19 @@ bool Detector::sample(uint32_t time_us, float up_g, float x, float y, float z, f
 
     const uint32_t dt_us = std::min<uint32_t>(time_us - last_us, 100'000); // trou dans les échantillons : borné
     last_us = time_us;
-    if (std::isfinite(e) && std::isfinite(last_e) && dt_us > 0 && std::fabs(e - last_e) > fast_e_mm_s * float(dt_us) * 1e-6f) {
-        fast_e_seen = true;
-        last_fast_e_us = time_us;
+    if (std::isfinite(e)) {
+        if (std::isfinite(last_e) && dt_us > 0) {
+            const float v = (e - last_e) / (float(dt_us) * 1e-6f);
+            if (v > fast_e_mm_s || v < -back_e_mm_s) {
+                fast_e_seen = true;
+                last_fast_e_us = time_us;
+            }
+        }
+        if (!(std::fabs(e - e_still) <= still_e_mm)) {
+            e_still = e; // l'extrudeur bouge : le repos recommence d'ici
+            e_still_us = time_us;
+        }
+        last_e = e;
     }
     // positionLookback peut ne pas connaître l'instant : dernière position connue
     if (std::isfinite(x)) {
@@ -55,9 +67,6 @@ bool Detector::sample(uint32_t time_us, float up_g, float x, float y, float z, f
     }
     if (std::isfinite(z)) {
         last_z = z;
-    }
-    if (std::isfinite(e)) {
-        last_e = e;
     }
 
     if (!armed || !std::isfinite(up_g) || !(last_z >= min_z_mm)) {
@@ -70,20 +79,30 @@ bool Detector::sample(uint32_t time_us, float up_g, float x, float y, float z, f
         return false;
     }
 
+    const float dt = float(dt_us);
     const bool fast_e_recent = fast_e_seen && time_us - last_fast_e_us < fast_e_guard_us;
-    const float d = up_g - base_g;
+    const bool at_rest = std::isfinite(e_still) && time_us - e_still_us >= rest_after_us && !fast_e_recent;
+    const float reference = rest_valid ? std::max(base_g, rest_g) : base_g;
+    const float d = up_g - reference;
 
     if (!in_pulse) {
-        if (d >= log_g && time_us - armed_us >= settle_us && !fast_e_recent) {
+        if (d >= log_g && rest_valid && time_us - armed_us >= settle_us && !fast_e_recent) {
             in_pulse = true;
             pulse_start_us = time_us;
             current = Pulse { .peak_g = d, .noise_g = noise, .x = last_x, .y = last_y, .z = last_z, .accel_g = jolt };
             return false;
         }
-        // Moyenne et bruit ne suivent que hors impulsion (un choc ne les déplace pas)
-        const float dt = float(dt_us);
-        base_g += std::min(1.f, dt / float(baseline_tau_us)) * d;
-        noise += std::min(1.f, dt / float(noise_tau_us)) * (std::fabs(d) - noise);
+        // Moyenne, repos et bruit ne suivent que hors impulsion (un choc ne les déplace pas). Le bruit est l'écart d'un
+        // échantillon au suivant : les changements de débit, lents devant 3 ms, ne le gonflent pas
+        base_g += std::min(1.f, dt / float(baseline_tau_us)) * (up_g - base_g);
+        if (std::isfinite(last_up)) {
+            noise += std::min(1.f, dt / float(noise_tau_us)) * (std::fabs(up_g - last_up) - noise);
+        }
+        last_up = up_g;
+        if (at_rest) {
+            rest_g = rest_valid ? rest_g + std::min(1.f, dt / float(rest_tau_us)) * (up_g - rest_g) : up_g;
+            rest_valid = true;
+        }
         return false;
     }
 
@@ -109,7 +128,11 @@ bool Detector::sample(uint32_t time_us, float up_g, float x, float y, float z, f
         return true;
     }
     if (duration_us > max_pulse_us) {
-        base_g = up_g; // une marche : la moyenne repart d'ici
+        // Une marche : la moyenne (et le repos, si l'extrudeur est arrêté) repartent d'ici
+        base_g = up_g;
+        if (at_rest) {
+            rest_g = up_g;
+        }
         in_pulse = false;
     }
     return false;

@@ -345,7 +345,7 @@ Rect16 ScreenLoadUnload::Box::get_rect_for_touch() const {
 }
 
 void ScreenLoadUnload::Box::unconditionalDraw() {
-    display::draw_rounded_rect(GetRect(), veil, style::surface, box_radius, MIC_ALL_CORNERS);
+    frost::draw_body(GetRect(), style::surface, box_radius, MIC_ALL_CORNERS); // coins givrés, ou du voile uni
 }
 
 void ScreenLoadUnload::Box::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -776,12 +776,13 @@ void ScreenLoadUnload::unconditionalDraw() {
     display::fill_rect(style::header, style::screen);
     if (!std::exchange(frosted, true)) {
         // 1er dessin : l'écran d'où l'on vient reste autour du cadre, flouté et assombri d'une traite avant le cadre
-        // (retour du 22/11 : « il n'y a pas de fond », puis « le flou arrive après ») ; les coins du cadre sont peints
-        // de la couleur qu'y prend le fond uni
-        frost::run(style::below_header, box_rect);
+        // (retour du 22/11 : « il n'y a pas de fond », puis « le flou arrive après »), coins du cadre compris (8.0.2.30 :
+        // un carré de voile uni dépassait de ses coins arrondis)
+        frost::run(style::below_header, box_rect, box_radius, MIC_ALL_CORNERS, style::surface);
         return;
     }
-    // Redessiné en entier : ce qui était autour n'est plus sûr, voile uni
+    // Redessiné en entier : ce qui était autour n'est plus sûr, voile uni (coins du cadre compris)
+    frost::forget();
     display::fill_rect(Rect16::fromLTRB(0, style::header_line.Top(), style::screen_w, style::screen_h), veil);
 }
 

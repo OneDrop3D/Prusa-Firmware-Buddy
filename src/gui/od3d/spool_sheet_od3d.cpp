@@ -100,8 +100,8 @@ namespace {
     protected:
         void unconditionalDraw() override {
             const Rect16 r = GetRect();
-            // Son coin arrondi : il se redessine seul après un glissement de la fiche
-            display::draw_rounded_rect(r, style::veil, style::surface, band_radius, MIC_TOP_LEFT);
+            // Son coin arrondi : il se redessine seul après un glissement de la fiche ; givré s'il n'a pas bougé
+            frost::draw_body(r, style::surface, band_radius, MIC_TOP_LEFT);
             draw_handle(top);
 
             const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
@@ -280,12 +280,12 @@ namespace {
 
     void SpoolSheet::unconditionalDraw() {
         // Au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri d'une traite avant la fiche (retour du 22/11 :
-        // « le flou arrive après, alors qu'il devait être en même temps ») ; puis seulement la bande, ses coins de la
-        // couleur que prend le fond uni
-        if (!std::exchange(frosted, true)) {
-            frost::run(style::below_header, band);
+        // « le flou arrive après, alors qu'il devait être en même temps »), ses coins compris ; regivré si l'écran a été
+        // repeint dessous ; puis seulement la bande
+        if (!std::exchange(frosted, true) || !frost::frosted()) {
+            frost::run(style::below_header, band, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT, style::surface); // ses coins aussi
         }
-        display::draw_rounded_rect(band, style::veil, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        frost::draw_body(band, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
 #if HAS_TOUCH()
         drawn = 0; // repeinte à sa place : si elle est tirée, le voile se repeint au-dessus d'elle
 #endif
@@ -341,6 +341,7 @@ namespace {
         // Rien que le bord : la fiche entière se redessinerait à chaque image (~60 ms). Le voile uni (la couleur du fond
         // givré) couvre ce que la fiche découvre ; en remontant, le fond de la fiche recouvre le voile.
         const int16_t was = top + drawn, now = top + to;
+        frost::forget_corners(); // le bord bouge : ses coins sont ceux du voile uni
         if (now > was) {
             display::fill_rect(Rect16::fromLTRB(0, was, style::screen_w, now), style::veil);
         }

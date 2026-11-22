@@ -7,6 +7,7 @@
 #include <gui_invalidate.hpp>
 #include <i_window_menu_item.hpp>
 #include <sound.hpp>
+#include <gui/od3d/frost_od3d.hpp> // OneDrop3D : frost::forget()
 #include <gui/od3d/widgets_od3d.hpp> // OneDrop3D : chrome::next_screen()
 
 static const uint32_t MENU_TIMEOUT_MS = 30000;
@@ -70,6 +71,9 @@ void Screens::WindowEvent(GUI_event_t event, void *const param) {
 void Screens::Draw() {
     if (current == nullptr) {
         return;
+    }
+    if (current->IsInvalid()) {
+        od3d::frost::forget(); // OneDrop3D : l'écran entier se repeint, le givre sous un dialogue est perdu (il regivre)
     }
     current->Draw();
 }

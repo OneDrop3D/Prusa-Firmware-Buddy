@@ -1,6 +1,7 @@
 /// OneDrop3D (interface G) : fond givré des dialogues (frost_od3d.hpp) : nœuds lus sur 2 lignes sur 8, interpolés, sur
 /// un afficheur simulé, comparés au calcul direct ; tout est lu avant d'écrire ; durée estimée de chaque dialogue
 #include <gui/od3d/frost_od3d.hpp>
+#include <gui/od3d/spool_draw.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -259,4 +260,68 @@ TEST_CASE("od3d frost: each dialog frosts within budget, before it draws") {
     CHECK(reads == 69);
     CHECK(written_px == 38096);
     CHECK(estimate_ms() < 150);
+
+    // Coins arrondis givrés aussi (8.0.2.30) : les lignes des coins s'ajoutent aux bandes du haut et du bas
+    constexpr uint8_t top = Corners::top_left | Corners::top_right, all = top | Corners::bottom_left | Corners::bottom_right;
+    reset_counters(1920);
+    run({ 0, 41, 480, 279 }, { 0, 114, 480, 206 }, 1920, read, write, Corners { .r = 12, .mask = top });
+    CHECK(estimate_ms() < 95); // fiche de bobine : ~88 ms
+    reset_counters(1920);
+    run({ 0, 41, 480, 279 }, { 0, 120, 480, 200 }, 1920, read, write, Corners { .r = 12, .mask = top });
+    CHECK(estimate_ms() < 100); // éditeur de valeur : ~95 ms
+    reset_counters(1920);
+    run({ 0, 41, 480, 279 }, { 28, 46, 424, 226 }, 1920, read, write, Corners { .r = 12, .mask = all });
+    CHECK(estimate_ms() < 150); // écran de chargement : ~100 ms (bandes de côté plus courtes)
+}
+
+TEST_CASE("od3d frost: the dialog's rounded corners show the frosted screen, not a square of veil") {
+    // Retour du 22/11 (8.0.2.30) : « un carré noir sous la fenêtre, sans les angles arrondis, qui dépasse ». Derrière les
+    // coins, une carte claire : le givrage les fait aussi (givré hors de l'arrondi, mêlé au corps sur le bord lissé), et
+    // ne touche pas au reste du dialogue hors des lignes de ses coins.
+    const std::array<uint8_t, 3> body { 0x28, 0x28, 0x24 };
+    struct Case {
+        Area hole;
+        uint8_t mask;
+    };
+    for (const Case &k : { Case { { 28, 46, 424, 226 }, uint8_t(Corners::top_left | Corners::top_right | Corners::bottom_left | Corners::bottom_right) },
+             Case { { 0, 114, 480, 206 }, uint8_t(Corners::top_left | Corners::top_right) }, // fiche de bobine
+             Case { { 0, 120, 480, 200 }, uint8_t(Corners::top_left | Corners::top_right) } }) { // éditeur de valeur
+        fill_random(11);
+        reset_counters(1920);
+        const Area area { 0, 41, 480, 279 };
+        const Corners corners { .r = 12, .mask = k.mask, .body = body };
+        const std::vector<uint8_t> before = lcd;
+        const uint16_t top = k.mask & (Corners::top_left | Corners::top_right) ? 12 : 0;
+        const uint16_t bottom = k.mask & (Corners::bottom_left | Corners::bottom_right) ? 12 : 0;
+        const auto frosted = expected(before, margins(area, k.hole, top, bottom)); // les bandes, lignes des coins comprises
+        run(area, k.hole, 1920, read, write, corners);
+        CHECK_FALSE(read_after_write);
+
+        size_t outside = 0;
+        for (int y = area.y; y < area.y + area.h; ++y) {
+            for (int x = 0; x < screen_w; ++x) {
+                const size_t i = (size_t(y) * screen_w + x) * 3;
+                const int lx = x - k.hole.x, ly = y - k.hole.y;
+                const bool in_hole = lx >= 0 && ly >= 0 && lx < k.hole.w && ly < k.hole.h;
+                INFO("x " << x << " y " << y);
+                if (!in_hole) {
+                    REQUIRE(std::equal(&lcd[i], &lcd[i] + 3, &frosted[i])); // autour : givré comme avant
+                    continue;
+                }
+                const bool corner_rows = ly < top || k.hole.h - 1 - ly < bottom;
+                if (!corner_rows) {
+                    REQUIRE(std::equal(&lcd[i], &lcd[i] + 3, &before[i])); // le dialogue : rien n'y est écrit
+                    continue;
+                }
+                const bool left = lx < 12, right = !left && k.hole.w - 1 - lx < 12, upper = ly < 12;
+                const uint8_t bit = left ? (upper ? Corners::top_left : Corners::bottom_left) : right ? (upper ? Corners::top_right : Corners::bottom_right) : 0;
+                const uint8_t q = (k.mask & bit) && (upper ? ly < 12 : k.hole.h - 1 - ly < 12) ? od3d::spool::corner_beyond_quarters(left ? lx : k.hole.w - 1 - lx, upper ? ly : k.hole.h - 1 - ly, 12) : 0;
+                for (int c = 0; c < 3; ++c) {
+                    REQUIRE(lcd[i + c] == uint8_t((body[c] * (4 - q) + frosted[i + c] * q + 2) / 4));
+                }
+                outside += q == 4;
+            }
+        }
+        CHECK(outside >= 2 * 20); // hors de l'arrondi (23 pixels par coin de 12 px) : l'écran givré, pas un carré de voile
+    }
 }

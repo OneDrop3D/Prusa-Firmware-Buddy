@@ -18,6 +18,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <utils/color.hpp>
 
 class Rect16;
 
@@ -42,23 +43,56 @@ constexpr uint8_t shade(unsigned average) {
     return static_cast<uint8_t>(((average * 459 + 2048) >> 12) << 2);
 }
 
-/// area moins hole, en bandes : haut, gauche, droite, bas (vides s'il n'y a rien)
-std::array<Area, 4> margins(Area area, Area hole);
+/// area moins hole, en bandes : haut, gauche, droite, bas (vides s'il n'y a rien). Les bandes du haut et du bas
+/// descendent (remontent) de top_rows (bottom_rows) lignes dans le trou, pour ses coins arrondis.
+std::array<Area, 4> margins(Area area, Area hole, uint16_t top_rows = 0, uint16_t bottom_rows = 0);
 
 /// Lit la fenêtre (3 octets par pixel, ligne après ligne) et rend le tampon qui la contient, nullptr si échec
 using Read = uint8_t *(*)(Area window);
 /// Réécrit la fenêtre depuis le début du tampon que read a rendu
 using Write = void (*)(Area window, const uint8_t *buffer);
 
+/// Coins arrondis du trou (le dialogue), bits de mask. Retour du 22/11 (8.0.2.30) : « un carré noir sous la fenêtre,
+/// sans les angles arrondis, qui dépasse » : le trou était givré en rectangle et le dialogue peignait ses coins du voile
+/// uni, plus sombre que l'écran givré dès qu'il y avait autre chose que le fond derrière eux. Maintenant le givrage
+/// fait aussi les coins : givré hors de l'arrondi, mêlé à body (couleur du corps, octets de l'afficheur) sur son bord
+/// lissé (comme display::draw_rounded_rect), body dedans ; le dialogue peint son corps sans ses coins (draw_body).
+struct Corners {
+    enum : uint8_t {
+        top_left = 1,
+        top_right = 2,
+        bottom_left = 4,
+        bottom_right = 8,
+    };
+    uint8_t r = 0;
+    uint8_t mask = 0;
+    std::array<uint8_t, 3> body {};
+};
+
 /// Givre area moins hole d'une traite : toutes les lectures, puis toutes les écritures. Le flou ne lit que dans sa bande
-/// (bords répétés) : il ne prend ni le dialogue, ni une bande voisine. capacity : pixels que le tampon de read tient
-/// (au moins 2 lignes de la bande la plus large).
-void run(Area area, Area hole, size_t capacity, Read read, Write write);
+/// (bords répétés) : il ne prend ni une bande voisine, ni le dialogue hors des lignes de ses coins. capacity : pixels que
+/// le tampon de read tient (au moins 2 lignes de la bande la plus large).
+void run(Area area, Area hole, size_t capacity, Read read, Write write, const Corners &corners = {});
 
 // ---- Sur l'imprimante ----
 
-/// Givre ce que l'écran montre dans area autour de hole : au premier dessin du dialogue, avant de le peindre
-void run(const Rect16 &area, const Rect16 &hole);
+/// Givre ce que l'écran montre dans area autour de hole, coins arrondis de hole compris (rayon r, corners en MIC_*, corps
+/// body) : au premier dessin du dialogue, avant de le peindre, et quand l'écran a été repeint dessous (!frosted())
+void run(const Rect16 &area, const Rect16 &hole, uint8_t r = 0, uint8_t corners = 0, Color body = {});
+
+/// L'écran autour du dialogue est encore givré : rien ne l'a repeint en entier depuis run (Screens::Draw appelle forget)
+bool frosted();
+
+/// Corps d'un dialogue givré : comme display::draw_rounded_rect(rect, voile, body, r, corners), sans repeindre les
+/// coins que le givrage a faits (ils gardent l'écran givré au lieu d'un carré de voile uni)
+void draw_body(const Rect16 &rect, Color body, uint8_t r, uint8_t corners);
+
+/// Les coins faits par le givrage ont été recouverts (fiche tirée vers le bas) : draw_body les peint du voile
+void forget_corners();
+
+/// L'écran est repeint en entier (sortie de veille, afficheur réinitialisé, dialogue refermé...) : le givre sous un dialogue
+/// est perdu, le dialogue regivre à son dessin (un fond uni devient le voile uni)
+void forget();
 
 /// Un dialogue givré se ferme : l'écran dessous se repeint d'une passe (le fond entre ses éléments, puis chacun) au lieu
 /// d'un aplat sur toute la place du dialogue avant ses éléments

@@ -89,11 +89,12 @@ ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const Numer
 
 void ValueEditor::unconditionalDraw() {
     // Au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri d'une traite avant la feuille (retour du 22/11 :
-    // « le flou arrive après ») ; coins du haut arrondis, de la couleur que prend son fond uni
-    if (!std::exchange(frosted, true)) {
-        frost::run(style::below_header, sheet_rect);
+    // « le flou arrive après »), ses coins compris (ils gardent l'écran givré, pas un carré de voile uni) ; regivré si
+    // l'écran a été repeint dessous (sortie de veille...)
+    if (!std::exchange(frosted, true) || !frost::frosted()) {
+        frost::run(style::below_header, sheet_rect, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT, style::surface);
     }
-    display::draw_rounded_rect(sheet_rect, style::veil, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    frost::draw_body(sheet_rect, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
     // Le nom seul : les libellés des listes G ont souvent une 2e ligne d'explication (« Pas\nBaisse à chaque palier »)
     std::array<char, label_rect.Width() / width(Font::small) + 1> name;
     label.copyToRAM(name.data(), name.size());

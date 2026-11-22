@@ -1,18 +1,23 @@
 /// @file
 /// Givrage (frost_od3d.hpp) : partie pure, sans l'afficheur
 #include "frost_od3d.hpp"
+#include "spool_draw.hpp"
 
 #include <algorithm>
 
 namespace od3d::frost {
 
-std::array<Area, 4> margins(Area area, Area hole) {
+std::array<Area, 4> margins(Area area, Area hole, uint16_t top_rows, uint16_t bottom_rows) {
     const int ax1 = area.x + area.w, ay1 = area.y + area.h;
     const int hx0 = std::clamp<int>(hole.x, area.x, ax1), hx1 = std::clamp<int>(hole.x + hole.w, area.x, ax1);
-    const int hy0 = std::clamp<int>(hole.y, area.y, ay1), hy1 = std::clamp<int>(hole.y + hole.h, area.y, ay1);
+    int hy0 = std::clamp<int>(hole.y, area.y, ay1), hy1 = std::clamp<int>(hole.y + hole.h, area.y, ay1);
     if (hx0 >= hx1 || hy0 >= hy1) {
         return { area, Area {}, Area {}, Area {} };
     }
+    // Lignes des coins arrondis : avec les bandes du haut et du bas, sur toute la largeur
+    const int top_end = std::min(hy0 + int(top_rows), hy1);
+    hy1 = std::max(hy1 - int(bottom_rows), top_end);
+    hy0 = top_end;
     const auto band = [](int x0, int y0, int x1, int y1) {
         return Area { int16_t(x0), int16_t(y0), uint16_t(std::max(x1 - x0, 0)), uint16_t(std::max(y1 - y0, 0)) };
     };
@@ -58,8 +63,35 @@ namespace {
 
 } // namespace
 
-void run(Area area, Area hole, size_t capacity, Read read, Write write) {
-    const auto bands = margins(area, hole);
+namespace {
+
+    /// Pixels du trou dans la ligne y de la bande b (px : ses pixels givrés) : coins hors de l'arrondi givrés, bord lissé
+    /// mêlé au corps, le reste au corps
+    void round_hole(uint8_t *px, const Area &b, int y, Area hole, const Corners &corners) {
+        if (y < hole.y || y >= hole.y + hole.h) {
+            return;
+        }
+        const int r = corners.r, ly = y - hole.y;
+        const bool top = ly < r, bottom = hole.h - 1 - ly < r;
+        const int x0 = std::max<int>(hole.x, b.x), x1 = std::min<int>(hole.x + hole.w, b.x + b.w);
+        for (int x = x0; x < x1; ++x) {
+            uint8_t *p = px + (x - b.x) * 3;
+            const int lx = x - hole.x;
+            const bool left = lx < r, right = !left && hole.w - 1 - lx < r;
+            const uint8_t bit = (left || right) ? (top ? (left ? Corners::top_left : Corners::top_right) : bottom ? (left ? Corners::bottom_left : Corners::bottom_right) : 0) : 0;
+            const uint8_t q = (corners.mask & bit) ? spool::corner_beyond_quarters(left ? lx : hole.w - 1 - lx, top ? ly : hole.h - 1 - ly, r) : 0;
+            for (int c = 0; c < 3; ++c) {
+                p[c] = static_cast<uint8_t>((corners.body[c] * (4 - q) + p[c] * q + 2) / 4); // 0 quart dehors : le corps
+            }
+        }
+    }
+
+} // namespace
+
+void run(Area area, Area hole, size_t capacity, Read read, Write write, const Corners &corners) {
+    const uint16_t top_rows = corners.mask & (Corners::top_left | Corners::top_right) ? corners.r : 0;
+    const uint16_t bottom_rows = corners.mask & (Corners::bottom_left | Corners::bottom_right) ? corners.r : 0;
+    const auto bands = margins(area, hole, top_rows, bottom_rows);
     for (const Area &b : bands) {
         if (!b.empty() && (b.w > max_w || 2 * size_t(b.w) > capacity)) {
             return; // le tampon ne tient pas deux lignes : rien
@@ -134,6 +166,9 @@ void run(Area area, Area hole, size_t capacity, Read read, Write write) {
                             px[x * 3 + c] = shade(unsigned(v >> 16));
                         }
                     }
+                }
+                if (corners.mask) {
+                    round_hole(px, b, b.y + y, hole, corners);
                 }
             }
             write(Area { b.x, int16_t(b.y + y - n), b.w, uint16_t(n) }, buffer);

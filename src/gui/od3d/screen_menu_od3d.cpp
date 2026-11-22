@@ -130,6 +130,10 @@ void MI_NOZZLE_THERMAL_COMPENSATION::OnChange(size_t) {
     nozzle_comp::set_enabled(value());
 }
 
+void MI_NOZZLE_THERMAL_COMPENSATION::Loop() {
+    set_enabled(!marlin_client::is_printing()); // construit pendant une impression, il restait grisé ensuite
+}
+
 // Même calcul que le firmware, d'après la cible de la buse (lue côté interface, pas le terme du serveur Marlin)
 MI_NOZZLE_THERMAL_CORRECTION::MI_NOZZLE_THERMAL_CORRECTION()
     : MenuItemAutoUpdatingLabel(_("Current correction"), "%+.3f mm", [](auto *) -> float {

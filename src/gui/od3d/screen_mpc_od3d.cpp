@@ -448,10 +448,11 @@ void ScreenMpcCalibration::update() {
     start_button.enable(!busy && !marlin_client::is_printing());
     cancel_button.enable(busy);
 
-    // Un élément désactivé ne garde pas le focus
+    // Un élément désactivé ne garde pas le focus : il va à « Annuler » au lancement, à « Calibrer » à la fin, pas au
+    // retour de l'en-tête
     if (window_t *focused = get_focused_child_window(); !focused || !focused->IsEnabled()) {
-        if (window_t *first = GetFirstEnabledSubWin()) {
-            first->SetFocus();
+        if (window_t *to = busy ? &cancel_button : start_button.IsEnabled() ? &start_button : GetFirstEnabledSubWin()) {
+            to->SetFocus();
         }
     }
 }

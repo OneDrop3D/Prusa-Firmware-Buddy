@@ -257,6 +257,24 @@ private:
     uint32_t last_spin_ms = 0;
 };
 
+/// Alerte non bloquante (RET-22 : une boîte de message ouverte pendant l'impression retardait les dialogues de Prusa) :
+/// deux lignes courtes (« Bobine 2 : 48 g », « presque vide ») à la place du titre de l'en-tête, pendant 8 s à partir
+/// du premier titre qui peut l'écrire en entier (la pastille raccourcit le titre). Une nouvelle alerte remplace l'ancienne.
+void show_notice(const string_view_utf8 &text);
+
+/// Titre de l'en-tête, qui cède sa place à l'alerte de show_notice()
+class HeaderTitle : public window_text_t {
+public:
+    using window_text_t::window_text_t;
+
+protected:
+    void unconditionalDraw() override;
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+private:
+    bool showing_notice = false;
+};
+
 /// En-tête de tous nos écrans : retour (sous-écrans), titre, pastille de l'opération en arrière-plan, bouton des
 /// températures, réseau, heure, trait
 class Header {
@@ -276,7 +294,7 @@ public:
 
 private:
     BackButton back; ///< caché et inactif sur l'accueil
-    window_text_t title;
+    HeaderTitle title;
     IslandPill island;
     TempsButton temps;
     NetworkIcon network;

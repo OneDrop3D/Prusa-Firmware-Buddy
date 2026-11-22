@@ -33,6 +33,17 @@ TEST_CASE("équerrage : pièce d'équerre") {
     CHECK_THAT(marlin.factor, WithinAbs(0.0, 1e-5));
 }
 
+TEST_CASE("équerrage : « Appliquer » une 2e fois n'ajoute rien (REV-1)") {
+    // Après M852, l'écran remet ses mesures au carré d'équerre (screen_skew_od3d.cpp, square) : un 2e « Appliquer »
+    // ajoutait encore l'écart mesuré ; il ajoute maintenant 0 à la correction enregistrée
+    const Result r = factor_from_measures(141.42f, 141.42f, 100.0f);
+    REQUIRE(r.status == Status::ok);
+    for (const float current : { 0.0f, 0.0013f, -0.004f }) {
+        CAPTURE(current);
+        CHECK(current + r.factor == current);
+    }
+}
+
 TEST_CASE("équerrage : facteur = décalage / hauteur, signe selon la diagonale la plus longue") {
     for (const double shift : { 0.05, 0.2, -0.2, 0.5, -0.9 }) {
         CAPTURE(shift);

@@ -141,6 +141,13 @@ void screen_t::ChildVisibilityChanged(window_t &child) {
 }
 
 void screen_t::screenEvent(window_t *sender, GUI_event_t event, void *param) {
+    // OneDrop3D : l'appui long va au dialogue du dessus, celui qui a la molette. Il allait à l'écran dessous : la molette
+    // ne pouvait annuler ni l'éditeur de valeur ni la fiche de bobine (BUG-6)
+    if (window_t *dialog = GetLastDialog(); event == GUI_event_t::HELD_RELEASED && dialog && dialog->IsVisible()) {
+        dialog->ScreenEvent(sender, event, param);
+        return;
+    }
+
     // GUI touch events (SWIPE) are to be distributed only to the first active dialog
     if (GUI_event_is_touch_event(event)) {
         const auto checkList = [&](window_t *start, window_t *end) {

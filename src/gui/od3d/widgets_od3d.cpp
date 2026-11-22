@@ -221,10 +221,12 @@ void Screen::InitState(screen_init_variant var) {
 void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP && !HasDialog()) {
         // F13 : une bobine vient de passer sous son seuil d'alerte (une fois par passage), sur nos écrans seulement
+        // Sans boîte de message : elle bloquait les dialogues de l'impression (chargement, erreurs du MMU) tant qu'elle
+        // restait ouverte (RET-22)
         if (const auto slot = spool_usage::take_low_alert()) {
             const auto usage = spool_usage::report(*slot);
             StringViewUtf8Parameters<16> params;
-            MsgBoxWarning(_("Spool %d is running low: about %d g left.").formatted(params, *slot + 1, usage ? int(usage->remaining_g) : 0), Responses_Ok);
+            show_notice(_("Spool %d: %d g\nrunning low").formatted(params, *slot + 1, usage ? int(usage->remaining_g) : 0));
         }
     }
     if (event == GUI_event_t::HELD_RELEASED && has_back) {
@@ -674,6 +676,66 @@ void IslandPill::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         }
     }
     Card::windowEvent(sender, event, param);
+}
+
+// ---- Alerte de l'en-tête ----
+
+namespace {
+    constexpr uint32_t notice_ms = 8000;
+    std::array<char, 48> notice_text {}; ///< deux lignes séparées par '\n' ; vide : pas d'alerte
+    std::optional<uint32_t> notice_since; ///< premier affichage en entier
+
+    /// L'alerte tient-elle en entier dans rect (deux lignes à la police small) ?
+    bool notice_fits(Rect16 rect) {
+        const char *second = strchr(notice_text.data(), '\n');
+        const size_t first_len = second ? size_t(second - notice_text.data()) : strlen(notice_text.data());
+        const size_t second_len = second ? strlen(second + 1) : 0;
+        // Octets, pas caractères : un accent compte double, l'alerte attend alors un titre plus large (sans danger)
+        return rect.Height() >= 2 * height(Font::small) && std::max(first_len, second_len) * width(Font::small) <= size_t(rect.Width());
+    }
+} // namespace
+
+void show_notice(const string_view_utf8 &text) {
+    text.copyToRAM(notice_text.data(), notice_text.size());
+    notice_since.reset();
+}
+
+void HeaderTitle::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::LOOP) {
+        if (notice_since && ticks_diff(ticks_ms(), *notice_since) >= int32_t(notice_ms)) {
+            notice_text[0] = '\0'; // montrée assez longtemps : une seule fois
+            notice_since.reset();
+        }
+        const bool show = notice_text[0] && IsVisible() && notice_fits(GetRect());
+        if (show && !notice_since) {
+            notice_since = ticks_ms();
+        }
+        if (show != showing_notice) {
+            showing_notice = show;
+            Invalidate();
+        }
+    }
+    window_text_t::windowEvent(sender, event, param);
+}
+
+void HeaderTitle::unconditionalDraw() {
+    if (!showing_notice) {
+        window_text_t::unconditionalDraw();
+        return;
+    }
+    // Deux lignes centrées en hauteur, chaque pixel peint une fois : bande du haut, lignes (fond compris), bande du bas
+    const Rect16 r = GetRect();
+    const uint16_t h = height(Font::small);
+    const int16_t top = r.Top() + (r.Height() - 2 * h) / 2;
+    std::array<char, 48> lines = notice_text;
+    char *second = strchr(lines.data(), '\n');
+    if (second) {
+        *second++ = '\0';
+    }
+    display::fill_rect(Rect16(r.Left(), r.Top(), r.Width(), top - r.Top()), GetBackColor());
+    draw_text(Rect16(r.Left(), top, r.Width(), h), string_view_utf8::MakeRAM(lines.data()), Font::small, style::warning, GetBackColor());
+    draw_text(Rect16(r.Left(), top + h, r.Width(), h), string_view_utf8::MakeRAM(second ? second : ""), Font::small, style::text_soft, GetBackColor());
+    display::fill_rect(Rect16(r.Left(), top + 2 * h, r.Width(), r.Top() + r.Height() - top - 2 * h), GetBackColor());
 }
 
 Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_back, Card::Action back_action, bool compact)

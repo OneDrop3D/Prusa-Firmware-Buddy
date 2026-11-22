@@ -11267,3 +11267,15 @@ msgstr ""
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Stopped: leaving this screen stops the measurement."
 msgstr "Arrêté : quitter cet écran arrête la mesure."
+
+#: src/gui/od3d/menu_od3d.cpp
+msgid "Knob: adjust, click: OK"
+msgstr "Molette : régler, clic : OK"
+
+#: src/gui/od3d/widgets_od3d.cpp
+msgid ""
+"Spool %d: %d g\n"
+"running low"
+msgstr ""
+"Bobine %d : %d g\n"
+"presque vide"

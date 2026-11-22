@@ -61,6 +61,9 @@ class MI_SKEW_APPLY final : public IWindowMenuItem {
 public:
     MI_SKEW_APPLY();
     void click(IWindowMenu &) override;
+
+protected:
+    void Loop() override; ///< grisé pendant une impression seulement
 };
 
 /// Correction enregistrée, en degrés, en lecture seule
@@ -74,6 +77,9 @@ class MI_SKEW_RESET final : public IWindowMenuItem {
 public:
     MI_SKEW_RESET();
     void click(IWindowMenu &) override;
+
+protected:
+    void Loop() override; ///< grisé pendant une impression seulement
 };
 
 class ScreenSkew final : public BasicScreenMenu<MI_SKEW_HOWTO, MI_SKEW_LENGTH_N<0>, MI_SKEW_LENGTH_N<1>, MI_SKEW_LENGTH_N<2>,

@@ -68,6 +68,9 @@ class TextButton : public Card {
 public:
     TextButton(window_t *parent, Rect16 body, Action action, const string_view_utf8 &label, const img::Resource *icon, Color body_color, Color fg);
 
+    /// Active ou grise, et redessine s'il change ; le bouton orange devient gris (orange inactif, il tromperait)
+    void enable(bool set);
+
 protected:
     void draw_content(Rect16 body) override;
 

@@ -10,8 +10,9 @@
 
 namespace od3d {
 
-/// Molette : un pas par cran, clic = OK. Toucher : −, +, la barre (valeur sous le doigt, qui peut glisser), OK.
-/// Glisser hors de la barre = annuler.
+/// Molette : un pas par cran, clic = OK, appui long = Annuler. Toucher : −, +, la barre (valeur sous le doigt, qui peut
+/// glisser), Annuler, OK ; glisser hors de la barre = annuler. La valeur reste toujours dans les limites : OK est
+/// toujours possible (le clavier numérique de Prusa, qu'il remplace pour toutes les valeurs WiSpin, bloquait, BUG-6).
 class ValueEditor final : public IDialog {
 public:
     using Apply = void (*)(float value);

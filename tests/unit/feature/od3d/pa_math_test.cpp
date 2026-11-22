@@ -316,10 +316,15 @@ TEST_CASE("PA : demi-tours de X et commande reconstituée") {
 TEST_CASE("PA : une séquence analysée, critères qui suivent K") {
     const pa::Params params;
     const Machine m;
-    float dt;
-    const pa::BlockResult low = pa::analyse_block(simulate(params, m, 0.f, 1.f, 5, &dt), dt, params, 0.f);
-    const pa::BlockResult good = pa::analyse_block(simulate(params, m, m.tau, -1.f, 6, &dt), dt, params, m.tau);
-    const pa::BlockResult high = pa::analyse_block(simulate(params, m, 0.10f, 1.f, 7, &dt), dt, params, 0.10f);
+    // La trace d'abord, puis l'analyse : l'ordre d'évaluation des arguments n'est pas fixé (dt serait lu avant d'être écrit)
+    const auto block = [&](float k, float direction, uint32_t seed, pa::Waveform *wave = nullptr) {
+        float dt;
+        const auto trace = simulate(params, m, k, direction, seed, &dt);
+        return pa::analyse_block(trace, dt, params, k, wave);
+    };
+    const pa::BlockResult low = block(0.f, 1.f, 5);
+    const pa::BlockResult good = block(m.tau, -1.f, 6);
+    const pa::BlockResult high = block(0.10f, 1.f, 7);
     for (const pa::BlockResult *r : { &low, &good, &high }) {
         CHECK(r->found == params.cycles);
         CHECK(r->cycles == params.cycles - 1); // le premier créneau est écarté
@@ -340,7 +345,7 @@ TEST_CASE("PA : une séquence analysée, critères qui suivent K") {
     CHECK_THAT(high.k_estimate, WithinAbs(m.tau + 0.02, 0.03));
 
     pa::Waveform wave;
-    pa::analyse_block(simulate(params, m, m.tau, 1.f, 8, &dt), dt, params, m.tau, &wave);
+    block(m.tau, 1.f, 8, &wave);
     CHECK(wave.step_s > 0);
     CHECK(wave.command[pa::Waveform::points / 4] == 64); // dans le palier rapide
     CHECK(std::abs(wave.force[pa::Waveform::points / 4] - 64) < 12);

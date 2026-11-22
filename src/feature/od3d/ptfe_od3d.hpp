@@ -29,12 +29,20 @@ enum class Result : uint8_t {
     too_short, ///< capteur vu pendant l'avance rapide minimale : tube plus court que 341 mm
     too_long, ///< distance au-delà de 1000 mm, le maximum du MMU
     interrupted, ///< chargement arrêté avant l'avance lente (erreur du MMU, arrêt) : rien mesuré
+    not_applied, ///< mesure faite, mais la longueur relue dans le MMU n'est pas celle écrite (mmu_mm)
 };
 
 struct Status {
     Result result;
     uint16_t measured_mm; ///< distance FINDA → capteur de l'extrudeur mesurée (0 sans mesure)
     uint16_t saved_mm; ///< longueur écrite (0 sans)
+    uint16_t mmu_mm; ///< longueur relue dans le MMU après l'écriture (0 sans)
+};
+
+/// Dernière écriture de la longueur (menu « Tube PTFE avant » par M1999 L, mesure) : demandée et relue dans le MMU
+struct Write {
+    uint16_t asked; ///< 0 : aucune depuis le démarrage
+    uint16_t mmu; ///< relue juste après ; différente de asked : le MMU ne l'a pas prise
 };
 
 /// Pour l'interface et l'assistant de calibration (tout fil)
@@ -46,6 +54,14 @@ void forget();
 
 /// Fil de Marlin (M1999 B1) : bloquant, toute la mesure ; slot de 0 à 4
 Result measure(uint8_t slot);
+
+/// Fil de Marlin (M1999 L) : écrit la longueur dans le MMU (registre 0x22) puis la relit, la seule preuve qu'il l'a
+/// prise (par le pont MODBUS, une écriture est « acceptée » dès que le bus répond). Hors de 341 à 1000 mm, rien n'est
+/// écrit : le MMU remplacerait la valeur par 360 sans le dire. Rend la valeur relue (0 si illisible).
+uint16_t write_length(uint16_t mm);
+
+/// Pour l'interface (tout fil)
+Write last_write();
 
 /// Fil de Marlin, à chaque tour de idle() (marlin_server cycle) : relevé pendant la mesure
 void step();

@@ -127,3 +127,28 @@ TEST_CASE("tube PTFE : reprise du MMU, le départ est repris") {
     CHECK(o.result == Result::saved);
     CHECK(o.measured_mm == min_mm + 55); // 1845 → 1900
 }
+
+TEST_CASE("tube PTFE : longueurs que le MMU garde telles quelles") {
+    // Hors de 341 à 1000 mm, le MMU prend 360 mm sans le dire : rien n'est écrit
+    CHECK_FALSE(valid_length(0));
+    CHECK_FALSE(valid_length(min_mm - 1));
+    CHECK(valid_length(min_mm));
+    CHECK(valid_length(max_mm));
+    CHECK_FALSE(valid_length(max_mm + 1));
+}
+
+TEST_CASE("tube PTFE : avance rapide relue, pas supposée") {
+    // Le MMU a gardé 492 mm au lieu des 341 écrits : la phase lente commence à 492, la distance reste juste
+    const Tracker::Outcome o = load(3000, 560, 4, 492);
+    CHECK(o.result == Result::saved);
+    CHECK(o.measured_mm <= 560);
+    CHECK(o.measured_mm >= 560 - 12);
+    // Calculée avec 341 (l'ancienne hypothèse), elle aurait été trop courte de 151 mm : ralentissement 15 cm trop tôt
+    Tracker t;
+    t.sample(true, 100, false);
+    t.sample(true, 104, false);
+    t.sample(true, 150, false);
+    t.sample(true, 154, true);
+    CHECK(t.outcome(492).measured_mm == 492 + 46);
+    CHECK(t.outcome(min_mm).measured_mm == min_mm + 46);
+}

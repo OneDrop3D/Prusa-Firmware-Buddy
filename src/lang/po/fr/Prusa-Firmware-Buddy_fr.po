@@ -11557,10 +11557,6 @@ msgid "Start the measurement\nAbout 1 minute, cold nozzle OK"
 msgstr "Lancer la mesure\nEnviron 1 minute, buse froide possible"
 
 #: src/gui/od3d/screen_ptfe_od3d.cpp
-msgid "The MMU pushes the spool of slot %d to the extruder gears, measures the front PTFE tube, then unloads it. Is that spool preloaded?"
-msgstr "Le MMU pousse la bobine de l'emplacement %d jusqu'aux engrenages de l'extrudeur, mesure le tube PTFE avant, puis la décharge. Cette bobine est-elle préchargée ?"
-
-#: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Last measurement"
 msgstr "Dernière mesure"
 
@@ -11595,10 +11591,6 @@ msgstr "Refusée : filament dans le sélecteur"
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Tube under 341 mm: unchanged"
 msgstr "Tube sous 341 mm : inchangé"
-
-#: src/gui/od3d/screen_ptfe_od3d.cpp
-msgid "%u mm measured, %u mm saved"
-msgstr "%u mm mesurés, %u mm enregistrés"
 
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
@@ -12073,3 +12065,23 @@ msgstr "Tube > 1000 mm (max. du MMU) : inchangé"
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Failed: load interrupted (MMU error?)"
 msgstr "Échec : chargement interrompu (erreur MMU ?)"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Measured, but not applied by the MMU"
+msgstr "Mesuré, mais le MMU ne l'a pas pris"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "The MMU pushes the spool of slot %d to the extruder, slowly after 341 mm (normal during the measurement), then unloads it. Is that spool preloaded?"
+msgstr "Le MMU pousse la bobine de l'emplacement %d jusqu'à l'extrudeur, lentement après 341 mm (normal pendant la mesure), puis la décharge. Cette bobine est-elle préchargée ?"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Not applied: MMU %u mm, asked %u"
+msgstr "Pas pris : MMU %u mm, demandé %u"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Saved %u mm (sensor at %u mm)"
+msgstr "Enregistré : %u mm (capteur à %u mm)"
+
+#: src/gui/menu_item/specific/menu_items_hw_mmu.cpp
+msgid "Front PTFE Length\nNot applied: MMU %u, asked %u"
+msgstr "Tube PTFE avant\nPas pris : MMU %u, demandé %u"

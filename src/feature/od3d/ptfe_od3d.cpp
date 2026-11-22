@@ -16,6 +16,8 @@ namespace {
     std::atomic<Result> last_result = Result::none;
     std::atomic<uint16_t> last_measured = 0;
     std::atomic<uint16_t> last_saved = 0;
+    std::atomic<uint16_t> last_mmu = 0;
+    std::atomic<uint32_t> last_write_packed = 0; ///< demandée << 16 | relue
 
     // Fil de Marlin seulement (measure() et step())
     bool armed = false;
@@ -25,9 +27,10 @@ namespace {
         return FSensors_instance().sensor_state(LogicalFilamentSensor::extruder);
     }
 
-    Result finish(Result result, uint16_t measured = 0, uint16_t saved = 0) {
+    Result finish(Result result, uint16_t measured = 0, uint16_t saved = 0, uint16_t mmu = 0) {
         last_measured = measured;
         last_saved = saved;
+        last_mmu = mmu;
         last_result = result;
         return result;
     }
@@ -35,7 +38,22 @@ namespace {
 } // namespace
 
 Status status() {
-    return { last_result.load(), last_measured.load(), last_saved.load() };
+    return { last_result.load(), last_measured.load(), last_saved.load(), last_mmu.load() };
+}
+
+Write last_write() {
+    const uint32_t w = last_write_packed.load();
+    return { uint16_t(w >> 16), uint16_t(w) };
+}
+
+uint16_t write_length(uint16_t mm) {
+    constexpr uint8_t reg = uint8_t(MMU2::Register::Bowden_Length);
+    uint16_t mmu = MMU2::mmu2.BowdenLength();
+    if (valid_length(mm) && MMU2::mmu2.WriteRegister(reg, mm)) {
+        mmu = MMU2::mmu2.ReadRegister(reg) ? MMU2::mmu2.GetLastReadRegisterValue() : 0;
+    }
+    last_write_packed = (uint32_t(mm) << 16) | mmu;
+    return mmu;
 }
 
 void forget() {
@@ -63,8 +81,9 @@ Result measure(uint8_t slot) {
 
     const uint16_t before = MMU2::mmu2.BowdenLength();
     // Tout le trajet au-delà de 341 mm se fait lentement : jamais d'erreur « capteur trop tôt », et la poulie est lue
-    // pendant l'avance lente
-    if (!MMU2::mmu2.WriteRegister(uint8_t(MMU2::Register::Bowden_Length), min_mm)) {
+    // pendant l'avance lente. L'avance rapide est celle relue : si le MMU n'a pas pris 341, la distance reste juste.
+    const uint16_t fast = write_length(min_mm);
+    if (!valid_length(fast)) {
         return finish(Result::refused_mmu);
     }
     finish(Result::running);
@@ -73,10 +92,16 @@ Result measure(uint8_t slot) {
     MMU2::mmu2.loading_test(slot); // Prusa : charge jusqu'aux engrenages puis décharge vers le MMU, erreurs comprises
     armed = false;
 
-    const Tracker::Outcome o = tracker.outcome(min_mm);
-    // Échec : l'ancienne longueur revient (le registre est persistant dans le MMU)
-    MMU2::mmu2.WriteRegister(uint8_t(MMU2::Register::Bowden_Length), o.result == Result::saved ? o.saved_mm : before);
-    return finish(o.result, o.measured_mm, o.saved_mm);
+    const Tracker::Outcome o = tracker.outcome(fast);
+    if (o.result != Result::saved) {
+        // Échec : l'ancienne longueur revient (le registre est persistant dans le MMU)
+        if (valid_length(before)) {
+            write_length(before);
+        }
+        return finish(o.result, o.measured_mm);
+    }
+    const uint16_t mmu = write_length(o.saved_mm);
+    return finish(mmu == o.saved_mm ? Result::saved : Result::not_applied, o.measured_mm, o.saved_mm, mmu);
 }
 
 void step() {

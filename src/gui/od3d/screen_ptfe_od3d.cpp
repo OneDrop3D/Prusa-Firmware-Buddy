@@ -48,6 +48,8 @@ const char *ptfe_result_text(ptfe::Result result) {
         return N_("Tube over 1000 mm (MMU max): unchanged");
     case pt::Result::interrupted:
         return N_("Failed: load interrupted (MMU error?)");
+    case pt::Result::not_applied:
+        return N_("Measured, but not applied by the MMU");
     }
     return nullptr;
 }
@@ -95,7 +97,8 @@ void MI_PTFE_START::click(IWindowMenu &) {
         return;
     }
     StringViewUtf8Parameters<4> params;
-    const string_view_utf8 question = _("The MMU pushes the spool of slot %d to the extruder gears, measures the front PTFE tube, then unloads it. Is that spool preloaded?").formatted(params, chosen_slot + 1);
+    // Retour du 22/11 : « ça ralentit toujours au même endroit » pendant la mesure, c'est voulu : on le dit avant
+    const string_view_utf8 question = _("The MMU pushes the spool of slot %d to the extruder, slowly after 341 mm (normal during the measurement), then unloads it. Is that spool preloaded?").formatted(params, chosen_slot + 1);
     if (MsgBoxQuestion(question, Responses_YesNo) != Response::Yes) {
         return;
     }
@@ -113,7 +116,8 @@ void MI_PTFE_RESULT::Loop() {
 
 void MI_PTFE_RESULT::show() {
     const pt::Status s = pt::status();
-    const uint32_t key = (uint32_t(s.result) << 24) | (uint32_t(s.measured_mm) << 12) | s.saved_mm; // mm ≤ 1000 : 12 bits chacun
+    const bool not_applied = s.result == pt::Result::not_applied;
+    const uint32_t key = (uint32_t(s.result) << 24) | (uint32_t(not_applied ? s.mmu_mm : s.measured_mm) << 12) | s.saved_mm; // mm ≤ 4095 : 12 bits chacun
     if (key == shown_key) {
         return;
     }
@@ -124,12 +128,17 @@ void MI_PTFE_RESULT::show() {
         return;
     }
     text[n++] = '\n';
-    if (const char *line = ptfe_result_text(s.result)) {
+    char format[64];
+    if (not_applied) {
+        // Les deux valeurs : la longueur écrite et celle que le MMU a gardée (relue)
+        _("Not applied: MMU %u mm, asked %u").copyToRAM(format, sizeof(format));
+        snprintf(text.data() + n, text.size() - n, format, unsigned(s.mmu_mm), unsigned(s.saved_mm));
+    } else if (const char *line = ptfe_result_text(s.result)) {
         _(line).copyToRAM(text.data() + n, text.size() - n);
     } else {
-        char format[48];
-        _("%u mm measured, %u mm saved").copyToRAM(format, sizeof(format));
-        snprintf(text.data() + n, text.size() - n, format, unsigned(s.measured_mm), unsigned(s.saved_mm));
+        // Une seule longueur réglée ; la distance mesurée entre parenthèses (« 2 données » : laquelle compte ?)
+        _("Saved %u mm (sensor at %u mm)").copyToRAM(format, sizeof(format));
+        snprintf(text.data() + n, text.size() - n, format, unsigned(s.saved_mm), unsigned(s.measured_mm));
     }
     SetLabel(string_view_utf8::MakeRAM(text.data()));
 }

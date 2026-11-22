@@ -193,6 +193,7 @@ modbus::Callbacks::Status MMU::write_register(uint16_t address, uint16_t value) 
     // 31 | uint16 |Set/Get Selector iRun current
     // 32 | uint16 | Set/Get Idler iRun current
     // 34 | uint16 | Bowden length
+    // 36 | uint16 | OneDrop3D pulley service (F12, slot * 256 + mm) : absent, l'écriture était refusée (IllegalAddress)
     case 4:
     case 13:
     case 14:
@@ -209,7 +210,8 @@ modbus::Callbacks::Status MMU::write_register(uint16_t address, uint16_t value) 
     case 30:
     case 31:
     case 32:
-    case 34: {
+    case 34:
+    case 36: {
         RequestMsg rq(RequestMsgCodes::Write, address, value);
         uint8_t len = Protocol::EncodeWriteRequest(rq.value, rq.value2, txbuff);
         uart.write(txbuff, len);

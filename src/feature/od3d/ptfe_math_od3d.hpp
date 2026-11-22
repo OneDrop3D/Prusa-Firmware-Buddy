@@ -25,6 +25,11 @@ namespace od3d::ptfe {
 inline constexpr uint16_t min_mm = 341; ///< config::minimumBowdenLength du MMU (le registre refuse moins)
 inline constexpr uint16_t max_mm = 1000; ///< config::maximumBowdenLength : au-delà, le MMU abandonne le chargement
 
+/// Longueur que le MMU garde telle quelle (hors de ces bornes, il prend 360 mm sans le dire)
+constexpr bool valid_length(uint16_t mm) {
+    return mm >= min_mm && mm <= max_mm;
+}
+
 /// Marge sous la distance mesurée : 20 mm, ou 5 % si c'est plus (la poulie glisse plus ou moins d'une fois à l'autre)
 constexpr uint16_t margin_mm(uint16_t distance_mm) {
     return std::max<uint16_t>(20, distance_mm / 20);
@@ -33,7 +38,7 @@ constexpr uint16_t margin_mm(uint16_t distance_mm) {
 /// Longueur à écrire dans le registre 0x22 pour une distance FINDA → capteur de l'extrudeur ; nullopt hors de ce que le
 /// MMU accepte (sous l'avance rapide minimale, au-delà de 1000 mm)
 constexpr std::optional<uint16_t> bowden_length(uint16_t distance_mm) {
-    if (distance_mm < min_mm || distance_mm > max_mm) {
+    if (!valid_length(distance_mm)) {
         return std::nullopt;
     }
     return uint16_t(std::max<int>(int(distance_mm) - int(margin_mm(distance_mm)), min_mm));

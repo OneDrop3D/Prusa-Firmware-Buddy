@@ -66,6 +66,27 @@ namespace {
     static_assert(style::with_ring(print_body).Top() > file_rect.Top() + 24 + 19 && name_chars >= 20, "« Imprimer » sous le nom, qui garde 20 caractères");
     static_assert(style::inside(style::content, style::with_ring(files_body)) && style::inside(style::content, style::with_ring(control_body)));
     static_assert(files_body.Right() + 1 + 8 == temps_body.Left() && temps_body.Right() + 1 + 8 == control_body.Left());
+    static_assert(layout::small_h == height(Font::small) && layout::normal_h == height(Font::normal));
+
+    /// Cartes de bobine (1 à 8 outils) : dans la zone des éléments, sans se chevaucher ni toucher le bouton du MMU et la
+    /// carte du fichier, et leur contenu hors des coins arrondis (retour du 22/11 : carte coupée en bas)
+    constexpr bool spool_cards_fit(uint8_t tools) {
+        for (uint8_t i = 0; i < tools; ++i) {
+            const Rect16 card = style::with_ring(spool_body(i, tools));
+            if (!style::inside(style::content, card) || layout::overlap(card, style::with_ring(mmu_body)) || layout::overlap(card, file_rect)
+                || !layout::spool_parts_fit(spool_body(i, tools), style::radius, tools == 1)) {
+                return false;
+            }
+            for (uint8_t j = 0; j < i; ++j) {
+                if (layout::overlap(card, style::with_ring(spool_body(j, tools)))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    static_assert(spool_cards_fit(1) && spool_cards_fit(2) && spool_cards_fit(3) && spool_cards_fit(4) && spool_cards_fit(5)
+        && spool_cards_fit(6) && spool_cards_fit(7) && spool_cards_fit(8));
 
     /// Coupe s à n caractères affichés, « ... » compris (UTF-8 ; « … » n'est pas dans la police)
     void ellipsize(char *s, size_t n) {
@@ -129,39 +150,20 @@ void SpoolCard::draw_content(Rect16 body) {
     char label[12];
     snprintf(label, sizeof(label), "%d %s", index + 1, slot.material.data());
 
-    if (body.Width() >= 110) {
-        // Large (sans MMU, INDX 3 têtes) : bobine à gauche, matière en gras et état à droite
-        constexpr uint8_t d = 40;
-        const point_i16_t at { int16_t(body.Left() + 10), int16_t(body.Top() + (body.Height() - d) / 2) };
-        draw_spool(at, slot.look, d, fill(), ring);
-        const int16_t x = at.x + d + 10;
-        const uint16_t w = body.Left() + body.Width() - 6 - x;
-        // Seule bobine : la matière en gras ; trois têtes (~60 px) : « n MATIÈRE » en petit, 6 caractères
-        const Font font = single ? Font::normal : Font::small;
-        const uint16_t font_h = single ? height(Font::normal) : height(Font::small); // height() est consteval
-        const int16_t y = body.Top() + (body.Height() - font_h - height(Font::small)) / 2;
-        draw_text(Rect16(x, y, w, font_h), string_view_utf8::MakeRAM(single ? slot.material.data() : label), font, color, fill());
-        char state_text[16];
-        Color state_color;
-        const string_view_utf8 state = atelier::slot_state(slot, index, state_text, state_color);
-        draw_text(Rect16(x, y + font_h, w, height(Font::small)), state, Font::small, IsEnabled() ? state_color : style::text_faint, fill());
+    // Disposition selon la place (layout::spool_parts) : rien ne touche les coins arrondis de la carte
+    const layout::SpoolParts p = layout::spool_parts(body, radius, single);
+    draw_spool(p.spool, slot.look, p.d, fill(), ring);
+    if (p.state.IsEmpty()) {
+        // Étroite (MMU3) : « n MATIÈRE » centré sous la bobine ; basse (INDX 8 têtes) : à droite de la bobine
+        draw_text(p.label, string_view_utf8::MakeRAM(label), Font::small, color, fill(), body.Height() < 40 ? Align_t::LeftCenter() : Align_t::Center());
         return;
     }
-    if (body.Height() < 40) {
-        // Deux rangées (INDX 8 têtes) : petite bobine à gauche, « n MATIÈRE » à droite
-        constexpr uint8_t d = 20;
-        const point_i16_t at { int16_t(body.Left() + 6), int16_t(body.Top() + (body.Height() - d) / 2) };
-        draw_spool(at, slot.look, d, fill(), ring);
-        const int16_t x = at.x + d + 6;
-        draw_text(Rect16(x, body.Top() + (body.Height() - height(Font::small)) / 2, body.Left() + body.Width() - 2 - x, height(Font::small)),
-            string_view_utf8::MakeRAM(label), Font::small, color, fill());
-        return;
-    }
-    // Étroite (MMU3) : bobine en haut, « n MATIÈRE » dessous
-    const uint8_t d = std::min<int>(40, body.Height() - 22);
-    const point_i16_t at { int16_t(body.Left() + (body.Width() - d) / 2), int16_t(body.Top() + 3) };
-    draw_spool(at, slot.look, d, fill(), ring);
-    draw_text(Rect16(body.Left(), body.Top() + d + 5, body.Width(), height(Font::small)), string_view_utf8::MakeRAM(label), Font::small, color, fill(), Align_t::Center());
+    // Large : seule bobine, la matière en gras ; trois têtes (~60 px), « n MATIÈRE » en petit
+    draw_text(p.label, string_view_utf8::MakeRAM(single ? slot.material.data() : label), single ? Font::normal : Font::small, color, fill());
+    char state_text[16];
+    Color state_color;
+    const string_view_utf8 state = atelier::slot_state(slot, index, state_text, state_color);
+    draw_text(p.state, state, Font::small, IsEnabled() ? state_color : style::text_faint, fill());
 }
 
 // ---- Dernier fichier ----

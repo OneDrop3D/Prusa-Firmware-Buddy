@@ -43,7 +43,7 @@ float dt();
 bool overflowed();
 
 /// Fenêtre de mesure (F5, F6) : moyenne et écart type de la force sur les points enregistrés entre window_begin() et
-/// window_end(), calculés en flottant dans l'interruption (sans la limite de ±655 g des points de la trace, et même
+/// window_end(), calculés en flottant dans l'interruption (sans la limite de ±6,5 kg des points de la trace, et même
 /// après le débordement de la mémoire). Force relative au premier échantillon, comme la trace.
 struct WindowStats {
     uint32_t count = 0; ///< points dans la fenêtre

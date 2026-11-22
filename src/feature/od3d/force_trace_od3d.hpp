@@ -11,8 +11,10 @@
 
 namespace od3d::force {
 
-/// Unités des points : 0,02 g (±655 g) et 0,01 mm (±327 mm)
-inline constexpr float force_unit_g = 0.02f;
+/// Unités des points : 0,2 g (±6 553 g) et 0,01 mm (±327 mm). La force était en 0,02 g (±655 g) jusqu'à la 8.0.2.20 :
+/// en imprimant, la poussée de l'extrudeur dépasse 655 g dès le départ (relevé OD3D_PA3.CSV du 22/11, saturé à −655 g
+/// sur toute la ligne, d'où « 0 créneau »). Le bruit de la cellule (±15 g) reste bien au-dessus du pas.
+inline constexpr float force_unit_g = 0.2f;
 inline constexpr float x_unit_mm = 0.01f;
 
 struct TracePoint {

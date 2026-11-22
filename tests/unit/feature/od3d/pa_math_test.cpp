@@ -361,8 +361,8 @@ TEST_CASE("trace de force : points, vitesse, fronts, bruit") {
     CHECK(std::isnan(force::mean_force(t, 10, 10)));
 
     // Bornes des unités : saturation au lieu du débordement
-    CHECK(force::make_point(1000.f, 0).force == 32767);
-    CHECK(force::make_point(-1000.f, 0).force == -32767);
+    CHECK(force::make_point(10000.f, 0).force == 32767);
+    CHECK(force::make_point(-10000.f, 0).force == -32767);
     CHECK(force::make_point(NAN, NAN).x == 0);
 }
 

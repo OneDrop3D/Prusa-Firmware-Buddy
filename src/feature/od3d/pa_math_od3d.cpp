@@ -70,7 +70,9 @@ namespace {
 
 } // namespace
 
-BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
+// Jamais incorporée à la mesure d'une ligne : son cadre (~1,3 Ko) ne vit que le temps de l'analyse, pas pendant les
+// attentes de la ligne (idle(), au fond de la pile de Marlin : débordement en 8.0.2.24)
+[[gnu::noinline]] BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
     BlockResult out;
     if (t.size() < 16 || !(dt > 0) || !(p.v_hi > p.v_lo) || !(p.slow_s > 0) || !(p.fast_s > 0)) {
         return out;
@@ -79,11 +81,10 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
     const float n_slow = p.slow_s / dt; // points d'un palier lent
 
     // 1. Fronts de vitesse, puis créneaux : une montée suivie d'une descente, d'une durée proche du palier rapide
-    // Hors de la pile de Marlin (une seule mesure à la fois ; la fonction peut être incorporée à la mesure d'une ligne)
-    static std::array<force::Edge, 2 * max_cycles + 6> edges;
+    std::array<force::Edge, 2 * max_cycles + 6> edges;
     const uint8_t min_run = uint8_t(std::clamp(std::lround(0.02f / dt), 2L, 20L));
     const size_t n_edges = force::find_edges(t, dt, 0.5f * (p.v_lo + p.v_hi), min_run, edges);
-    static std::array<Cycle, max_cycles> cycles;
+    std::array<Cycle, max_cycles> cycles;
     size_t n_cycles = 0;
     for (size_t e = 0; e + 1 < n_edges && n_cycles < max_cycles; ++e) {
         if (!edges[e].rising || edges[e + 1].rising) {
@@ -104,10 +105,9 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
         bool ok;
         float base(float k) const { return b0 + (b1 - b0) * (k - c0) / (c1 - c0); }
     };
-    static std::array<Level, max_cycles> levels;
-    static std::array<float, max_cycles> amplitudes;
-    static std::array<float, max_cycles> noises;
-    levels.fill({});
+    std::array<Level, max_cycles> levels {};
+    std::array<float, max_cycles> amplitudes;
+    std::array<float, max_cycles> noises;
     size_t n_levels = 0;
     for (size_t c = 0; c < n_cycles; ++c) {
         Level &l = levels[c];
@@ -145,15 +145,13 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
     const auto command = [&](long k) { return (force::speed_at(t, size_t(k), dt) - p.v_lo) / (p.v_hi - p.v_lo); };
     const auto response = [&](const Level &l, long k) { return (force::force_at(t, size_t(k)) - l.base(float(k))) / amplitude; };
 
-    static std::array<float, max_cycles> lags, costs, overs, unders;
+    std::array<float, max_cycles> lags, costs, overs, unders;
     size_t used = 0;
     if (wave) {
         static constexpr Waveform empty_wave {};
         *wave = empty_wave; // copie : pas de temporaire sur la pile de Marlin
     }
-    static std::array<float, Waveform::points> wave_force, wave_command;
-    wave_force.fill(0.f);
-    wave_command.fill(0.f);
+    std::array<float, Waveform::points> wave_force {}, wave_command {};
     const float wave_step = (0.1f + p.fast_s + 0.45f * p.slow_s) / float(Waveform::points);
 
     for (size_t c = 0; c < n_cycles; ++c) {
@@ -265,10 +263,11 @@ float parabola_vertex(float x0, float y0, float x1, float y1, float x2, float y2
     return 0.5f * (x0 + x1) - d01 / (2.f * d2);
 }
 
-Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, float k_step, const Thresholds &th) {
+// Jamais incorporée au balayage, pour la même raison (~0,7 Ko)
+[[gnu::noinline]] Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, float k_step, const Thresholds &th) {
     Choice c;
     constexpr size_t max_points = 32;
-    static std::array<float, max_points> ks, lags, cost_k, costs; // hors de la pile de Marlin (une seule mesure à la fois)
+    std::array<float, max_points> ks, lags, cost_k, costs;
     size_t n = 0, weak = 0;
     for (const SweepPoint &s : sweep) {
         if (!s.r.valid()) {
@@ -299,7 +298,7 @@ Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, flo
     }
     float k_lag = -f.a / f.b;
     {
-        static std::array<float, max_points> lk, ll;
+        std::array<float, max_points> lk, ll;
         size_t m = 0;
         for (size_t i = 0; i < n; ++i) {
             if (std::fabs(ks[i] - k_lag) <= th.local_span) {
@@ -321,7 +320,7 @@ Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, flo
     // quand la réponse n'est plus linéaire loin de l'optimum (écrasement du cordon qui sature) ; on garde l'encadrement
     // le plus proche du zéro de la droite, s'il en est assez près.
     {
-        static std::array<float, max_points> sk, sl;
+        std::array<float, max_points> sk, sl;
         std::copy_n(ks.begin(), n, sk.begin());
         std::copy_n(lags.begin(), n, sl.begin());
         for (size_t i = 1; i < n; ++i) {

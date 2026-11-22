@@ -128,7 +128,8 @@ float FlowBoost::step(float request, float dt_s) {
 // ---- Calibration ----
 
 void Autotune::start(const TuneConfig &config, float time_s) {
-    *this = Autotune {};
+    static constexpr Autotune fresh {}; // copiée : pas de temporaire de ~0,9 Ko sur la pile de Marlin pendant M306
+    *this = fresh;
     config_ = config;
     config_.tune_temp = std::clamp(config_.tune_temp, min_tune_temp, max_tune_temp);
     enter(Phase::cooling, time_s);

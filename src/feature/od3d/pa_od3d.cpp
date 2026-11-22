@@ -904,8 +904,8 @@ void calibrate_auto() {
     const pattern::Rect one = lines_for(auto_request(order[0]), auto_lines, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
     const float block_w = one.width();
     const float block_h = one.y1;
-    static std::array<float, 2 * GRID_MAX_POINTS_X> xs; // hors de la pile de Marlin
-    static std::array<float, 2 * GRID_MAX_POINTS_Y> ys;
+    std::array<float, 2 * GRID_MAX_POINTS_X> xs; // M1994 A n'attend rien : pas besoin de mémoire statique
+    std::array<float, 2 * GRID_MAX_POINTS_Y> ys;
     const size_t nx = major_points(xs, GRID_MAX_POINTS_X, unified_bed_leveling::mesh_index_to_xpos);
     const size_t ny = major_points(ys, GRID_MAX_POINTS_Y, unified_bed_leveling::mesh_index_to_ypos);
     const pattern::Rect print { area->a.x, area->a.y, area->b.x, area->b.y };

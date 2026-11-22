@@ -177,7 +177,8 @@ void run(uint8_t harmonic) {
         running = false;
     };
 
-    measurement = {};
+    static constexpr Measurement fresh {}; // copiée : pas de temporaire sur la pile de Marlin pendant la mesure
+    measurement = fresh;
     measurement.harmonic = harmonic == 2 ? 2 : 1;
     progress = 0;
     current_stage = Stage::preparing;

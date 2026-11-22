@@ -11,6 +11,7 @@
 #include "MarlinPin.h"
 #include "metric.h"
 #include <option/has_gearbox_alignment.h>
+#include <option/has_mmu2.h>
 #include <option/has_loadcell.h>
 #include <option/has_toolchanger.h>
 #include <option/has_side_leds.h>
@@ -389,6 +390,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
 #if HAS_CHAMBER_API()
         case 1998: // OneDrop3D (F29)
             PrusaGcodeSuite::M1998();
+            break;
+#endif
+#if HAS_MMU2()
+        case 1999: // OneDrop3D (F41)
+            PrusaGcodeSuite::M1999();
             break;
 #endif
         case 1995: // OneDrop3D (F5)

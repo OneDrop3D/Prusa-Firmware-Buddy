@@ -21,6 +21,7 @@ target_sources(
           screen_printing_od3d.cpp
           screen_resume_od3d.cpp
           screen_progress_od3d.cpp
+          screen_ptfe_od3d.cpp
           screen_skew_od3d.cpp
           screen_sleep_od3d.cpp
           screen_speed_map_od3d.cpp

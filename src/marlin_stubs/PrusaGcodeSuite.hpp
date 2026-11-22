@@ -200,6 +200,7 @@ void M1993(); //< OneDrop3D (F22) : carte des vitesses critiques (accéléromèt
 void M1997(); //< OneDrop3D (F33) : amortissement réel des axes X et Y (accéléromètre)
 void M1994(); //< OneDrop3D (F4) : mesure du pressure advance d'un emplacement (cellule de charge)
 void M1998(); //< OneDrop3D (F29) : descente douce du plateau (démarrer, arrêter, état)
+void M1999(); //< OneDrop3D (F41) : tube PTFE avant du MMU mesuré
 void M1995(); //< OneDrop3D (F5) : débit maximal d'un emplacement (cellule de charge)
 void M1996(); //< OneDrop3D (F6) : température minimale d'un emplacement (cellule de charge)
 void M306(); //< OneDrop3D (F7) : régulation MPC de la buse, calibration (T), mode (M), paramètres

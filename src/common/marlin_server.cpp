@@ -248,6 +248,9 @@
 #if HAS_CHAMBER_API()
     #include <feature/od3d/chamber_climate_od3d.hpp> // OneDrop3D (F29)
 #endif
+#if HAS_MMU2()
+    #include <feature/od3d/ptfe_od3d.hpp> // OneDrop3D (F41)
+#endif
 #if HAS_PAUSE()
     #include <feature/od3d/clean_resume_od3d.hpp> // OneDrop3D (F30)
 #endif
@@ -977,6 +980,9 @@ static void cycle() {
 #endif
 #if HAS_LOADCELL() && HAS_MMU2()
     od3d::collision::step(); // OneDrop3D (F38) : sécurité collision pendant l'impression
+#endif
+#if HAS_MMU2()
+    od3d::ptfe::step(); // OneDrop3D (F41) : position de la poulie quand le capteur de l'extrudeur voit le filament
 #endif
 
     od3d::sleep::step(); // OneDrop3D (F39) : coupures du mode veille ; il remplace la coupure des moteurs de Prusa

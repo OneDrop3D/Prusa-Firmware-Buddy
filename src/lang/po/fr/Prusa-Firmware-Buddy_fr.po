@@ -11512,3 +11512,62 @@ msgstr "La ligne 1 est devant ; les lignes suivent l'ordre des essais, pas K (vo
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Large PA pattern\nManual: numbered lines, pick by eye"
 msgstr "Grand motif PA\nManuel : lignes numérotées, choix à vue"
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Measure automatically\nWith a preloaded spool"
+msgstr "Mesurer automatiquement\nAvec une bobine préchargée"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Measured slot\nIts spool must be preloaded"
+msgstr "Emplacement mesuré\nSa bobine doit être préchargée"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Start the measurement\nAbout 1 minute, cold nozzle OK"
+msgstr "Lancer la mesure\nEnviron 1 minute, buse froide possible"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "The MMU pushes the spool of slot %d to the extruder gears, measures the front PTFE tube, then unloads it. Is that spool preloaded?"
+msgstr "Le MMU pousse la bobine de l'emplacement %d jusqu'aux engrenages de l'extrudeur, mesure le tube PTFE avant, puis la décharge. Cette bobine est-elle préchargée ?"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Last measurement"
+msgstr "Dernière mesure"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Not measured yet"
+msgstr "Pas encore mesuré"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Measuring..."
+msgstr "Mesure en cours..."
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: printing"
+msgstr "Refusée : impression en cours"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: MMU not ready"
+msgstr "Refusée : MMU pas prêt"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: extruder sensor inactive"
+msgstr "Refusée : capteur d'extrudeur inactif"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: filament in the extruder"
+msgstr "Refusée : filament dans l'extrudeur"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: filament in the selector"
+msgstr "Refusée : filament dans le sélecteur"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Failed: the sensor saw nothing"
+msgstr "Échec : le capteur n'a rien vu"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Tube under 341 mm: unchanged"
+msgstr "Tube sous 341 mm : inchangé"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "%u mm measured, %u mm saved"
+msgstr "%u mm mesurés, %u mm enregistrés"

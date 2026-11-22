@@ -10,8 +10,13 @@
 #include <WindowItemFormatableLabel.hpp>
 #include <WindowMenuItems.hpp>
 #include <gui/menu_item/menu_item_select_menu.hpp>
+#include <feature/od3d/ptfe_od3d.hpp>
 
 namespace od3d {
+
+/// Raison d'un résultat (N_, à traduire), nullptr pour « enregistré » (chiffres) : écran de la mesure et bilan de
+/// l'assistant de calibration
+const char *ptfe_result_text(ptfe::Result result);
 
 /// Réglages › Matériel › MMU : ouvre l'écran de la mesure
 class MI_PTFE_AUTO final : public IWindowMenuItem {

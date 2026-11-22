@@ -19,8 +19,7 @@ namespace {
 
     // Fil de Marlin seulement (measure() et step())
     bool armed = false;
-    bool triggered = false;
-    uint16_t pulley_before = 0; ///< dernière position relue alors que le capteur ne voyait encore rien
+    Tracker tracker;
 
     FilamentSensorState extruder_sensor() {
         return FSensors_instance().sensor_state(LogicalFilamentSensor::extruder);
@@ -37,6 +36,10 @@ namespace {
 
 Status status() {
     return { last_result.load(), last_measured.load(), last_saved.load() };
+}
+
+void forget() {
+    finish(Result::none);
 }
 
 Result measure(uint8_t slot) {
@@ -65,33 +68,21 @@ Result measure(uint8_t slot) {
         return finish(Result::refused_mmu);
     }
     finish(Result::running);
-    pulley_before = 0;
-    triggered = false;
+    tracker = {};
     armed = true;
     MMU2::mmu2.loading_test(slot); // Prusa : charge jusqu'aux engrenages puis décharge vers le MMU, erreurs comprises
     armed = false;
 
-    const auto length = triggered ? bowden_length(pulley_before) : std::nullopt;
+    const Tracker::Outcome o = tracker.outcome(min_mm);
     // Échec : l'ancienne longueur revient (le registre est persistant dans le MMU)
-    MMU2::mmu2.WriteRegister(uint8_t(MMU2::Register::Bowden_Length), length.value_or(before));
-    if (!triggered) {
-        return finish(Result::no_trigger);
-    }
-    if (!length) {
-        return finish(Result::too_short, pulley_before);
-    }
-    return finish(Result::saved, pulley_before, *length);
+    MMU2::mmu2.WriteRegister(uint8_t(MMU2::Register::Bowden_Length), o.result == Result::saved ? o.saved_mm : before);
+    return finish(o.result, o.measured_mm, o.saved_mm);
 }
 
 void step() {
-    if (!armed || triggered) {
-        return;
+    if (armed) {
+        tracker.sample(MMU2::mmu2.Progress() == ::ProgressCode::FeedingToFSensor, MMU2::mmu2.PulleyPosition(), extruder_sensor() == FilamentSensorState::HasFilament);
     }
-    if (extruder_sensor() == FilamentSensorState::HasFilament) {
-        triggered = true;
-        return;
-    }
-    pulley_before = MMU2::mmu2.PulleyPosition();
 }
 
 } // namespace od3d::ptfe

@@ -2,6 +2,7 @@
 #include "screen_calib_assistant_od3d.hpp"
 
 #include "menu_od3d.hpp" // section_tab
+#include "screen_ptfe_od3d.hpp"
 #include "screen_skew_od3d.hpp"
 
 #include <algorithm>
@@ -462,7 +463,17 @@ void ScreenCalibAssistant::show() {
                 failed += assistant::result(e.test) == Result::failed;
             }
         }
-        text = _("Finished: %d OK, %d failed. Touch a failed test to run it again.").formatted(info_params, ok, failed);
+        // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
+        const char *ptfe_reason = (flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed
+            ? ptfe_result_text(ptfe::status().result)
+            : nullptr;
+        if (ptfe_reason) {
+            char reason[64];
+            _(ptfe_reason).copyToRAM(reason, sizeof(reason));
+            text = _("Finished: %d OK, %d failed. Front PTFE: %s.").formatted(info_params, ok, failed, reason);
+        } else {
+            text = _("Finished: %d OK, %d failed. Touch a failed test to run it again.").formatted(info_params, ok, failed);
+        }
         break;
     }
     }

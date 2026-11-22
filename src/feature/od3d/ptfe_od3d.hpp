@@ -3,9 +3,10 @@
 ///
 /// `M1999 B1 P<emplacement 0-4>` : la longueur du MMU est mise au minimum (341 mm), puis le test de chargement de
 /// Prusa (M1704 : jusqu'aux engrenages de l'extrudeur, buse froide permise, puis déchargement vers le MMU) pousse la
-/// bobine préchargée de cet emplacement. Pendant ce temps, step() relève la position de la poulie (registre 0x1a, lue à
-/// chaque interrogation du MMU) jusqu'à ce que le capteur de l'extrudeur voie le filament ; ptfe_math_od3d.hpp en tire
-/// la longueur, écrite dans le registre 0x22. En cas d'échec, l'ancienne longueur est remise.
+/// bobine préchargée de cet emplacement. Pendant ce temps, step() suit l'avance lente du MMU et la position de la poulie
+/// (registre 0x1a, lue à chaque interrogation) jusqu'à ce que le capteur de l'extrudeur voie le filament ;
+/// ptfe_math_od3d.hpp (Tracker) en tire la distance et la longueur, écrite dans le registre 0x22. En cas d'échec,
+/// l'ancienne longueur est remise. Pendant la mesure, le filament ralentit donc toujours à 341 mm : c'est voulu.
 /// Pas d'étalonnage de Prusa à réutiliser : le firmware du MMU parle d'« autotuning » dans un commentaire, sans code.
 #pragma once
 
@@ -26,16 +27,22 @@ enum class Result : uint8_t {
     refused_selector, ///< filament dans le sélecteur (FINDA)
     no_trigger, ///< le capteur de l'extrudeur n'a jamais vu le filament
     too_short, ///< capteur vu pendant l'avance rapide minimale : tube plus court que 341 mm
+    too_long, ///< distance au-delà de 1000 mm, le maximum du MMU
+    interrupted, ///< chargement arrêté avant l'avance lente (erreur du MMU, arrêt) : rien mesuré
 };
 
 struct Status {
     Result result;
-    uint16_t measured_mm; ///< position de la poulie relevée avant le capteur (0 sans mesure)
+    uint16_t measured_mm; ///< distance FINDA → capteur de l'extrudeur mesurée (0 sans mesure)
     uint16_t saved_mm; ///< longueur écrite (0 sans)
 };
 
 /// Pour l'interface et l'assistant de calibration (tout fil)
 Status status();
+
+/// Résultat remis à « pas encore mesuré » : l'assistant le fait avant son étape, pour ne pas lire le résultat d'avant
+/// si M1999 ne part pas
+void forget();
 
 /// Fil de Marlin (M1999 B1) : bloquant, toute la mesure ; slot de 0 à 4
 Result measure(uint8_t slot);

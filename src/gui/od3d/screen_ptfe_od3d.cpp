@@ -20,33 +20,37 @@ namespace {
 
     uint8_t chosen_slot = 0; ///< gardé tant que l'imprimante reste allumée
 
-    const char *result_text(pt::Result result) {
-        switch (result) {
-        case pt::Result::none:
-            return N_("Not measured yet");
-        case pt::Result::running:
-            return N_("Measuring...");
-        case pt::Result::saved:
-            return nullptr; // chiffres : show()
-        case pt::Result::refused_printing:
-            return N_("Refused: printing");
-        case pt::Result::refused_mmu:
-            return N_("Refused: MMU not ready");
-        case pt::Result::refused_sensor:
-            return N_("Refused: extruder sensor inactive");
-        case pt::Result::refused_extruder:
-            return N_("Refused: filament in the extruder");
-        case pt::Result::refused_selector:
-            return N_("Refused: filament in the selector");
-        case pt::Result::no_trigger:
-            return N_("Failed: the sensor saw nothing");
-        case pt::Result::too_short:
-            return N_("Tube under 341 mm: unchanged");
-        }
-        return nullptr;
-    }
-
 } // namespace
+
+const char *ptfe_result_text(ptfe::Result result) {
+    switch (result) {
+    case pt::Result::none:
+        return N_("Not measured yet");
+    case pt::Result::running:
+        return N_("Measuring...");
+    case pt::Result::saved:
+        return nullptr; // chiffres : show()
+    case pt::Result::refused_printing:
+        return N_("Refused: printing");
+    case pt::Result::refused_mmu:
+        return N_("Refused: MMU not ready");
+    case pt::Result::refused_sensor:
+        return N_("Refused: extruder sensor inactive");
+    case pt::Result::refused_extruder:
+        return N_("Refused: filament in the extruder");
+    case pt::Result::refused_selector:
+        return N_("Refused: filament in the selector");
+    case pt::Result::no_trigger:
+        return N_("Failed: sensor not reached within 1000 mm");
+    case pt::Result::too_short:
+        return N_("Tube under 341 mm: unchanged");
+    case pt::Result::too_long:
+        return N_("Tube over 1000 mm (MMU max): unchanged");
+    case pt::Result::interrupted:
+        return N_("Failed: load interrupted (MMU error?)");
+    }
+    return nullptr;
+}
 
 MI_PTFE_AUTO::MI_PTFE_AUTO()
     : IWindowMenuItem(_("Measure automatically\nWith a preloaded spool"), &img::spool_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
@@ -120,7 +124,7 @@ void MI_PTFE_RESULT::show() {
         return;
     }
     text[n++] = '\n';
-    if (const char *line = result_text(s.result)) {
+    if (const char *line = ptfe_result_text(s.result)) {
         _(line).copyToRAM(text.data() + n, text.size() - n);
     } else {
         char format[48];

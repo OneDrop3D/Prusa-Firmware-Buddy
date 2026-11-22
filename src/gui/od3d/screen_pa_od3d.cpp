@@ -481,7 +481,7 @@ void ScreenPaLines::choose(uint8_t index) {
         return;
     }
     if (pa::choose_line(slot, index)) {
-        Screens::Access()->Close();
+        Screens::Access()->close_screen();
     }
 }
 

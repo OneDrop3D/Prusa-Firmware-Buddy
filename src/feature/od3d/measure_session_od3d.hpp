@@ -12,6 +12,9 @@
 ///   d'impression, ligne de purge au bord avant ;
 /// - imprime des lignes (déplacements levés, rétraction).
 /// Une seule session à la fois (les G-codes de mesure passent l'un après l'autre).
+/// En impression (mesure automatique du PA au départ, in_print) : l'opération peut être passée depuis l'écran Impression
+/// (« Passer » de Prusa, SkippableGCode), la détection de collision est suspendue, et la session s'arrête si
+/// l'impression quitte l'état « en cours » (pause, arrêt).
 #pragma once
 
 #include "pattern_math_od3d.hpp"
@@ -32,6 +35,12 @@ inline constexpr int16_t max_bed_temperature = 110;
 inline constexpr uint32_t heat_timeout_ms = 6 * 60 * 1000;
 inline constexpr uint32_t bed_timeout_ms = 12 * 60 * 1000;
 
+// Ligne de purge du G-code de départ de PrusaSlicer pour la CORE One (bord avant du plateau, de droite à gauche)
+inline constexpr float purge_x = 249.f;
+inline constexpr float purge_y = -2.5f;
+inline constexpr float purge_z = 15.f; ///< hauteur de départ, au-dessus du début de la purge
+inline constexpr float purge_length = 50.f; ///< longueur de la purge le long de X, essuyage compris
+
 enum class Result : uint8_t {
     ok,
     stopped, ///< arrêt demandé, impression lancée ou arrêt de Marlin
@@ -41,8 +50,8 @@ enum class Result : uint8_t {
     leveling, ///< palpage du plateau impossible
 };
 
-/// La mesure doit s'arrêter : arrêt demandé (session en cours), Marlin vide ses files, impression lancée, imprimante
-/// occupée par autre chose
+/// La mesure doit s'arrêter : arrêt demandé (session en cours), Marlin vide ses files ; hors impression : impression
+/// lancée, imprimante occupée par autre chose ; en impression : « Passer », pause ou arrêt de l'impression
 bool must_stop();
 
 /// Attend ms millisecondes (marche de Marlin assurée) ; false s'il faut s'arrêter
@@ -59,8 +68,8 @@ pattern::Rect printable_zone();
 
 class Session {
 public:
-    /// stop_requested : drapeau d'arrêt de la mesure (posé par l'interface)
-    explicit Session(const std::atomic<bool> &stop_requested);
+    /// stop_requested : drapeau d'arrêt de la mesure (posé par l'interface) ; in_print : au départ d'une impression
+    explicit Session(const std::atomic<bool> &stop_requested, bool in_print = false);
     ~Session();
     Session(const Session &) = delete;
     Session &operator=(const Session &) = delete;
@@ -80,11 +89,13 @@ public:
     /// extrude : la consigne doit permettre d'extruder (sinon : palpage, refroidissement).
     Result heat(int16_t temperature, float tolerance = 2.f, uint32_t hold_ms = 3000, uint32_t timeout_ms = heat_timeout_ms, bool extrude = true);
 
-    /// Va au-dessus du départ de la ligne de purge (bord avant droit), à 15 mm du plateau
-    Result go_to_purge();
+    /// Va au-dessus du départ de la ligne de purge (bord avant droit par défaut), à purge_z du plateau ; dir : sens de
+    /// la purge qui suivra (sa fin doit rester dans la course)
+    Result go_to_purge(float x = purge_x, float y = purge_y, float dir = -1.f);
 
-    /// Ligne de purge au bord avant du plateau, comme le G-code de départ de la CORE One ; false s'il faut s'arrêter
-    bool purge();
+    /// Ligne de purge du G-code de départ de la CORE One depuis le départ x (à l'Y actuel), le long de X dans le sens
+    /// dir (-1 : vers la gauche, comme Prusa au bord avant) ; false s'il faut s'arrêter
+    bool purge(float x = purge_x, float dir = -1.f);
 
     /// Déplacement au-dessus du motif : rétraction, levée de hop au-dessus de z, (x, y), puis descente à z si lower
     bool travel_to(float x, float y, float z, bool lower = true);

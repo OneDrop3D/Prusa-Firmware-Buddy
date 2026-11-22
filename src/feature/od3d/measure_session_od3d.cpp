@@ -8,17 +8,23 @@
 #include <optional>
 
 #include <common/marlin_server.hpp>
+#include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <Marlin.h>
 #include <feature/bedlevel/bedlevel.h>
 #include <feature/pressure_advance/pressure_advance_config.hpp>
 #include <feature/prusa/e-stall_detector.h>
 #include <gcode/gcode.h>
+#include <marlin_stubs/skippable_gcode.hpp>
 #include <module/motion.h>
 #include <module/planner.h>
 #include <module/temperature.h>
 #include <timing.h>
 #include <tool/hotend/hotend.hpp>
+#include <option/has_crash_detection.h>
+#if HAS_CRASH_DETECTION()
+    #include <feature/prusa/crash_recovery.hpp>
+#endif
 
 namespace od3d::session {
 
@@ -27,11 +33,6 @@ namespace {
     constexpr float retract_mm = 0.8f; ///< contre le suintement, aux déplacements et à la fin
     constexpr float retract_speed = 35.f;
     constexpr float default_smooth_time = 0.04f;
-
-    // Ligne de purge du G-code de départ de PrusaSlicer pour la CORE One (bord avant du plateau, de droite à gauche)
-    constexpr float purge_x = 249.f;
-    constexpr float purge_y = -2.5f;
-    constexpr float purge_z = 15.f;
 
     /// Drapeau d'arrêt de la session en cours (nullptr sans session)
     const std::atomic<bool> *active_stop = nullptr;
@@ -45,6 +46,10 @@ namespace {
     bool saved_leveling = false;
     bool retracted = false;
     std::optional<BlockEStallDetection> block_estall; ///< la détection de filament coincé lirait nos paliers comme des à-coups
+    std::optional<SkippableGCode::Guard> skip_guard; ///< en impression : « Passer » sur l'écran Impression
+#if HAS_CRASH_DETECTION()
+    std::optional<Crash_Temporary_Deactivate> no_crash; ///< en impression : nos accélérations ne sont pas des collisions
+#endif
 
     Hotend &hotend() {
         return Hotend::for_tool(PhysicalToolIndex::from_raw(0));
@@ -62,7 +67,13 @@ namespace {
 } // namespace
 
 bool must_stop() {
-    return (active_stop && active_stop->load()) || planner.draining() || marlin_server::is_printing() || !marlin_server::printer_idle();
+    if ((active_stop && active_stop->load()) || planner.draining()) {
+        return true;
+    }
+    if (skip_guard) {
+        return skip_guard->is_skip_requested() || marlin_vars().print_state.get() != marlin_server::State::Printing;
+    }
+    return marlin_server::is_printing() || !marlin_server::printer_idle();
 }
 
 bool wait_ms(uint32_t ms) {
@@ -106,9 +117,15 @@ pattern::Rect printable_zone() {
     return r.grown(-edge_margin, -edge_margin);
 }
 
-Session::Session(const std::atomic<bool> &stop_requested) {
+Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {
     active_stop = &stop_requested;
     planner.synchronize();
+    if (in_print) {
+        skip_guard.emplace();
+#if HAS_CRASH_DETECTION()
+        no_crash.emplace(); // file vide : Prusa ne change cet état qu'à l'arrêt
+#endif
+    }
     saved_pa = pressure_advance::get_axis_e_config();
     saved_settings = planner.user_settings;
     saved_stealth = config_store().stealth_mode.get();
@@ -142,6 +159,10 @@ Session::~Session() {
     thermalManager.setTargetBed(saved_bed); // plateau laissé à sa consigne d'avant
     block_estall.reset();
     flow_limit::suspended = false;
+#if HAS_CRASH_DETECTION()
+    no_crash.reset(); // après planner.synchronize() (ou l'arrêt de Marlin)
+#endif
+    skip_guard.reset();
     active_stop = nullptr;
 }
 
@@ -264,36 +285,38 @@ Result Session::heat(int16_t temperature, float tolerance, uint32_t hold_ms, uin
     return extrude && !hot() ? Result::heating : Result::ok;
 }
 
-Result Session::go_to_purge() {
-    if (purge_x > soft_endstop.max.x || purge_y < soft_endstop.min.y) {
+Result Session::go_to_purge(float x, float y, float dir) {
+    const float x_end = x + dir * purge_length;
+    if (std::max(x, x_end) > soft_endstop.max.x || std::min(x, x_end) < soft_endstop.min.x || y < soft_endstop.min.y || y > soft_endstop.max.y) {
         return Result::no_room;
     }
     if (current_position.z < purge_z) {
         do_blocking_move_to_z(purge_z, travel_speed_z);
     }
-    do_blocking_move_to_xy(purge_x, purge_y, travel_speed_xy);
+    do_blocking_move_to_xy(x, y, travel_speed_xy);
     return must_stop() ? Result::stopped : Result::ok;
 }
 
-bool Session::purge() {
+bool Session::purge(float x, float dir) {
     deretract();
-    // G0 E5 X235 Z0.2 F500, X225 E4 F500, X215 E4 F650, X205 E4 F800, puis essuyage X202 Z0.05 et X199 Z0.2 à F8000
+    // Depuis X249 : G0 E5 X235 Z0.2 F500, X225 E4 F500, X215 E4 F650, X205 E4 F800, puis essuyage X202 Z0.05 et
+    // X199 Z0.2 à F8000 ; ici, les mêmes tronçons depuis x dans le sens dir
     struct Segment {
-        float x, z, e, feedrate_mm_min;
+        float dx, z, e, feedrate_mm_min;
     };
     constexpr Segment segments[] = {
-        { 235.f, 0.2f, 5.f, 500.f },
-        { 225.f, 0.2f, 4.f, 500.f },
-        { 215.f, 0.2f, 4.f, 650.f },
-        { 205.f, 0.2f, 4.f, 800.f },
-        { 202.f, 0.05f, 0.f, 8000.f },
-        { 199.f, 0.2f, 0.f, 8000.f },
+        { 14.f, 0.2f, 5.f, 500.f },
+        { 24.f, 0.2f, 4.f, 500.f },
+        { 34.f, 0.2f, 4.f, 650.f },
+        { 44.f, 0.2f, 4.f, 800.f },
+        { 47.f, 0.05f, 0.f, 8000.f },
+        { purge_length, 0.2f, 0.f, 8000.f },
     };
     for (const Segment &s : segments) {
         if (!wait_queue()) {
             return false;
         }
-        current_position.x = s.x;
+        current_position.x = x + dir * s.dx;
         current_position.z = s.z;
         current_position.e += s.e;
         line_to_current_position(s.feedrate_mm_min / 60.f);

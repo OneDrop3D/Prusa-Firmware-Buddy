@@ -458,4 +458,54 @@ float k_from_e4(uint16_t e4) {
     return e4 == k_none ? NAN : float(e4) * 1e-4f;
 }
 
+uint8_t slots_to_measure(AutoMode mode, uint8_t used, uint8_t known, uint8_t has_k) {
+    const uint8_t candidates = used & known;
+    switch (mode) {
+    case AutoMode::off:
+        return 0;
+    case AutoMode::first_print:
+        return candidates & uint8_t(~has_k);
+    case AutoMode::every_print:
+        return candidates;
+    }
+    return 0;
+}
+
+std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern::Rect &print, float w, float h, std::span<const float> xs,
+    std::span<const float> ys, float grow_x, float grow_y, float clearance) {
+    constexpr pattern::Rect purge_probe { 150.f, 0.f, 250.f, 20.f };
+    const auto overlaps = [](const pattern::Rect &a, const pattern::Rect &b) {
+        return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+    };
+    const pattern::Rect kept = print.grown(clearance, clearance);
+    const pattern::Rect kept_purge = purge_probe.grown(clearance, clearance);
+    const pattern::Rect probed = print.grown(grow_x, grow_y);
+    const auto is_free = [&](const pattern::Rect &r) {
+        if (overlaps(r, kept) || overlaps(r, kept_purge)) {
+            return false;
+        }
+        for (const float x : xs) {
+            for (const float y : ys) {
+                // Comme Prusa (PrintArea::rect_t::contains) : bornes comprises
+                const bool tapped = x >= probed.x0 && x <= probed.x1 && y >= probed.y0 && y <= probed.y1;
+                if (tapped && overlaps(r, pattern::Rect { x, y, x, y }.grown(clearance, clearance))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+    if (!(w > 0.f) || !(h > 0.f) || w > zone.width() || h > zone.height()) {
+        return std::nullopt;
+    }
+    for (float y = zone.y0; y + h <= zone.y1; y += 1.f) {
+        for (const float x : { zone.x0, zone.x1 - w }) {
+            if (const pattern::Rect r { x, y, x + w, y + h }; is_free(r)) {
+                return r;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 } // namespace od3d::pa

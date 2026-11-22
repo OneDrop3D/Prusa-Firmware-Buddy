@@ -13,7 +13,15 @@
 ///   l'utilisateur choisit la meilleure ligne à l'œil (choose_line()), comme le test PA d'Orca.
 ///   Refusée pendant une impression, arrêtable à tout moment (request_stop()), état remis à la fin (session commune).
 ///   Trace et résultats exportables en CSV sur la clé.
-/// La mesure automatique au début de la 1re impression d'une bobine neuve et le PA adaptatif sont pour plus tard.
+/// - En un clic (retour du 22/11) : si la bobine n'est pas dans la buse, la mesure la charge elle-même, par le chemin
+///   de Prusa (« Charger dans la buse » du MMU : l'autre filament est déchargé d'abord), après le palpage, au-dessus de
+///   la purge, comme le G-code de départ. Le filament reste chargé à la fin.
+/// - Automatique (réglage « PA automatique », comme la calibration de la dynamique du débit des Bambu) : M1994 A, mis
+///   en file au départ de l'impression (PrintInit), avant le G-code de départ du trancheur, mesure courte (5 lignes) des
+///   emplacements utilisés sans K (ou de tous) dans une bande libre à côté de la pièce (auto_spot()), puis remet le
+///   filament comme avant (déchargé en général) ; le G-code de départ fait ensuite tout comme d'habitude. Un échec ou
+///   un « Passer » ne bloque jamais l'impression : le PA du trancheur reste, et un message le dit.
+/// Le PA adaptatif est pour plus tard.
 #pragma once
 
 #include "pa_math_od3d.hpp"
@@ -51,8 +59,9 @@ bool needs_measure(uint8_t slot);
 void on_tool_change();
 
 /// Au départ d'une impression : oublie la valeur du trancheur (le K est posé par le T du début du G-code, ou à la
-/// place du premier M572)
-void on_print_start();
+/// place du premier M572) ; from_file : impression d'un fichier, la mesure automatique (M1994 A) est mise en file si
+/// le réglage est actif
+void on_print_start(bool from_file);
 
 /// Appelée par M572 / M900 (M572_internal) : retient la valeur demandée et rend le K à utiliser à sa place si le
 /// réglage est actif, pendant une impression, avec un emplacement chargé qui a un K
@@ -66,6 +75,7 @@ enum class Phase : uint8_t {
     bed, ///< le plateau chauffe (la buse va à sa température de palpage)
     leveling, ///< origine, nettoyage de la buse, palpage de la zone du motif
     heating, ///< la buse chauffe à la température d'impression
+    loading, ///< le MMU charge la bobine dans la buse
     priming, ///< ligne de purge
     measuring, ///< lignes du motif
     done, ///< K mesuré et enregistré
@@ -87,6 +97,8 @@ enum class Error : uint8_t {
     too_few_points, ///< pas assez de blocs exploitables
     out_of_range, ///< K hors de la plage balayée
     low_confidence, ///< mesure trop peu sûre pour être enregistrée
+    mmu, ///< le MMU n'est pas prêt (absent ou en erreur)
+    no_area, ///< mesure automatique : l'impression ne déclare pas sa zone (M555)
 };
 
 struct Status {
@@ -130,8 +142,18 @@ struct Request {
     bool csv = false; ///< écrit /usb/OD3D_PA<n>.CSV
 };
 
-/// Corps de M1994 : mesure le K de l'emplacement et l'enregistre ; bloque jusqu'à la fin ou l'arrêt
+/// Corps de M1994 : charge la bobine de l'emplacement si besoin, mesure son K et l'enregistre ; bloque jusqu'à la fin
+/// ou l'arrêt
 void calibrate(const Request &request);
+
+/// Réglage « PA automatique » ; un mode actif allume aussi « le PA de l'imprimante prime » (sinon le K mesuré ne
+/// servirait pas)
+AutoMode auto_mode();
+void set_auto_mode(AutoMode mode);
+
+/// Corps de M1994 A, au départ d'une impression : mesure courte des emplacements à mesurer, sans jamais bloquer ni
+/// arrêter l'impression
+void calibrate_auto();
 
 /// Dernière mesure (en mémoire vive seulement), pour l'écran : K de chaque ligne imprimée **dans l'ordre des lignes**
 /// (ligne 1 à l'avant), retard, coût, et forme moyenne d'un créneau au K le plus bas, au meilleur coût et au K le plus

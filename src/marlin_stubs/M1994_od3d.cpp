@@ -17,11 +17,16 @@
  *
  *#### Usage
  *
+ *    M1994 A
  *    M1994 [P<slot>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [W<mm>] [Z<mm>] [C<n>] [T<C>] [Q<C>] [X<mm>] [Y<mm>] [I<mm>] [O<0|1>]
  *
  *#### Parameters
  *
- * - `P` - emplacement 0 à 4 (celui chargé dans la buse, obligatoire) ; sans P, l'emplacement chargé
+ * - `A` - mesure automatique au départ d'une impression (mise en file par l'imprimante si le réglage « PA automatique »
+ *   est actif) : mesure courte des emplacements utilisés à mesurer, à côté de la zone d'impression (M555) ; un échec ou
+ *   « Passer » laisse le PA du trancheur, l'impression continue
+ * - `P` - emplacement 0 à 4 ; s'il n'est pas dans la buse, le MMU l'y charge (l'autre filament est déchargé) ; sans P,
+ *   l'emplacement chargé
  * - `L`, `H`, `S` - balayage de K : de L à H par pas de S (0, 0,10, 0,02)
  * - `R` - lignes du second balayage au pas S/4 autour du premier choix (5 ; 0 : aucune) ; 15 lignes au plus en tout
  * - `B`, `F` - débits lent et rapide (1,5 et 10 mm³/s)
@@ -33,13 +38,17 @@
  * - `O1` - écrit la trace et les résultats dans /usb/OD3D_PA<n>.CSV
  *
  * Plateau chauffé, origine, nivellement local de la zone du motif (comme le G-code de départ de la CORE One), buse à
- * la température de la matière, ligne de purge au bord avant, puis une ligne imprimée par K à hauteur de première
+ * la température de la matière, chargement de la bobine si besoin, ligne de purge au bord avant, puis une ligne imprimée par K à hauteur de première
  * couche, lente / rapide / lente, avec à sa droite des traits qui donnent son numéro. La force verticale de la cellule
  * de charge pendant les changements de vitesse donne le K (méthode inspirée de PrusaPATuner, réimplémentée), enregistré
  * pour l'emplacement ; l'écran permet aussi de choisir la meilleure ligne à l'œil. Refusé pendant une impression ;
  * arrêtable depuis l'écran. Réglages (PA, accélérations, consignes, maillage) remis à la fin, buse levée.
  */
 void PrusaGcodeSuite::M1994() {
+    if (parser.seen('A')) {
+        od3d::pa::calibrate_auto();
+        return;
+    }
     od3d::pa::Request rq;
     if (parser.seenval('P')) {
         rq.slot = parser.value_byte();

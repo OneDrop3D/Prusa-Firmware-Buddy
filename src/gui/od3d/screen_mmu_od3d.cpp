@@ -2,6 +2,7 @@
 #include "screen_mmu_od3d.hpp"
 #include "menu_items_od3d.hpp"
 
+#include "screen_pa_od3d.hpp"
 #include "spool_sheet_od3d.hpp"
 
 #include <common/marlin_vars.hpp>
@@ -50,6 +51,19 @@ namespace {
     bool mmu_ready() {
         const auto state = MMU2::xState(marlin_vars().mmu2_state.get());
         return state != MMU2::xState::Connecting && state != MMU2::xState::Bootloader;
+    }
+
+    /// Emplacement de la tuile « Press. adv. » (F4) : celui de la buse, sinon le premier qui a une matière
+    std::optional<uint8_t> pa_slot() {
+        if (const auto tool = VirtualToolIndex::currently_selected_opt()) {
+            return tool->to_raw();
+        }
+        for (uint8_t i = 0; i < VirtualToolIndex::count; ++i) {
+            if (FilamentType::for_tool(VirtualToolIndex::from_raw(i))) {
+                return i;
+            }
+        }
+        return std::nullopt;
     }
 
     /// Un élément désactivé ne garde pas le focus : le premier élément actif le prend (le retour de l'en-tête)
@@ -154,12 +168,12 @@ ScreenMMU::ScreenMMU()
     , preload_all(this, shortcut_body(0), tag_preload_all, img::cycle_16x16, style::tile_motion, _("Preload"), _("All slots"))
     , assist(this, shortcut_body(1), tag_assist, img::speed_16x16, style::tile_motion, _("MMU assist"), _("soon"))
     , motors(this, shortcut_body(2), tag_motors, img::move_16x16, style::tile_motion, _("Motors"), _("Open >"))
-    , pressure_advance(this, shortcut_body(3), tag_pressure_advance, img::user_filament_16x16, style::tile_filament, _("Press. adv."), _("soon"))
+    , pressure_advance(this, shortcut_body(3), tag_pressure_advance, img::user_filament_16x16, style::tile_filament, _("Press. adv."), _("Open >"))
     , settings(this, shortcut_body(4), tag_settings, img::settings_16x16, style::tile, _("Settings"), _("Open >"))
     , info(this, shortcut_body(5), tag_info, img::info_16x16, style::tile, _("MMU info"), _("Open >"))
     , tabs(this, TabBar::Tab::workshop) {
     assist.set_enabled(false); // F11 (accompagnement) n'existe pas encore
-    pressure_advance.set_enabled(false); // F4 (mesure du PA) non plus
+    pressure_advance.set_enabled(pa_slot().has_value()); // F4 : l'écran du PA (« Mesurer » charge la bobine)
     update();
 
     // Focus de départ : l'emplacement chargé, sinon la première bobine utilisable
@@ -187,6 +201,7 @@ void ScreenMMU::update() {
         spool.update(ready);
     }
     preload_all.enable(atelier::mmu_active() && atelier::can_run() && !atelier::filament_in_nozzle());
+    pressure_advance.enable(pa_slot().has_value());
     keep_focus(*this);
 }
 
@@ -214,6 +229,11 @@ void ScreenMMU::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             break;
         case tag_motors:
             open_screen<ScreenMMUMotors>();
+            break;
+        case tag_pressure_advance:
+            if (const auto slot = pa_slot()) {
+                open_pa(*slot);
+            }
             break;
         case tag_settings:
             open_screen<ScreenMenuMMUSettings>();

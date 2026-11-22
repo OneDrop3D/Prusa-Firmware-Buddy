@@ -1,8 +1,8 @@
 /// @file
 /// OneDrop3D (F4) : écran « Emplacement n · PA », ouvert par la puce « PA » de la fiche d'une bobine. Valeur mesurée
 /// (ou choisie) et confiance, courbe de force de la dernière mesure (forme moyenne d'un créneau au K le plus bas, au
-/// meilleur K et au K le plus haut, avec la commande), « Mesurer » (M1994 : motif imprimé à l'avant du plateau,
-/// feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer », réglage général « le PA de l'imprimante prime » et
+/// meilleur K et au K le plus haut, avec la commande), « Mesurer » (M1994, en un clic : la bobine est chargée si elle
+/// n'est pas dans la buse, puis motif imprimé à l'avant du plateau, feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer », réglage général « le PA de l'imprimante prime » et
 /// « Meilleure ligne » : repli visuel, l'utilisateur choisit lui-même la ligne la plus régulière du motif (écran
 /// ScreenPaLines). « Débit, temp. » ouvre l'écran frère des autres calibrations de la bobine (F5, F6 :
 /// screen_spool_calib_od3d.hpp), où se règle aussi l'export des courbes sur la clé (commun).
@@ -12,11 +12,16 @@
 
 #include <array>
 #include <feature/od3d/pa_od3d.hpp>
+#include <utils/string_builder.hpp>
 
 namespace od3d {
 
-/// Ouvre l'écran PA de l'emplacement (0 à 4)
-void open_pa(uint8_t slot);
+/// Ouvre l'écran PA de l'emplacement (0 à 4) ; start : « Calibrer le PA » (fiche de la bobine), la mesure est proposée
+/// dès l'ouverture
+void open_pa(uint8_t slot, bool start = false);
+
+/// Étape d'une mesure du PA en cours (écran PA, et écran Impression pendant la mesure automatique)
+void pa_progress(StringBuilder &sb, const pa::Status &status);
 
 /// Courbes des mesures exportées sur la clé (F4, F5, F6) : choix commun, gardé jusqu'au redémarrage
 bool usb_curves();

@@ -376,10 +376,11 @@ void ScreenSpoolCalib::update() {
     limit.enable(true);
     csv.enable(!busy);
 
-    // Un élément désactivé ne garde pas le focus
+    // Un élément désactivé ne garde pas le focus ; pendant la mesure il va à « Annuler » (le retour de l'en-tête,
+    // premier élément, ferait quitter l'écran au prochain clic)
     if (window_t *focused = get_focused_child_window(); !focused || !focused->IsEnabled()) {
-        if (window_t *first = GetFirstEnabledSubWin()) {
-            first->SetFocus();
+        if (window_t *next = ours && second.IsEnabled() ? &second : GetFirstEnabledSubWin()) {
+            next->SetFocus();
         }
     }
 }

@@ -12,12 +12,15 @@
 #include "speed_map_od3d.hpp"
 #include "spool_calib_od3d.hpp"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <optional>
 
 #include <common/marlin_server.hpp>
+#include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <filament.hpp>
 #include <Marlin/src/gcode/gcode.h>
@@ -44,6 +47,9 @@ namespace {
     std::atomic<uint16_t> runs = 0;
     std::array<std::atomic<Result>, max_tests> results {};
     uint32_t run_mask = 0;
+
+    std::array<Numbers, max_tests> before_numbers;
+    std::array<Numbers, max_tests> after_numbers;
 
     std::atomic<Check> last_check = Check::none;
     std::atomic<uint16_t> checks = 0;
@@ -120,6 +126,77 @@ namespace {
         return false;
     }
 
+    int16_t scaled(float v, float k) {
+        return std::isfinite(v) ? int16_t(std::lround(std::clamp(v * k, -32767.f, 32767.f))) : no_value;
+    }
+
+    /// Chiffres du test (voir numbers_before()) : avant son étape, ou après son succès
+    void capture(const Step &s, Numbers &n, bool after) {
+        const Values stored = config_store().od3d_calib_values.get(size_t(s.test));
+        switch (s.test) {
+        case Test::input_shaper:
+            break; // M1959 A, qui a le spectre
+        case Test::phase_stepping:
+            if (!after) {
+                std::copy(stored.v.begin(), stored.v.end(), n.begin());
+            } // après : M1977
+            break;
+        case Test::belts:
+        case Test::damping:
+        case Test::speed_map:
+            if (!after) {
+                std::copy(stored.v.begin(), stored.v.end(), n.begin());
+            } else if (s.test == Test::belts) {
+                for (uint8_t b = 0; b < belts::belt_count; ++b) {
+                    const auto &peak = belts::last().peaks[b];
+                    n[b] = peak.found ? scaled(peak.frequency, 10.f) : no_value;
+                }
+            } else if (s.test == Test::damping) {
+                for (uint8_t a = 0; a < damping::axis_count; ++a) {
+                    const auto &res = damping::last().results[a];
+                    n[a] = res.found ? scaled(res.zeta, 1000.f) : no_value;
+                }
+            } else {
+                std::array<uint8_t, 16> found;
+                n[1] = int16_t(speed_map::critical(speed_map::last(), 0, found));
+                n[2] = int16_t(speed_map::critical(speed_map::last(), 1, found));
+                n[0] = int16_t(n[1] + n[2]);
+            }
+            break;
+        case Test::mpc:
+            if (after || mpc::has_valid_calibration()) {
+                const mpc::Params &p = mpc::params();
+                n[0] = scaled(p.heater_power, 10.f);
+                n[1] = scaled(p.block_heat_capacity, 10.f);
+                n[2] = scaled(p.ambient_xfer_coeff, 1000.f);
+                n[3] = scaled(p.fan_xfer_coeff, 1000.f);
+            }
+            break;
+        case Test::mmu_ptfe:
+            if (after) {
+                n[0] = int16_t(ptfe::status().saved_mm);
+                n[1] = int16_t(ptfe::status().measured_mm);
+            } else if (const uint16_t length = marlin_vars().mmu2_bowden_length.get(); length > 0) {
+                n[0] = int16_t(length);
+            }
+            break;
+        case Test::pa:
+            if (const pa::Record r = pa::record(s.slot); r.has_k()) {
+                n[s.slot % n.size()] = int16_t(r.k_e4);
+            }
+            break;
+        case Test::max_flow:
+        case Test::min_temp:
+            if (const calib::Record r = calib::record(s.slot); s.test == Test::max_flow ? r.has_flow() : r.has_min_temperature()) {
+                n[s.slot % n.size()] = s.test == Test::max_flow ? int16_t(r.max_flow_e1) : r.min_temperature;
+            }
+            break;
+        case Test::skew:
+        case Test::count:
+            break;
+        }
+    }
+
     void add_result(Test test, Result r) {
         auto &slot = results[size_t(test)];
         slot = fold(slot.load(), r);
@@ -131,6 +208,11 @@ namespace {
             if (run_mask & test_bit(e.test)) {
                 const size_t i = size_t(e.test);
                 config_store().od3d_calib_done.set(i, after_run(config_store().od3d_calib_done.get(i), e, results[i].load(), date));
+                if (results[i].load() == Result::ok && !(e.needs & filament)) {
+                    Values kept;
+                    std::copy_n(after_numbers[i].begin(), kept.v.size(), kept.v.begin());
+                    config_store().od3d_calib_values.set(i, kept); // le « avant » de la fois suivante
+                }
             }
         }
         running = false;
@@ -168,6 +250,7 @@ namespace {
         if (!marlin_server::enqueue_gcode_try(gcode) || !marlin_server::enqueue_gcode_try(marker)) {
             return false;
         }
+        capture(s, before_numbers[size_t(s.test)], false);
         // Rien ne tourne avant le retour de M1989 : le résultat lu à la fin sera celui de cette étape, pas d'avant
         if (const auto r = prusa_result(s.test)) {
             prusa_before = *r;
@@ -304,6 +387,20 @@ void request_cancel() {
     }
 }
 
+const Numbers &numbers_before(Test test) {
+    return before_numbers[size_t(test) % max_tests];
+}
+
+const Numbers &numbers_after(Test test) {
+    return after_numbers[size_t(test) % max_tests];
+}
+
+void set_number(Test test, bool after, uint8_t index, int16_t value) {
+    if (size_t(test) < max_tests && index < Numbers().size()) {
+        (after ? after_numbers : before_numbers)[size_t(test)][index] = value;
+    }
+}
+
 Check check_result() {
     return last_check;
 }
@@ -357,6 +454,8 @@ void run(uint32_t mask) {
     for (const Entry &e : entries) {
         if (run_mask & test_bit(e.test)) {
             results[size_t(e.test)] = Result::none;
+            before_numbers[size_t(e.test)] = no_numbers;
+            after_numbers[size_t(e.test)] = no_numbers;
         }
     }
     cancel_requested = false;
@@ -369,7 +468,11 @@ void step_end(uint8_t index) {
         return; // repère d'une autre série
     }
     const Step &s = steps[index];
-    add_result(s.test, succeeded(s) ? Result::ok : (cancel_requested ? Result::skipped : Result::failed));
+    const bool ok = succeeded(s);
+    if (ok) {
+        capture(s, after_numbers[size_t(s.test)], true);
+    }
+    add_result(s.test, ok ? Result::ok : (cancel_requested ? Result::skipped : Result::failed));
     start(uint8_t(index + 1));
 }
 

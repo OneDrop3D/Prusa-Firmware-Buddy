@@ -219,3 +219,23 @@ TEST_CASE("calib_registry: cold nozzle gate") {
     CHECK_FALSE(nozzle_cold(25.f, 215.f)); // chauffe allumée : elle va monter
     CHECK_FALSE(nozzle_cold(NAN, 0.f));
 }
+
+TEST_CASE("calib_registry: summary numbers") {
+    // Baisse des vibrations restantes : 0,02 au lieu de 0,08 = -75 %
+    CHECK(drop_percent(0.02f, 0.08f) == std::optional<int16_t>(75));
+    CHECK(drop_percent(0.10f, 0.08f) == std::optional<int16_t>(-25)); // plus de vibrations qu'avant : affiché tel quel
+    CHECK(drop_percent(0.f, 0.08f) == std::optional<int16_t>(100));
+    CHECK_FALSE(drop_percent(0.02f, 0.f).has_value()); // pas de référence : pas de chiffre
+    CHECK_FALSE(drop_percent(NAN, 0.08f).has_value());
+
+    // Amortissement : ζ 0,1 (Prusa) → 4,8 périodes pour tomber à 5 % ; ζ plus faible → plus long
+    CHECK(std::fabs(ringing_cycles(0.1f) - 4.77f) < 0.01f);
+    CHECK(ringing_cycles(0.05f) > ringing_cycles(0.1f));
+    CHECK(std::isnan(ringing_cycles(0.f)));
+
+    // Valeurs gardées pour le « avant » : vides par défaut
+    const Values v;
+    for (const int16_t x : v.v) {
+        CHECK(x == no_value);
+    }
+}

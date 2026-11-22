@@ -1,5 +1,6 @@
 /// @file
 #include "widgets_od3d.hpp"
+#include "screen_calib_assistant_od3d.hpp" // calibration_follow
 #include "screen_files_od3d.hpp"
 #include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
@@ -334,6 +335,7 @@ void Screen::InitState(screen_init_variant var) {
 
 void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP && !HasDialog()) {
+        calibration_follow(); // série de l'assistant : l'écran de la mesure en cours, avec ses courbes
         // F13 : une bobine vient de passer sous son seuil d'alerte (une fois par passage), sur nos écrans seulement
         // Sans boîte de message : elle bloquait les dialogues de l'impression (chargement, erreurs du MMU) tant qu'elle
         // restait ouverte (RET-22)

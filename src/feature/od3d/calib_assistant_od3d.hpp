@@ -18,6 +18,7 @@ namespace od3d::calib_assistant {
 
 using calib_registry::Accelerometer;
 using calib_registry::Context;
+using calib_registry::Numbers;
 using calib_registry::Record;
 using calib_registry::Result;
 using calib_registry::Step;
@@ -56,6 +57,22 @@ Result result(Test test);
 
 /// « Annuler » (interface) : l'étape en cours est arrêtée, les suivantes ne sont pas lancées
 void request_cancel();
+
+/// Chiffres du bilan de la dernière série (no_value : pas de valeur), relevés avant l'étape et après son succès :
+/// - input_shaper (écrits par M1959 A) : [0..3] type et fréquence ×10 de X puis Y ; après : [4], [5] baisse estimée des
+///   vibrations restantes de X, Y par rapport à sans filtre (%) ; [6], [7] par rapport au réglage d'avant (%) ;
+/// - phase_stepping (écrits par M1977) : [0], [1] baisse des vibrations des moteurs X, Y mesurée par Prusa (%) ;
+/// - belts : [0], [1] fréquence ×10 des courroies A, B ; damping : [0], [1] ζ ×1000 de X, Y ;
+/// - speed_map : [0] nombre de vitesses critiques, [1] sur X, [2] sur Y ;
+/// - mpc : [0] P ×10 (W), [1] C ×10 (J/K), [2] A ×1000 (W/K), [3] F ×1000 (W/K) ;
+/// - mmu_ptfe : [0] longueur enregistrée (mm), après : [1] longueur relevée (mm) ;
+/// - pa, max_flow, min_temp : [emplacement] K ×10 000, débit ×10 (mm³/s), température (°C).
+/// « Avant » des courroies, de l'amortissement, des vitesses et du phase stepping : le dernier succès (OD3D Calib Values).
+const Numbers &numbers_before(Test test);
+const Numbers &numbers_after(Test test);
+
+/// Fil de Marlin : chiffre écrit par un assistant de Prusa (M1959, M1977)
+void set_number(Test test, bool after, uint8_t index, int16_t value);
 
 /// Vérification avant les tests à l'accéléromètre (M1989 A)
 enum class Check : uint8_t {

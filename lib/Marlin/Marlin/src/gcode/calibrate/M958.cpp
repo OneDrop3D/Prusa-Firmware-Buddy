@@ -1191,6 +1191,15 @@ static Shaper_result fit_shaper(const FindBestShaperProgressHook &progress_hook,
     return shaper_result;
 }
 
+float remaining_vibrations_worst(const input_shaper::AxisConfig &config, const Spectrum &psd) {
+    const input_shaper::Shaper shaper = input_shaper::get(config.damping_ratio, config.frequency, config.vibration_reduction, config.type);
+    float worst = 0.f;
+    for (float damping_ratio = 0.05f; damping_ratio <= 0.15f + epsilon; damping_ratio += 0.05f) {
+        worst = max(worst, remaining_vibrations(shaper, damping_ratio, psd, config.vibration_reduction));
+    }
+    return worst;
+}
+
 static input_shaper::AxisConfig find_best_shaper(const FindBestShaperProgressHook &progress_hook, const Spectrum &psd, const Action final_action, input_shaper::AxisConfig default_config) {
     struct Best_score {
         Shaper_result result;

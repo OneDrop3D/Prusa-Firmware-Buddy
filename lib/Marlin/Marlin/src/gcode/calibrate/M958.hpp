@@ -138,6 +138,10 @@ using FindBestShaperProgressHook = stdext::inplace_function<Result<void>(input_s
 
 input_shaper::AxisConfig find_best_shaper(const FindBestShaperProgressHook &progress_hook, const Spectrum &psd, input_shaper::AxisConfig default_config);
 
+/// OneDrop3D : vibrations restantes estimées avec ce réglage d'après le spectre mesuré, comme l'ajustement de Prusa
+/// (part de la réponse au-dessus du seuil, pire cas pour un amortissement de 0,05 à 0,15) ; type null : sans filtre
+float remaining_vibrations_worst(const input_shaper::AxisConfig &config, const Spectrum &psd);
+
 /// Something that just vibrates.
 ///
 /// Unlike \p measure, this just vibrates. And it doesn't need an accelerometer.

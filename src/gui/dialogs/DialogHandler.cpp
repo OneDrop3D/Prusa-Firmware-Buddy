@@ -9,6 +9,7 @@
 #include "window_dlg_wait.hpp"
 #include "window_dlg_warning.hpp"
 #include <common/marlin_vars.hpp>
+#include <utility>
 #include <option/has_crash_detection.h>
 #include <option/has_gearbox_alignment.h>
 #include <option/has_phase_stepping_calibration.h>
@@ -30,6 +31,7 @@
     #include <gui/od3d/screen_progress_od3d.hpp>
     #include <gui/od3d/island_od3d.hpp>
     #include <gui/od3d/dialog_wait_od3d.hpp>
+    #include <gui/od3d/screen_calib_assistant_od3d.hpp>
 #else
     #include <gui/screen/screen_filament_change.hpp>
 #endif
@@ -391,6 +393,39 @@ struct FSMWaitDef : public FSMDialogDef<ClientFSM::Wait, od3d::DialogWait> {
 };
 #endif
 
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+/// OneDrop3D : pendant une série de l'assistant de calibration, les assistants de Prusa qu'elle lance sans question
+/// (M1959 A, M1977 U A) ne prennent pas l'écran : on garde la main (retour, onglets), l'écran de l'assistant les suit en
+/// direct, la pastille de l'en-tête montre l'étape. Son « Annuler » leur envoie « Abandonner ».
+template <ClientFSM fsm_, typename Screen_>
+struct FSMAssistantDef : public FSMScreenDef<fsm_, Screen_> {
+    using Base = FSMScreenDef<fsm_, Screen_>;
+    static inline bool hidden = false;
+
+    [[nodiscard]] static bool open(fsm::BaseData data) {
+        hidden = od3d::calibration_series_running();
+        return hidden || Base::open(data);
+    }
+
+    static void close() {
+        if (std::exchange(hidden, false)) {
+            return;
+        }
+        Base::close();
+    }
+
+    [[nodiscard]] static bool change(fsm::BaseData data) {
+        return hidden || Base::change(data);
+    }
+
+    static void reopen_if_lost(fsm::BaseData data) {
+        if (!hidden) {
+            Base::reopen_if_lost(data);
+        }
+    }
+};
+#endif
+
 // Just so that we have something at the end of the list and don't have to care about commas
 struct FSMEndDef {
     static constexpr ClientFSM fsm = ClientFSM::_count;
@@ -448,10 +483,18 @@ using FSMDisplayConfig = FSMDisplayConfigDef<
     FSMScreenDef<ClientFSM::ColdPull, ScreenColdPull>,
 #endif
 #if HAS_PHASE_STEPPING_CALIBRATION()
+    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    FSMAssistantDef<ClientFSM::PhaseSteppingCalibration, ScreenPhaseSteppingCalibration>, // OneDrop3D : pastille pendant l'assistant
+    #else
     FSMScreenDef<ClientFSM::PhaseSteppingCalibration, ScreenPhaseSteppingCalibration>,
+    #endif
 #endif
 #if HAS_INPUT_SHAPER_CALIBRATION()
+    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    FSMAssistantDef<ClientFSM::InputShaperCalibration, ScreenInputShaperCalibration>, // OneDrop3D : pastille pendant l'assistant
+    #else
     FSMScreenDef<ClientFSM::InputShaperCalibration, ScreenInputShaperCalibration>,
+    #endif
 #endif
 #if HAS_GEARBOX_ALIGNMENT()
     FSMScreenDef<ClientFSM::GearboxAlignment, ScreenGearboxAlignment>,

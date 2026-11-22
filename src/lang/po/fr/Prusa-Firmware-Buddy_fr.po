@@ -11674,10 +11674,6 @@ msgid "The accelerometer does not answer. Check it is attached and plugged in, t
 msgstr "L'accéléromètre ne répond pas. Vérifiez qu'il est fixé et branché, puis Continuer."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Attach the accelerometer to the nozzle and plug it into the board, then Continue."
-msgstr "Fixez l'accéléromètre sur la buse et branchez-le à la carte, puis Continuer."
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Checking the accelerometer..."
 msgstr "Vérification de l'accéléromètre..."
 
@@ -11698,16 +11694,8 @@ msgid "Step %d/%d: %s. You may leave this screen: the pill shows the progress."
 msgstr "Étape %d/%d : %s. Vous pouvez quitter cet écran : la pastille montre l'avancement."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Remove the accelerometer from the nozzle, then Continue."
-msgstr "Retirez l'accéléromètre de la buse, puis Continuer."
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Is the bed empty and clean? Test lines will be printed at the front of the bed."
 msgstr "Plateau vide et propre ? Des lignes de test vont être imprimées à l'avant du plateau."
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Finished: %d OK, %d failed. Touch a failed test to run it again."
-msgstr "Terminé : %d OK, %d en échec. Touchez un test en échec pour le refaire."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Calibrate now"
@@ -11925,3 +11913,139 @@ msgstr "En attente du MMU sur le port USB avant..."
 #, c-format
 msgid "Write MMU firmware %s from the printer? Do not unplug anything until it is verified."
 msgstr "Écrire le firmware %s dans le MMU depuis l'imprimante ? Ne débranchez rien avant la vérification."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Stop the calibration series? The current measurement stops and the next ones are not done."
+msgstr "Arrêter la série de calibrations ? La mesure en cours s'arrête, les suivantes ne sont pas faites."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Stop this measurement? The assistant goes on with the next one."
+msgstr "Arrêter cette mesure ? L'assistant passe à la suivante."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "calibrating %d%%"
+msgstr "étalonnage %d %%"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%c axis, %d Hz"
+msgstr "axe %c, %d Hz"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "computing %d%%"
+msgstr "calcul %d %%"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%c axis"
+msgstr "axe %c"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the silicone sock from the nozzle."
+msgstr "Retirez la chaussette en silicone de la buse."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Firmly attach the accelerometer to the extruder and plug it into the board, then Continue."
+msgstr "Fixez fermement l'accéléromètre à l'extrudeur et branchez-le à la carte, puis Continuer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Step %d/%d: %s, %s. You may leave this screen: the pill shows the progress."
+msgstr "Étape %d/%d : %s, %s. Vous pouvez quitter cet écran : la pastille montre l'avancement."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the accelerometer from the nozzle, then put the silicone sock back on it. The nozzle heats only after that."
+msgstr "Retirez l'accéléromètre de la buse, puis remettez-y la chaussette en silicone. La buse ne chauffera qu'après."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the accelerometer from the nozzle."
+msgstr "Retirez l'accéléromètre de la buse."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "No numbers: the test did not finish."
+msgstr "Pas de chiffres : le test n'est pas allé au bout."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Filters:"
+msgstr "Filtres :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Before:"
+msgstr "Avant :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Vibrations vs no filter (estimated):"
+msgstr "Vibrations restantes contre sans filtre (estimé) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Vibrations vs before (estimated):"
+msgstr "Vibrations restantes contre avant (estimé) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Motor vibrations (measured by Prusa):"
+msgstr "Vibrations des moteurs (mesurées par Prusa) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Belts:"
+msgstr "Courroies :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Target:"
+msgstr "Cible :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Damping:"
+msgstr "Amortissement :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Cycles to damp ringing to 5% (estimated):"
+msgstr "Cycles pour amortir à 5 % (estimé) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Critical speeds:"
+msgstr "Vitesses critiques :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MPC model:"
+msgstr "Modèle MPC :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Front PTFE length:"
+msgstr "Tube PTFE avant :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Measured:"
+msgstr "Mesuré :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "K per spool (before):"
+msgstr "K par bobine (avant) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max flow per spool, mm3/s (before):"
+msgstr "Débit max par bobine, mm3/s (avant) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Min temperature per spool, °C (material):"
+msgstr "Température min par bobine, °C (matière) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed. Touch a test for its numbers."
+msgstr "Terminé : %d OK, %d en échec. Touchez un test pour ses chiffres."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Vibrations"
+msgstr "Vibrations"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "(estimated)"
+msgstr "(estimé)"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "motors"
+msgstr "moteurs"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "belts"
+msgstr "courroies"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "max flow"
+msgstr "débit max"

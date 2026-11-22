@@ -1,5 +1,7 @@
 #include "M1959.hpp"
 
+#include <cmath>
+
 #include <bsod/bsod.h>
 #include <common/marlin_server.hpp>
 #include <Marlin/src/gcode/calibrate/M958.hpp>
@@ -11,6 +13,7 @@
 #include <option/has_attachable_accelerometer.h>
 #include <option/has_remote_accelerometer.h>
 #include <selftest/selftest_invocation.hpp>
+#include <feature/od3d/calib_assistant_od3d.hpp>
 
 static_assert(HAS_INPUT_SHAPER_CALIBRATION());
 
@@ -477,6 +480,37 @@ static PhasesInputShaperCalibration computing(Context &context) {
     return PhasesInputShaperCalibration::results;
 }
 
+/// OneDrop3D : chiffres du bilan de l'assistant de calibration (calib_assistant_od3d.hpp, numbers_before()) : filtres
+/// d'avant et d'après, baisse des vibrations restantes estimées sur le spectre mesuré (même calcul que l'ajustement de
+/// Prusa) par rapport à sans filtre et au réglage d'avant
+static void od3d_note_results(const Context &context) {
+    using od3d::calib_assistant::set_number;
+    constexpr auto test = od3d::calib_registry::Test::input_shaper;
+    constexpr int16_t none = od3d::calib_registry::no_value;
+    for (uint8_t a = 0; a < 2; ++a) {
+        const AxisEnum axis = a == 0 ? X_AXIS : Y_AXIS;
+        const vibrate_measure::Spectrum &psd = a == 0 ? context.spectrum_x : context.spectrum_y;
+        const input_shaper::AxisConfig &chosen = a == 0 ? context.axis_config_x : context.axis_config_y;
+        const bool was_on = a == 0 ? config_store().input_shaper_axis_x_enabled.get() : config_store().input_shaper_axis_y_enabled.get();
+        input_shaper::AxisConfig before = config_store().get_input_shaper_axis_config(axis);
+        if (!was_on) {
+            before.type = input_shaper::Type::null;
+        }
+        input_shaper::AxisConfig unshaped = chosen;
+        unshaped.type = input_shaper::Type::null;
+        const float remaining = vibrate_measure::remaining_vibrations_worst(chosen, psd);
+        const auto drop = [&](const input_shaper::AxisConfig &reference) {
+            return od3d::calib_registry::drop_percent(remaining, vibrate_measure::remaining_vibrations_worst(reference, psd)).value_or(none);
+        };
+        set_number(test, false, uint8_t(2 * a), int16_t(before.type));
+        set_number(test, false, uint8_t(2 * a + 1), was_on ? int16_t(std::lround(before.frequency * 10.f)) : none);
+        set_number(test, true, uint8_t(2 * a), int16_t(chosen.type));
+        set_number(test, true, uint8_t(2 * a + 1), int16_t(std::lround(chosen.frequency * 10.f)));
+        set_number(test, true, uint8_t(4 + a), drop(unshaped));
+        set_number(test, true, uint8_t(6 + a), was_on ? drop(before) : none);
+    }
+}
+
 static PhasesInputShaperCalibration results(Context &context) {
     const PhasesInputShaperCalibration result_phase = check_result(context); // results or bad_results - each has different texts & responses
 
@@ -493,6 +527,7 @@ static PhasesInputShaperCalibration results(Context &context) {
     }
     switch (od3d_unattended ? Response::Yes : wait_for_response(result_phase)) {
     case Response::Yes:
+        od3d_note_results(context); // avant d'écrire les nouveaux filtres : l'ancien réglage sert de comparaison
         config_store().input_shaper_axis_x_config.set(context.axis_config_x);
         input_shaper::set_axis_config(X_AXIS, context.axis_config_x);
         config_store().input_shaper_axis_y_config.set(context.axis_config_y);

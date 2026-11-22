@@ -11263,3 +11263,7 @@ msgid ""
 msgstr ""
 "Amortissement des axes\n"
 "Pour l'input shaper, mesuré"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Stopped: leaving this screen stops the measurement."
+msgstr "Arrêté : quitter cet écran arrête la mesure."

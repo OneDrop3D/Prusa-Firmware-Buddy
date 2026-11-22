@@ -60,6 +60,10 @@ namespace {
         display::draw_rounded_rect(r, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
     }
 
+    /// L'écran a été fermé pendant sa mesure (retour, ou un autre écran ouvert par-dessus : en-tête, pastille) et l'a
+    /// donc arrêtée ; gardé hors de l'écran, recréé au retour, pour le dire à l'utilisateur
+    bool stopped_by_leaving = false;
+
 } // namespace
 
 // ---- Jauge ----
@@ -223,7 +227,7 @@ ScreenBelts::ScreenBelts()
     info.SetTextColor(style::text_soft);
     info.SetBackColor(style::screen);
     info.SetPadding({ 0, 0, 0, 0 });
-    update();
+    update(); // warned_accelerometer vaut true : aucun dialogue depuis le constructeur (Screens::Get() y est nul)
     action.SetFocus();
 }
 
@@ -231,6 +235,7 @@ ScreenBelts::~ScreenBelts() {
     // Pas de moteurs qui vibrent sans écran pour les arrêter
     if (belts::is_running() || pending) {
         belts::request_stop();
+        stopped_by_leaving = true;
     }
 }
 
@@ -285,7 +290,7 @@ void ScreenBelts::show_info() {
             break;
         }
         case Status::stopped:
-            text = _("Stopped");
+            text = stopped_by_leaving ? _("Stopped: leaving this screen stops the measurement.") : _("Stopped");
             break;
         case Status::printing:
             text = _("Not while printing.");
@@ -370,6 +375,7 @@ void ScreenBelts::start() {
         runs_at_request = before;
         pending = true;
         warned_accelerometer = false;
+        stopped_by_leaving = false;
     }
 }
 

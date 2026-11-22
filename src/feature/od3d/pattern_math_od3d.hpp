@@ -71,8 +71,9 @@ float tally_width(uint8_t number);
 
 // ---- Lignes ----
 
-/// count lignes parallèles à X, de l'avant (y0) vers l'arrière, espacées de pitch ; chaque ligne commence au plus à x0 et
-/// fait au plus length, plus marks de repères à sa droite
+/// count lignes parallèles à X, de l'avant (y0) vers l'arrière, espacées de pitch ; chaque ligne couvre au plus x0 à
+/// x0 + length, plus marks de repères à sa droite. Lignes dans les deux sens (demande du 22/11) : la ligne i + 1 part
+/// d'où la ligne i s'arrête (paires vers +X, impaires vers −X), sans retour à gauche entre deux lignes
 struct Lines {
     float x0 = 0;
     float y0 = 0;
@@ -83,6 +84,11 @@ struct Lines {
     Bead bead { 0.45f, 0.2f };
 
     float y(uint8_t i) const { return y0 + pitch * float(i); }
+    bool reversed(uint8_t i) const { return i % 2 == 1; }
+    /// Sens de la ligne i le long de X : 1 ou −1
+    float dir(uint8_t i) const { return reversed(i) ? -1.f : 1.f; }
+    /// Départ de la ligne i en X (sa fin : x_start(i) + dir(i)·length)
+    float x_start(uint8_t i) const { return reversed(i) ? x0 + length : x0; }
     /// Surface couverte (cordons et traits compris)
     Rect area() const;
 };

@@ -217,63 +217,12 @@ namespace {
         st_phase = e == Error::none ? Phase::done : Phase::failed;
     }
 
-    /// Une ligne du motif : PA = k, lancement lent puis cycles × (rapide, lent) le long de +X, trace analysée, puis les
-    /// traits du numéro de la ligne à sa droite. false s'il faut s'arrêter.
-    bool measure_line(session::Session &session, float k, float smooth_time, const Params &params, const pattern::Lines &lines, uint8_t index, Waveform *wave,
-        BlockResult &result, FILE *csv) {
-        const Profile prof = profile(params);
-        const float ls = prof.v_lo * params.slow_s, lf = prof.v_hi * params.fast_s;
-        const float e_mm = pattern::e_per_mm(params.bead);
-        const float z = params.bead.height;
-        const float y = lines.y(index);
-
-        // Buse au départ de la ligne, posée à hauteur de couche (déplacement levé, rétraction)
-        if (!session.travel_to(lines.x0, y, z)) {
-            return false;
-        }
-        planner.synchronize();
-        if (must_stop()) {
-            return false;
-        }
-        pressure_advance::set_axis_e_config({ .pressure_advance = k, .smooth_time = smooth_time });
-
-        // Cellule en haute précision (320 Hz, sans le canal du capteur de filament) le temps de la ligne seulement
-        {
-            Loadcell::HighPrecisionEnabler high_precision(loadcell);
-            if (!wait_ms(250)) {
-                return false;
-            }
-            force_probe::start();
-            ScopeGuard stop_probe = [] { force_probe::stop(); };
-            if (!wait_ms(150)) { // tête arrêtée : zéro de la force
-                return false;
-            }
-            float x = lines.x0;
-            const auto segment = [&](float length, float speed) {
-                x += length;
-                return session.print_to(x, y, e_mm, speed);
-            };
-            if (!segment(ls, prof.v_lo)) {
-                return false;
-            }
-            for (uint8_t c = 0; c < params.cycles; ++c) {
-                if (!segment(lf, prof.v_hi) || !segment(ls, prof.v_lo)) {
-                    return false;
-                }
-            }
-            if (!wait_moves() || !wait_ms(150)) {
-                return false;
-            }
-            force_probe::stop();
-            result = analyse_block(force_probe::trace(), force_probe::dt(), prof, wave);
-            if (csv) {
-                std::ignore = force_probe::write_csv(csv, k);
-            }
-        }
-
-        // Repères (grand motif seulement) : numéro de la ligne en traits vers l'arrière, un sur cinq plus long
+    /// Repères de la ligne index (grand motif seulement) : son numéro en traits vers l'arrière, à droite de la ligne, un
+    /// sur cinq plus long. false s'il faut s'arrêter.
+    bool print_marks(session::Session &session, const pattern::Lines &lines, uint8_t index, float e_mm, float z) {
         static std::array<pattern::Tick, max_lines> ticks; // hors de la pile de Marlin (une seule mesure à la fois)
         const size_t n = lines.marks > 0 ? pattern::tally(uint8_t(index + 1), ticks) : 0;
+        const float y = lines.y(index);
         const float x_ticks = lines.x0 + lines.length + pattern::tick_gap;
         for (size_t i = 0; i < n; ++i) {
             const float tx = x_ticks + ticks[i].dx;
@@ -294,6 +243,71 @@ namespace {
             if (!session.print_to(tx, y + ticks[i].length, e_mm, tick_speed) || !wait_moves()) {
                 return false;
             }
+        }
+        return true;
+    }
+
+    /// Une ligne du motif : PA = k, lancement lent puis cycles × (rapide, lent) le long de X, dans le sens de la ligne
+    /// (lines.dir()), trace analysée (vitesse en valeur absolue : les deux sens se lisent pareil). Repères à droite :
+    /// après une ligne vers +X, avant une ligne vers −X (la tête y est déjà). false s'il faut s'arrêter.
+    bool measure_line(session::Session &session, float k, float smooth_time, const Params &params, const pattern::Lines &lines, uint8_t index, Waveform *wave,
+        BlockResult &result, FILE *csv) {
+        const Profile prof = profile(params);
+        const float ls = prof.v_lo * params.slow_s, lf = prof.v_hi * params.fast_s;
+        const float e_mm = pattern::e_per_mm(params.bead);
+        const float z = params.bead.height;
+        const float y = lines.y(index);
+        const float dir = lines.dir(index);
+
+        if (lines.reversed(index) && !print_marks(session, lines, index, e_mm, z)) {
+            return false;
+        }
+        // Buse au départ de la ligne, posée à hauteur de couche (déplacement levé, rétraction)
+        if (!session.travel_to(lines.x_start(index), y, z)) {
+            return false;
+        }
+        planner.synchronize();
+        if (must_stop()) {
+            return false;
+        }
+        pressure_advance::set_axis_e_config({ .pressure_advance = k, .smooth_time = smooth_time });
+
+        // Cellule en haute précision (320 Hz, sans le canal du capteur de filament) le temps de la ligne seulement
+        {
+            Loadcell::HighPrecisionEnabler high_precision(loadcell);
+            if (!wait_ms(250)) {
+                return false;
+            }
+            force_probe::start();
+            ScopeGuard stop_probe = [] { force_probe::stop(); };
+            if (!wait_ms(150)) { // tête arrêtée : zéro de la force
+                return false;
+            }
+            float x = lines.x_start(index);
+            const auto segment = [&](float length, float speed) {
+                x += dir * length;
+                return session.print_to(x, y, e_mm, speed);
+            };
+            if (!segment(ls, prof.v_lo)) {
+                return false;
+            }
+            for (uint8_t c = 0; c < params.cycles; ++c) {
+                if (!segment(lf, prof.v_hi) || !segment(ls, prof.v_lo)) {
+                    return false;
+                }
+            }
+            if (!wait_moves() || !wait_ms(150)) {
+                return false;
+            }
+            force_probe::stop();
+            result = analyse_block(force_probe::trace(), force_probe::dt(), prof, wave);
+            if (csv) {
+                std::ignore = force_probe::write_csv(csv, k);
+            }
+        }
+
+        if (!lines.reversed(index) && !print_marks(session, lines, index, e_mm, z)) {
+            return false;
         }
         session.retract();
         return true;
@@ -562,9 +576,9 @@ namespace {
 
     // Départ rapide (F4-b) : la purge commence pendant la montée de la buse, les lignes attendent une température stable
     // (K dépend de la viscosité : mesurer pendant la montée le fausserait).
-    // shortcut: la table des matières de Prusa n'a pas de température minimale d'extrusion ; purge_below °C sous la
-    // consigne (le bas de la plage habituelle d'une matière). À remplacer si un minimum par matière apparaît.
-    constexpr float purge_below = 20.f;
+    // Purge à purge_below °C de la consigne : presque à la température des lignes (20 °C jusqu'à la 8.0.2.27 : PETG
+    // purgé à 223 °C pour des lignes à 230 °C, retour du 22/11) ; quelques secondes de plus seulement
+    constexpr float purge_below = 5.f;
     constexpr float stable_tolerance = 1.5f; ///< [°C]
     constexpr uint32_t stable_ms = 5000;
 

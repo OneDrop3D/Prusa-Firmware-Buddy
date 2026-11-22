@@ -55,6 +55,9 @@ public:
     /// Lit les métadonnées qui manquent, une fois la carte dessinée ; false s'il n'y avait rien à lire
     bool load_info();
 
+    /// Les métadonnées restent à lire sur la clé
+    bool needs_info() const { return info_pending; }
+
     Kind kind = Kind::none;
     uint8_t view_index = 0; ///< place dans la fenêtre de la liste (LazyDirView)
 
@@ -76,6 +79,12 @@ public:
 
     /// Demande le dessin de la vignette si elle manque ; false s'il n'y a rien à faire
     bool request_image();
+
+    /// Vignette demandée, lue au prochain dessin
+    bool requested() const { return image_requested; }
+
+    /// Vignette encore à lire (carte visible)
+    bool missing() const { return IsVisible() && !image_drawn; }
 
 protected:
     void unconditionalDraw() override;
@@ -133,6 +142,10 @@ private:
     void show(int new_first, FileTile &focus); ///< recharge à partir de new_first : cartes et barre seulement
     bool in_subfolder() const;
 
+    /// Une lecture de la clé (métadonnées, puis vignettes) si la molette et le toucher sont au repos ; le LOOP
+    /// suivant est avancé tant qu'il reste à lire : les cartes se complètent sans attendre 100 ms entre deux
+    void load_next();
+
     Header header;
     FileThumb thumbs[tiles_count];
     FileTile tiles[tiles_count];
@@ -140,6 +153,9 @@ private:
     TabBar tabs;
     LazyDirView<tiles_count> view;
     bool loaded = false;
+    bool ready_logged = false; ///< metric « ready » envoyée pour cette page
+    uint32_t last_input_ms = 0; ///< dernière molette, clic ou toucher
+    uint32_t shown_ms = 0; ///< page affichée (metric « ready »)
 
     // Gardés quand l'écran est recréé (retour d'« Avant l'impression ») ; remis à zéro à chaque ouverture
     static std::array<char, filename_defs::path_buffer_size> dir;
@@ -153,6 +169,9 @@ public:
 
     /// Demande le dessin de la vignette une fois la case affichée ; false s'il n'y a rien à faire
     bool request_image();
+
+    /// La case n'est pas encore dessinée : la vignette sera demandée au LOOP suivant
+    bool waiting() const { return !image_drawn && !image_requested; }
 
 protected:
     void unconditionalDraw() override;

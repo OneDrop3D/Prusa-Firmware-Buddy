@@ -15,12 +15,19 @@
 #include <gcode/gcode_reader_any.hpp>
 #include <gui/event/gui_event.hpp>
 #include <gui/event/knob_event.hpp>
+#include <gui.hpp>
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <lfn.h>
 #include <marlin_client.hpp>
 #include <media_state.hpp>
+#include <metric.h>
 #include <strings.h>
+#include <timing.h>
+
+// Durées des lectures de la clé, en ms (M331 od3d_files pour les activer) : dir = liste du dossier, info = métadonnées
+// d'un fichier, thumb = vignette, ready = de l'affichage de la page à sa dernière vignette
+METRIC_DEF(metric_od3d_files, "od3d_files", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
 
 namespace od3d {
 
@@ -184,6 +191,7 @@ FileInfo read_file_info(const char *path) {
         return *hit;
     }
     FileInfo info;
+    const uint32_t start_ms = ticks_ms();
     AnyGcodeFormatReader reader(path);
     if (!reader.is_open() || !reader->stream_metadata_start()) {
         return info; // pas gardé : la clé peut revenir
@@ -196,10 +204,12 @@ FileInfo read_file_info(const char *path) {
         }
     }
     info_cache.put(path, info);
+    metric_record_custom(&metric_od3d_files, " info=%ui", unsigned(ticks_diff(ticks_ms(), start_ms)));
     return info;
 }
 
 bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<ScaledQoiReader> &scaler, uint16_t grey_rows) {
+    const uint32_t start_ms = ticks_ms();
     AnyGcodeFormatReader gcode(path);
     if (!gcode.is_open()) {
         return false;
@@ -211,6 +221,7 @@ bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<
     scaler.emplace(*qoi, ScaledQoiReader::Params { .factor = factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back, .grey_rows = grey_rows });
     display::draw_img(point_ui16(box.Left() + (box.Width() - thumb_w / factor) / 2, box.Top() + (box.Height() - thumb_h / factor) / 2), *scaler);
     scaler.reset();
+    metric_record_custom(&metric_od3d_files, " thumb=%ui", unsigned(ticks_diff(ticks_ms(), start_ms)));
     return true;
 }
 
@@ -420,6 +431,8 @@ int ScreenFiles::item_count() const {
 
 void ScreenFiles::load() {
     loaded = true;
+    ready_logged = false;
+    shown_ms = ticks_ms();
     view.ChangeDirectory(dir.data(), FileSort::SortPolicy::BY_CRMOD_DATETIME);
     const int count = item_count();
     first = std::clamp(first, 0, std::max(0, count - 1)) / tiles_count * tiles_count;
@@ -442,6 +455,7 @@ void ScreenFiles::load() {
         thumbs[i].set_visible(kind != FileTile::Kind::none);
         thumbs[i].Invalidate();
     }
+    metric_record_custom(&metric_od3d_files, " dir=%ui,n=%ii", unsigned(ticks_diff(ticks_ms(), shown_ms)), count);
 
     // Une carte cachée ne garde pas le focus
     if (window_t *focused = get_focused_child_window(); !focused || !focused->IsVisible()) {
@@ -519,13 +533,23 @@ void ScreenFiles::unconditionalDraw() {
     }
 }
 
-void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) {
-    switch (event) {
-    case GUI_event_t::LOOP:
-        if (!loaded) {
-            load(); // si InitState n'a pas été appelé
+void ScreenFiles::load_next() {
+    const bool pending = std::ranges::any_of(tiles, &FileTile::needs_info) || std::ranges::any_of(thumbs, &FileThumb::missing);
+    if (!pending) {
+        if (!ready_logged) {
+            ready_logged = true;
+            metric_record_custom(&metric_od3d_files, " ready=%ui", unsigned(ticks_diff(ticks_ms(), shown_ms)));
         }
-        // Une lecture de la clé par LOOP : d'abord les lignes « durée · grammes » (courtes), puis les vignettes
+        return;
+    }
+    // La molette ou le toucher viennent de servir : la clé attend (chaque lecture bloque l'interface ~0,1 s)
+    constexpr int32_t input_pause_ms = 300;
+    if (ticks_diff(ticks_ms(), last_input_ms) < input_pause_ms) {
+        return;
+    }
+    // Une vignette demandée se lit au dessin qui suit : rien d'autre avant
+    if (std::ranges::none_of(thumbs, &FileThumb::requested)) {
+        // Une lecture par LOOP : d'abord les lignes « durée · grammes » (courtes), puis les vignettes
         if (std::ranges::none_of(tiles, [](FileTile &t) { return t.load_info(); })) {
             for (FileThumb &t : thumbs) {
                 if (t.request_image()) {
@@ -533,6 +557,23 @@ void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) 
                 }
             }
         }
+    }
+    // Le LOOP suivant tout de suite (après le dessin et les entrées), au lieu de 100 ms plus tard
+    gui_reset_loop_timer();
+}
+
+void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    switch (event) {
+    case GUI_event_t::LOOP:
+        if (!loaded) {
+            load(); // si InitState n'a pas été appelé
+        }
+        load_next();
+        break;
+    case GUI_event_t::KNOB:
+    case GUI_event_t::CLICK:
+    case GUI_event_t::TOUCH_CLICK:
+        last_input_ms = ticks_ms();
         break;
     case GUI_event_t::MEDIA:
         if (const auto state = MediaState_t(int(param)); state == MediaState_t::inserted || state == MediaState_t::removed) {
@@ -542,9 +583,11 @@ void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) 
         }
         break;
     case GUI_event_t::TOUCH_SWIPE_UP:
+        last_input_ms = ticks_ms();
         turn_page(1);
         return;
     case GUI_event_t::TOUCH_SWIPE_DOWN:
+        last_input_ms = ticks_ms();
         turn_page(-1);
         return;
     default:
@@ -718,7 +761,10 @@ void ScreenPreview::windowEvent(window_t *sender, GUI_event_t event, void *param
         update_buttons();
     }
     if (event == GUI_event_t::LOOP) {
-        thumb.request_image(); // après le premier dessin de l'écran
+        // Après le premier dessin de l'écran ; d'ici là, le LOOP suivant vient tout de suite (pas 100 ms plus tard)
+        if (!thumb.request_image() && thumb.waiting()) {
+            gui_reset_loop_timer();
+        }
     }
     Screen::windowEvent(sender, event, param);
 }

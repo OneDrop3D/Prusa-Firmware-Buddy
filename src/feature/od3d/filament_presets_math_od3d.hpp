@@ -43,7 +43,8 @@ struct Override {
 
 /// Valeurs de Prusa avec les modifications ; la chambre reste dans l'ordre min ≤ cible ≤ max (une mise à jour de
 /// Prusa pourrait déplacer une borne non modifiée)
-constexpr Values apply(Values v, const Override &o) {
+/// (pas « apply » : avec un std::array, la recherche dépendante des arguments trouverait std::apply)
+constexpr Values merged(Values v, const Override &o) {
     for (uint8_t f = 0; f < field_count; ++f) {
         if (o.values[f] != none) {
             v[f] = (f >= chamber_target && o.values[f] == 0) ? none : o.values[f];

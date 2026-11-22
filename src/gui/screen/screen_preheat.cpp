@@ -410,9 +410,6 @@ void abort_preheat() {
 
 ScreenPreheat::ScreenPreheat()
     : ScreenFSM(nullptr, preheat_inner_rect, abort_preheat) {
-    SetBackColor(od3d::style::screen);
-    inner_frame.SetBackColor(od3d::style::screen);
-    inner_frame.gaps_only = true;
     od3d::chrome::gap_screen(this);
     create_frame();
 }
@@ -469,6 +466,8 @@ void ScreenPreheat::screenEvent(window_t *sender, GUI_event_t event, void *param
 }
 
 void ScreenPreheat::create_frame() {
+    // OneDrop3D (interface G) : la liste G se peint d'une passe ; les cadres de Prusa (OpenPrintTag) gardent leur fond
+    inner_frame.gaps_only = get_phase() == PhasesPreheat::user_temp_selection;
     Frames::create_frame(frame_storage, get_phase(), &inner_frame);
 }
 

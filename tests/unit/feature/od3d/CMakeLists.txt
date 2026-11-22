@@ -129,7 +129,7 @@ add_executable(
   )
 target_include_directories(
   spinner_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/common ${CMAKE_SOURCE_DIR}/src/guiapi/include
-                            ${CMAKE_SOURCE_DIR}/include
+                            ${CMAKE_SOURCE_DIR}/src/lang ${CMAKE_SOURCE_DIR}/include
   )
 target_link_libraries(spinner_od3d_tests buddy_utils byte_utils)
 add_catch_test(spinner_od3d_tests)

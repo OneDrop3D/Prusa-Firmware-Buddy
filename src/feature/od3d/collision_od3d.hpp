@@ -3,6 +3,9 @@
 ///
 /// Détection (collision_math_od3d.hpp) : impulsions de force de la cellule de charge, répétées au même endroit.
 /// L'accéléromètre de la buse, s'il est branché et répond, confirme un choc (il compte double) ; il n'est jamais requis.
+/// Il est vérifié une seule fois, au départ de l'impression (od3d::accel::ready(), ACC-1 : moins de 0,3 s, tête à
+/// l'arrêt, planificateur vide) ; ensuite l'interruption ne fait que lire la file du poller de Prusa, toujours actif,
+/// et jamais quand une mesure l'a emprunté. Pas pendant l'essai à la buse froide.
 ///
 /// Branchement :
 /// - interruption de la cellule (Loadcell::ProcessSample, au même endroit que force_probe) : quelques calculs en
@@ -57,6 +60,10 @@ void on_loadcell_sample(uint32_t time_us, float up_g, float x, float y, float z,
 
 /// À chaque tour de boucle de Marlin
 void step();
+
+/// Départ d'une impression (état PrintInit : boucle extérieure, rien dans le planificateur) : les chocs d'avant sont
+/// oubliés ; fonction active : accéléromètre vérifié pour toute l'impression
+void on_print_start();
 
 // ---- Interface ----
 

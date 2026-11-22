@@ -86,7 +86,7 @@ public:
     }
 
 protected:
-    window_frame_t inner_frame;
+    od3d::GapFrame inner_frame; ///< OneDrop3D (interface G) : peut ne peindre que le fond entre ses fenêtres
     FrameStorage frame_storage;
     fsm::BaseData fsm_base_data;
 
@@ -98,9 +98,11 @@ protected:
 class ScreenFSM : public WindowFSM<screen_t, 2016> {
 
 public:
-    ScreenFSM(const char *header_txt, Rect16 inner_frame_rect = GuiDefaults::RectScreenNoHeader)
+    /// back_action (OneDrop3D, interface G) : en-tête G normal, avec un retour qui fait back_action (le contenu commence
+    /// alors sous son trait, à style::header_line.Bottom() + 1) ; sans, l'en-tête compact sans retour
+    ScreenFSM(const char *header_txt, Rect16 inner_frame_rect = GuiDefaults::RectScreenNoHeader, od3d::Card::Action back_action = nullptr)
         : WindowFSM(inner_frame_rect)
-        , header { this, _(header_txt), false, true } {}
+        , header { this, _(header_txt), back_action != nullptr, back_action == nullptr, back_action } {}
 
     virtual void InitState(screen_init_variant var) override {
         if (auto fsm_base_data = var.GetFsmBaseData()) {

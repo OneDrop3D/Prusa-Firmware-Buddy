@@ -13,6 +13,7 @@
 #include <ScreenFactory.hpp>
 #include <ScreenHandler.hpp>
 #include <screen.hpp>
+#include <text_roll.hpp>
 #include <window_icon.hpp>
 #include <window_text.hpp>
 
@@ -60,6 +61,21 @@ void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, 
 /// Fond de frame entre ses fenêtres normales visibles (first à last), qui repeignent chacune tout leur rect
 void fill_background(const window_t &frame, window_t *first, window_t *last);
 
+/// Cadre dont gaps_only ne peint que le fond entre ses fenêtres (qui repeignent chacune tout leur rect) : un écran
+/// apparaît d'une passe, sans être d'abord effacé ; sinon comme window_frame_t (tout le fond, puis les fenêtres)
+class GapFrame : public window_frame_t {
+public:
+    using window_frame_t::window_frame_t;
+    bool gaps_only = false;
+
+protected:
+    void unconditionalDraw() override;
+};
+
+/// Anneau d'attente (spinner_od3d.hpp) de bord w dans le carré box, au fond bg, l'arc à la position step : tout, ou
+/// seulement ce qui a changé depuis la position from (les deux bouts de l'arc)
+void draw_spinner(Rect16 box, uint8_t w, uint8_t step, Color bg, std::optional<uint8_t> from = std::nullopt);
+
 // ---- Navigation ----
 
 /// Ouvre un écran par-dessus l'écran courant
@@ -84,6 +100,37 @@ void open_files();
 /// Aperçu des températures (screen_temperatures_od3d.hpp)
 void open_temperatures();
 
+// ---- Changement d'écran ----
+
+/// Éléments fixes (retour, températures, onglets) d'un écran G au suivant : chaque écran a les siens, mais celui qui
+/// est déjà à l'écran tel quel (même position, même état), laissé par l'écran d'avant, n'est pas repeint. L'en-tête et
+/// les onglets ne clignotent plus à chaque page, et il y a moins à dessiner.
+namespace chrome {
+    enum class Slot : uint8_t {
+        back,
+        temps,
+        tab0, ///< puis un par onglet
+        count = tab0 + 4,
+    };
+
+    /// Un écran (pas un dialogue) qui ne peint que le fond entre ses éléments s'annonce à sa construction : seuls ses
+    /// éléments peuvent s'épargner un dessin
+    void gap_screen(const window_t *screen);
+
+    /// À chaque dessin d'un élément fixe (parent : son écran) : true si c'est son premier dessin et que l'écran le montre
+    /// déjà tel quel (clé identique) : rien à peindre. Note ce qui est à l'écran.
+    bool kept(Slot slot, uint64_t key, bool first, const window_t *parent);
+
+    /// L'élément va être repeint, caché ou couvert : l'écran ne le montre plus de façon sûre
+    void forget(Slot slot);
+    void forget_all();
+
+    /// ScreenHandler, à chaque changement d'écran : avant la destruction de l'ancien (ses éléments fixes restent à l'écran
+    /// pour le suivant s'il n'a ni dialogue ni zone à repeindre), puis avant la création du nouveau
+    void hand_over(window_frame_t &screen);
+    void next_screen();
+} // namespace chrome
+
 // ---- Écran ----
 
 /// Base de nos écrans : fond de la maquette, focus retrouvé au retour d'un sous-écran, appui long = retour
@@ -103,6 +150,23 @@ private:
 };
 
 // ---- Éléments ----
+
+/// Anneau d'attente G (« Patientez », opération sans avancement connu) à la place du sablier de Prusa : 25 images/s, et
+/// à chaque image seuls les deux bouts de l'arc sont repeints. Fond : celui du parent.
+class Spinner : public window_t {
+public:
+    static constexpr uint8_t size = 40;
+
+    Spinner(window_t *parent, point_i16_t at);
+
+protected:
+    void unconditionalDraw() override;
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+private:
+    txtroll_t tick; ///< tant qu'il en existe un, l'interface envoie TEXT_ROLL toutes les 40 ms : le rythme de l'anneau
+    std::optional<uint8_t> drawn; ///< position de l'arc à l'écran
+};
 
 /// Élément actif : corps arrondi, plus clair quand il a le focus (style::focused), action au clic ou au toucher.
 /// Son rect comprend une marge de 2 px : le créer avec style::with_ring(corps).
@@ -132,6 +196,7 @@ protected:
     Color body_color;
     Color back;
     uint8_t radius;
+    bool first_draw = true; ///< pour chrome::kept()
 };
 
 /// Bouton « icône au centre », avec un libellé dessous s'il en a un (retour de l'en-tête, « MMU > »)
@@ -185,6 +250,8 @@ public:
 protected:
     void draw_content(Rect16 body) override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+    void unconditionalDraw() override; ///< chrome::kept()
+    void invalidate(Rect16 rect) override; ///< chrome::forget()
 
 private:
     Temps temps;
@@ -226,20 +293,28 @@ protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 };
 
-/// Retour de l'en-tête : disque de 32 px, zone tactile style::back_touch (46 × 44)
+/// Retour de l'en-tête : disque de 32 px, zone tactile style::back_touch (46 × 44). Un balayage horizontal
+/// (gesture_od3d.hpp : 60 px en moins de 600 ms, dans un sens ou dans l'autre) fait la même chose, s'il est visible : sous un dialogue (éditeur de valeur, question, dialogue
+/// d'une machine à états), le balayage ne va qu'au dialogue et ne l'atteint pas.
 class BackButton : public IconButton {
 public:
     /// action : retour à l'écran précédent sans action donnée (l'écran de progression s'en sert pour se réduire)
     explicit BackButton(window_t *parent, Action action = nullptr);
 
     Rect16 get_rect_for_touch() const override;
+
+protected:
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+    void unconditionalDraw() override; ///< chrome::kept()
+    void invalidate(Rect16 rect) override; ///< chrome::forget()
 };
 
 /// Pastille « Dynamic Island » (island_od3d.hpp), entre le titre et les températures, qu'elle raccourcit :
 /// - chargement réduit : anneau qui tourne, emplacement et avancement ; la toucher rouvre l'écran de progression ;
 /// - impression : anneau de progression et « 47 % », en couleur selon l'état ; la toucher ramène à l'écran Impression ;
 /// - préchauffage : icône de la buse et « 185/215° » ; la toucher ouvre l'aperçu des températures.
-/// Seul son contenu se redessine, et seulement quand ce qu'elle montre change (l'anneau qui tourne : 10 images/s).
+/// Seul son contenu se redessine, et seulement quand ce qu'elle montre change ; l'anneau qui tourne (10 images/s) ne
+/// repeint que les deux bouts de son arc.
 class IslandPill : public Card {
 public:
     IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short);
@@ -254,7 +329,8 @@ private:
     Rect16 title_full;
     Rect16 title_short;
     uint32_t drawn_key = 0; ///< ce qui est dessiné, résumé (face_key)
-    uint32_t last_spin_ms = 0;
+    std::optional<uint8_t> ring_drawn; ///< position de l'anneau qui tourne à l'écran
+    bool ring_only = false; ///< seul l'anneau a bougé : ses deux bouts sont repeints, pas le texte
 };
 
 /// Alerte non bloquante (RET-22 : une boîte de message ouverte pendant l'impression retardait les dialogues de Prusa) :
@@ -321,8 +397,10 @@ private:
 
     protected:
         void unconditionalDraw() override;
+        void invalidate(Rect16 rect) override; ///< chrome::forget()
 
     private:
+        chrome::Slot slot() const;
         const img::Resource &icon;
         string_view_utf8 label;
         bool active;

@@ -5,6 +5,7 @@
 #include <gui.hpp>
 #include <raii/auto_restore.hpp>
 #include <gui_invalidate.hpp>
+#include <gui/od3d/widgets_od3d.hpp> // OneDrop3D : chrome::next_screen()
 
 static const uint32_t MENU_TIMEOUT_MS = 30000;
 
@@ -297,9 +298,12 @@ void Screens::InnerLoop() {
         }
 
         /// without a reset screens does not behave correctly, because they occupy the same memory space as the new screen to be created
+        // OneDrop3D (interface G) : l'en-tête et les onglets laissés à l'écran par celui qui se ferme
         if (current) {
+            od3d::chrome::hand_over(*current);
             current.reset();
         }
+        od3d::chrome::next_screen();
 
         /// need to reset focused and capture ptr before calling current = creator();
         /// screen ctor can change those pointers

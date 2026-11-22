@@ -4,6 +4,7 @@
 #include "island_od3d.hpp"
 
 #include "print_info_od3d.hpp"
+#include "spinner_od3d.hpp"
 #include "thumbnail_od3d.hpp"
 
 #include <algorithm>
@@ -22,7 +23,6 @@
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
 #include <mmu2/mmu2_error_converter.h>
-#include <numbers>
 #include <option/has_anfc.h>
 #include <option/has_auto_retract.h>
 #include <option/has_extruder_fsensor.h>
@@ -50,8 +50,7 @@ namespace {
     constexpr uint16_t content_w = 388;
     constexpr int16_t text_x = 102; ///< titre et sous-titre, à droite de la bobine Ø44
     constexpr Rect16 mark_rect = { content_x, 56, 48, 48 }; ///< bobine Ø44 (46,58) ou icône d'erreur 48 × 48
-    constexpr uint8_t spinner_d = 44;
-    constexpr uint32_t spinner_turn_ms = 1600; ///< un tour (SPEC_G.md §3.4)
+    constexpr uint8_t spinner_d = 44; ///< anneau d'attente (spinner_od3d.hpp : un tour en 1,6 s, SPEC_G.md §3.4)
     constexpr uint8_t box_radius = style::radius_big; ///< coins de toutes nos grandes cartes
     constexpr Color veil = Color::from_raw(0x0C0C0D); ///< le fond × 0,45, pour ce qui se repeint autour du dialogue
 
@@ -447,34 +446,35 @@ void ScreenLoadUnload::SpoolMark::unconditionalDraw() {
         const img::Resource *icon = owner.notice_type == std::to_underlying(ErrType::ERROR) ? &img::error_48x48
             : (owner.notice_type == std::to_underlying(ErrType::WARNING) ? &img::warning_48x48 : &img::info_48x48);
         draw_icon({ r.Left(), r.Top() }, *icon, style::surface);
+        drawn = std::nullopt;
         return;
     }
-    // Bobine Ø44, 2 px sous le haut de la case de 48 px, ou anneau de 4 px dont le quart orange tourne (un tour en 1,6 s) :
-    // une image d'une passe, la case n'est plus effacée avant chaque image (10 par seconde, elle clignotait)
+    // Bobine Ø44, 2 px sous le haut de la case de 48 px, ou anneau d'attente de 4 px (spinner_od3d.hpp)
     if (owner.request) {
         const spool::Disc disc(Slot::read(owner.request->slot).look, spinner_d);
         draw_pixels(r, [&](int x, int y) { return disc.pixel(x, y - 2).value_or(style::surface); });
+        drawn = std::nullopt;
         return;
     }
-    const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % spinner_turn_ms) / spinner_turn_ms;
-    constexpr int outer = spinner_d * spinner_d; // distances en demi-pixels, comme spool::Disc
-    constexpr int inner = (spinner_d - 8) * (spinner_d - 8);
-    draw_pixels(r, [&](int x, int y) {
-        const int dx = 2 * x + 1 - spinner_d, dy = 2 * (y - 2) + 1 - spinner_d, q = dx * dx + dy * dy;
-        if (x >= spinner_d || q >= outer || q < inner) {
-            return style::surface;
-        }
-        float a = std::atan2(float(dx), float(-dy)) - start; // 0 = en haut, sens horaire
-        while (a < 0) {
-            a += 2 * std::numbers::pi_v<float>;
-        }
-        return a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
-    });
+    // Case entière à l'ouverture ou après autre chose ; ensuite, 25 fois par seconde, les deux bouts de l'arc seulement
+    if (!HasValidBackground() || !drawn) {
+        display::fill_rect(Rect16(r.Left(), r.Top(), r.Width(), 2), style::surface);
+        display::fill_rect(Rect16(r.Left(), r.Top() + 2 + spinner_d, r.Width(), r.Height() - 2 - spinner_d), style::surface);
+        display::fill_rect(Rect16(r.Left() + spinner_d, r.Top() + 2, r.Width() - spinner_d, spinner_d), style::surface);
+        drawn = std::nullopt;
+    }
+    const uint8_t step = spinner::step_at(ticks_ms());
+    draw_spinner(Rect16(r.Left(), r.Top() + 2, spinner_d, spinner_d), 4, step, style::surface, drawn);
+    drawn = step;
 }
 
 void ScreenLoadUnload::SpoolMark::windowEvent(window_t *sender, GUI_event_t event, void *param) {
-    if (event == GUI_event_t::LOOP && spinning()) {
+    if (event == GUI_event_t::TEXT_ROLL && spinning() && drawn != spinner::step_at(ticks_ms())) {
+        const bool background_valid = HasValidBackground(); // comme Card::invalidate_content : l'arc seul
         Invalidate();
+        if (background_valid) {
+            ValidateBackground();
+        }
     }
     window_t::windowEvent(sender, event, param);
 }

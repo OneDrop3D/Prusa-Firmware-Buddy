@@ -409,7 +409,7 @@ void IWindowMenu::windowEvent(window_t *sender, GUI_event_t event, void *param) 
             break;
 
         case Reason::forward_focus_chain:
-            move_focus_to_index(0, gui_event::FocusInEvent::Reason::forward_focus_chain);
+            move_focus_to_index(first_index_, gui_event::FocusInEvent::Reason::forward_focus_chain); // OneDrop3D : « Retour » masqué
             break;
 
         case Reason::reverse_focus_chain:

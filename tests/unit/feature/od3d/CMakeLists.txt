@@ -116,3 +116,20 @@ add_catch_test(lookahead_od3d_tests)
 add_executable(island_face_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/island_face_test.cpp)
 target_include_directories(island_face_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(island_face_od3d_tests)
+
+add_executable(gesture_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/gesture_od3d_test.cpp)
+target_include_directories(
+  gesture_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/common ${CMAKE_SOURCE_DIR}/src/guiapi/include
+  )
+add_catch_test(gesture_od3d_tests)
+
+add_executable(
+  spinner_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/spinner_od3d_test.cpp ${CMAKE_SOURCE_DIR}/src/gui/od3d/spinner_od3d.cpp
+                     ${CMAKE_SOURCE_DIR}/src/common/utils/color.cpp ${CMAKE_SOURCE_DIR}/src/common/str_utils.cpp
+  )
+target_include_directories(
+  spinner_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/common ${CMAKE_SOURCE_DIR}/src/guiapi/include
+                            ${CMAKE_SOURCE_DIR}/include
+  )
+target_link_libraries(spinner_od3d_tests buddy_utils byte_utils)
+add_catch_test(spinner_od3d_tests)

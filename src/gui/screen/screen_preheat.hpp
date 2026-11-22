@@ -30,6 +30,9 @@ protected:
 
 protected:
     void screenEvent(window_t *, GUI_event_t event, void *) override;
+    void unconditionalDraw() override; ///< OneDrop3D (interface G) : le fond seulement entre l'en-tête et la liste
+
+    bool can_return = false; ///< OneDrop3D (interface G) : le retour de l'en-tête (et l'appui long) répond « Abort »
 
     void create_frame();
     void destroy_frame();

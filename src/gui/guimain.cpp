@@ -227,7 +227,21 @@ void gui_run(void) {
     gui_init();
 
     gui::knob::RegisterHeldLeftAction(TakeAScreenshot);
-    gui::knob::RegisterLongPressScreenAction([]() { Screens::Access()->Open(ScreenFactory::Screen<ScreenMoveZ>); });
+    gui::knob::RegisterLongPressScreenAction([]() {
+        // OneDrop3D (interface G) : l'appui long est le retour dans les menus qui l'ont (Réglages, Infos, Système…) ; sur
+        // l'accueil seulement, il ouvre toujours Déplacer Z, comme chez Prusa
+        Screens &screens = *Screens::Access();
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+        const bool home = screens.IsScreenOpened<od3d::ScreenHome>() || screens.IsScreenOpened<screen_home_data_t>();
+#else
+        const bool home = screens.IsScreenOpened<screen_home_data_t>();
+#endif
+        if (home) {
+            screens.Open(ScreenFactory::Screen<ScreenMoveZ>);
+        } else if (!screens.Get()->GetFirstDialog()) {
+            screens.close_screen();
+        }
+    });
 
     init_screens();
 

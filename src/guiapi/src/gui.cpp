@@ -147,7 +147,7 @@ void gui_redraw(void) {
     }
 
     bool should_sleep = true;
-    if (gui_invalid) {
+    if (gui_invalid && !Screens::Access()->is_change_pending()) { // OneDrop3D : pas de dessin de l'écran qui se ferme
         if (gui_redraw_timer.check(now)) {
             Screens::Access()->Draw();
             gui_invalid = false;

@@ -19,12 +19,16 @@ inline constexpr Rect16 list_rect = { style::margin, style::top, 470, 200 };
 static_assert(style::inside(style::content, list_rect));
 
 /// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible.
-/// has_back = false dans un dialogue : le retour de l'en-tête fermerait l'écran dessous.
+/// has_back = false dans un dialogue : le retour de l'en-tête fermerait l'écran dessous. back_action : ce que fait le
+/// retour (et le balayage), à la place de la fermeture de l'écran (machine à états : la réponse « Retour »).
 class MenuHeader {
 public:
-    MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true, bool compact = false);
+    MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true, bool compact = false, Card::Action back_action = nullptr);
 
     void SetText(const string_view_utf8 &title);
+    void show_back(bool show) {
+        header.show_back(show);
+    }
     void SetIcon(const img::Resource *) {} ///< pas d'icône dans l'en-tête G
     void set_show_bed_info(bool) {} ///< écrans FSM de Prusa : l'en-tête G a déjà les températures
 

@@ -9,13 +9,14 @@
 
 #include "selftest_frame.hpp"
 #include "window_icon.hpp"
+#include <gui/od3d/widgets_od3d.hpp>
 #include "window_wizard_progress.hpp"
 #include "status_footer.hpp"
 
 class SelftestFrameCalibZ : public SelftestFrameNamed {
     window_wizard_line_t line;
 
-    window_icon_hourglass_t animation;
+    od3d::Spinner animation; ///< OneDrop3D (interface G) : anneau d'attente à la place du sablier
 
     window_text_t text_info;
 

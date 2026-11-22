@@ -126,4 +126,5 @@ private:
     };
     GestureRecognitionState gesture_recognition_state_ = GestureRecognitionState::idle;
     point_ui16_t gesture_start_pos_;
+    uint32_t gesture_start_ms_ = 0; ///< OneDrop3D : durée du contact, pour le balayage
 };

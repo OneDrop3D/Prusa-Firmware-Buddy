@@ -31,6 +31,9 @@ protected:
     {
         // Do NOT work with i_menu here, it is not yet constructed!
         SetBackColor(od3d::style::screen); // OneDrop3D (interface G) : fond de la maquette
+        if (!parent) {
+            od3d::chrome::gap_screen(this); // OneDrop3D : l'en-tête et les onglets de l'écran d'avant peuvent rester
+        }
     }
 
     /// OneDrop3D (interface G) : appui long = retour

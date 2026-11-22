@@ -5,6 +5,7 @@
 #include <gui/frame_qr_layout.hpp>
 #include <gui/frame_calibration_common.hpp>
 #include <img_resources.hpp>
+#include <gui/od3d/widgets_od3d.hpp>
 #include <option/has_attachable_accelerometer.h>
 
 static ScreenInputShaperCalibration *instance = nullptr;
@@ -93,7 +94,7 @@ private:
 class FrameParking final {
 private:
     window_text_t text;
-    window_icon_hourglass_t spinner;
+    od3d::Spinner spinner; ///< OneDrop3D (interface G) : anneau d'attente à la place du sablier
 
 public:
     explicit FrameParking(window_t *parent)

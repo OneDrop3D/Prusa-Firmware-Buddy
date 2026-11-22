@@ -21,8 +21,10 @@ namespace {
     constexpr Rect16 card_rect = { style::margin, style::top, 184, 128 };
     constexpr Rect16 graph_rect = { 200, style::top, 272, 128 };
     constexpr Rect16 note_rect = { style::margin, 180, 464, 16 };
-    constexpr Rect16 wins_body = { style::margin, 202, 228, 30 };
-    constexpr Rect16 lines_body = { 244, 202, 228, 30 };
+    // Rangée du milieu, en petite police : « PA imprimante : oui » (19 caractères de 9 px), motif, « Meilleure ligne »
+    constexpr Rect16 wins_body = { style::margin, 202, 184, 30 };
+    constexpr Rect16 pattern_body = { 200, 202, 96, 30 };
+    constexpr Rect16 lines_body = { 304, 202, 168, 30 };
     // Rangée du bas : trois boutons de 148 px
     constexpr Rect16 measure_body = { style::margin, 238, 148, 34 };
     constexpr Rect16 second_body = { 166, 238, 148, 34 };
@@ -31,9 +33,12 @@ namespace {
     static_assert(style::with_ring(wins_body).Bottom() < style::with_ring(measure_body).Top());
     static_assert(style::inside(style::content, style::with_ring(calib_body)) && style::inside(style::content, graph_rect));
     static_assert(style::with_ring(measure_body).Right() < style::with_ring(second_body).Left() && style::with_ring(second_body).Right() < style::with_ring(calib_body).Left());
+    static_assert(style::with_ring(wins_body).Right() < style::with_ring(pattern_body).Left() && style::with_ring(pattern_body).Right() < style::with_ring(lines_body).Left());
+    static_assert(style::inside(style::content, style::with_ring(lines_body)));
 
     enum Tag : uint8_t {
         tag_wins,
+        tag_pattern,
         tag_lines,
         tag_measure,
         tag_second,
@@ -249,6 +254,7 @@ ScreenPa::ScreenPa(uint8_t slot)
     , graph(this, graph_rect, slot)
     , note(this, note_rect, is_multiline::no)
     , wins(this, wins_body, tag_wins, Button::Look::secondary, {}, nullptr, style::screen)
+    , pattern(this, pattern_body, tag_pattern, Button::Look::secondary, {}, nullptr, style::screen)
     , lines(this, lines_body, tag_lines, Button::Look::secondary, _("Best line"), nullptr, style::screen)
     , measure_button(this, measure_body, tag_measure, Button::Look::primary, _("Measure"), &img::nozzle_16x16, style::screen)
     , second(this, second_body, tag_second, Button::Look::outline, _("Clear"), nullptr, style::screen)
@@ -259,6 +265,9 @@ ScreenPa::ScreenPa(uint8_t slot)
     note.SetTextColor(style::text_soft);
     note.SetBackColor(style::screen);
     note.SetPadding({ 0, 0, 0, 0 });
+    for (Button *b : { &wins, &pattern, &lines }) {
+        b->set_font(Font::small);
+    }
     shown = pa::status();
     shown_running = pa::is_running();
     shown_runs = pa::run_count();
@@ -275,6 +284,7 @@ ScreenPa::ScreenPa(uint8_t slot)
 void ScreenPa::show_toggles() {
     const bool on = pa::printer_wins();
     wins.set(on ? Button::Look::selected : Button::Look::secondary, on ? _("Printer PA: on") : _("Printer PA: off"));
+    pattern.set(Button::Look::secondary, pa::large_pattern() ? _("Large") : _("Compact"));
 }
 
 void ScreenPa::show_note() {
@@ -382,6 +392,7 @@ void ScreenPa::update() {
     }
     second.enable(busy || pa::record(slot).has_k());
     wins.enable(true);
+    pattern.enable(!busy); // la mesure en cours garde son motif
     lines.enable(has_lines(slot));
     calib.enable(true); // on y regarde les valeurs même pendant une mesure ou une impression
 
@@ -403,14 +414,17 @@ void ScreenPa::measure() {
         MsgBoxWarning(_("Load this spool into the nozzle to measure it."), Responses_Ok);
         return;
     }
+    const bool large = pa::large_pattern();
     const string_view_utf8 question = loaded(slot)
-        ? _("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?")
-        : _("Clean sheet in place, front of the bed free? This spool is loaded into the nozzle, the bed heats up, its front is probed, then one test line per K is printed there (8 to 12 min). Start?");
+        ? (large ? _("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?")
+                 : _("Clean sheet in place, front of the bed free? The bed heats up while homing, its front is probed, then 4 to 8 short test lines are printed there (4 to 6 min). Start?"))
+        : (large ? _("Clean sheet in place, front of the bed free? This spool is loaded into the nozzle, the bed heats up, its front is probed, then one test line per K is printed there (8 to 12 min). Start?")
+                 : _("Clean sheet in place, front of the bed free? This spool is loaded into the nozzle while the bed heats up, its front is probed, then 4 to 8 short test lines are printed there (6 to 8 min). Start?"));
     if (MsgBoxQuestion(question, Responses_YesNo) != Response::Yes) {
         return;
     }
     char gcode[24];
-    snprintf(gcode, sizeof(gcode), "M1994 P%u O%u", unsigned(slot), csv_on ? 1u : 0u);
+    snprintf(gcode, sizeof(gcode), "M1994 P%u V%u O%u", unsigned(slot), large ? 0u : 1u, csv_on ? 1u : 0u);
     const uint16_t before = pa::run_count();
     if (marlin_client::gcode_try(gcode) == marlin_client::GcodeTryResult::Submitted) {
         runs_at_request = before;
@@ -437,6 +451,10 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             pa::set_printer_wins(!pa::printer_wins());
             show_toggles();
             card.Invalidate(); // « PA à mesurer » suit le réglage
+            break;
+        case tag_pattern:
+            pa::set_large_pattern(!pa::large_pattern());
+            show_toggles();
             break;
         case tag_lines:
             if (has_lines(slot)) {
@@ -478,7 +496,9 @@ ScreenPaLines::ScreenPaLines(uint8_t slot)
     : Screen(true)
     , slot(slot)
     , header(this, _("Slot %d · Best line").formatted(title_params, slot + 1), true)
-    , help(this, lines_help_rect, is_multiline::yes, is_closed_on_click_t::no, _("Line 1 is at the front; count the ticks right of each line (long tick = 5). Pick the line with the most even width."))
+    , help(this, lines_help_rect, is_multiline::yes, is_closed_on_click_t::no,
+          pa::last_run().compact ? _("Line 1 is at the front; lines follow the test order, not K (see each button). Pick the line with the most even width.")
+                                 : _("Line 1 is at the front; count the ticks right of each line (long tick = 5). Pick the line with the most even width."))
     , buttons { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 }, { this, 4 }, { this, 5 }, { this, 6 }, { this, 7 }, { this, 8 }, { this, 9 }, { this, 10 }, { this, 11 }, { this, 12 }, { this, 13 }, { this, 14 } }
     , tabs(this, TabBar::Tab::workshop) {
     static_assert(pa::max_lines == 15, "une entrée de buttons par ligne");

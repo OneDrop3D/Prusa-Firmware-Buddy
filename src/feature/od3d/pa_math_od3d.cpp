@@ -433,6 +433,128 @@ size_t refine_values(float center, float step, uint8_t count, float lo, float hi
     return n;
 }
 
+void make_compact(Request &rq) {
+    rq.compact = true;
+    rq.refine = 0;
+    rq.pitch = compact_pitch;
+    rq.params.cycles = 2;
+    rq.params.slow_s = 0.6f;
+    rq.params.fast_s = 0.25f;
+}
+
+namespace {
+
+    bool usable(const SweepPoint &p, const Thresholds &th) {
+        return p.r.valid() && std::fabs(p.r.amplitude_g) >= th.min_amplitude_g && p.r.noise <= th.max_noise;
+    }
+
+    bool tested(std::span<const SweepPoint> done, float k) {
+        return std::any_of(done.begin(), done.end(), [k](const SweepPoint &p) { return std::fabs(p.k - k) < 1e-5f; });
+    }
+
+    bool in_range(const Search &s, float k) {
+        return k >= s.k_min - 1e-6f && k <= s.k_max + 1e-6f;
+    }
+
+    /// Sur la grille k_min + i·step, dans la plage, arrondi à 1e-4 (valeurs lisibles sur l'écran)
+    float snap(const Search &s, float k) {
+        const float last = std::floor((s.k_max - s.k_min) / s.step + 1e-3f);
+        const float i = std::clamp(std::round((k - s.k_min) / s.step), 0.f, last);
+        return std::round((s.k_min + i * s.step) * 1e4f) / 1e4f;
+    }
+
+    /// Balayage élargi : point de la grille pas encore imprimé le plus proche de center ; nullopt : grille faite
+    std::optional<float> nearest_untested(std::span<const SweepPoint> done, const Search &s, float center) {
+        std::optional<float> best;
+        for (int i = 0;; ++i) {
+            const float k = std::round((s.k_min + float(i) * s.step) * 1e4f) / 1e4f;
+            if (!in_range(s, k)) {
+                break;
+            }
+            if (!tested(done, k) && (!best || std::fabs(k - center) < std::fabs(*best - center))) {
+                best = k;
+            }
+        }
+        return best;
+    }
+
+    /// Étape adaptative : K de la ligne suivante, ou nullopt (fini, ou la montée ne sait plus : choose_k() tranche)
+    [[gnu::noinline]] std::optional<float> climb(std::span<const SweepPoint> done, const Search &s, const Thresholds &th) {
+        constexpr size_t max_points = 16;
+        std::array<float, max_points> ks, lags, costs;
+        size_t m = 0;
+        for (const SweepPoint &p : done) {
+            if (!usable(p, th) || m == max_points) {
+                return std::nullopt; // ligne trop faible : le retard ne dit plus où aller
+            }
+            ks[m] = p.k;
+            lags[m] = p.r.lag_s;
+            costs[m] = p.r.cost;
+            ++m;
+        }
+        for (size_t i = 1; i < m; ++i) { // tri par K (insertion : peu de points)
+            for (size_t j = i; j > 0 && ks[j] < ks[j - 1]; --j) {
+                std::swap(ks[j], ks[j - 1]);
+                std::swap(lags[j], lags[j - 1]);
+                std::swap(costs[j], costs[j - 1]);
+            }
+        }
+        size_t changes = 0, lo = 0;
+        for (size_t i = 1; i < m; ++i) {
+            if ((lags[i] < 0.f) != (lags[i - 1] < 0.f)) {
+                ++changes;
+                lo = i - 1;
+            }
+        }
+        if (changes == 0) {
+            // Pas encore encadré : un pas de plus du côté du bon K (bord de la plage : fini)
+            const float k = std::round((lags[0] >= 0.f ? ks[m - 1] + s.step : ks[0] - s.step) * 1e4f) / 1e4f;
+            return in_range(s, k) && !tested(done, k) ? std::optional(k) : std::nullopt;
+        }
+        const size_t hi = lo + 1;
+        if (changes > 1 || lags[lo] < 0.f) {
+            return std::nullopt; // retard non monotone, ou qui monte avec K : bruit ou signal faux
+        }
+        // Confirmation : une ligne au-delà de la moins bonne des deux qui encadrent
+        const bool low_worse = costs[lo] > costs[hi];
+        if (low_worse ? lo == 0 : hi + 1 == m) {
+            const float k = std::round((low_worse ? ks[lo] - s.step : ks[hi] + s.step) * 1e4f) / 1e4f;
+            if (in_range(s, k) && !tested(done, k)) {
+                return k;
+            }
+        }
+        // Affinage : le demi-pas dans l'encadrement
+        if (ks[hi] - ks[lo] > 0.75f * s.step) {
+            const float mid = std::round(0.5f * (ks[lo] + ks[hi]) * 1e4f) / 1e4f;
+            if (!tested(done, mid)) {
+                return mid;
+            }
+        }
+        return std::nullopt;
+    }
+
+} // namespace
+
+// Jamais incorporée au balayage : climb() et choose_k() ne sont jamais sur la pile en même temps
+[[gnu::noinline]] std::optional<float> next_k(std::span<const SweepPoint> done, const Search &s, const Thresholds &th) {
+    if (!(s.step > 0.f) || !(s.k_max >= s.k_min) || done.size() >= s.cap) {
+        return std::nullopt;
+    }
+    if (done.empty()) {
+        return snap(s, s.prior);
+    }
+    if (const auto k = climb(done, s, th)) {
+        return k;
+    }
+    const Choice c = choose_k(done, s.k_min, s.k_max, s.step, th);
+    if (c.fit == Fit::ok && c.confidence >= s.min_confidence) {
+        return std::nullopt;
+    }
+    // Pas assez sûr : balayage élargi autour du meilleur K connu
+    const bool has_k = c.fit == Fit::ok || c.fit == Fit::out_of_range;
+    return nearest_untested(done, s, has_k ? c.k : snap(s, s.prior));
+}
+
 float interpolate(std::span<const float> xs, std::span<const float> ys, float x) {
     const size_t n = std::min(xs.size(), ys.size());
     if (n == 0) {
@@ -544,11 +666,16 @@ namespace {
 
 } // namespace
 
-bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament) {
+bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament, int bed) {
     size_t n = 0;
-    bool ok = load_line(out, n, rq.slot, filament) && append(out, n, "\nM1994 P%u", unsigned(rq.slot));
+    // Le plateau chauffe pendant le chargement ; le motif est toujours dit (V), le réglage pourrait changer entre-temps
+    bool ok = (bed <= 0 || append(out, n, "M140 S%d\n", bed)) && load_line(out, n, rq.slot, filament)
+        && append(out, n, "\nM1994 P%u V%u", unsigned(rq.slot), unsigned(rq.compact));
     // Seuls les paramètres changés, pour une ligne courte
-    const Request d;
+    Request d;
+    if (rq.compact) {
+        make_compact(d);
+    }
     const auto real = [&](char c, float v, float def) {
         ok = ok && (v == def || append(out, n, " %c%.4f", c, double(v)));
     };

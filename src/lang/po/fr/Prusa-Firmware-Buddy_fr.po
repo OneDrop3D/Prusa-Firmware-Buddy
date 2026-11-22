@@ -11488,3 +11488,27 @@ msgstr "Patientez"
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "Spool not loaded: nothing measured."
 msgstr "Bobine non chargée : rien n'a été mesuré."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Compact"
+msgstr "Compact"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Large"
+msgstr "Grand"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Clean sheet in place, front of the bed free? The bed heats up while homing, its front is probed, then 4 to 8 short test lines are printed there (4 to 6 min). Start?"
+msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe pendant la prise d'origine, son avant est palpé, puis 4 à 8 courtes lignes de test y sont imprimées (4 à 6 min). Démarrer ?"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Clean sheet in place, front of the bed free? This spool is loaded into the nozzle while the bed heats up, its front is probed, then 4 to 8 short test lines are printed there (6 to 8 min). Start?"
+msgstr "Plaque propre en place, avant du plateau libre ? La bobine est chargée dans la buse pendant que le plateau chauffe, son avant est palpé, puis 4 à 8 courtes lignes de test y sont imprimées (6 à 8 min). Démarrer ?"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Line 1 is at the front; lines follow the test order, not K (see each button). Pick the line with the most even width."
+msgstr "La ligne 1 est devant ; les lignes suivent l'ordre des essais, pas K (voir chaque bouton). Choisissez la ligne la plus régulière."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Large PA pattern\nManual: numbered lines, pick by eye"
+msgstr "Grand motif PA\nManuel : lignes numérotées, choix à vue"

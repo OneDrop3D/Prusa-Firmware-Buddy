@@ -19,7 +19,7 @@
  *
  *    M1994 A
  *    M1994 P<slot> A1
- *    M1994 [P<slot>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [W<mm>] [Z<mm>] [C<n>] [T<C>] [Q<C>] [X<mm>] [Y<mm>] [I<mm>] [O<0|1>] [J1]
+ *    M1994 [P<slot>] [V<0|1>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [W<mm>] [Z<mm>] [C<n>] [T<C>] [Q<C>] [X<mm>] [Y<mm>] [I<mm>] [O<0|1>] [J1]
  *
  *#### Parameters
  *
@@ -30,6 +30,9 @@
  * - `P` - emplacement 0 à 4 ; s'il n'est pas dans la buse, « Charger dans la buse » de Prusa est mis en file (l'autre
  *   filament est déchargé) après l'origine si besoin et la position de chargement levée (G28 O I, G27 W2), suivi du
  *   même M1994 avec J1 ; sans P, l'emplacement chargé
+ * - `V` - motif : `V1` compact (lignes serrées sans repères, K cherché ligne après ligne, 8 lignes au plus ; ses
+ *   valeurs par défaut : C2, U0.6, D0.25, I2.5, R0), `V0` grand (balayage complet, repères) ; sans V, le réglage
+ *   « Grand motif PA » (compact par défaut)
  * - `J1` - chargement déjà tenté (mis par M1994 lui-même) : sans la bobine dans la buse, échec sans autre tentative
  * - `L`, `H`, `S` - balayage de K : de L à H par pas de S (0, 0,10, 0,02)
  * - `R` - lignes du second balayage au pas S/4 autour du premier choix (5 ; 0 : aucune) ; 15 lignes au plus en tout
@@ -41,8 +44,9 @@
  * - `X`, `Y`, `I` - début des lignes (X20), première ligne à l'avant (Y12), écart entre les lignes (5 mm)
  * - `O1` - écrit la trace et les résultats dans /usb/OD3D_PA<n>.CSV
  *
- * Plateau chauffé, origine, nivellement local de la zone du motif (comme le G-code de départ de la CORE One), buse à
- * la température de la matière, chargement de la bobine si besoin, ligne de purge au bord avant, puis une ligne imprimée par K à hauteur de première
+ * Plateau et buse chauffés ensemble, origine pendant que le plateau chauffe, nettoyage et nivellement local de la zone
+ * du motif une fois le plateau chaud (comme le G-code de départ de la CORE One), buse à la température de la matière
+ * (purge pendant la montée, lignes une fois stable), chargement de la bobine si besoin, ligne de purge au bord avant, puis une ligne imprimée par K à hauteur de première
  * couche, lente / rapide / lente, avec à sa droite des traits qui donnent son numéro. La force verticale de la cellule
  * de charge pendant les changements de vitesse donne le K (méthode inspirée de PrusaPATuner, réimplémentée), enregistré
  * pour l'emplacement ; l'écran permet aussi de choisir la meilleure ligne à l'œil. Refusé pendant une impression ;
@@ -58,6 +62,10 @@ void PrusaGcodeSuite::M1994() {
         return;
     }
     od3d::pa::Request rq;
+    // Le motif d'abord : ses valeurs par défaut, puis les paramètres donnés
+    if (parser.seen('V') ? parser.value_bool() : !od3d::pa::large_pattern()) {
+        od3d::pa::make_compact(rq);
+    }
     if (parser.seenval('P')) {
         rq.slot = parser.value_byte();
     } else if (const auto tool = VirtualToolIndex::currently_selected_opt()) {

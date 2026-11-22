@@ -464,6 +464,8 @@ struct CurrentStore
     /// OneDrop3D (F4) : « PA automatique » (od3d::pa::AutoMode : 0 désactivé, 1 à la 1re impression d'une bobine, 2 à
     /// chaque impression)
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D PA Auto")> od3d_pa_auto;
+    /// OneDrop3D (F4-b) : « Grand motif PA » en un clic (repères, choix à l'œil) ; false (par défaut) : motif compact
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D PA Large")> od3d_pa_large;
     /// OneDrop3D (F5, F6) : débit maximal et température minimale mesurés par emplacement, effacés au changement de bobine.
     StoreItemArray<od3d::calib::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Spool Calib"), 8, VirtualToolIndex::count> od3d_spool_calib;
     /// OneDrop3D (F5) : « limiter au débit mesuré » (coupé par défaut)

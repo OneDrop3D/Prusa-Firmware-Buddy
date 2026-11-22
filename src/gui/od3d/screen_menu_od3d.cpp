@@ -137,6 +137,14 @@ bool MI_PA_AUTO::on_item_selected(const OnItemSelectedArgs &args) {
     return true;
 }
 
+// Vaut dès la prochaine mesure en un clic (fiche de la bobine › PA, où le même réglage se change aussi)
+MI_PA_LARGE::MI_PA_LARGE()
+    : WI_ICON_SWITCH_OFF_ON_t(pa::large_pattern(), _("Large PA pattern\nManual: numbered lines, pick by eye"), &img::nozzle_16x16) {}
+
+void MI_PA_LARGE::OnChange(size_t) {
+    pa::set_large_pattern(value());
+}
+
 // ---- Limite de débit (F5) ----
 
 // Vaut dès maintenant pour l'emplacement chargé ; la mesure se lance depuis la fiche de la bobine (PA › Débit, temp.).

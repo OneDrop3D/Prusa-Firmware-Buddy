@@ -272,9 +272,9 @@ namespace {
             }
         }
 
-        // Repères : numéro de la ligne en traits vers l'arrière, un sur cinq plus long
+        // Repères (grand motif seulement) : numéro de la ligne en traits vers l'arrière, un sur cinq plus long
         static std::array<pattern::Tick, max_lines> ticks; // hors de la pile de Marlin (une seule mesure à la fois)
-        const size_t n = pattern::tally(uint8_t(index + 1), ticks);
+        const size_t n = lines.marks > 0 ? pattern::tally(uint8_t(index + 1), ticks) : 0;
         const float x_ticks = lines.x0 + lines.length + pattern::tick_gap;
         for (size_t i = 0; i < n; ++i) {
             const float tx = x_ticks + ticks[i].dx;
@@ -409,7 +409,7 @@ namespace {
         lines.y0 = y;
         lines.pitch = rq.pitch;
         lines.length = line_length(rq.params);
-        lines.marks = pattern::tally_width(count);
+        lines.marks = rq.compact ? 0.f : pattern::tally_width(count);
         lines.count = count;
         lines.bead = rq.params.bead;
         return lines;
@@ -422,23 +422,41 @@ namespace {
         return MMU2::mmu2.Enabled() && (code == Code::OK || code == Code::RUNNING);
     }
 
-    /// Balayage grossier puis fin autour du premier choix, une ligne par K dans l'ordre ; K enregistré s'il est sûr.
-    /// Buse chaude et purgée, lignes placées.
+    /// K de départ de la recherche (motif compact) : celui de l'emplacement, sinon celui d'un autre emplacement de la
+    /// même matière, sinon default_prior
+    float prior_k(uint8_t slot) {
+        if (const auto k = k_for_slot(slot)) {
+            return *k;
+        }
+        const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+        for (uint8_t other = 0; other < VirtualToolIndex::count; ++other) {
+            if (other != slot && FilamentType::for_tool(VirtualToolIndex::from_raw(other)) == type) {
+                if (const auto k = k_for_slot(other)) {
+                    return *k;
+                }
+            }
+        }
+        return default_prior;
+    }
+
+    /// Grand motif : balayage grossier puis fin autour du premier choix, une ligne par K dans l'ordre ; motif compact :
+    /// une ligne par K que demande next_k() (recherche adaptative). K enregistré s'il est sûr. Buse chaude et purgée,
+    /// lignes placées.
     Error sweep(session::Session &session, const Request &rq, const pattern::Lines &lines, FILE *csv) {
         // Hors de la pile de Marlin (une seule mesure à la fois)
         static std::array<float, LastRun::max_points> ks;
         static std::array<SweepPoint, LastRun::max_points> points;
         static Waveform wave;
         static std::array<float, 8> fine;
-        const size_t coarse = sweep_values(rq.k_min, rq.k_max, rq.k_step, std::span(ks.data(), ks.size() - 8));
         const float smooth_time = session.smooth_time();
         st_phase = Phase::measuring;
-        st_steps = lines.count;
+        st_steps = lines.count; // motif compact : au plus (la recherche s'arrête souvent avant)
         last = no_run;
         last.slot = rq.slot;
+        last.compact = rq.compact;
         size_t n = 0;
         float best_cost = INFINITY;
-        const auto run_line = [&](float k, bool first, bool keep_high) -> bool {
+        const auto run_line = [&](float k) -> bool {
             st_step = uint8_t(n + 1);
             st_k = k_to_e4(k);
             BlockResult r;
@@ -453,11 +471,12 @@ namespace {
             last.points = uint8_t(n);
             record_result(csv, k, r);
             if (r.valid()) {
-                if (first) {
+                // Courbes de l'écran : K le plus bas et le plus haut (lignes dans l'ordre des essais en compact)
+                if (last.low.step_s == 0 || k < last.k_low) {
                     last.low = wave;
                     last.k_low = k;
                 }
-                if (keep_high) {
+                if (last.high.step_s == 0 || k > last.k_high) {
                     last.high = wave;
                     last.k_high = k;
                 }
@@ -469,21 +488,33 @@ namespace {
             }
             return true;
         };
-        for (size_t i = 0; i < coarse; ++i) {
-            if (!run_line(ks[i], i == 0, i + 1 == coarse)) {
-                return Error::stopped;
-            }
-        }
-        Choice choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
-        if (choice.fit == Fit::ok && rq.refine > 0) {
-            const size_t m = refine_values(choice.k, rq.k_step / 4.f, rq.refine, 0.f, 1.f, fine);
-            st_steps = uint8_t(coarse + m);
-            for (size_t i = 0; i < m && n < lines.count; ++i) {
-                if (!run_line(fine[i], false, false)) {
+        Choice choice;
+        if (rq.compact) {
+            const Search search { .prior = prior_k(rq.slot), .k_min = rq.k_min, .k_max = rq.k_max, .step = rq.k_step, .cap = lines.count, .min_confidence = min_confidence };
+            while (const auto k = next_k(std::span(points.data(), n), search)) {
+                if (!run_line(*k)) {
                     return Error::stopped;
                 }
             }
             choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
+        } else {
+            const size_t coarse = sweep_values(rq.k_min, rq.k_max, rq.k_step, std::span(ks.data(), ks.size() - 8));
+            for (size_t i = 0; i < coarse; ++i) {
+                if (!run_line(ks[i])) {
+                    return Error::stopped;
+                }
+            }
+            choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
+            if (choice.fit == Fit::ok && rq.refine > 0) {
+                const size_t m = refine_values(choice.k, rq.k_step / 4.f, rq.refine, 0.f, 1.f, fine);
+                st_steps = uint8_t(coarse + m);
+                for (size_t i = 0; i < m && n < lines.count; ++i) {
+                    if (!run_line(fine[i])) {
+                        return Error::stopped;
+                    }
+                }
+                choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
+            }
         }
         last.choice = choice;
         const uint32_t stack_free = stack_free_min();
@@ -530,6 +561,60 @@ namespace {
         };
     }
 
+    // Départ rapide (F4-b) : la purge commence pendant la montée de la buse, les lignes attendent une température stable
+    // (K dépend de la viscosité : mesurer pendant la montée le fausserait).
+    // shortcut: la table des matières de Prusa n'a pas de température minimale d'extrusion ; purge_below °C sous la
+    // consigne (le bas de la plage habituelle d'une matière). À remplacer si un minimum par matière apparaît.
+    constexpr float purge_below = 20.f;
+    constexpr float stable_tolerance = 1.5f; ///< [°C]
+    constexpr uint32_t stable_ms = 5000;
+
+    /// Plateau et buse (température de palpage) chauffent ensemble ; origine dès la buse à sa température de palpage,
+    /// pendant que le plateau chauffe ; nettoyage de la buse et palpage de area une fois le plateau chaud. Comme le G-code
+    /// de départ de la CORE One (M140, M109 R170, G28, M190, G29 P9, G29 P1), sans la redescente de la buse à 100 °C.
+    Error prepare_bed(session::Session &session, const pattern::Rect &area, const Temperatures &t) {
+        thermalManager.setTargetBed(t.bed);
+        st_phase = Phase::bed;
+        session::Result r = session.heat(t.probe, 3.f, 1000, session::heat_timeout_ms, false);
+        if (r == session::Result::ok) {
+            st_phase = Phase::preparing;
+            r = session.home(t.probe);
+        }
+        if (r == session::Result::ok) {
+            st_phase = Phase::bed;
+            r = session.heat_bed(t.bed, t.probe);
+        }
+        if (r == session::Result::ok) {
+            st_phase = Phase::leveling;
+            r = session.level(area, t.probe);
+        }
+        return error_of(r);
+    }
+
+    /// Buse à sa consigne : au-dessus du départ de la purge pendant la montée, purge dès purge_below °C sous la
+    /// consigne, puis attente d'une température stable avant les lignes
+    Error heat_and_purge(session::Session &session, int16_t nozzle, float x, float y, float dir) {
+        st_phase = Phase::heating;
+        Hotend::for_tool(PhysicalToolIndex::from_raw(0)).set_nozzle_target_temp(nozzle); // la montée commence pendant le déplacement
+        if (const session::Result r = session.go_to_purge(x, y, dir); r != session::Result::ok) {
+            return error_of(r);
+        }
+        if (const session::Result r = session.heat(nozzle, purge_below, 0); r != session::Result::ok) {
+            return error_of(r);
+        }
+        st_phase = Phase::priming;
+        if (!session.purge(x, dir)) {
+            return Error::stopped;
+        }
+        // Buse levée, filament rétracté pendant l'attente : pas de goutte au bout de la purge
+        session.retract();
+        if (!session.move_z(session::hop)) {
+            return Error::stopped;
+        }
+        st_phase = Phase::heating;
+        return error_of(session.heat(nozzle, stable_tolerance, stable_ms));
+    }
+
 } // namespace
 
 void calibrate(const Request &rq, bool load_tried) {
@@ -553,7 +638,7 @@ void calibrate(const Request &rq, bool load_tried) {
     static std::array<float, LastRun::max_points> ks; // hors de la pile de Marlin
     const size_t coarse = sweep_values(rq.k_min, rq.k_max, rq.k_step, std::span(ks.data(), ks.size() - 8));
     if (rq.slot >= VirtualToolIndex::count || !is_valid(rq.params) || coarse < 3 || coarse + rq.refine > max_lines || rq.k_min < 0.f || rq.k_max > 1.f
-        || rq.refine > 8 || !(rq.pitch >= 3.f && rq.pitch <= 20.f) || !std::isfinite(rq.x) || !std::isfinite(rq.y)) {
+        || rq.refine > 8 || !(rq.pitch >= 2.f && rq.pitch <= 20.f) || !std::isfinite(rq.x) || !std::isfinite(rq.y)) {
         fail(Error::bad_request);
         return;
     }
@@ -584,9 +669,9 @@ void calibrate(const Request &rq, bool load_tried) {
     const Temperatures t = temperatures_for(material, rq.temperature, rq.bed_temperature);
     st_temperature = t.nozzle;
 
-    // Motif : une ligne par K (grossier + fin), de l'avant vers l'arrière, repères à droite ; il doit tenir dans la
-    // zone imprimable (bords du plateau et course)
-    const pattern::Lines lines = lines_for(rq, uint8_t(coarse + rq.refine), rq.x, rq.y);
+    // Motif : une ligne par K, de l'avant vers l'arrière (grand : grossier + fin, repères à droite ; compact : place
+    // pour compact_cap lignes) ; il doit tenir dans la zone imprimable (bords du plateau et course)
+    const pattern::Lines lines = lines_for(rq, rq.compact ? compact_cap : uint8_t(coarse + rq.refine), rq.x, rq.y);
     if (!session::printable_zone().contains(lines.area())) {
         fail(Error::no_room);
         return;
@@ -594,9 +679,9 @@ void calibrate(const Request &rq, bool load_tried) {
 
     if (!in_nozzle) {
         // Jamais le MMU depuis cette pile (débordement en 8.0.2.23) : « Charger dans la buse » de Prusa mis en file,
-        // puis cette mesure avec J1 ; M1994 rend la main
+        // puis cette mesure avec J1 ; M1994 rend la main. Le plateau chauffe pendant le chargement (F4-b).
         char filament[16];
-        if (!oneclick_sequence(sequence, rq, filament_param(rq.slot, filament)) || !inject_sequence()) {
+        if (!oneclick_sequence(sequence, rq, filament_param(rq.slot, filament), t.bed) || !inject_sequence()) {
             fail(Error::mmu);
             return;
         }
@@ -616,31 +701,14 @@ void calibrate(const Request &rq, bool load_tried) {
     session::Session session(stop_requested);
     fast_moves(rq.params);
 
-    // Plateau, puis origine et nivellement local de la zone du motif (buse à sa température de palpage)
-    st_phase = Phase::bed;
-    if (const session::Result r = session.heat_bed(t.bed, t.probe); r != session::Result::ok) {
-        fail(error_of(r));
+    // Plateau et buse ensemble, origine pendant que le plateau chauffe, puis nettoyage et palpage de la zone du motif ;
+    // buse à la température de la matière, purge au bord avant pendant la montée, lignes une fois stable (F4-b)
+    if (const Error e = prepare_bed(session, lines.area(), t); e != Error::none) {
+        fail(e);
         return;
     }
-    st_phase = Phase::leveling;
-    if (const session::Result r = session.level(lines.area(), t.probe); r != session::Result::ok) {
-        fail(error_of(r));
-        return;
-    }
-
-    // Buse à la température de la matière au-dessus de la purge, puis ligne de purge au bord avant
-    st_phase = Phase::heating;
-    if (const session::Result r = session.go_to_purge(); r != session::Result::ok) {
-        fail(error_of(r));
-        return;
-    }
-    if (const session::Result r = session.heat(t.nozzle); r != session::Result::ok) {
-        fail(error_of(r));
-        return;
-    }
-    st_phase = Phase::priming;
-    if (!session.purge()) {
-        fail(Error::stopped);
+    if (const Error e = heat_and_purge(session, t.nozzle, session::purge_x, session::purge_y, -1.f); e != Error::none) {
+        fail(e);
         return;
     }
     const uint32_t stack_free = stack_free_min();
@@ -652,8 +720,8 @@ void calibrate(const Request &rq, bool load_tried) {
         snprintf(path, sizeof(path), "/usb/OD3D_PA%u.CSV", unsigned(rq.slot + 1));
         csv = fopen(path, "w");
         if (csv) {
-            force_probe::csv_printf(csv, "# OneDrop3D PA (F4) slot %u, %s, nozzle %d C, bed %d C, printed lines %.2f x %.2f mm from X%.1f Y%.1f pitch %.1f, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, cycles %u, stack_free_min %u B\n",
-                unsigned(rq.slot + 1), material.name.data(), int(t.nozzle), int(t.bed), double(rq.params.bead.width), double(rq.params.bead.height),
+            force_probe::csv_printf(csv, "# OneDrop3D PA (F4) slot %u, %s, nozzle %d C, bed %d C, %s pattern, printed lines %.2f x %.2f mm from X%.1f Y%.1f pitch %.1f, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, cycles %u, stack_free_min %u B\n",
+                unsigned(rq.slot + 1), material.name.data(), int(t.nozzle), int(t.bed), rq.compact ? "compact" : "large", double(rq.params.bead.width), double(rq.params.bead.height),
                 double(rq.x), double(rq.y), double(rq.pitch), double(rq.params.slow_flow), double(rq.params.slow_s), double(rq.params.fast_flow),
                 double(rq.params.fast_s), unsigned(rq.params.cycles), unsigned(stack_free));
             force_probe::csv_printf(csv, "# force up positive. D,k,t_s,x_mm,force_g / R,k,lag_s,cost,overshoot,undershoot,amplitude_g,noise,cycles / C,k,confidence,fit,slope,k_lag,k_cost\n");
@@ -673,8 +741,7 @@ void calibrate(const Request &rq, bool load_tried) {
 
 namespace {
 
-    // Motif court : par emplacement, une ligne de purge puis 5 lignes (K de 0 à 0,08) plus courtes (2 créneaux)
-    constexpr float auto_pitch = 4.f;
+    // Motif compact (F4-b) : par emplacement, une ligne de purge puis la place de compact_cap lignes
     constexpr float auto_purge_half = 3.f; ///< demi-largeur de la purge (cordon épais de Prusa)
     constexpr float auto_purge_gap = 6.f; ///< de la purge à la 1re ligne
     constexpr float auto_spacing = 3.f; ///< entre deux emplacements
@@ -682,15 +749,9 @@ namespace {
     Request auto_request(uint8_t slot) {
         Request rq;
         rq.slot = slot;
-        rq.k_min = 0.f;
-        rq.k_max = 0.08f;
-        rq.k_step = 0.02f;
-        rq.refine = 0;
-        rq.params.cycles = 2;
-        rq.pitch = auto_pitch;
+        make_compact(rq);
         return rq;
     }
-    constexpr uint8_t auto_lines = 5;
 
     METRIC_DEF(metric_od3d_pa_auto, "od3d_pa_auto", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
 
@@ -740,6 +801,14 @@ namespace {
 
 } // namespace
 
+bool large_pattern() {
+    return config_store().od3d_pa_large.get();
+}
+
+void set_large_pattern(bool set) {
+    config_store().od3d_pa_large.set(set);
+}
+
 AutoMode auto_mode() {
     const uint8_t v = config_store().od3d_pa_auto.get();
     return v < auto_mode_count ? AutoMode(v) : AutoMode::off;
@@ -762,6 +831,7 @@ namespace {
         std::optional<uint8_t> initial; ///< filament dans la buse au départ, remis à la fin
         pattern::Rect block {}; ///< zone des motifs
         int16_t bed = 0;
+        int16_t nozzle = 0; ///< buse : première couche du fichier pour une impression d'une seule matière ; 0 : celle de la matière
         int16_t probe = 0; ///< buse pendant le palpage
         bool leveled = false; ///< zone palpée par une étape précédente (maillage en mémoire)
         bool active = false;
@@ -770,9 +840,9 @@ namespace {
 
     /// Lignes de l'étape i (un bloc par emplacement : purge, puis lignes)
     pattern::Lines auto_lines_of(size_t i, uint8_t slot) {
-        const pattern::Rect one = lines_for(auto_request(slot), auto_lines, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
+        const pattern::Rect one = lines_for(auto_request(slot), compact_cap, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
         const float y = plan.block.y0 + float(i) * (one.y1 + auto_spacing);
-        return lines_for(auto_request(slot), auto_lines, plan.block.x0 - one.x0, y + auto_purge_half + auto_purge_gap);
+        return lines_for(auto_request(slot), compact_cap, plan.block.x0 - one.x0, y + auto_purge_half + auto_purge_gap);
     }
 
     /// L'impression continue (pas d'arrêt en cours) : la mesure automatique peut mettre la suite en file
@@ -801,34 +871,30 @@ namespace {
     Error measure_auto_slot(uint8_t slot, size_t i, bool &stopped) {
         const Request rq = auto_request(slot);
         const pattern::Lines lines = auto_lines_of(i, slot);
-        const Temperatures t = temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).parameters(), 0, 0);
+        Temperatures t = temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).parameters(), plan.nozzle, plan.bed);
+        t.probe = plan.probe;
         st_temperature = t.nozzle;
 
         // Réglages remis à la fin ; « Passer » sur l'écran Impression arrête la mesure, l'impression continue
         session::Session session(stop_requested, true);
         fast_moves(rq.params);
-        st_phase = Phase::bed;
-        session::Result r = session.heat_bed(plan.bed, plan.probe);
-        if (r == session::Result::ok && plan.leveled && !axes_need_homing()) {
-            set_bed_leveling_enabled(true); // maillage de l'étape précédente, gardé en mémoire
-        }
-        if (r == session::Result::ok && !planner.leveling_active) {
-            st_phase = Phase::leveling;
-            r = session.level(plan.block, plan.probe);
-            plan.leveled = r == session::Result::ok;
-        }
-        Error e = error_of(r);
-
-        // Comme le G-code de départ du MMU : au-dessus du début de la purge, buse chaude, purge
-        if (e == Error::none) {
-            st_phase = Phase::heating;
-            if (session.go_to_purge(lines.x0, lines.y0 - auto_purge_gap, 1.f) != session::Result::ok || session.heat(t.nozzle) != session::Result::ok) {
-                e = must_stop() ? Error::stopped : Error::heating;
+        Error e;
+        if (plan.leveled && !axes_need_homing()) {
+            // Maillage de l'étape précédente, gardé en mémoire : pas de palpage, la buse monte déjà pendant le plateau
+            st_phase = Phase::bed;
+            e = error_of(session.heat_bed(t.bed, t.nozzle));
+            if (e == Error::none) {
+                set_bed_leveling_enabled(true);
             }
+        } else {
+            e = prepare_bed(session, plan.block, t);
+            plan.leveled = e == Error::none;
         }
+
+        // Comme le G-code de départ du MMU : au-dessus du début de la purge, purge pendant la montée de la buse
         if (e == Error::none) {
-            st_phase = Phase::priming;
-            if (!session.purge(lines.x0, 1.f)) {
+            e = heat_and_purge(session, t.nozzle, lines.x0, lines.y0 - auto_purge_gap, 1.f);
+            if (e != Error::none && must_stop()) {
                 e = Error::stopped;
             }
         }
@@ -851,10 +917,16 @@ void calibrate_auto() {
 
     // Emplacements de l'impression (après la correspondance des outils), matière connue, K déjà là
     uint8_t used = 0, known = 0, has_k = 0;
-    GCodeInfo::getInstance().for_each_used_extruder([&](GcodeToolIndex, VirtualToolIndex tool, const GCodeInfo::ExtruderInfo &) {
+    // Une seule matière dans le fichier : sa température de première couche vaut pour la mesure (F4-b ; le fichier ne
+    // donne pas la température de chaque outil)
+    const char *file_material = nullptr;
+    bool single_material = true;
+    GCodeInfo::getInstance().for_each_used_extruder([&](GcodeToolIndex, VirtualToolIndex tool, const GCodeInfo::ExtruderInfo &info) {
         if (tool.to_raw() < VirtualToolIndex::count) {
             used |= uint8_t(1u << tool.to_raw());
         }
+        single_material = single_material && (!file_material || info.filament_name == file_material);
+        file_material = info.filament_name.data();
     });
     for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(slot);
@@ -901,7 +973,7 @@ void calibrate_auto() {
     }
 
     // Place : un bloc par emplacement (purge, puis lignes), autant d'emplacements qu'il en tient à côté de la pièce
-    const pattern::Rect one = lines_for(auto_request(order[0]), auto_lines, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
+    const pattern::Rect one = lines_for(auto_request(order[0]), compact_cap, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
     const float block_w = one.width();
     const float block_h = one.y1;
     std::array<float, 2 * GRID_MAX_POINTS_X> xs; // M1994 A n'attend rien : pas besoin de mémoire statique
@@ -924,7 +996,8 @@ void calibrate_auto() {
         report_slot(order[i], Error::no_room); // pas la place pour tous : à la prochaine impression
     }
 
-    // Matières des emplacements mesurés : plateau de l'impression (M140 du fichier), buse de palpage la plus basse
+    // Températures de l'impression : plateau du fichier (M140), buse du fichier pour une seule matière (sinon celle de
+    // chaque matière), buse de palpage la plus basse
     plan.probe = session::max_temperature;
     for (size_t i = 0; i < fitting; ++i) {
         plan.order[i] = order[i];
@@ -932,6 +1005,7 @@ void calibrate_auto() {
     }
     const FilamentTypeParameters first_material = FilamentType::for_tool(VirtualToolIndex::from_raw(order[0])).parameters();
     plan.bed = temperatures_for(first_material, 0, int16_t(GCodeInfo::getInstance().get_bed_preheat_temp().value_or(0))).bed;
+    plan.nozzle = single_material ? int16_t(GCodeInfo::getInstance().get_hotend_preheat_temp().value_or(0)) : 0;
     plan.count = uint8_t(fitting);
     plan.initial = initial;
     plan.block = *spot;

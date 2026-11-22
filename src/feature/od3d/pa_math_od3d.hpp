@@ -215,7 +215,43 @@ struct Request {
     float y = 12.f; ///< première ligne, à l'avant du plateau (les suivantes vers l'arrière)
     float pitch = 5.f; ///< écart entre deux lignes [mm]
     bool csv = false; ///< écrit /usb/OD3D_PA<n>.CSV
+    bool compact = false; ///< motif compact et recherche adaptative (sinon : grand motif, balayage complet, repères)
 };
+
+// ---- Motif compact (F4-b, demande du 22/11) ----
+// Comme la calibration de la dynamique du débit de la Bambu X1 Carbon (3 lignes de 135 mm, à 2 mm d'écart, à l'avant
+// du plateau) : lignes serrées à l'avant, sans repères, plus courtes (2 créneaux, paliers plus brefs) ; une ligne par
+// K choisi au fur et à mesure (next_k()) au lieu du balayage complet. Le grand motif (repères, « Meilleure ligne »)
+// reste le mode manuel.
+
+inline constexpr float compact_pitch = 2.5f; ///< écart entre deux lignes [mm] (Bambu : 2 mm)
+inline constexpr uint8_t compact_cap = 8; ///< lignes au plus (place réservée sur le plateau)
+inline constexpr float default_prior = 0.04f; ///< K de départ sans mesure de l'emplacement ni de la matière
+
+/// Passe la demande en motif compact : 2 créneaux, paliers de 0,6 s et 0,25 s (ligne de ~86 mm au lieu de 153),
+/// écart compact_pitch, pas de second balayage
+void make_compact(Request &rq);
+
+/// Recherche adaptative de K (motif compact)
+struct Search {
+    float prior = default_prior; ///< K de départ : dernier K de l'emplacement, sinon de la matière
+    float k_min = 0.f;
+    float k_max = 0.10f;
+    float step = 0.02f; ///< pas de la montée ; l'affinage se fait au demi-pas
+    uint8_t cap = compact_cap; ///< lignes au plus
+    uint8_t min_confidence = 30; ///< choix assez sûr pour s'arrêter (sinon : balayage élargi)
+};
+
+/// K de la ligne suivante d'après les lignes déjà imprimées (done, dans leur ordre) ; nullopt : fini (le choix se fait
+/// ensuite par choose_k() sur toutes les lignes). Le retard dit de quel côté est le bon K (positif : K trop faible) :
+/// - 1re ligne au K de départ (prior, sur la grille k_min + i·step) ;
+/// - on avance d'un pas tant que le retard garde son signe (les lignes s'améliorent) ;
+/// - dès qu'il change de signe, le bon K est encadré : une ligne d'un pas au-delà de la moins bonne des deux (coût)
+///   confirme, puis une ligne au demi-pas dans l'encadrement affine ;
+/// - bord de la plage atteint, ligne trop faible ou retard non monotone (bruit) : si choose_k() n'est pas assez sûr,
+///   balayage élargi (points de la grille les plus proches pas encore imprimés), jusqu'à cap lignes.
+/// Typiquement 4 à 6 lignes au lieu de 11.
+std::optional<float> next_k(std::span<const SweepPoint> done, const Search &s, const Thresholds &th = {});
 
 // ---- Chargement par le MMU : jamais depuis la pile de M1994 ----
 // Le chargement appelé depuis M1994 a fait déborder la pile de Marlin (8.0.2.23, BSOD « STACK_OVF marlin » pendant
@@ -226,9 +262,10 @@ struct Request {
 /// Chaque chargement ou déchargement est précédé de G28 O I (origine si besoin) et G27 W2 (position de chargement de
 /// Prusa, buse levée) : jamais de purge ni de descente de Z avant l'origine.
 ///
-/// En un clic, bobine pas dans la buse : « Charger dans la buse » de Prusa (M701 S"<matière>" W2 P<n> : l'autre
-/// filament est déchargé d'abord), puis la même demande avec J1 (chargement tenté : pas de seconde tentative)
-bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament);
+/// En un clic, bobine pas dans la buse : plateau mis à chauffer (M140 S<bed>, si bed > 0) pendant le chargement,
+/// « Charger dans la buse » de Prusa (M701 S"<matière>" W2 P<n> : l'autre filament est déchargé d'abord), puis la même
+/// demande avec J1 (chargement tenté : pas de seconde tentative)
+bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament, int bed = 0);
 
 /// Mesure automatique, étape de slot : son chargement comme ci-dessus si filament (sinon : déjà dans la buse), puis
 /// M1994 P<n> A1

@@ -80,8 +80,12 @@ public:
     /// Plateau à bed (et buse à nozzle_probe en même temps, sans l'attendre), puis attente du plateau
     Result heat_bed(int16_t bed, int16_t nozzle_probe);
 
-    /// Buse à nozzle_probe, origine si nécessaire, nettoyage de la buse, nivellement local de area et de la zone de
-    /// purge, maillage activé (G-code de départ de la CORE One). Un arrêt demandé pendant le palpage prend effet après.
+    /// Buse à nozzle_probe (attendue), puis origine si nécessaire : peut se faire pendant que le plateau chauffe, comme
+    /// le G-code de départ de la CORE One (M140, M109 R170, G28, puis M190)
+    Result home(int16_t nozzle_probe);
+
+    /// home(), puis nettoyage de la buse, nivellement local de area et de la zone de purge, maillage activé (G-code de
+    /// départ de la CORE One ; plateau chaud d'abord). Un arrêt demandé pendant le palpage prend effet après.
     Result level(const pattern::Rect &area, int16_t nozzle_probe);
 
     /// Buse à la consigne, puis attente : à ±tolerance, et y rester hold_ms ; échec après timeout_ms ou si la

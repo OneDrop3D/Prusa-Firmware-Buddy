@@ -24,6 +24,14 @@
 ///   « Charger dans la buse » de Prusa, M1994 P<n> A1 (mesure courte, 5 lignes) ; enfin le filament remis comme avant
 ///   (M702 W2 en général). Le G-code de départ fait ensuite tout comme d'habitude. Un échec ou un « Passer » ne bloque
 ///   jamais l'impression : le PA du trancheur reste, et un message le dit.
+/// - Deux motifs (F4-b, demande du 22/11) : **compact** (par défaut, et toujours pour la mesure automatique) : lignes
+///   courtes et serrées sans repères, K cherché ligne après ligne (next_k() : 4 à 6 lignes au lieu de 11) ; **grand**
+///   (mode manuel, réglage « Grand motif PA ») : balayage complet, repères, choix à l'œil.
+/// - Départ rapide (F4-b) : plateau et buse (température de palpage) chauffent ensemble, origine pendant que le plateau
+///   chauffe, nettoyage et palpage une fois le plateau chaud (comme le G-code de départ de la CORE One) ; la purge
+///   commence pendant la montée de la buse (20 °C sous la consigne), les lignes une fois la température stable (K dépend
+///   de la viscosité). En automatique, les températures de l'impression (fichier) ; en un clic, celles de la matière,
+///   et le plateau chauffe pendant le chargement par le MMU.
 /// Le PA adaptatif est pour plus tard.
 #pragma once
 
@@ -134,6 +142,11 @@ void request_stop();
 /// avec load_tried, une bobine toujours pas dans la buse est un échec (load_failed), sans seconde tentative
 void calibrate(const Request &request, bool load_tried = false);
 
+/// Réglage « Grand motif PA » (F4-b) : true = grand motif à repères (mode manuel) en un clic ; false (par défaut) =
+/// motif compact. La mesure automatique est toujours compacte.
+bool large_pattern();
+void set_large_pattern(bool set);
+
 /// Réglage « PA automatique » ; un mode actif allume aussi « le PA de l'imprimante prime » (sinon le K mesuré ne
 /// servirait pas)
 AutoMode auto_mode();
@@ -154,6 +167,7 @@ struct LastRun {
     static constexpr size_t max_points = 24;
     uint8_t slot = 0xff; ///< 0xff : pas de mesure depuis le démarrage
     uint8_t points = 0; ///< lignes imprimées en entier (repères compris)
+    bool compact = false; ///< motif compact : lignes dans l'ordre des essais, sans repères
     std::array<float, max_points> k {};
     std::array<float, max_points> lag {};
     std::array<float, max_points> cost {};

@@ -528,7 +528,7 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         rq.slot = 2;
         rq.csv = true;
         REQUIRE(pa::oneclick_sequence(out, rq, "#5"));
-        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#5\" W2 P2\nM1994 P2 O1 J1");
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#5\" W2 P2\nM1994 P2 V0 O1 J1");
 
         rq.slot = 0;
         rq.csv = false;
@@ -537,7 +537,17 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         rq.x = 30.f;
         rq.temperature = 230;
         REQUIRE(pa::oneclick_sequence(out, rq, "#12"));
-        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#12\" W2 P0\nM1994 P0 H0.2000 R0 T230 X30.0000 J1");
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#12\" W2 P0\nM1994 P0 V0 H0.2000 R0 T230 X30.0000 J1");
+    }
+    SECTION("en un clic, motif compact : plateau chauffé pendant le chargement, réglages du motif compact sous-entendus") {
+        pa::Request rq;
+        rq.slot = 1;
+        pa::make_compact(rq);
+        REQUIRE(pa::oneclick_sequence(out, rq, "#5", 60));
+        CHECK(text() == "M140 S60\nG28 O I\nG27 W2\nM701 S\"#5\" W2 P1\nM1994 P1 V1 J1");
+        rq.params.cycles = 3;
+        REQUIRE(pa::oneclick_sequence(out, rq, "#5", 0));
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#5\" W2 P1\nM1994 P1 V1 C3 J1");
     }
     SECTION("automatique : chargement si besoin, puis M1994 P<n> A1") {
         REQUIRE(pa::auto_step_sequence(out, 3, "#5"));
@@ -578,7 +588,9 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         rq.y = 14.f;
         rq.pitch = 6.f;
         rq.csv = true;
-        CHECK(pa::oneclick_sequence(out, rq, "#65535"));
+        CHECK(pa::oneclick_sequence(out, rq, "#65535", 110));
+        // Le plateau d'abord (pas un chargement), puis l'origine et la position levée avant M701
+        CHECK(text().rfind("M140 S110\nG28 O I\nG27 W2\nM701 ", 0) == 0);
     }
     SECTION("tampon trop court : refusé, jamais tronqué") {
         char small[20];
@@ -591,5 +603,173 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         rq.y = 15.5f;
         REQUIRE(pa::oneclick_sequence(out, rq, "#5"));
         CHECK(text().find('%') == std::string::npos);
+    }
+}
+
+// ---- Motif compact et recherche adaptative (F4-b) ----
+
+namespace {
+
+/// Réponse synthétique d'une ligne : retard = pente·(K − K*) (positif : K trop faible), coût minimal en K*, bruit
+struct Synthetic {
+    float k_star = 0.045f;
+    float slope = -1.5f;
+    float noise = 0.f; ///< bruit du retard [s] (le coût a le sien, proportionnel)
+    float amplitude_g = 25.f;
+    bool flat = false; ///< le retard ne dépend pas de K
+};
+
+/// Lignes de la recherche, une par K demandé par next_k(), jusqu'à la fin
+std::vector<pa::SweepPoint> run_search(const pa::Search &s, const Synthetic &m, uint32_t seed = 1) {
+    Random rnd { seed };
+    std::vector<pa::SweepPoint> done;
+    while (const auto k = pa::next_k(done, s)) {
+        REQUIRE(done.size() < s.cap);
+        REQUIRE(*k >= s.k_min - 1e-6f);
+        REQUIRE(*k <= s.k_max + 1e-6f);
+        for (const pa::SweepPoint &p : done) {
+            REQUIRE(std::fabs(p.k - *k) > 1e-5f); // jamais deux fois le même K
+        }
+        pa::BlockResult r;
+        r.cycles = 2;
+        r.amplitude_g = m.amplitude_g;
+        r.noise = 0.05f;
+        const float d = *k - m.k_star;
+        r.lag_s = (m.flat ? 0.02f : m.slope * d) + m.noise * rnd.normal();
+        r.cost = 0.002f + (m.flat ? 0.f : 3.f * d * d) + 0.2f * m.noise * std::fabs(rnd.normal());
+        done.push_back({ *k, r });
+    }
+    return done;
+}
+
+std::string ks_of(const std::vector<pa::SweepPoint> &done) {
+    std::string s;
+    for (const pa::SweepPoint &p : done) {
+        s += std::to_string(p.k) + " ";
+    }
+    return s;
+}
+
+} // namespace
+
+TEST_CASE("PA compact : ligne plus courte, motif serré sans repères") {
+    pa::Request rq;
+    pa::make_compact(rq);
+    CHECK(rq.compact);
+    CHECK(rq.refine == 0);
+    CHECK(pa::is_valid(rq.params));
+    // 3 tronçons lents de 10 mm et 2 rapides de 27,8 mm, contre 153 mm pour le grand motif
+    CHECK_THAT(pa::line_length(rq.params), WithinAbs(85.6, 0.1));
+
+    pattern::Lines lines;
+    lines.x0 = rq.x;
+    lines.y0 = rq.y;
+    lines.pitch = rq.pitch;
+    lines.length = pa::line_length(rq.params);
+    lines.count = pa::compact_cap;
+    lines.bead = rq.params.bead;
+    const pattern::Rect area = lines.area();
+    // ~86 × 18 mm (grand motif : ~173 × 54 mm)
+    CHECK_THAT(area.width(), WithinAbs(86.0, 0.2));
+    CHECK_THAT(area.height(), WithinAbs(7 * 2.5 + 0.45, 1e-4));
+}
+
+TEST_CASE("PA compact : recherche adaptative, minimum au milieu") {
+    pa::Search s;
+    for (const float k_star : { 0.031f, 0.045f, 0.058f, 0.07f }) {
+        const auto done = run_search(s, { .k_star = k_star });
+        const pa::Choice c = pa::choose_k(done, s.k_min, s.k_max, s.step);
+        INFO("K* = " << k_star << ", lignes : " << ks_of(done) << ", K = " << c.k);
+        CHECK(done.size() >= 4);
+        CHECK(done.size() <= 6);
+        CHECK(c.fit == pa::Fit::ok);
+        CHECK(c.confidence >= 60);
+        CHECK_THAT(c.k, WithinAbs(k_star, 0.002));
+    }
+}
+
+TEST_CASE("PA compact : bon K de départ, 4 lignes (monter, voir que c'est moins bien, redescendre)") {
+    pa::Search s;
+    s.prior = 0.0365f; // dernier K de l'emplacement : départ à 0,04
+    const auto done = run_search(s, { .k_star = 0.037f });
+    INFO("lignes : " << ks_of(done));
+    REQUIRE(done.size() == 4);
+    CHECK_THAT(done[0].k, WithinAbs(0.04, 1e-6));
+    // 0,04 : un peu trop fort, on descend à 0,02 (encadré), confirmation à 0,00, puis le demi-pas 0,03
+    CHECK_THAT(done[1].k, WithinAbs(0.02, 1e-6));
+    CHECK_THAT(done[2].k, WithinAbs(0.0, 1e-6));
+    CHECK_THAT(done[3].k, WithinAbs(0.03, 1e-6));
+    CHECK_THAT(pa::choose_k(done, s.k_min, s.k_max, s.step).k, WithinAbs(0.037, 0.002));
+}
+
+TEST_CASE("PA compact : minimum à un bord de la plage") {
+    pa::Search s;
+    for (const float k_star : { 0.f, 0.004f, 0.096f, 0.1f }) {
+        const auto done = run_search(s, { .k_star = k_star });
+        const pa::Choice c = pa::choose_k(done, s.k_min, s.k_max, s.step);
+        INFO("K* = " << k_star << ", lignes : " << ks_of(done) << ", K = " << c.k << ", ajustement " << int(c.fit));
+        CHECK(done.size() <= 6);
+        CHECK(c.fit == pa::Fit::ok);
+        CHECK_THAT(c.k, WithinAbs(k_star, 0.004));
+    }
+    // Au-delà de la plage : on s'arrête au bord, K hors plage signalé
+    const auto done = run_search(s, { .k_star = 0.16f });
+    CHECK(done.size() <= s.cap);
+    CHECK(pa::choose_k(done, s.k_min, s.k_max, s.step).fit == pa::Fit::out_of_range);
+}
+
+TEST_CASE("PA compact : bruit sur le retard") {
+    pa::Search s;
+    for (uint32_t seed = 1; seed <= 40; ++seed) {
+        const float k_star = 0.02f + 0.0015f * float(seed);
+        const auto done = run_search(s, { .k_star = k_star, .noise = 0.004f }, seed);
+        const pa::Choice c = pa::choose_k(done, s.k_min, s.k_max, s.step);
+        INFO("graine " << seed << ", K* = " << k_star << ", lignes : " << ks_of(done) << ", K = " << c.k);
+        CHECK(done.size() <= s.cap);
+        CHECK(c.fit == pa::Fit::ok);
+        CHECK_THAT(c.k, WithinAbs(k_star, 0.008));
+    }
+}
+
+TEST_CASE("PA compact : réponse plate ou trop faible, balayage élargi borné") {
+    pa::Search s;
+    const auto flat = run_search(s, { .flat = true });
+    INFO("plat : " << ks_of(flat));
+    CHECK(flat.size() <= s.cap);
+    CHECK(flat.size() >= 5); // élargi au-delà de la montée
+    CHECK(pa::choose_k(flat, s.k_min, s.k_max, s.step).fit == pa::Fit::no_crossing);
+
+    const auto weak = run_search(s, { .amplitude_g = 1.f });
+    INFO("faible : " << ks_of(weak));
+    CHECK(weak.size() == 6); // toute la grille 0 à 0,10, puis fini
+    CHECK(pa::choose_k(weak, s.k_min, s.k_max, s.step).fit == pa::Fit::weak_signal);
+
+    s.cap = 3;
+    CHECK(run_search(s, { .flat = true }).size() == 3);
+}
+
+TEST_CASE("PA compact : K retrouvé sur lignes imprimées simulées, en 4 à 6 lignes") {
+    pa::Request rq;
+    pa::make_compact(rq);
+    const pa::Profile p = pa::profile(rq.params);
+    for (float tau : { 0.025f, 0.04f, 0.065f }) {
+        for (float gain : { 30.f, -30.f }) {
+            Nozzle nozzle;
+            nozzle.tau = tau;
+            nozzle.gain_g = gain;
+            pa::Search s;
+            std::vector<pa::SweepPoint> done;
+            uint32_t seed = 1;
+            while (const auto k = pa::next_k(done, s)) {
+                done.push_back({ *k, pa::analyse_block(simulate(rq.params, nozzle, *k, dt, seed++), dt, p) });
+            }
+            const pa::Choice c = pa::choose_k(done, s.k_min, s.k_max, s.step);
+            INFO("τ = " << tau << ", gain = " << gain << ", lignes : " << ks_of(done) << ", K = " << c.k << ", confiance = " << int(c.confidence));
+            CHECK(done.size() >= 4);
+            CHECK(done.size() <= 6);
+            CHECK(c.fit == pa::Fit::ok);
+            CHECK(c.confidence >= 30);
+            CHECK_THAT(c.k, WithinAbs(tau, 0.004));
+        }
     }
 }

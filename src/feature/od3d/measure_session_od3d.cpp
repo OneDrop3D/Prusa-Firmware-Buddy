@@ -234,8 +234,9 @@ Result Session::heat_bed(int16_t bed, int16_t nozzle_probe) {
     }
 }
 
-Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
-    // Buse chaude mais sous la température d'impression : pas de suintement pendant le palpage (Prusa : 170 °C)
+Result Session::home(int16_t nozzle_probe) {
+    // Buse chaude mais sous la température d'impression : pas de suintement pendant le palpage (Prusa : M109 R170
+    // avant G28, le plateau chauffe pendant ce temps)
     if (const Result r = heat(nozzle_probe, 3.f, 1000, heat_timeout_ms, false); r != Result::ok) {
         return r;
     }
@@ -245,8 +246,12 @@ Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
     if (interrupted()) {
         return Result::stopped;
     }
-    if (axes_need_homing()) {
-        return Result::homing;
+    return axes_need_homing() ? Result::homing : Result::ok;
+}
+
+Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
+    if (const Result r = home(nozzle_probe); r != Result::ok) {
+        return r;
     }
 
     // Comme le G-code de départ de PrusaSlicer pour la CORE One : moteur E coupé, nettoyage de la buse par

@@ -4,7 +4,8 @@
 /// meilleur K et au K le plus haut, avec la commande), « Mesurer » (M1994, en un clic : la bobine est chargée si elle
 /// n'est pas dans la buse, puis motif imprimé à l'avant du plateau, feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer », réglage général « le PA de l'imprimante prime » et
 /// « Meilleure ligne » : repli visuel, l'utilisateur choisit lui-même la ligne la plus régulière du motif (écran
-/// ScreenPaLines). « Débit, temp. » ouvre l'écran frère des autres calibrations de la bobine (F5, F6 :
+/// ScreenPaLines). « Compact » / « Grand » : motif de la mesure en un clic (F4-b, réglage commun avec Fonctions
+/// OneDrop3D). « Débit, temp. » ouvre l'écran frère des autres calibrations de la bobine (F5, F6 :
 /// screen_spool_calib_od3d.hpp), où se règle aussi l'export des courbes sur la clé (commun).
 #pragma once
 
@@ -71,6 +72,7 @@ private:
     PaGraph graph;
     window_text_t note;
     Button wins;
+    Button pattern; ///< « Compact » / « Grand » : motif de la mesure en un clic
     Button lines; ///< « Meilleure ligne » : choix à l'œil sur le dernier motif imprimé
     Button measure_button;
     Button second; ///< « Annuler » pendant la mesure, « Effacer » sinon

@@ -83,6 +83,17 @@ namespace atelier {
     /// Le MMU répond et l'interface peut lui envoyer des commandes
     bool mmu_active();
 
+    /// Le MMU est activé dans les réglages (même s'il démarre encore) : sinon une seule bobine, celle de la buse
+    bool mmu_enabled();
+
+    /// Bobines à montrer : outils jusqu'au dernier activé (MMU3 : 5, sans MMU : 1, INDX : ses têtes), au moins 1.
+    /// Lu à l'exécution : le même firmware suit le matériel (MMU activé ou non).
+    uint8_t visible_tools();
+
+    /// 2e ligne d'une bobine : « Chargé » (orange), « Vide », le reste « ~800 g » (jaune s'il est bas) ou le nom de la
+    /// couleur ; buf garde le texte formaté
+    string_view_utf8 slot_state(const Slot &slot, uint8_t index, std::span<char> buf, Color &color);
+
     /// Le filament est engagé jusqu'à la tête : le MMU ne peut ni précharger, ni éjecter, ni couper (règle de Prusa)
     bool filament_in_nozzle();
 

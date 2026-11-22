@@ -1,5 +1,7 @@
 /// @file
 #include "screen_home_od3d.hpp"
+#include "atelier_od3d.hpp"
+#include "layout_od3d.hpp"
 #include "screen_files_od3d.hpp"
 #include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
@@ -34,24 +36,34 @@ namespace od3d {
 
 namespace {
 
-    // Géométrie de l'accueil (SPEC_G.md §3.1), sous l'en-tête de 40 px : carte du fichier 7 px moins haute
-    constexpr Rect16 spool_body(int i) {
-        return Rect16(style::margin + i * 79, style::top, 74, 64);
+    // Géométrie de l'accueil (SPEC_G.md §3.1), sous l'en-tête de 40 px. Retour du 22/11 : aperçu du dernier fichier plus
+    // haut et plus large (UI-8) ; la bande des bobines passe à 56 px et les cartes du bas à 48 px pour lui faire place.
+    // La bande prend une rangée jusqu'à 5 bobines, deux au-delà (INDX 8 têtes : 2 × 4).
+    constexpr Rect16 spool_area = { style::margin, style::top, 390, 56 };
+    constexpr uint8_t spool_gap = 5;
+    constexpr Rect16 spool_body(uint8_t i, uint8_t tools) {
+        return layout::spool_cell(spool_area, tools, spool_gap, i < tools ? i : 0); // cachées : à la place de la 1re
     }
-    constexpr Rect16 mmu_body = { 403, style::top, 69, 64 };
-    constexpr Rect16 file_rect = { style::margin, 117, 464, 97 };
-    constexpr Rect16 thumb_rect = { 16, file_rect.Top() + 5, thumbnail_sizes::preview_thumbnail_width / 2, thumbnail_sizes::preview_thumbnail_height / 2 };
-    constexpr Rect16 print_body = { 342, 171, 122, 34 };
-    constexpr Rect16 files_body = { style::margin, 220, 128, 52 };
-    constexpr Rect16 temps_body = { 144, 220, 192, 52 };
-    constexpr Rect16 control_body = { 344, 220, 128, 52 };
-    constexpr uint8_t name_chars = 25; ///< nom du fichier en gras (11 px) sur 280 px
+    constexpr Rect16 mmu_body = { 403, style::top, 69, 56 };
+    constexpr Rect16 file_rect = { style::margin, 108, 464, 110 };
+    // 313 × 173 de l'aperçu Prusa aux 3/5 : 187 × 103 (156 × 86 avant)
+    constexpr uint8_t thumb_num = 3, thumb_den = 5;
+    constexpr Rect16 thumb_rect = { 12, file_rect.Top() + 4, thumbnail_sizes::preview_thumbnail_width * thumb_num / thumb_den,
+        thumbnail_sizes::preview_thumbnail_height * thumb_num / thumb_den };
+    constexpr Rect16 print_body = { 342, 178, 122, 34 };
+    constexpr Rect16 files_body = { style::margin, 224, 128, 48 };
+    constexpr Rect16 temps_body = { 144, 224, 192, 48 };
+    constexpr Rect16 control_body = { 344, 224, 128, 48 };
+    constexpr int16_t text_x = thumb_rect.Right() + 1 + 12; ///< colonne du texte de la carte du fichier
+    constexpr uint8_t name_chars = (file_rect.Right() + 1 - style::margin - text_x) / 11; ///< nom en gras (11 px)
 
-    static_assert(thumb_rect.Width() == 156 && thumb_rect.Height() == 86, "vignette 313 × 173 de l'aperçu Prusa, réduite de moitié");
-    static_assert(style::with_ring(spool_body(0)).Bottom() < file_rect.Top() && file_rect.Bottom() < style::with_ring(files_body).Top());
-    static_assert(style::inside(style::content, style::with_ring(spool_body(0))) && style::inside(style::content, style::with_ring(mmu_body)));
-    static_assert(spool_body(4).Right() + 1 + 5 == mmu_body.Left() && mmu_body.Right() + 1 == style::screen_w - style::margin);
+    static_assert(thumb_rect.Width() == 187 && thumb_rect.Height() == 103 && thumb_rect.Width() <= ScaledQoiReader::max_width);
+    static_assert(style::with_ring(spool_body(0, 5)).Bottom() < file_rect.Top() && file_rect.Bottom() < style::with_ring(files_body).Top());
+    static_assert(style::inside(style::content, style::with_ring(spool_body(0, 5))) && style::inside(style::content, style::with_ring(mmu_body)));
+    static_assert(spool_body(4, 5) == Rect16(324, style::top, 74, 56), "5 bobines du MMU : les colonnes de la maquette");
+    static_assert(spool_area.Right() + 1 + 5 == mmu_body.Left() && mmu_body.Right() + 1 == style::screen_w - style::margin);
     static_assert(style::inside(file_rect, style::with_ring(print_body)) && style::inside(file_rect, thumb_rect));
+    static_assert(style::with_ring(print_body).Top() > file_rect.Top() + 24 + 19 && name_chars >= 20, "« Imprimer » sous le nom, qui garde 20 caractères");
     static_assert(style::inside(style::content, style::with_ring(files_body)) && style::inside(style::content, style::with_ring(control_body)));
     static_assert(files_body.Right() + 1 + 8 == temps_body.Left() && temps_body.Right() + 1 + 8 == control_body.Left());
 
@@ -77,10 +89,16 @@ namespace {
 
 // ---- Bobines ----
 
-SpoolCard::SpoolCard(window_t *parent, uint8_t index)
-    : Card(parent, style::with_ring(spool_body(index)), nullptr)
+SpoolCard::SpoolCard(window_t *parent, uint8_t index, uint8_t tools)
+    : Card(parent, style::with_ring(spool_body(index, tools)), nullptr)
     , slot(Slot::read(index))
-    , index(index) {}
+    , index(index)
+    , single(tools == 1) {
+    if (index >= tools) {
+        set_visible(false); // outil absent (MMU désactivé, têtes de l'INDX non montées)
+        set_enabled(false);
+    }
+}
 
 void SpoolCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if ((event == GUI_event_t::CLICK || event == GUI_event_t::TOUCH_CLICK) && IsEnabled()) {
@@ -91,6 +109,9 @@ void SpoolCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 }
 
 void SpoolCard::update(bool mmu_ready) {
+    if (!HasVisibleFlag()) {
+        return; // outil absent
+    }
     const Slot s = Slot::read(index);
     const bool enabled = s.enabled && mmu_ready;
     if (!(s == slot) || enabled != IsEnabled()) {
@@ -101,16 +122,45 @@ void SpoolCard::update(bool mmu_ready) {
 }
 
 void SpoolCard::draw_content(Rect16 body) {
-    constexpr uint8_t d = 40;
-    const point_i16_t at { int16_t(body.Left() + (body.Width() - d) / 2), int16_t(body.Top() + 3) };
-    // Chargée dans la buse : anneau orange de 2 px autour du disque ; sinon le carré de l'anneau au fond de la carte
-    draw_spool(at, slot.look, d, fill(), std::optional<Color>(slot.loaded ? style::accent : fill()));
-
-    char label[12];
-    snprintf(label, sizeof(label), "%d %s", index + 1, slot.material.data());
     // Bientôt vide (F13) : en jaune, même chargée (l'anneau orange dit déjà qu'elle est dans la buse)
     const Color color = slot.low && IsEnabled() ? style::warning : (slot.loaded ? style::accent : (IsEnabled() ? style::text_soft : style::text_faint));
-    draw_text(Rect16(body.Left(), body.Top() + 45, body.Width(), height(Font::small)), string_view_utf8::MakeRAM(label), Font::small, color, fill(), Align_t::Center());
+    // Chargée dans la buse : anneau orange de 2 px autour du disque ; sinon le carré de l'anneau au fond de la carte
+    const std::optional<Color> ring(slot.loaded ? style::accent : fill());
+    char label[12];
+    snprintf(label, sizeof(label), "%d %s", index + 1, slot.material.data());
+
+    if (body.Width() >= 110) {
+        // Large (sans MMU, INDX 3 têtes) : bobine à gauche, matière en gras et état à droite
+        constexpr uint8_t d = 40;
+        const point_i16_t at { int16_t(body.Left() + 10), int16_t(body.Top() + (body.Height() - d) / 2) };
+        draw_spool(at, slot.look, d, fill(), ring);
+        const int16_t x = at.x + d + 10;
+        const uint16_t w = body.Left() + body.Width() - 6 - x;
+        // Seule bobine : la matière en gras ; trois têtes (~60 px) : « n MATIÈRE » en petit, 6 caractères
+        const Font font = single ? Font::normal : Font::small;
+        const int16_t y = body.Top() + (body.Height() - height(font) - height(Font::small)) / 2;
+        draw_text(Rect16(x, y, w, height(font)), string_view_utf8::MakeRAM(single ? slot.material.data() : label), font, color, fill());
+        char state_text[16];
+        Color state_color;
+        const string_view_utf8 state = atelier::slot_state(slot, index, state_text, state_color);
+        draw_text(Rect16(x, y + height(font), w, height(Font::small)), state, Font::small, IsEnabled() ? state_color : style::text_faint, fill());
+        return;
+    }
+    if (body.Height() < 40) {
+        // Deux rangées (INDX 8 têtes) : petite bobine à gauche, « n MATIÈRE » à droite
+        constexpr uint8_t d = 20;
+        const point_i16_t at { int16_t(body.Left() + 6), int16_t(body.Top() + (body.Height() - d) / 2) };
+        draw_spool(at, slot.look, d, fill(), ring);
+        const int16_t x = at.x + d + 6;
+        draw_text(Rect16(x, body.Top() + (body.Height() - height(Font::small)) / 2, body.Left() + body.Width() - 2 - x, height(Font::small)),
+            string_view_utf8::MakeRAM(label), Font::small, color, fill());
+        return;
+    }
+    // Étroite (MMU3) : bobine en haut, « n MATIÈRE » dessous
+    const uint8_t d = std::min<int>(40, body.Height() - 22);
+    const point_i16_t at { int16_t(body.Left() + (body.Width() - d) / 2), int16_t(body.Top() + 3) };
+    draw_spool(at, slot.look, d, fill(), ring);
+    draw_text(Rect16(body.Left(), body.Top() + d + 5, body.Width(), height(Font::small)), string_view_utf8::MakeRAM(label), Font::small, color, fill(), Align_t::Center());
 }
 
 // ---- Dernier fichier ----
@@ -152,21 +202,8 @@ void FileCard::print() const {
 }
 
 bool FileCard::draw_thumbnail(Rect16 box) {
-    if (state != State::file) {
-        return false;
-    }
-    AnyGcodeFormatReader gcode(path.data());
-    if (!gcode.is_open()) {
-        return false;
-    }
-    AbstractByteReader *qoi = gcode->stream_thumbnail_start(thumbnail_sizes::preview_thumbnail_width, thumbnail_sizes::preview_thumbnail_height, IGcodeReader::ImgType::QOI);
-    if (!qoi) {
-        return false;
-    }
-    scaler.emplace(*qoi, ScaledQoiReader::Params { .factor = 2, .back = style::thumb_back, .radius = style::radius_small, .outside = style::surface });
-    display::draw_img(point_ui16(box.Left(), box.Top()), *scaler);
-    scaler.reset();
-    return true;
+    return state == State::file
+        && od3d::draw_thumbnail(path.data(), box, ScaledQoiReader::Params { .factor = thumb_den, .back = style::thumb_back, .radius = style::radius_small, .outside = style::surface, .num = thumb_num }, scaler);
 }
 
 void FileCard::unconditionalDraw() {
@@ -239,10 +276,15 @@ bool ScreenHome::usb_was_already_inserted = false;
 bool ScreenHome::need_check_wifi_credentials = true;
 
 ScreenHome::ScreenHome()
+    : ScreenHome(std::make_index_sequence<VirtualToolIndex::count>()) {}
+
+template <size_t... I>
+ScreenHome::ScreenHome(std::index_sequence<I...>)
     : Screen(false)
     , header(this, _("Home"), false)
-    , spools { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 }, { this, 4 } }
-    , mmu(this, style::with_ring(mmu_body), open_screen<ScreenMMU>, img::settings_16x16, string_view_utf8::MakeCPUFLASH("MMU >"))
+    , spools { SpoolCard(this, I, atelier::visible_tools())... }
+    // L'étagère de l'onglet Atelier ; « MMU > » seulement avec un MMU activé (sans lui, l'icône seule)
+    , mmu(this, style::with_ring(mmu_body), open_screen<ScreenMMU>, img::settings_16x16, atelier::mmu_enabled() ? string_view_utf8::MakeCPUFLASH("MMU >") : string_view_utf8 {})
     , file(this)
     , print(this, file)
     , files(this, files_body, open_files, img::folder_full_16x16, style::tile, _("Files"), string_view_utf8::MakeCPUFLASH("USB"))

@@ -1,6 +1,8 @@
 /// @file
 #include "thumbnail_od3d.hpp"
 
+#include <algorithm>
+
 namespace od3d {
 
 namespace {
@@ -17,7 +19,40 @@ namespace {
 ScaledQoiReader::ScaledQoiReader(AbstractByteReader &source, const Params &params)
     : source(source)
     , params(params)
+    , transparent(Color::mix(params.back, params.back, 0))
     , sums {} {}
+
+bool ScaledQoiReader::open() {
+    if (opened) {
+        return readable;
+    }
+    opened = true;
+    if (params.factor == 0 || params.num == 0 || params.num > params.factor || source.read(header).size() != header.size()) {
+        return false;
+    }
+    src_w = qoi::Decoder::get_image_width(header);
+    out_w = uint32_t(src_w) * params.num / params.factor;
+    out_h = uint32_t(qoi::Decoder::get_image_height(header)) * params.num / params.factor;
+    if (out_w == 0 || out_h == 0 || out_w > max_width) {
+        out_w = out_h = 0;
+        return false;
+    }
+    col_next = first_source(1);
+    out_x = out_w; // aucune ligne décodée : la première est à faire
+    band_end = out_h;
+    readable = true;
+    return true;
+}
+
+bool ScaledQoiReader::band(uint16_t rows) {
+    if (!open() || done()) {
+        return false;
+    }
+    band_end = std::min<uint16_t>(out_y + rows, out_h);
+    header_sent = false;
+    pending_pos = pending_len = 0;
+    return true;
+}
 
 WritableBytes ScaledQoiReader::read(WritableBytes buffer) {
     size_t n = 0;
@@ -30,34 +65,26 @@ WritableBytes ScaledQoiReader::read(WritableBytes buffer) {
 bool ScaledQoiReader::next() {
     pending_pos = pending_len = 0;
 
-    if (!started) {
-        started = true;
-        std::array<std::byte, qoi::Decoder::HEADER_SIZE> header;
-        if (params.factor == 0 || source.read(header).size() != header.size()) {
+    if (!header_sent) {
+        if (!open() || out_y >= band_end) {
             return false;
         }
-        src_w = qoi::Decoder::get_image_width(header);
-        out_w = src_w / params.factor;
-        out_h = qoi::Decoder::get_image_height(header) / params.factor;
-        if (out_w == 0 || out_h == 0 || out_w > max_width) {
-            return false;
-        }
+        header_sent = true;
         pending = header;
         put_be32(&pending[4], out_w);
-        put_be32(&pending[8], out_h);
-        pending_len = header.size();
-        out_x = out_w; // aucune ligne décodée : la première est à faire
+        put_be32(&pending[8], band_end - out_y);
+        pending_len = pending.size();
         return true;
     }
 
     if (out_x == out_w) {
-        if (out_y == out_h || !decode_band()) {
+        if (out_y >= band_end || !decode_band()) {
             return false;
         }
         out_x = 0;
     }
 
-    const unsigned n = params.factor * params.factor;
+    const unsigned n = (first_source(out_x + 1) - first_source(out_x)) * rows_in_line;
     auto &sum = sums[out_x];
     Color c = Color::from_rgb((sum[0] + n / 2) / n, (sum[1] + n / 2) / n, (sum[2] + n / 2) / n);
     sum = {};
@@ -77,8 +104,10 @@ bool ScaledQoiReader::next() {
 }
 
 bool ScaledQoiReader::decode_band() {
-    const uint32_t next_band = uint32_t(out_y + 1) * params.factor; // première ligne source de la ligne suivante
-    while (src_y < next_band) {
+    const uint16_t next_line = first_source(out_y + 1); // première ligne source de la ligne réduite suivante
+    rows_in_line = next_line - src_y;
+    const bool grey = out_y < params.grey_rows;
+    while (src_y < next_line) {
         while (!decoder.has_pixel()) {
             if (decoder.is_error()) {
                 return false;
@@ -95,20 +124,29 @@ bool ScaledQoiReader::decode_band() {
         }
 
         const qoi::Pixel p = decoder.pull_pixel();
-        if (const unsigned x = src_x / params.factor; x < out_w) {
-            Color px = Color::from_rgb(p.r, p.g, p.b);
-            if (out_y < params.grey_rows) {
-                const uint8_t l = (p.r * 77 + p.g * 150 + p.b * 29) >> 9; // luminance, puis moitié
-                px = Color::from_rgb(l, l, l);
+        if (col < out_w) {
+            // Le fond (transparent) et l'objet (opaque) font presque toute l'image : sans Color::mix, même résultat
+            Color c = transparent;
+            if (p.a != 0) {
+                Color px = Color::from_rgb(p.r, p.g, p.b);
+                if (grey) {
+                    const uint8_t l = (p.r * 77 + p.g * 150 + p.b * 29) >> 9; // luminance, puis moitié
+                    px = Color::from_rgb(l, l, l);
+                }
+                c = p.a == 255 ? Color::from_rgb((255 * px.r) >> 8, (255 * px.g) >> 8, (255 * px.b) >> 8) : Color::mix(params.back, px, p.a);
             }
-            const Color c = Color::mix(params.back, px, p.a);
-            sums[x][0] += c.r;
-            sums[x][1] += c.g;
-            sums[x][2] += c.b;
+            sums[col][0] += c.r;
+            sums[col][1] += c.g;
+            sums[col][2] += c.b;
         }
         if (++src_x == src_w) {
             src_x = 0;
             ++src_y;
+            col = 0;
+            col_next = first_source(1);
+        } else if (src_x == col_next) {
+            ++col;
+            col_next = first_source(col + 1);
         }
     }
     return true;

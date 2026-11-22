@@ -153,3 +153,9 @@ add_executable(
   )
 target_include_directories(sleep_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(sleep_od3d_tests)
+
+add_executable(layout_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/layout_od3d_test.cpp)
+target_include_directories(
+  layout_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/common ${CMAKE_SOURCE_DIR}/src/guiapi/include
+  )
+add_catch_test(layout_od3d_tests)

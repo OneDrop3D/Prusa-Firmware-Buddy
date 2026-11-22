@@ -9,13 +9,16 @@
 #include <gui/menu_item/specific/menu_items_hw_mmu.hpp>
 #include <gui/od3d/screen_menu_od3d.hpp>
 #include <MItem_mmu.hpp>
+#include <tool_index.hpp>
+#include <utility>
 
 namespace od3d {
 
-/// Bobine de l'étagère : grande carte avec numéro, bobine Ø64, matière, état ; remontée et orange si chargée
+/// Bobine de l'étagère : grande carte avec numéro, bobine Ø64, matière, état ; remontée et orange si chargée. Sur deux
+/// rangées (INDX 8 têtes), carte basse : bobine Ø32 à gauche, « n MATIÈRE » et l'état à droite.
 class ShelfSpool : public Button {
 public:
-    ShelfSpool(window_t *parent, uint8_t index);
+    ShelfSpool(window_t *parent, uint8_t index, uint8_t tools);
 
     /// Relit l'emplacement et le redessine s'il a changé
     void update(bool mmu_ready);
@@ -42,6 +45,8 @@ private:
     string_view_utf8 subtitle;
 };
 
+/// Étagère de l'onglet Atelier : une bobine par outil lu à l'exécution (MMU3 : 5 ; sans MMU : 1 ; INDX : 3 à 8, sur deux
+/// rangées au-delà de 5), puis les raccourcis
 class ScreenMMU final : public Screen {
 public:
     ScreenMMU();
@@ -50,10 +55,13 @@ protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
+    template <size_t... I>
+    explicit ScreenMMU(std::index_sequence<I...>);
+
     void update();
 
     Header header;
-    ShelfSpool spools[5];
+    ShelfSpool spools[VirtualToolIndex::count];
     Shortcut preload_all;
     Shortcut assist;
     Shortcut motors;

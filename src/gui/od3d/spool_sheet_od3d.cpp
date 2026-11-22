@@ -178,11 +178,12 @@ namespace {
         // Le MMU ne peut ni précharger, ni éjecter, ni couper si un filament va jusqu'à la tête (comme le menu Prusa)
         const bool mmu_free = mmu && idle && !atelier::filament_in_nozzle();
 
-        if (!type) {
+        if (!type && atelier::mmu_enabled()) {
             main_choice = Choice::insert;
             main.set(Button::Look::primary, _("Insert a spool"), &img::spool_16x16);
             main.set_enabled(mmu_free);
-        } else if (loaded) {
+        } else if (loaded && type) {
+            // Sans MMU, l'outil 0 est toujours choisi : sans matière, c'est un chargement (Prusa demande la matière)
             main_choice = Choice::unload;
             main.set(Button::Look::primary, _("Unload"), &img::arrow_left_16x16);
             main.set_enabled(idle && reachable);

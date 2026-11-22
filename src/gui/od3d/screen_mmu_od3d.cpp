@@ -1,5 +1,6 @@
 /// @file
 #include "screen_mmu_od3d.hpp"
+#include "layout_od3d.hpp"
 #include "menu_items_od3d.hpp"
 
 #include "screen_pa_od3d.hpp"
@@ -27,8 +28,14 @@ namespace {
     // une carte chargée remonte de 3 px, d'où un rect de 133 px de haut
     constexpr uint8_t lift = 3;
     constexpr uint16_t shelf_card_h = 130;
+    constexpr uint8_t shelf_gap = 6;
+    constexpr Rect16 shelf_area = { style::margin, style::top, 464, shelf_card_h + lift };
     constexpr Rect16 shelf_rect(int i) {
-        return Rect16(style::margin + 94 * i, style::top, 88, shelf_card_h + lift);
+        return layout::spool_cell(shelf_area, 5, shelf_gap, i);
+    }
+    /// Rect de la bobine index parmi tools (une ou deux rangées) ; celles au-delà, cachées, prennent la place de la 1re
+    constexpr Rect16 shelf_rect(uint8_t index, uint8_t tools) {
+        return layout::spool_cell(shelf_area, tools, shelf_gap, index < tools ? index : 0);
     }
     constexpr Rect16 shortcut_body(int i) {
         return Rect16(style::margin + 156 * (i % 3), 187 + 46 * (i / 3), 148, 40);
@@ -37,6 +44,7 @@ namespace {
     static_assert(style::inside(style::content, style::with_ring(shelf_rect(0))) && style::inside(style::content, style::with_ring(shelf_rect(4))));
     static_assert(style::inside(style::content, style::with_ring(shortcut_body(5))));
     static_assert(shelf_rect(4).Right() + 1 == style::screen_w - style::margin);
+    static_assert(shelf_rect(4) == Rect16(384, style::top, 88, 133), "les 5 bobines du MMU gardent leur place (SPEC_G.md §3.2)");
 
     enum ShelfTag : uint8_t {
         // 0 à 4 : les bobines
@@ -79,11 +87,19 @@ namespace {
 
 // ---- Étagère ----
 
-ShelfSpool::ShelfSpool(window_t *parent, uint8_t index)
-    : Button(parent, shelf_rect(index), index, Look::card, {}, nullptr, style::screen, style::radius_big)
-    , slot(Slot::read(index)) {}
+ShelfSpool::ShelfSpool(window_t *parent, uint8_t index, uint8_t tools)
+    : Button(parent, shelf_rect(index, tools), index, Look::card, {}, nullptr, style::screen, style::radius_big)
+    , slot(Slot::read(index)) {
+    if (index >= tools) {
+        set_visible(false); // outil absent (MMU désactivé, têtes de l'INDX non montées)
+        set_enabled(false);
+    }
+}
 
 void ShelfSpool::update(bool mmu_ready) {
+    if (!HasVisibleFlag()) {
+        return; // outil absent
+    }
     const Slot s = Slot::read(tag);
     const bool enabled = s.enabled && mmu_ready;
     if (!(s == slot) || enabled != IsEnabled()) {
@@ -97,7 +113,8 @@ void ShelfSpool::unconditionalDraw() {
     // Le corps bouge selon l'état : il est repeint avec sa marge, puis la bande de 3 px qu'il laisse, au fond
     const Rect16 r = GetRect();
     const Rect16 full = body();
-    const Rect16 b(full.Left(), full.Top() + (slot.loaded ? 0 : lift), full.Width(), shelf_card_h);
+    const uint16_t card_h = r.Height() - lift; // 130 sur une rangée, ~60 sur deux
+    const Rect16 b(full.Left(), full.Top() + (slot.loaded ? 0 : lift), full.Width(), card_h);
     const Rect16 outer = style::with_ring(b);
     display::fill_rect(slot.loaded ? Rect16(r.Left(), outer.Bottom() + 1, r.Width(), lift) : Rect16(r.Left(), r.Top(), r.Width(), lift), style::screen);
     const Color base = slot.loaded ? style::secondary : style::surface;
@@ -105,6 +122,26 @@ void ShelfSpool::unconditionalDraw() {
     draw_body(outer, fill, style::screen, radius);
 
     const bool enabled = IsEnabled();
+    // 2e ligne : « Chargé » en orange, « Vide », le reste, ou le nom de la couleur choisie dans l'assistant
+    char state_text[16];
+    Color state_color;
+    const string_view_utf8 state = atelier::slot_state(slot, tag, state_text, state_color);
+
+    if (card_h < 100) {
+        // Deux rangées (INDX 8 têtes) : bobine à gauche, « n MATIÈRE » et l'état à droite (6 caractères)
+        constexpr uint8_t d = 32;
+        const point_i16_t at { int16_t(b.Left() + 8), int16_t(b.Top() + (card_h - d) / 2) };
+        draw_spool(at, slot.look, d, fill, std::optional<Color>(slot.loaded ? style::accent : fill));
+        const int16_t x = at.x + d + 8;
+        const uint16_t w = b.Left() + b.Width() - 4 - x;
+        char label[12];
+        snprintf(label, sizeof(label), "%d %s", tag + 1, slot.material.data());
+        draw_text(Rect16(x, b.Top() + card_h / 2 - height(Font::small), w, height(Font::small)), string_view_utf8::MakeRAM(label), Font::small,
+            enabled ? style::text_strong : style::text_faint, fill);
+        draw_text(Rect16(x, b.Top() + card_h / 2, w, height(Font::small)), state, Font::small, enabled ? state_color : style::text_faint, fill);
+        return;
+    }
+
     constexpr uint8_t d = 64;
     const point_i16_t at { int16_t(b.Left() + (b.Width() - d) / 2), int16_t(b.Top() + 8) };
     draw_spool(at, slot.look, d, fill, std::optional<Color>(slot.loaded ? style::accent : fill));
@@ -114,31 +151,10 @@ void ShelfSpool::unconditionalDraw() {
 
     draw_text(Rect16(b.Left(), b.Top() + 74, b.Width(), height(Font::normal)), string_view_utf8::MakeRAM(slot.material.data()), Font::normal,
         enabled ? style::text_strong : style::text_faint, fill, Align_t::Center());
-
-    // 2e ligne : « Chargé » en orange, « Vide », ou le nom de la couleur choisie dans l'assistant
-    char color_name[16];
-    string_view_utf8 line;
-    Color line_color = style::text_muted;
-    if (slot.loaded) {
-        line = _("Loaded");
-        line_color = style::accent;
-    } else if (!slot.look.filament) {
-        line = _("Empty");
-    } else if (const auto usage = spool_usage::report(tag)) {
-        // Reste (F13 ou étiquette OpenPrintTag), en jaune sous le seuil d'alerte
-        snprintf(color_name, sizeof(color_name), "~%d g", int(usage->remaining_g));
-        line = string_view_utf8::MakeRAM(color_name);
-        if (usage->low()) {
-            line_color = style::warning;
-        }
-    } else {
-        atelier::paint_name(color_name, atelier::paint_index(FilamentType::for_tool(VirtualToolIndex::from_raw(tag))));
-        line = string_view_utf8::MakeRAM(color_name);
-    }
-    draw_text(Rect16(b.Left(), b.Top() + 94, b.Width(), height(Font::small)), line, Font::small, enabled ? line_color : style::text_faint, fill, Align_t::Center());
+    draw_text(Rect16(b.Left(), b.Top() + 94, b.Width(), height(Font::small)), state, Font::small, enabled ? state_color : style::text_faint, fill, Align_t::Center());
 
     if (slot.loaded) {
-        display::draw_rounded_rect(Rect16(b.Left() + 26, b.Top() + shelf_card_h - 4, 36, 3), fill, style::accent, 2, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(Rect16(b.Left() + (b.Width() - 36) / 2, b.Top() + shelf_card_h - 4, 36, 3), fill, style::accent, 2, MIC_ALL_CORNERS);
     }
 }
 
@@ -162,9 +178,14 @@ void Shortcut::unconditionalDraw() {
 }
 
 ScreenMMU::ScreenMMU()
+    : ScreenMMU(std::make_index_sequence<VirtualToolIndex::count>()) {}
+
+template <size_t... I>
+ScreenMMU::ScreenMMU(std::index_sequence<I...>)
     : Screen(true)
-    , header(this, string_view_utf8::MakeCPUFLASH("MMU"), true)
-    , spools { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 }, { this, 4 } }
+    // Sans MMU, l'étagère de l'onglet Atelier n'a que la bobine de la buse
+    , header(this, atelier::mmu_enabled() ? string_view_utf8::MakeCPUFLASH("MMU") : _("Workshop"), true)
+    , spools { ShelfSpool(this, I, atelier::visible_tools())... }
     , preload_all(this, shortcut_body(0), tag_preload_all, img::cycle_16x16, style::tile_motion, _("Preload"), _("All slots"))
     , assist(this, shortcut_body(1), tag_assist, img::speed_16x16, style::tile_motion, _("MMU assist"), _("soon"))
     , motors(this, shortcut_body(2), tag_motors, img::move_16x16, style::tile_motion, _("Motors"), _("Open >"))

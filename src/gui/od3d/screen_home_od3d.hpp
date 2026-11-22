@@ -12,6 +12,8 @@
 #include <buddy/filename_defs.hpp>
 #include <media_state.hpp>
 #include <optional>
+#include <tool_index.hpp>
+#include <utility>
 #include <option/has_nfc.h>
 
 #if HAS_NFC()
@@ -20,10 +22,13 @@
 
 namespace od3d {
 
-/// Bobine de la bande de l'accueil : disque Ø40 et « n MATIÈRE », en orange si elle est chargée dans la buse
+/// Bobine de la bande de l'accueil, en orange si elle est chargée dans la buse. Selon la place (layout_od3d.hpp) :
+/// étroite (MMU3) bobine en haut et « n MATIÈRE » dessous ; large (sans MMU, INDX 3 têtes) bobine Ø40 à gauche, matière
+/// et état à droite ; basse (INDX 8 têtes, deux rangées) petite bobine et « n MATIÈRE » sur une ligne.
 class SpoolCard : public Card {
 public:
-    SpoolCard(window_t *parent, uint8_t index);
+    /// tools : bobines montrées (lu à l'exécution) ; au-delà, la carte est cachée
+    SpoolCard(window_t *parent, uint8_t index, uint8_t tools);
 
     /// Relit l'emplacement et le redessine s'il a changé ; mmu_ready est faux pendant que le MMU démarre
     void update(bool mmu_ready);
@@ -35,6 +40,7 @@ protected:
 private:
     Slot slot;
     uint8_t index;
+    bool single; ///< seule bobine (sans MMU) : la matière sans numéro
 };
 
 /// Carte du dernier fichier : vignette, « Dernier fichier », nom. « Imprimer » est un élément à part,
@@ -101,6 +107,9 @@ protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
+    template <size_t... I>
+    explicit ScreenHome(std::index_sequence<I...>);
+
     void refresh_file();
     void update_spools();
 #if HAS_NFC()
@@ -108,7 +117,7 @@ private:
 #endif
 
     Header header;
-    SpoolCard spools[5];
+    SpoolCard spools[VirtualToolIndex::count]; ///< une par outil possible ; celles des outils absents sont cachées
     IconButton mmu;
     FileCard file;
     PrintButton print;

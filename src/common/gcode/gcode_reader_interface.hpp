@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <span>
 #include <utils/abstract_byte_reader.hpp>
@@ -253,6 +254,13 @@ protected:
     GcodeReaderCommon &operator=(GcodeReaderCommon &&) = default;
 
 public:
+    /// OneDrop3D : lecture par blocs de size octets. Sans cela, newlib lit la clé secteur par secteur (st_blksize = 512),
+    /// une commande USB par 512 octets. À appeler juste après l'ouverture, avant toute lecture ; le tampon est libéré à
+    /// la fermeture.
+    void set_read_buffer(size_t size) {
+        setvbuf(file.get(), nullptr, _IOFBF, size);
+    }
+
     void set_validity(std::optional<transfers::PartialFile::State> validity) {
         this->validity = validity;
     }

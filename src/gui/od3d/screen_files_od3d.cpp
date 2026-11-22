@@ -1,5 +1,6 @@
 /// @file
 #include "screen_files_od3d.hpp"
+#include "layout_od3d.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -22,11 +23,19 @@
 #include <marlin_client.hpp>
 #include <media_state.hpp>
 #include <metric.h>
+#include <option/has_touch.h>
+#include <sound.hpp>
 #include <strings.h>
 #include <timing.h>
 
+#if HAS_TOUCH()
+    #include <hw/touchscreen/touchscreen.hpp>
+#endif
+
 // Durées des lectures de la clé, en ms (M331 od3d_files pour les activer) : dir = liste du dossier, info = métadonnées
-// d'un fichier, thumb = vignette, ready = de l'affichage de la page à sa dernière vignette
+// d'un fichier (ouverture comprise), thumb = vignette (de l'ouverture du fichier à sa dernière bande, pauses comprises),
+// band = la plus longue bande de cette vignette (temps où l'interface ne répond pas), ready = de l'affichage de la page
+// à sa dernière vignette
 METRIC_DEF(metric_od3d_files, "od3d_files", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
 
 namespace od3d {
@@ -40,14 +49,29 @@ namespace {
 
     // Grille (SPEC_G.md §3.9) : 4 cartes de 228 × 110 (114 dans la maquette, sous l'en-tête de 40 px), haut de 72 px
     // pour la vignette (313 × 173 réduite au tiers)
+    constexpr int16_t row_pitch = 116; ///< d'une rangée de cartes à la suivante : aussi le pas du doigt
     constexpr Rect16 tile_body(int i) {
-        return Rect16(style::margin + (i % 2) * 236, style::top + (i / 2) * 116, 228, 110);
+        return Rect16(style::margin + (i % ScreenFiles::cols) * 236, style::top + (i / ScreenFiles::cols) * row_pitch, 228, 110);
     }
     constexpr uint16_t tile_thumb_h = 72;
     constexpr uint8_t grid_factor = 3;
     constexpr Rect16 grid_rect = Rect16::fromLTRB(style::margin, style::top, style::screen_w - style::margin, tile_body(3).Bottom() + 1);
+    constexpr Rect16 scroll_rect = { 474, grid_rect.Top(), 4, grid_rect.Height() }; ///< à droite des anneaux des cartes
     static_assert(thumb_w / grid_factor <= tile_body(0).Width() && thumb_h / grid_factor <= tile_thumb_h);
     static_assert(style::inside(style::content, style::with_ring(tile_body(3))));
+    static_assert(scroll_rect.Left() > style::with_ring(tile_body(3)).Right() && scroll_rect.Right() < style::screen_w);
+
+    /// Vignette de la grille : 8 lignes par bande (24 de la source, ~10 ms de décodage et une lecture de 4 Ko au plus) ;
+    /// l'interface répond entre deux
+    constexpr uint16_t band_rows = 8;
+    constexpr ScaledQoiReader::Params grid_params { .factor = grid_factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back };
+
+    /// Lectures après la dernière molette ou le dernier toucher : l'écran répond d'abord
+    constexpr int32_t input_pause_ms = 250;
+
+    // Doigt : la grille suit dès 10 px (comme le défilement de Prusa) ; une rangée d'inertie toutes les 70 ms
+    constexpr int16_t drag_min = 10;
+    constexpr uint32_t fling_step_ms = 70;
 
     // Avant l'impression (§3.10), sous l'en-tête de 40 px : case de l'aperçu 136 px de haut (146 dans la maquette)
     constexpr Rect16 preview_box = { style::margin, style::top, 212, 136 };
@@ -175,6 +199,34 @@ namespace {
 
 } // namespace
 
+namespace {
+
+    /// Métadonnées du G-code ouvert, gardées en cache sous path ; vides (et pas gardées) si elles ne se lisent pas
+    FileInfo read_metadata(AnyGcodeFormatReader &gcode, const char *path) {
+        FileInfo info;
+        if (!gcode->stream_metadata_start()) {
+            return info; // pas gardé : la clé peut revenir
+        }
+        GcodeBuffer buffer;
+        while (gcode->stream_get_line(buffer, IGcodeReader::Continuations::Discard) == IGcodeReader::Result_t::RESULT_OK) {
+            const auto [name, value] = buffer.line.parse_metadata();
+            if (name.begin != nullptr && value.begin != nullptr) {
+                print_info::parse_metadata(info, std::string_view(&*name.begin, name.len()), std::string_view(&*value.begin, value.len()));
+            }
+        }
+        info_cache.put(path, info);
+        return info;
+    }
+
+    /// G-code dont une vignette de la grille se dessine par bandes : ouvert d'un LOOP au suivant. Hors de l'écran, dont la
+    /// place est comptée (4 192 octets) ; il n'y a qu'un écran Fichiers à la fois.
+    std::optional<AnyGcodeFormatReader> band_gcode;
+
+    /// Titre « Fichiers 5-8/23 » (position dans la liste), gardé tant que l'en-tête le montre
+    std::array<char, 40> title_text;
+
+} // namespace
+
 std::optional<FileInfo> cached_file_info(const char *path) {
     if (const FileInfo *hit = info_cache.find(path)) {
         return *hit;
@@ -186,55 +238,65 @@ void forget_file_infos() {
     info_cache.keys = {};
 }
 
+bool open_gcode(AnyGcodeFormatReader &gcode, const char *path) {
+    if (!gcode.open(path)) {
+        return false;
+    }
+    // PlainGcodeReader et PrusaPackGcodeReader dérivent de GcodeReaderCommon (ClosedReader seul n'en dérive pas, et il
+    // n'est pas ouvert). 4 Ko : de l'en-tête à la vignette 313 × 173 d'un .bgcode en une lecture, puis 8 secteurs par
+    // commande USB.
+    static_cast<GcodeReaderCommon *>(gcode.get())->set_read_buffer(4096);
+    return true;
+}
+
 FileInfo read_file_info(const char *path) {
     if (const FileInfo *hit = info_cache.find(path)) {
         return *hit;
     }
-    FileInfo info;
     const uint32_t start_ms = ticks_ms();
-    AnyGcodeFormatReader reader(path);
-    if (!reader.is_open() || !reader->stream_metadata_start()) {
-        return info; // pas gardé : la clé peut revenir
+    AnyGcodeFormatReader gcode;
+    if (!open_gcode(gcode, path)) {
+        return {};
     }
-    GcodeBuffer buffer;
-    while (reader->stream_get_line(buffer, IGcodeReader::Continuations::Discard) == IGcodeReader::Result_t::RESULT_OK) {
-        const auto [name, value] = buffer.line.parse_metadata();
-        if (name.begin != nullptr && value.begin != nullptr) {
-            print_info::parse_metadata(info, std::string_view(&*name.begin, name.len()), std::string_view(&*value.begin, value.len()));
-        }
-    }
-    info_cache.put(path, info);
+    const FileInfo info = read_metadata(gcode, path);
     metric_record_custom(&metric_od3d_files, " info=%ui", unsigned(ticks_diff(ticks_ms(), start_ms)));
     return info;
 }
 
-bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<ScaledQoiReader> &scaler, uint16_t grey_rows) {
+bool draw_thumbnail(const char *path, Rect16 box, const ScaledQoiReader::Params &params, std::optional<ScaledQoiReader> &scaler) {
     const uint32_t start_ms = ticks_ms();
-    AnyGcodeFormatReader gcode(path);
-    if (!gcode.is_open()) {
+    AnyGcodeFormatReader gcode;
+    if (!open_gcode(gcode, path)) {
         return false;
     }
     AbstractByteReader *qoi = gcode->stream_thumbnail_start(thumb_w, thumb_h, IGcodeReader::ImgType::QOI);
     if (!qoi) {
         return false;
     }
-    scaler.emplace(*qoi, ScaledQoiReader::Params { .factor = factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back, .grey_rows = grey_rows });
-    display::draw_img(point_ui16(box.Left() + (box.Width() - thumb_w / factor) / 2, box.Top() + (box.Height() - thumb_h / factor) / 2), *scaler);
+    scaler.emplace(*qoi, params);
+    const bool readable = scaler->open();
+    if (readable) {
+        display::draw_img(point_ui16(box.Left() + (box.Width() - scaler->width()) / 2, box.Top() + (box.Height() - scaler->height()) / 2), *scaler);
+    }
     scaler.reset();
     metric_record_custom(&metric_od3d_files, " thumb=%ui", unsigned(ticks_diff(ticks_ms(), start_ms)));
-    return true;
+    return readable;
+}
+
+bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<ScaledQoiReader> &scaler, uint16_t grey_rows) {
+    return draw_thumbnail(path, box, ScaledQoiReader::Params { .factor = factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back, .grey_rows = grey_rows }, scaler);
 }
 
 // ---- Grille des fichiers ----
 
 std::array<char, filename_defs::path_buffer_size> ScreenFiles::dir { '/', 'u', 's', 'b' };
 int ScreenFiles::first = 0;
+ScreenFiles *ScreenFiles::instance = nullptr;
 
 FileTile::FileTile(ScreenFiles &screen, uint8_t index)
     : window_t(&screen, style::with_ring(tile_body(index)))
-    , screen(screen) {
-    set_visible(false);
-}
+    , index(index)
+    , screen(screen) {}
 
 void FileTile::set(Kind k, uint8_t index_in_view) {
     kind = k;
@@ -247,32 +309,29 @@ void FileTile::set(Kind k, uint8_t index_in_view) {
             if (const auto cached = cached_file_info(path.data())) {
                 info = *cached;
             } else {
-                info_pending = true; // lu après le dessin de la grille (load_info)
+                info_pending = true; // lu avec la vignette (ScreenFiles::start_load)
             }
         }
     }
-    set_visible(kind != Kind::none);
     set_enabled(kind != Kind::none);
     Invalidate();
 }
 
-bool FileTile::load_info() {
-    if (!info_pending || !IsVisible() || IsInvalid()) {
-        return false;
-    }
+void FileTile::set_info(const FileInfo &set) {
+    info = set;
     info_pending = false;
-    std::array<char, filename_defs::path_buffer_size> path;
-    if (screen.entry_path(*this, path)) {
-        info = read_file_info(path.data());
-    }
     Invalidate(); // la partie basse seulement : la vignette est une autre fenêtre
-    return true;
 }
 
 void FileTile::unconditionalDraw() {
-    // La marge et la partie basse de la carte ; le haut (vignette) est FileThumb, qui ne se relit pas au focus.
-    // Focus : la partie basse plus claire, sans anneau
+    // La marge et la partie basse de la carte ; le haut (vignette) est FileThumb, qui ne se redessine pas au focus.
+    // Focus : la partie basse plus claire, sans anneau. Pas d'entrée (fin de liste) : le fond de l'écran.
     const Rect16 outer = GetRect();
+    if (kind == Kind::none) {
+        display::fill_rect(Rect16(outer.Left(), outer.Top() + style::ring + tile_thumb_h, outer.Width(), outer.Height() - style::ring - tile_thumb_h), style::screen);
+        draw_margin(outer, style::screen);
+        return;
+    }
     draw_margin(outer, style::screen);
 
     const Rect16 body(outer.Left() + style::ring, outer.Top() + style::ring, outer.Width() - 2 * style::ring, outer.Height() - 2 * style::ring);
@@ -323,11 +382,9 @@ void FileTile::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         screen.open(*this); // consommé, comme Card
         return;
     case GUI_event_t::KNOB: {
-        // Au bord de la page, la molette tourne la page au lieu de quitter la grille
+        // Un fichier par cran ; la grille avance d'une rangée quand il sort de l'écran
         auto &ctx = *static_cast<GuiEventContext *>(param);
-        const int diff = ctx.event.value<gui_event::KnobEvent>().diff;
-        const bool last = this == &screen.tile(3), first_tile = this == &screen.tile(0);
-        if ((diff > 0 && last && screen.turn_page(1)) || (diff < 0 && first_tile && screen.turn_page(-1))) {
+        if (screen.knob(*this, ctx.event.value<gui_event::KnobEvent>().diff)) {
             ctx.accept();
             return;
         }
@@ -342,42 +399,22 @@ void FileTile::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 FileThumb::FileThumb(ScreenFiles &screen, const FileTile &tile, uint8_t index)
     : window_t(&screen, Rect16(tile_body(index).Left(), tile_body(index).Top(), tile_body(index).Width(), tile_thumb_h))
     , screen(screen)
-    , tile(tile) {
-    set_visible(false);
-}
-
-bool FileThumb::request_image() {
-    if (image_drawn || image_requested || !IsVisible() || IsInvalid()) {
-        return false;
-    }
-    image_requested = true;
-    Invalidate();
-    ValidateBackground(); // la case reste, seule la vignette se dessine
-    return true;
-}
+    , tile(tile) {}
 
 void FileThumb::unconditionalDraw() {
     const Rect16 box = GetRect();
-    if (!HasValidBackground()) {
-        // La case et son icône ; pour un fichier, l'icône attend la vignette (LOOP suivant) ou reste s'il n'y en a pas
-        display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT | MIC_TOP_RIGHT);
-        image_drawn = tile.kind != FileTile::Kind::file;
-        const img::Resource *icon = tile.kind == FileTile::Kind::file ? &img::print_16x16
-            : tile.kind == FileTile::Kind::folder                    ? &img::folder_full_16x16
-            : tile.kind == FileTile::Kind::up                        ? &img::folder_up_16x16
-                                                                      : nullptr;
-        if (icon) {
-            draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, *icon, style::thumb_back);
-        }
+    image_drawn = tile.kind != FileTile::Kind::file;
+    screen.thumb_cleared(tile);
+    if (tile.kind == FileTile::Kind::none) {
+        display::fill_rect(box, style::screen);
+        return;
     }
-    if (image_requested) {
-        image_requested = false;
-        image_drawn = true;
-        std::array<char, filename_defs::path_buffer_size> path;
-        if (tile.kind == FileTile::Kind::file && screen.entry_path(tile, path)) {
-            draw_thumbnail(path.data(), box, grid_factor, screen.scaler);
-        }
-    }
+    // La case et son icône ; pour un fichier, l'image vient ensuite par bandes (ScreenFiles::load_next), ou l'icône reste
+    display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    const img::Resource &icon = tile.kind == FileTile::Kind::file ? img::print_16x16
+        : tile.kind == FileTile::Kind::folder                    ? img::folder_full_16x16
+                                                                  : img::folder_up_16x16;
+    draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, icon, style::thumb_back);
 }
 
 GridScroll::GridScroll(ScreenFiles &screen, Rect16 rect)
@@ -385,27 +422,45 @@ GridScroll::GridScroll(ScreenFiles &screen, Rect16 rect)
     , screen(screen) {}
 
 void GridScroll::unconditionalDraw() {
+    // Comme l'indicateur des listes (menu_od3d.cpp) : piste au-dessus, curseur, piste en dessous, chaque pixel peint une
+    // fois ; le curseur avance d'une rangée à la fois
     const Rect16 r = GetRect();
     const int count = screen.item_count();
-    constexpr int n = ScreenFiles::tiles_count;
-    if (count <= n) {
+    if (count <= ScreenFiles::tiles_count) {
         display::fill_rect(r, style::screen);
         return;
     }
-    const int h = std::max(r.Height() * n / count, 12);
-    const int y = std::min<int>(r.Top() + (r.Height() - h) * screen.first_item() / std::max(count - n, 1), r.Bottom() + 1 - h);
-    display::fill_rect(Rect16(r.Left(), r.Top(), r.Width(), y - r.Top()), style::screen);
-    display::fill_rect(Rect16(r.Left(), y, r.Width(), h), style::text_faint);
-    display::fill_rect(Rect16(r.Left(), y + h, r.Width(), r.Bottom() + 1 - y - h), style::screen);
+    constexpr uint8_t radius = 2;
+    const int total_rows = (count + ScreenFiles::cols - 1) / ScreenFiles::cols;
+    const int16_t h = std::max<int16_t>(r.Height() * ScreenFiles::rows / total_rows, 24);
+    const int16_t y = (r.Height() - h) * (screen.first_item() / ScreenFiles::cols) / (total_rows - ScreenFiles::rows);
+    const int16_t below = r.Height() - y - h;
+    if (y > 0) {
+        display::draw_rounded_rect(Rect16(r.Left(), r.Top(), r.Width(), y), style::screen, style::line, radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    }
+    const uint8_t ends = (y == 0 ? MIC_ALT_CL_TOP_LEFT | MIC_ALT_CL_TOP_RIGHT : 0) | (below == 0 ? MIC_ALT_CL_BOT_LEFT | MIC_ALT_CL_BOT_RIGHT : 0);
+    display::draw_rounded_rect(Rect16(r.Left(), r.Top() + y, r.Width(), h), style::line, style::text_muted, radius, uint8_t(MIC_ALL_CORNERS | ends), style::screen);
+    if (below > 0) {
+        display::draw_rounded_rect(Rect16(r.Left(), r.Top() + y + h, r.Width(), below), style::screen, style::line, radius, MIC_BOT_LEFT | MIC_BOT_RIGHT);
+    }
 }
 
 ScreenFiles::ScreenFiles()
     : Screen(true)
-    , header(this, _("Files \xC2\xB7 USB drive"), true)
-    , thumbs { { *this, tiles[0], 0 }, { *this, tiles[1], 1 }, { *this, tiles[2], 2 }, { *this, tiles[3], 3 } } // avant les cartes : leur anneau passe sur les coins de la vignette
+    , header(this, _("Files \xC2\xB7 USB drive"), true, back)
+    , thumbs { { *this, tiles[0], 0 }, { *this, tiles[1], 1 }, { *this, tiles[2], 2 }, { *this, tiles[3], 3 } } // avant les cartes : leur marge passe sur les coins de la vignette
     , tiles { { *this, 0 }, { *this, 1 }, { *this, 2 }, { *this, 3 } }
-    , scroll(*this, Rect16(475, grid_rect.Top(), 3, grid_rect.Height()))
-    , tabs(this, TabBar::Tab::print) {}
+    , scroll(*this, scroll_rect)
+    , tabs(this, TabBar::Tab::print) {
+    instance = this;
+}
+
+ScreenFiles::~ScreenFiles() {
+    stop_load();
+    if (instance == this) {
+        instance = nullptr;
+    }
+}
 
 void ScreenFiles::InitState(screen_init_variant var) {
     if (!var.GetPosition()) {
@@ -416,7 +471,7 @@ void ScreenFiles::InitState(screen_init_variant var) {
     load();
     if (var.GetPosition()) {
         Screen::InitState(var);
-    } else if (tiles[0].IsVisible()) {
+    } else if (tiles[0].IsEnabled()) {
         tiles[0].SetFocus();
     }
 }
@@ -431,19 +486,35 @@ int ScreenFiles::item_count() const {
 
 void ScreenFiles::load() {
     loaded = true;
+    const uint32_t start_ms = ticks_ms();
+    view.ChangeDirectory(dir.data(), FileSort::SortPolicy::BY_CRMOD_DATETIME);
+    first = grid::clamp_first(item_count(), cols, rows, first);
+    fill();
+    metric_record_custom(&metric_od3d_files, " dir=%ui,n=%ii", unsigned(ticks_diff(ticks_ms(), start_ms)), item_count());
+    // Dans un sous-dossier, le retour (et le balayage) remonte d'un dossier : Prusa ne doit pas fermer l'écran à sa place
+    // (balayage sans preneur, délai des menus) ; à la racine, il ferme l'écran
+    if (in_subfolder()) {
+        ClrMenuTimeoutClose();
+    } else {
+        SetMenuTimeoutClose();
+    }
+}
+
+void ScreenFiles::fill() {
+    stop_load();
     ready_logged = false;
     shown_ms = ticks_ms();
-    view.ChangeDirectory(dir.data(), FileSort::SortPolicy::BY_CRMOD_DATETIME);
-    const int count = item_count();
-    first = std::clamp(first, 0, std::max(0, count - 1)) / tiles_count * tiles_count;
 
-    // Entrées numérotées -1 (« .. ») à last ; à la racine, « .. » ne s'affiche pas. Près de la fin,
-    // LazyDirView recule sa fenêtre pour qu'elle reste pleine : on décale alors l'index dans la fenêtre.
+    // Entrées numérotées -1 (« .. ») à last ; à la racine, « .. » ne s'affiche pas. Près de la fin, LazyDirView recule
+    // sa fenêtre pour qu'elle reste pleine : on décale alors l'index dans la fenêtre. Une rangée de plus ou de moins ne
+    // relit le dossier qu'une fois (set_window_offset part de la fenêtre actuelle).
+    const int count = item_count();
     const int last = view.TotalFilesCount() - 2;
     const int wanted = first - (in_subfolder() ? 1 : 0);
     const int start = view.set_window_offset(wanted);
-    for (int i = 0; i < tiles_count; ++i) {
-        const int entry = wanted + i;
+    const bool was_shown = tiles[0].HasVisibleFlag();
+    for (FileTile &t : tiles) {
+        const int entry = wanted + t.index;
         FileTile::Kind kind = FileTile::Kind::none;
         uint8_t index = 0;
         if (entry <= last) {
@@ -451,18 +522,59 @@ void ScreenFiles::load() {
             kind = entry < 0 ? FileTile::Kind::up
                              : (view.display_name_at(index).second == FileSort::EntryType::DIR ? FileTile::Kind::folder : FileTile::Kind::file);
         }
-        tiles[i].set(kind, index);
-        thumbs[i].set_visible(kind != FileTile::Kind::none);
-        thumbs[i].Invalidate();
+        t.set(kind, index);
+        t.set_visible(count > 0);
+        thumbs[t.index].set_visible(count > 0);
+        thumbs[t.index].Invalidate();
     }
-    metric_record_custom(&metric_od3d_files, " dir=%ui,n=%ii", unsigned(ticks_diff(ticks_ms(), shown_ms)), count);
+    if (was_shown != (count > 0)) {
+        Invalidate(); // message « Pas de fichier » (ou sa place à repeindre)
+    }
+    scroll.Invalidate();
+    update_title();
 
-    // Une carte cachée ne garde pas le focus
-    if (window_t *focused = get_focused_child_window(); !focused || !focused->IsVisible()) {
-        if (window_t *w = tiles[0].IsVisible() ? &tiles[0] : GetFirstEnabledSubWin()) {
+    // Une carte vide ne garde pas le focus : la dernière carte pleine le prend (les vides sont en fin de grille)
+    if (window_t *focused = get_focused_child_window(); !focused || !focused->IsEnabled()) {
+        window_t *last_full = nullptr;
+        for (FileTile &t : tiles) {
+            if (t.IsEnabled()) {
+                last_full = &t;
+            }
+        }
+        if (window_t *w = last_full ? last_full : GetFirstEnabledSubWin()) {
             w->SetFocus();
         }
     }
+}
+
+void ScreenFiles::scroll_to(int new_first) {
+    new_first = grid::clamp_first(item_count(), cols, rows, new_first);
+    if (new_first != first) {
+        first = new_first;
+        fill(); // la carte ciblée garde sa place
+    }
+}
+
+void ScreenFiles::change_dir() {
+    first = 0;
+    load();
+    if (tiles[0].IsEnabled()) {
+        tiles[0].SetFocus();
+    }
+}
+
+void ScreenFiles::update_title() {
+    const int count = item_count();
+    if (count <= tiles_count) {
+        header.set_title(_("Files \xC2\xB7 USB drive"));
+        return;
+    }
+    // « Fichiers 5-8/23 » : où l'on est dans la liste
+    _("Files").copyToRAM(title_text);
+    title_text.back() = '\0';
+    const size_t len = strlen(title_text.data());
+    snprintf(title_text.data() + len, title_text.size() - len, " %d-%d/%d", first + 1, std::min(first + int(tiles_count), count), count);
+    header.set_title(string_view_utf8::MakeRAM(title_text.data()));
 }
 
 bool ScreenFiles::entry_path(const FileTile &t, std::span<char> out) const {
@@ -472,22 +584,6 @@ bool ScreenFiles::entry_path(const FileTile &t, std::span<char> out) const {
 
 const char *ScreenFiles::display_name(const FileTile &t) const {
     return view.display_name_at(t.view_index).first;
-}
-
-void ScreenFiles::show(int new_first, FileTile &focus) {
-    const bool was_empty = item_count() == 0;
-    const auto hidden = [this] { return std::ranges::count_if(tiles, [](const FileTile &t) { return !t.IsVisible(); }); };
-    const auto hidden_before = hidden();
-    first = new_first;
-    load();
-    if (was_empty || item_count() == 0 || hidden() > hidden_before) {
-        Invalidate(); // message « Pas de fichier », ou une carte cachée dont la place doit être repeinte
-    } else {
-        scroll.Invalidate(); // les cartes se sont invalidées seules ; l'en-tête et les onglets ne bougent pas
-    }
-    if (focus.IsVisible()) {
-        focus.SetFocus();
-    }
 }
 
 void ScreenFiles::open(const FileTile &t) {
@@ -501,65 +597,180 @@ void ScreenFiles::open(const FileTile &t) {
     case FileTile::Kind::folder:
         if (entry_path(t, path)) {
             dir = path;
-            show(0, tiles[0]);
+            change_dir();
         }
         break;
     case FileTile::Kind::up:
-        if (char *slash = strrchr(dir.data(), '/'); slash && in_subfolder()) {
-            *slash = '\0';
-            show(0, tiles[0]);
-        }
+        back();
         break;
     case FileTile::Kind::none:
         break;
     }
 }
 
-bool ScreenFiles::turn_page(int direction) {
-    const int new_first = first + direction * tiles_count;
-    if (new_first < 0 || new_first >= item_count()) {
+void ScreenFiles::back() {
+    if (!instance || !instance->in_subfolder()) {
+        Screens::Access()->close_screen();
+        return;
+    }
+    if (char *slash = strrchr(dir.data(), '/')) {
+        *slash = '\0';
+    }
+    instance->change_dir();
+}
+
+bool ScreenFiles::knob(const FileTile &tile, int step) {
+    const auto view_after = grid::step(item_count(), cols, rows, { first, first + tile.index }, step);
+    if (!view_after) {
         return false;
     }
-    show(new_first, tiles[direction > 0 ? 0 : tiles_count - 1]);
+    last_input_ms = ticks_ms();
+    fling = 0;
+    scroll_to(view_after->first);
+    tiles[view_after->focus - first].SetFocus();
+    sound::play(SoundType::encoder_move);
     return true;
+}
+
+void ScreenFiles::thumb_cleared(const FileTile &tile) {
+    if (loading == tile.index) {
+        stop_load();
+    }
 }
 
 void ScreenFiles::unconditionalDraw() {
     Screen::unconditionalDraw();
-    const int count = item_count();
-    if (count == 0) {
+    if (item_count() == 0) {
         const string_view_utf8 text = marlin_vars().media_inserted ? _("No printable file") : _("Insert a USB drive");
         draw_text(Rect16(grid_rect.Left(), 130, grid_rect.Width(), height(Font::small)), text, Font::small, style::text_muted, style::screen, Align_t::Center());
     }
 }
 
-void ScreenFiles::load_next() {
-    const bool pending = std::ranges::any_of(tiles, &FileTile::needs_info) || std::ranges::any_of(thumbs, &FileThumb::missing);
-    if (!pending) {
-        if (!ready_logged) {
-            ready_logged = true;
-            metric_record_custom(&metric_od3d_files, " ready=%ui", unsigned(ticks_diff(ticks_ms(), shown_ms)));
+void ScreenFiles::follow_finger() {
+#if HAS_TOUCH()
+    const auto at = touchscreen.held_point();
+    if (!at || !grid_rect.Contain(touchscreen.held_start())) {
+        if (dragging) {
+            end_drag(); // levé sans geste reconnu (de travers) : l'inertie quand même
         }
+        touching = false;
         return;
     }
-    // La molette ou le toucher viennent de servir : la clé attend (chaque lecture bloque l'interface ~0,1 s)
-    constexpr int32_t input_pause_ms = 300;
-    if (ticks_diff(ticks_ms(), last_input_ms) < input_pause_ms) {
+    const uint32_t now = ticks_ms();
+    if (!touching) {
+        // Nouveau contact sur la grille
+        touching = true;
+        dragging = false;
+        drag_first = first;
+        last_y = at->y;
+        last_touch_ms = now;
+        velocity = 0;
+        fling = 0;
+    }
+    last_input_ms = now; // pas de lecture de la clé sous le doigt
+    const int dy = at->y - touchscreen.held_start().y;
+    if (!dragging && (dy < 0 ? -dy : dy) < drag_min) {
+        gui_reset_loop_timer();
         return;
     }
-    // Une vignette demandée se lit au dessin qui suit : rien d'autre avant
-    if (std::ranges::none_of(thumbs, &FileThumb::requested)) {
-        // Une lecture par LOOP : d'abord les lignes « durée · grammes » (courtes), puis les vignettes
-        if (std::ranges::none_of(tiles, [](FileTile &t) { return t.load_info(); })) {
-            for (FileThumb &t : thumbs) {
-                if (t.request_image()) {
-                    break;
-                }
+    dragging = true;
+    // Vitesse sur des tranches de 40 ms au moins (l'écran tactile ne donne pas une position à chaque tour)
+    if (const int32_t dt = ticks_diff(now, last_touch_ms); dt >= 40) {
+        velocity = int32_t(at->y - last_y) * 1000 / dt;
+        last_y = at->y;
+        last_touch_ms = now;
+    }
+    scroll_to(grid::drag(item_count(), cols, rows, drag_first, dy, row_pitch));
+    gui_reset_loop_timer(); // le doigt est suivi à chaque tour de l'interface, pas toutes les 100 ms
+#endif
+}
+
+void ScreenFiles::end_drag() {
+    dragging = false;
+    touching = false;
+    fling = int8_t(grid::fling_rows(velocity));
+    fling_ms = ticks_ms();
+    last_input_ms = fling_ms;
+}
+
+void ScreenFiles::stop_load() {
+    scaler.reset(); // avant le G-code : il lit sa vignette
+    band_gcode.reset();
+    loading = -1;
+}
+
+void ScreenFiles::start_load(FileTile &tile) {
+    FileThumb &thumb = thumbs[tile.index];
+    std::array<char, filename_defs::path_buffer_size> path;
+    load_start_ms = ticks_ms();
+    longest_band_ms = 0;
+    band_gcode.emplace();
+    if (!entry_path(tile, path) || !open_gcode(*band_gcode, path.data())) {
+        tile.set_info({});
+        thumb.set_drawn(); // l'icône reste
+        stop_load();
+        return;
+    }
+    if (tile.needs_info()) {
+        // Les métadonnées d'un .bgcode sont avant ses vignettes, dans le même tampon de 4 Ko
+        tile.set_info(read_metadata(*band_gcode, path.data()));
+        metric_record_custom(&metric_od3d_files, " info=%ui", unsigned(ticks_diff(ticks_ms(), load_start_ms)));
+    }
+    if (thumb.missing()) {
+        if (AbstractByteReader *qoi = (*band_gcode)->stream_thumbnail_start(thumb_w, thumb_h, IGcodeReader::ImgType::QOI)) {
+            scaler.emplace(*qoi, grid_params);
+            if (scaler->open()) {
+                loading = tile.index; // les bandes aux LOOP suivants
+                return;
             }
         }
+        thumb.set_drawn(); // pas de vignette : l'icône reste
     }
-    // Le LOOP suivant tout de suite (après le dessin et les entrées), au lieu de 100 ms plus tard
-    gui_reset_loop_timer();
+    stop_load();
+}
+
+void ScreenFiles::load_next() {
+    const uint32_t now = ticks_ms();
+    // La molette ou le doigt viennent de servir : la clé attend, l'écran répond d'abord
+    if (touching || dragging || fling || ticks_diff(now, last_input_ms) < input_pause_ms) {
+        return;
+    }
+    if (loading < 0) {
+        // Carte ciblée d'abord, puis les autres dans l'ordre ; une carte pas encore dessinée attend son dessin
+        FileTile *next = nullptr;
+        const window_t *focused = get_focused_child_window();
+        for (FileTile &t : tiles) {
+            if ((thumbs[t.index].missing() || t.needs_info()) && !thumbs[t.index].IsInvalid() && !t.IsInvalid()) {
+                if (&t == focused) {
+                    next = &t;
+                    break;
+                }
+                next = next ? next : &t;
+            }
+        }
+        if (!next) {
+            if (!ready_logged && std::ranges::none_of(thumbs, &FileThumb::missing)) {
+                ready_logged = true;
+                metric_record_custom(&metric_od3d_files, " ready=%ui", unsigned(ticks_diff(now, shown_ms)));
+            }
+            return;
+        }
+        start_load(*next); // ouverture et métadonnées : une tranche
+    } else if (FileThumb &thumb = thumbs[loading]; !thumb.IsInvalid()) {
+        // Une bande de la vignette, dessinée à sa place dans la case
+        const Rect16 box = thumb.GetRect();
+        const uint16_t row = scaler->row();
+        if (scaler->band(band_rows)) {
+            display::draw_img(point_ui16(box.Left() + (box.Width() - scaler->width()) / 2, box.Top() + (box.Height() - scaler->height()) / 2 + row), *scaler);
+        }
+        longest_band_ms = std::max<uint32_t>(longest_band_ms, ticks_diff(ticks_ms(), now));
+        if (scaler->done() || scaler->row() == row) { // fini, ou la source s'arrête avant
+            thumb.set_drawn();
+            metric_record_custom(&metric_od3d_files, " thumb=%ui,band=%ui", unsigned(ticks_diff(ticks_ms(), load_start_ms)), unsigned(longest_band_ms));
+            stop_load();
+        }
+    }
+    gui_reset_loop_timer(); // la tranche suivante après le dessin et les entrées, sans attendre 100 ms
 }
 
 void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -569,28 +780,51 @@ void ScreenFiles::windowEvent(window_t *sender, GUI_event_t event, void *param) 
             load(); // si InitState n'a pas été appelé
         }
         if (!GetFirstDialog()) {
-            load_next(); // pas sous un dialogue : chaque lecture de la clé le ralentirait de ~0,1 s
+            follow_finger();
+            if (fling != 0 && ticks_diff(ticks_ms(), fling_ms) >= int32_t(fling_step_ms)) {
+                // Inertie : une rangée de plus, jusqu'au bout de la liste
+                const int step = fling > 0 ? 1 : -1;
+                const int before = first;
+                scroll_to(first + step * cols);
+                fling = first == before ? 0 : int8_t(fling - step);
+                fling_ms = last_input_ms = ticks_ms();
+            }
+            if (fling != 0) {
+                gui_reset_loop_timer();
+            }
+            load_next(); // pas sous un dialogue : chaque lecture de la clé le ralentirait
         }
         break;
     case GUI_event_t::KNOB:
     case GUI_event_t::CLICK:
+        last_input_ms = ticks_ms();
+        fling = 0;
+        break;
     case GUI_event_t::TOUCH_CLICK:
         last_input_ms = ticks_ms();
+        if (dragging) {
+            end_drag(); // le doigt est revenu près de son départ : la grille a bougé, ce n'est pas un toucher
+            return;
+        }
+        fling = 0;
         break;
     case GUI_event_t::MEDIA:
         if (const auto state = MediaState_t(int(param)); state == MediaState_t::inserted || state == MediaState_t::removed) {
             forget_file_infos();
             strlcpy(dir.data(), "/usb", dir.size());
-            show(0, tiles[0]);
+            change_dir();
         }
         break;
     case GUI_event_t::TOUCH_SWIPE_UP:
-        last_input_ms = ticks_ms();
-        turn_page(1);
-        return;
     case GUI_event_t::TOUCH_SWIPE_DOWN:
         last_input_ms = ticks_ms();
-        turn_page(-1);
+        if (dragging) {
+            end_drag(); // la grille a suivi le doigt : le lancer continue de quelques rangées
+        } else {
+            // Balayage trop rapide pour être suivi : une page
+            fling = 0;
+            scroll_to(first + (event == GUI_event_t::TOUCH_SWIPE_UP ? 1 : -1) * tiles_count);
+        }
         return;
     default:
         break;

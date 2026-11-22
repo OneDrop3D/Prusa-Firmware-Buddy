@@ -3,11 +3,13 @@
 
 #include <algorithm>
 #include <common/marlin_vars.hpp>
+#include <config_store/store_instance.hpp>
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
 #include <feature/filament_sensor/filament_sensors_handler.hpp>
+#include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <i18n.h>
 #include <marlin_client.hpp>
@@ -211,6 +213,35 @@ namespace atelier {
         return MMU2::xState(marlin_vars().mmu2_state.get()) == MMU2::xState::Active;
     }
 
+    bool mmu_enabled() {
+        return config_store().mmu2_enabled.get();
+    }
+
+    uint8_t visible_tools() {
+        return std::clamp<uint8_t>(VirtualToolIndex::enabled_range_size(), 1, VirtualToolIndex::count);
+    }
+
+    string_view_utf8 slot_state(const Slot &slot, uint8_t index, std::span<char> buf, Color &color) {
+        color = style::text_muted;
+        if (slot.loaded) {
+            color = style::accent;
+            return _("Loaded");
+        }
+        if (!slot.look.filament) {
+            return _("Empty");
+        }
+        if (const auto usage = spool_usage::report(index)) {
+            // Reste (F13 ou étiquette OpenPrintTag), en jaune sous le seuil d'alerte
+            snprintf(buf.data(), buf.size(), "~%d g", int(usage->remaining_g));
+            if (usage->low()) {
+                color = style::warning;
+            }
+            return string_view_utf8::MakeRAM(buf.data());
+        }
+        paint_name(buf, paint_index(FilamentType::for_tool(VirtualToolIndex::from_raw(index))));
+        return string_view_utf8::MakeRAM(buf.data());
+    }
+
     bool filament_in_nozzle() {
         return FSensors_instance().WhereIsFilament() == MMU2::FilamentState::AT_FSENSOR;
     }
@@ -245,10 +276,15 @@ namespace atelier {
         ArrayStringBuilder<MAX_CMD_SIZE> gcode;
         switch (op) {
         case Op::load:
-            // Comme MI_MMU_LOAD_TO_NOZZLE_I : la matière de l'emplacement donne la température
-            gcode.append_string("M701 S\"");
-            FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).build_encoded_gcode_param(gcode);
-            gcode.append_printf("\" W2 P%i", slot);
+            // Comme MI_MMU_LOAD_TO_NOZZLE_I : la matière de l'emplacement donne la température. Sans matière (imprimante
+            // sans MMU, buse vide), pas de S : Prusa demande la matière à charger.
+            if (const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot))) {
+                gcode.append_string("M701 S\"");
+                type.build_encoded_gcode_param(gcode);
+                gcode.append_printf("\" W2 P%i", slot);
+            } else {
+                gcode.append_printf("M701 W2 P%i", slot);
+            }
             break;
         case Op::unload:
             gcode.append_string("M702 W2");

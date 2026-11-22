@@ -51,8 +51,9 @@ Slot Slot::read(uint8_t index) {
     const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
     Slot slot;
     slot.enabled = tool.is_enabled();
-    slot.loaded = VirtualToolIndex::currently_selected_opt() == tool;
     const FilamentType type = FilamentType::for_tool(tool);
+    // Sans MMU, l'outil 0 est toujours « choisi » : chargé seulement s'il a une matière
+    slot.loaded = VirtualToolIndex::currently_selected_opt() == tool && type;
     if (type && slot.enabled) {
         const FilamentTypeParameters params = type.parameters();
         strlcpy(slot.material.data(), params.name.data(), slot.material.size());

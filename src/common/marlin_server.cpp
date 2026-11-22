@@ -242,6 +242,7 @@
 #endif
 #if HAS_LOADCELL() && HAS_MMU2()
     #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4)
+    #include <feature/od3d/collision_od3d.hpp> // OneDrop3D (F38)
 #endif
 #if HAS_CHAMBER_API()
     #include <feature/od3d/chamber_climate_od3d.hpp> // OneDrop3D (F29)
@@ -973,6 +974,9 @@ static void cycle() {
 #if HAS_CHAMBER_API()
     od3d::chamber_climate::step(); // OneDrop3D (F29) : plafond de la chambre, descente douce du plateau
 #endif
+#if HAS_LOADCELL() && HAS_MMU2()
+    od3d::collision::step(); // OneDrop3D (F38) : sécurité collision pendant l'impression
+#endif
 
     buddy::safety_timer().step();
 
@@ -1444,6 +1448,9 @@ static void settings_load() {
 #endif
 #if ENABLED(OD3D_FAN_LEAD)
     od3d::lookahead::load(); // OneDrop3D (F26) : avance du ventilateur pièce
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
+    od3d::collision::load(); // OneDrop3D (F38) : sécurité collision
 #endif
 }
 

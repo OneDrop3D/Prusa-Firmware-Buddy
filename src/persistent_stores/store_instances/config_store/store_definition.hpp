@@ -490,6 +490,11 @@ struct CurrentStore
     StoreItem<uint8_t, od3d::mpc::default_flow_max_boost, ItemFlag::features, journal::hash("OD3D Flow Temp Max Boost")> od3d_flow_temp_max_boost;
     /// OneDrop3D (F26) : avance du ventilateur pièce [dixièmes de seconde], 0 (par défaut) = comme Prusa
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Fan Lead")> od3d_fan_lead;
+    /// OneDrop3D (F38) : sécurité collision par la cellule de charge (coupée par défaut) ; sensibilité (0 faible,
+    /// 1 normale, 2 élevée) ; action (0 mettre en pause, 1 prévenir seulement)
+    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Collision Enabled")> od3d_collision_enabled;
+    StoreItem<uint8_t, 1, ItemFlag::features, journal::hash("OD3D Collision Sensitivity")> od3d_collision_sensitivity;
+    StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Collision Action")> od3d_collision_action;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

@@ -163,6 +163,20 @@ struct FSMScreenDef : public FSMScreenDefBase {
             return false;
         }
     }
+
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    /// OneDrop3D : nos onglets (Screens::CloseAll) peuvent fermer l'écran de la machine à états depuis un écran ouvert
+    /// au-dessus (« Changer les filaments » de l'association des outils, par exemple) alors qu'elle attend une réponse :
+    /// plus rien ne l'affichait et l'imprimante restait bloquée. Il est rouvert, avec ses dernières données.
+    static void reopen_if_lost(fsm::BaseData data) {
+        if (gui_get_nesting() || Screens::Access()->IsScreenOnStack<Screen>()) {
+            return;
+        }
+        if (open_base(screen, data)) {
+            (void)change(data);
+        }
+    }
+#endif
 };
 
 struct FSMDialogDefBase {
@@ -280,6 +294,12 @@ struct FSMLoadUnloadDef : public FSMScreenDef<ClientFSM::Load_unload, od3d::Scre
     [[nodiscard]] static bool open(fsm::BaseData data) {
         od3d::island::end(); // nouvelle opération : à l'écran
         return Base::open(data);
+    }
+
+    static void reopen_if_lost(fsm::BaseData data) {
+        if (!od3d::island::minimized()) { // réduit dans l'en-tête, il n'est pas sur la pile exprès
+            Base::reopen_if_lost(data);
+        }
     }
 
     static void close() {
@@ -464,6 +484,17 @@ void DialogHandler::Loop() {
 
 void DialogHandler::update_screen() {
     const auto new_top = marlin_vars().peek_fsm_states([](const auto &states) { return states.get_top(); });
+
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    // OneDrop3D : écran de la machine à états fermé par nos onglets alors qu'elle continue (voir reopen_if_lost)
+    if (new_top && current_fsm_top && new_top->fsm_type == current_fsm_top->fsm_type) {
+        visit_display_config(new_top->fsm_type, [&]<typename Config>(Config) {
+            if constexpr (requires { Config::reopen_if_lost(new_top->data); }) {
+                Config::reopen_if_lost(new_top->data);
+            }
+        });
+    }
+#endif
 
     if (new_top == current_fsm_top) {
         return;

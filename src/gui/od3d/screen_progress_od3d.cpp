@@ -576,9 +576,11 @@ ScreenLoadUnload::ScreenLoadUnload()
         { &box, Rect16(content_x, buttons_y, content_w, buttons_h), 1, Button::Look::outline, {} },
         { &box, Rect16(content_x, buttons_y, content_w, buttons_h), 2, Button::Look::outline, {} },
     } {
-    SetBackColor(veil);
+    SetBackColor(style::screen); // ce que laisse un élément caché de l'en-tête (le voile est sous l'en-tête seulement)
     ClrMenuTimeoutClose(); // comme les écrans FSM de Prusa
-    CaptureNormalWindow(box); // molette et toucher vont au dialogue
+    // Molette et toucher vont au dialogue : rien ne s'ouvre par-dessus la machine à états (son écran ne recevrait plus
+    // ses phases). La flèche de l'en-tête passe par Box::windowEvent, « Continuer en arrière-plan » est dans le cadre.
+    CaptureNormalWindow(box);
     setup_buttons(); // la 1re phase arrive aussitôt par Change()
 }
 
@@ -703,8 +705,10 @@ void ScreenLoadUnload::enter_phase() {
     play_phase_sound(phase, mode);
     bar.set_visible(kind == Kind::progress);
     header.show_back(kind == Kind::progress); // réduire seulement pendant une étape, pas devant une question
-    setup_buttons();
-    box.Invalidate();
+    setup_buttons(); // repeint les boutons, et tout le cadre si leur nombre change
+    // Le contenu seulement : le cadre (424 × 226) était repeint à chaque phase ; la barre cachée est effacée par lui
+    body.Invalidate();
+    spool_mark.Invalidate();
 }
 
 void ScreenLoadUnload::setup_buttons() {
@@ -718,6 +722,10 @@ void ScreenLoadUnload::setup_buttons() {
     const bool background = kind == Kind::progress && has_data && answers < std::size(buttons);
     background_button = background ? uint8_t(answers) : 0xff;
     const size_t shown = answers + background;
+    if (shown != shown_buttons) {
+        shown_buttons = shown;
+        box.Invalidate(); // les intervalles entre les boutons bougent : seul le cadre les repeint
+    }
     constexpr int16_t gap = 6;
     const uint16_t w = (content_w - gap * (shown - 1)) / shown;
     bool primary_used = false;
@@ -759,9 +767,11 @@ void ScreenLoadUnload::respond(Response response) {
 }
 
 void ScreenLoadUnload::unconditionalDraw() {
-    // Toujours le fond sombre : les coins arrondis du cadre sont peints de cette couleur. Laisser l'écran d'origine
-    // autour au 1er dessin faisait des coins noirs carrés sur lui (retour de l'utilisateur, 21/11).
-    display::fill_rect(GetRect(), veil);
+    // Toujours le fond sombre sous l'en-tête : les coins arrondis du cadre sont peints de cette couleur. Laisser l'écran
+    // d'origine autour au 1er dessin faisait des coins noirs carrés sur lui (retour de l'utilisateur, 21/11). L'en-tête
+    // garde son fond : ses éléments, peints sur #1B1C1E, faisaient des pavés clairs sur le voile.
+    display::fill_rect(style::header, style::screen);
+    display::fill_rect(Rect16::fromLTRB(0, style::header_line.Top(), style::screen_w, style::screen_h), veil);
 }
 
 void ScreenLoadUnload::windowEvent(window_t *sender, GUI_event_t event, void *param) {

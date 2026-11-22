@@ -39,16 +39,21 @@ TEST_CASE("island: impression en cours hors de l'écran Impression") {
         in.on_print_screen = true;
         CHECK(choose(in).kind == Kind::none);
     }
-    SECTION("cachée à la fin") {
-        in.print_ended = true;
+    SECTION("grise à la fin, jusqu'à « Accueil » : elle ramène à l'écran de fin") {
+        in.print_tone = Tone::ended;
+        CHECK(choose(in).kind == Kind::print);
+        CHECK(choose(in).tone == Tone::ended);
+    }
+    SECTION("cachée avant le départ (aperçu, questions)") {
+        in.print_not_started = true;
         CHECK(choose(in).kind == Kind::none);
     }
     SECTION("cachée sous l'écran d'une autre machine à états") {
         in.print_hidden_by_fsm = true;
         CHECK(choose(in).kind == Kind::none);
     }
-    SECTION("pas de préchauffage pendant une impression, même finie") {
-        in.print_ended = true;
+    SECTION("pas de préchauffage pendant une impression, même pas commencée") {
+        in.print_not_started = true;
         in.nozzle_heating = true;
         CHECK(choose(in).kind == Kind::none);
     }
@@ -118,6 +123,7 @@ TEST_CASE("island: texte de la pastille") {
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::paused, .percent = 47, .minutes = 83 }) == "II 47%");
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::waiting, .percent = 47, .minutes = 83 }) == "47%");
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::error, .percent = 47, .minutes = 83 }) == "! 47%");
+        CHECK(text_of({ .kind = Kind::print, .tone = Tone::ended, .percent = 100, .minutes = 0 }) == "100%");
     }
     SECTION("9 caractères au plus (la place de la pastille)") {
         for (uint16_t m : { 0, 1, 59, 60, 61, 599, 600, 5999, 6000, 65000 }) {

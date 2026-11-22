@@ -19,13 +19,14 @@ enum class Kind : uint8_t {
     preheat, ///< buse qui chauffe
 };
 
-/// État de l'impression, en couleur : orange (en cours), jaune (pause), gris (attente : reprise, chauffe, question),
-/// rouge (erreur)
+/// État de l'impression, en couleur : orange (en cours), jaune (pause), gris (attente : reprise, chauffe, question ;
+/// fin : terminée ou arrêtée, jusqu'à « Accueil » sur l'écran Impression), rouge (erreur)
 enum class Tone : uint8_t {
     normal,
     paused,
     waiting,
     error,
+    ended,
 };
 
 inline constexpr uint8_t no_slot = 0xff;
@@ -50,7 +51,7 @@ struct Inputs {
     uint8_t filament_slot = no_slot;
 
     bool print_fsm = false; ///< machine Printing ouverte (du départ à « Accueil » après la fin)
-    bool print_ended = false; ///< terminée ou arrêtée : plus de pastille
+    bool print_not_started = false; ///< aperçu, questions avant le départ : pas encore de pastille
     bool print_hidden_by_fsm = false; ///< une autre machine à états s'affiche par-dessus (son écran est la priorité)
     bool on_print_screen = false;
     Tone print_tone = Tone::normal;
@@ -69,7 +70,7 @@ constexpr Face choose(const Inputs &in) {
         return Face { .kind = Kind::filament, .percent = in.filament_percent, .slot = in.filament_slot };
     }
     if (in.print_fsm) {
-        if (in.print_ended || in.print_hidden_by_fsm || in.on_print_screen) {
+        if (in.print_not_started || in.print_hidden_by_fsm || in.on_print_screen) {
             return {};
         }
         return Face { .kind = Kind::print, .tone = in.print_tone, .percent = in.print_percent > 100 ? uint8_t(100) : in.print_percent, .minutes = in.print_minutes };

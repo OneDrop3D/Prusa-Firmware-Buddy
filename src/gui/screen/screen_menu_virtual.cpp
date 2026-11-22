@@ -21,5 +21,6 @@ void Menu::setup_item(ItemVariant &variant, int index) {
 Screen::Screen(const Configuration *configuration)
     : ScreenMenuBase(nullptr, _(configuration->title), configuration->footer) {
     menu.menu.set_configuration(configuration);
+    menu.menu.hide_leading_return(); // OneDrop3D (interface G) : la liste n'est remplie qu'ici, après MenuList::attach()
 }
 } // namespace screen_menu_virtual

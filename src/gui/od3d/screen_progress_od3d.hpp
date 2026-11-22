@@ -78,6 +78,8 @@ private:
     private:
         bool spinning() const;
         const ScreenLoadUnload &owner;
+        txtroll_t tick; ///< tant qu'il existe, TEXT_ROLL arrive toutes les 40 ms : le rythme de l'anneau (25 images/s)
+        std::optional<uint8_t> drawn; ///< position de l'anneau à l'écran (rien : bobine, icône ou rien de dessiné)
     };
 
     class Bar : public window_t {

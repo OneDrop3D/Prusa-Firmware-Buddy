@@ -6,9 +6,11 @@
 #include "screen_printing_od3d.hpp"
 #include "screen_temperatures_od3d.hpp"
 #include "island_od3d.hpp"
+#include "spinner_od3d.hpp"
 #include "thumbnail_od3d.hpp"
 
 #include <algorithm>
+#include <utility>
 #include <cmath>
 #include <numbers>
 #include <cstdio>
@@ -28,6 +30,7 @@
 #include <screen_menu_filament.hpp>
 #include <screen_menu_filament_mmu.hpp>
 #include <screen_menu_settings.hpp>
+#include <sound.hpp>
 #include <time_tools.hpp>
 #include <timing.h>
 #include <tool_index.hpp>
@@ -149,6 +152,7 @@ void fill_background(const window_t &frame, window_t *first, window_t *last) {
             continue;
         }
         if (n == rects.size()) {
+            chrome::forget_all(); // effacés avant d'être repeints
             display::fill_rect(frame.GetRect(), frame.GetBackColor()); // trop d'éléments : tout le fond, comme Prusa
             return;
         }
@@ -185,12 +189,80 @@ void open_temperatures() {
     }
 }
 
+// ---- Changement d'écran ----
+
+namespace chrome {
+    namespace {
+        std::array<uint64_t, size_t(Slot::count)> on_display {}; ///< clé de ce que montre l'écran, 0 : inconnu
+        uint8_t drawn_slots = 0; ///< dessinés par l'écran courant
+        bool handed = false;
+        const window_t *gap_parent = nullptr;
+        static_assert(size_t(Slot::count) <= 8);
+    } // namespace
+
+    void gap_screen(const window_t *screen) {
+        gap_parent = screen;
+    }
+
+    bool kept(Slot slot, uint64_t key, bool first, const window_t *parent) {
+        uint64_t &shown = on_display[size_t(slot)];
+        if (parent != gap_parent) {
+            shown = 0; // un dialogue ou un écran de Prusa peint par-dessus
+            return false;
+        }
+        const bool same = first && shown == key;
+        shown = key;
+        drawn_slots |= 1 << size_t(slot);
+        return same;
+    }
+
+    void forget(Slot slot) {
+        on_display[size_t(slot)] = 0;
+    }
+
+    void forget_all() {
+        on_display = {};
+    }
+
+    void hand_over(window_frame_t &screen) {
+        if (&screen != gap_parent) {
+            return;
+        }
+        // Zone à repeindre en attente (dialogue refermé, élément caché) : ce qu'elle couvre n'est plus sûr
+        struct FrameAccess : window_frame_t {
+            static Rect16 pending(const window_frame_t &f) {
+                return (f.*(&FrameAccess::getInvalidationRect))();
+            }
+        };
+        const bool on_screen = !screen.HasDialog() && !screen.IsInvalid() && FrameAccess::pending(screen).IsEmpty();
+        // Ce que l'écran n'a pas dessiné lui-même (onglets d'un écran sans onglets, retour caché) a été recouvert
+        for (size_t i = 0; i < on_display.size(); ++i) {
+            if (!on_screen || !(drawn_slots & (1 << i))) {
+                on_display[i] = 0;
+            }
+        }
+        handed = true;
+    }
+
+    void next_screen() {
+        if (!handed) {
+            forget_all();
+        }
+        handed = false;
+        drawn_slots = 0;
+        gap_parent = nullptr;
+    }
+} // namespace chrome
+
 // ---- Écran ----
 
 Screen::Screen(bool has_back)
     : has_back(has_back) {
     SetBackColor(style::screen);
+    chrome::gap_screen(this);
 }
+
+
 
 screen_init_variant Screen::GetCurrentState() const {
     screen_init_variant state;
@@ -247,7 +319,55 @@ void Screen::unconditionalDraw() {
     fill_background(*this, getFirstNormal(), getLastNormal());
 }
 
+void GapFrame::unconditionalDraw() {
+    if (gaps_only) {
+        fill_background(*this, getFirstNormal(), getLastNormal());
+    } else {
+        window_frame_t::unconditionalDraw();
+    }
+}
+
+void draw_spinner(Rect16 box, uint8_t w, uint8_t step, Color bg, std::optional<uint8_t> from) {
+    const uint8_t d = box.Width();
+    const auto paint = [&](Rect16 part) { // part : relatif au carré
+        if (part.IsEmpty()) {
+            return;
+        }
+        draw_pixels(Rect16(box.Left() + part.Left(), box.Top() + part.Top(), part.Width(), part.Height()), [&](int x, int y) {
+            return spinner::pixel(part.Left() + x, part.Top() + y, d, w, step, bg);
+        });
+    };
+    if (!from) {
+        paint(Rect16(0, 0, d, d));
+        return;
+    }
+    for (const Rect16 &part : spinner::changed(d, w, *from, step)) {
+        paint(part);
+    }
+}
+
 // ---- Éléments ----
+
+Spinner::Spinner(window_t *parent, point_i16_t at)
+    : window_t(parent, Rect16(at.x, at.y, size, size)) {}
+
+void Spinner::unconditionalDraw() {
+    // Fond invalidé (ouverture, dialogue refermé) : tout ; sinon, ce qui a bougé depuis l'image d'avant
+    const uint8_t step = spinner::step_at(ticks_ms());
+    draw_spinner(GetRect(), 4, step, GetParent() ? GetParent()->GetBackColor() : GetBackColor(), HasValidBackground() ? drawn : std::nullopt);
+    drawn = step;
+}
+
+void Spinner::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::TEXT_ROLL && drawn != spinner::step_at(ticks_ms())) {
+        const bool background_valid = HasValidBackground(); // comme Card::invalidate_content
+        Invalidate();
+        if (background_valid) {
+            ValidateBackground();
+        }
+    }
+    window_t::windowEvent(sender, event, param);
+}
 
 Card::Card(window_t *parent, Rect16 rect, Action action, Color body_color, Color back, uint8_t radius)
     : window_t(parent, rect)
@@ -394,6 +514,20 @@ TempsButton::TempsButton(window_t *parent, Rect16 body)
     : Card(parent, style::with_ring(body), open_temperatures, style::surface, style::screen, style::radius_small)
     , temps(Temps::read()) {}
 
+void TempsButton::unconditionalDraw() {
+    const Rect16 r = GetRect();
+    const uint64_t key = uint64_t(uint16_t(temps.nozzle)) | uint64_t(uint16_t(temps.bed)) << 16 | uint64_t(uint16_t(temps.chamber)) << 32
+        | uint64_t(IsFocused()) << 48 | uint64_t(r.Left() & 0x1ff) << 49 | uint64_t(r.Height() & 0x3f) << 58;
+    if (!chrome::kept(chrome::Slot::temps, key, std::exchange(first_draw, false), GetParent())) {
+        Card::unconditionalDraw();
+    }
+}
+
+void TempsButton::invalidate(Rect16 rect) {
+    chrome::forget(chrome::Slot::temps);
+    Card::invalidate(rect);
+}
+
 void TempsButton::draw_content(Rect16 body) {
     draw_temps(Rect16(body.Left() + 4, body.Top() + (body.Height() - 16) / 2, body.Width() - 8, 16), temps, style::text, fill(), true);
 }
@@ -523,7 +657,6 @@ namespace {
     // Pastille de l'opération en arrière-plan, collée au bouton des températures : anneau, « 2 · 100 % »
     constexpr uint16_t island_w = 116;
     constexpr uint8_t island_spinner = 16;
-    constexpr uint32_t island_spin_ms = 1200; ///< un tour
     constexpr Color island_black = COLOR_BLACK;
     Rect16 island_body(const Geometry &g) {
         return Rect16(temps_body(g).Left() - 2 * style::ring - header_gap - island_w, (g.h - g.island_h) / 2, island_w, g.island_h);
@@ -531,7 +664,8 @@ namespace {
     /// Ce que montre la pastille, résumé en 32 bits : elle se redessine quand il change
     uint32_t face_key(const island::Face &f) {
         if (f.kind == island::Kind::filament) {
-            return uint32_t(f.kind) | uint32_t(island::revision()) << 8; // l'anneau qui tourne la redessine de toute façon
+            // L'anneau qui tourne ne repeint que lui-même : le texte change avec la clé (avancement, emplacement)
+            return uint32_t(f.kind) | uint32_t(f.percent) << 2 | uint32_t(island::revision()) << 9 | uint32_t(island::slot().value_or(7) & 7) << 25;
         }
         return uint32_t(f.kind) | uint32_t(f.tone) << 2 | uint32_t(f.percent) << 4 | (uint32_t(uint16_t(f.current)) & 0x3ff) << 11 | (uint32_t(uint16_t(f.target)) & 0x3ff) << 21;
     }
@@ -572,6 +706,27 @@ Rect16 BackButton::get_rect_for_touch() const {
     return style::back_touch;
 }
 
+void BackButton::unconditionalDraw() {
+    if (!chrome::kept(chrome::Slot::back, 1 | uint64_t(IsFocused()) << 1 | uint64_t(GetRect().Top() & 0xff) << 2, std::exchange(first_draw, false), GetParent())) {
+        IconButton::unconditionalDraw();
+    }
+}
+
+void BackButton::invalidate(Rect16 rect) {
+    chrome::forget(chrome::Slot::back);
+    IconButton::invalidate(rect);
+}
+
+void BackButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    // Les deux sens, comme les écrans de Prusa (un balayage vers la gauche y est aussi un retour)
+    if ((event == GUI_event_t::TOUCH_SWIPE_RIGHT || event == GUI_event_t::TOUCH_SWIPE_LEFT) && IsVisible() && IsEnabled()) {
+        sound::play(SoundType::button_echo);
+        action();
+        return;
+    }
+    IconButton::windowEvent(sender, event, param);
+}
+
 IslandPill::IslandPill(window_t *parent, Rect16 body, window_text_t &title, Rect16 title_full, Rect16 title_short)
     : Card(parent, style::with_ring(body), island::activate, island_black, style::screen, body.Height() / 2)
     , title(title)
@@ -607,15 +762,15 @@ void IslandPill::draw_content(Rect16 body) {
     case Kind::none:
         return; // cachée
     case Kind::filament: {
-        // Anneau dont le quart orange tourne, puis « 2 · 45 % » (emplacement de l'atelier) ou « 45 % »
-        const float start = 2 * std::numbers::pi_v<float> * (ticks_ms() % island_spin_ms) / island_spin_ms;
-        draw_island_ring(mark, bg, [&](float a) {
-            a -= start;
-            if (a < 0) {
-                a += 2 * std::numbers::pi_v<float>;
-            }
-            return a < std::numbers::pi_v<float> / 2 ? style::accent : style::line;
-        });
+        // Anneau d'attente (spinner_od3d.hpp), puis « 2 · 45 % » (emplacement de l'atelier) ou « 45 % »
+        const bool partial = ring_only && HasValidBackground();
+        ring_only = false;
+        const uint8_t step = spinner::step_at(ticks_ms());
+        draw_spinner(mark, 3, step, bg, partial ? ring_drawn : std::nullopt);
+        ring_drawn = step;
+        if (partial) {
+            return; // le texte n'a pas changé
+        }
         if (const auto slot = island::slot()) {
             snprintf(text, sizeof(text), "%d\xC2\xB7%d %%", *slot + 1, f.percent);
         } else {
@@ -643,6 +798,7 @@ void IslandPill::draw_content(Rect16 body) {
             prefix = "! ";
             break;
         }
+        ring_drawn = std::nullopt;
         const float end = 2 * std::numbers::pi_v<float> * f.percent / 100;
         draw_island_ring(mark, bg, [&](float a) { return a < end ? arc : style::line; });
         snprintf(text, sizeof(text), "%s%d %%", prefix, f.percent);
@@ -650,6 +806,7 @@ void IslandPill::draw_content(Rect16 body) {
     }
     case Kind::preheat:
         // La buse qui chauffe : « 185/215° »
+        ring_drawn = std::nullopt;
         draw_icon({ mark.Left(), mark.Top() }, img::nozzle_16x16, bg);
         snprintf(text, sizeof(text), "%d/%d\xC2\xB0", f.current, f.target);
         break;
@@ -663,13 +820,13 @@ void IslandPill::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         const island::Face f = island::face();
         sync(f.kind != island::Kind::none);
         if (IsVisible()) {
-            const uint32_t now = ticks_ms();
-            const uint32_t key = face_key(f);
-            const bool spin = f.kind == island::Kind::filament && ticks_diff(now, last_spin_ms) >= 100;
-            if (key != drawn_key || spin) {
+            if (const uint32_t key = face_key(f); key != drawn_key) {
                 drawn_key = key;
-                last_spin_ms = now;
+                ring_only = false;
                 invalidate_content(); // l'anneau et le texte seulement, sans repeindre la pastille ni l'en-tête
+            } else if (f.kind == island::Kind::filament && ring_drawn != spinner::step_at(ticks_ms())) {
+                ring_only = true;
+                invalidate_content();
             }
         }
     }
@@ -748,7 +905,19 @@ TabBar::Button::Button(window_t *parent, Tab tab, Tab active)
     , label(_(tab_defs[int(tab)].label))
     , active(tab == active) {}
 
+chrome::Slot TabBar::Button::slot() const {
+    return chrome::Slot(size_t(chrome::Slot::tab0) + GetRect().Left() / style::tab_w);
+}
+
+void TabBar::Button::invalidate(Rect16 rect) {
+    chrome::forget(slot());
+    Card::invalidate(rect);
+}
+
 void TabBar::Button::unconditionalDraw() {
+    if (chrome::kept(slot(), 1 | uint64_t(active) << 1 | uint64_t(IsFocused()) << 2, std::exchange(first_draw, false), GetParent())) {
+        return;
+    }
     const Rect16 r = GetRect();
     // Ciblé à la molette : une pastille plus claire dans la case (la barre n'a pas de marge)
     const Color bg = IsFocused() ? style::surface : style::tab_bar;

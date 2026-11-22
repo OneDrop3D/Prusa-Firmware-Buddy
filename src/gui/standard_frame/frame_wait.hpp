@@ -4,6 +4,7 @@
 #include <window_frame.hpp>
 #include <window_text.hpp>
 #include <window_icon.hpp>
+#include <gui/od3d/widgets_od3d.hpp>
 
 /**
  * Standard layout frame.
@@ -24,5 +25,5 @@ public:
 protected:
     window_text_t text_wait;
     window_text_t text_custom;
-    window_icon_hourglass_t animation;
+    od3d::Spinner animation; ///< OneDrop3D (interface G) : anneau d'attente à la place du sablier
 };

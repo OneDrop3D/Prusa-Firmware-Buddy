@@ -59,7 +59,7 @@ namespace {
                                                          : style::tile;
     }
 
-    /// Libellé sur une ligne, ou deux si le texte en a deux (nom, puis explication en gris)
+    /// Libellé sur une ligne, ou deux si le texte en a deux (nom, puis explication en gris) ; tout rect est repeint, d'une passe
     void draw_label(Rect16 rect, const string_view_utf8 &label, Color fg, Color bg) {
         std::array<char, 160> buf;
         label.copyToRAM(buf.data(), buf.size());
@@ -71,12 +71,12 @@ namespace {
         text::ellipsize(buf.data(), chars);
         const uint16_t h = height(Font::small);
         if (!second) {
-            draw_text(Rect16(rect.Left(), rect.Top() + (rect.Height() - h) / 2, rect.Width(), h), string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
+            draw_text(rect, string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
             return;
         }
         text::ellipsize(second, chars);
-        draw_text(Rect16(rect.Left(), rect.Top() + 1, rect.Width(), h), string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
-        draw_text(Rect16(rect.Left(), rect.Top() + 18, rect.Width(), h), string_view_utf8::MakeRAM(second), Font::small, style::text_muted, bg);
+        draw_text(Rect16(rect.Left(), rect.Top(), rect.Width(), h + 2), string_view_utf8::MakeRAM(buf.data()), Font::small, fg, bg);
+        draw_text(Rect16(rect.Left(), rect.Top() + h + 2, rect.Width(), rect.Height() - h - 2), string_view_utf8::MakeRAM(second), Font::small, style::text_muted, bg, Align_t::LeftTop());
     }
 
     /// Une ligne de la liste (SPEC_G.md §1.7) ; extension_only : seule la valeur a changé
@@ -94,14 +94,25 @@ namespace {
         const bool has_extension = extension.Width() > 0 && (enabled || item.DoesShowDisabledExtension());
 
         if (!extension_only) {
-            // Ligne ciblée : fond #34373C (SPEC_G.md §1.6), sans anneau ; une passe, le trait par-dessus sa 1re ligne
+            // Ligne ciblée : fond #34373C (SPEC_G.md §1.6), sans anneau. Une passe : le fond seulement autour de la tuile, du
+            // libellé et de la valeur, qui repeignent leur rect (le fond puis le texte : chaque pas de la molette faisait
+            // clignoter deux lignes) ; les bouts arrondis sont deux bandes de 12 px, sans contenu
             const uint8_t corners = (first ? MIC_TOP_LEFT | MIC_TOP_RIGHT : 0) | (last ? MIC_BOT_LEFT | MIC_BOT_RIGHT : 0);
-            if (first) {
-                display::draw_rounded_rect(row, style::screen, bg, style::radius_big, corners);
-            } else {
+            const Rect16 body = first ? row : Rect16(row.Left(), row.Top() + 1, row.Width(), row.Height() - 1);
+            if (!first) {
                 display::fill_rect(Rect16(row.Left(), row.Top(), row.Width(), 1), style::line);
-                display::draw_rounded_rect(Rect16(row.Left(), row.Top() + 1, row.Width(), row.Height() - 1), style::screen, bg, style::radius_big, corners);
             }
+            const auto end_strip = [&](int16_t x, uint8_t strip_corners) {
+                const Rect16 strip(x, body.Top(), tile_x, body.Height());
+                if (strip_corners) {
+                    display::draw_rounded_rect(strip, style::screen, bg, style::radius_big, strip_corners);
+                } else {
+                    display::fill_rect(strip, bg);
+                }
+            };
+            static_assert(tile_x == value_right && tile_x >= style::radius_big, "les bouts arrondis tiennent dans les marges de la ligne");
+            end_strip(body.Left(), corners & (MIC_TOP_LEFT | MIC_BOT_LEFT));
+            end_strip(body.Left() + body.Width() - value_right, corners & (MIC_TOP_RIGHT | MIC_BOT_RIGHT));
 
             const img::Resource *icon = ItemAccess::icon(item);
             if (!icon) {
@@ -109,18 +120,21 @@ namespace {
             }
             const Color tile = tile_color(icon);
             const Rect16 tile_rect(row.Left() + tile_x, row.Top() + (row.Height() - tile_size) / 2, tile_size, tile_size);
+            const int16_t label_end = has_extension ? extension.Left() - 10 : content.Left() + content.Width();
+            const Rect16 label_rect(content.Left(), content.Top(), std::max<int>(label_end - content.Left(), 0), content.Height());
+            const std::array<Rect16, 3> parts { tile_rect, label_rect, has_extension ? extension : Rect16() };
+            style::for_each_gap(Rect16(body.Left() + tile_x, body.Top(), body.Width() - tile_x - value_right, body.Height()), std::span<const Rect16>(parts.data(), has_extension ? 3 : 2), [&](Rect16 r) {
+                display::fill_rect(r, bg);
+            });
+
             display::draw_rounded_rect(tile_rect, bg, tile, 8, MIC_ALL_CORNERS);
             draw_icon({ int16_t(tile_rect.Left() + (tile_size - icon->w) / 2), int16_t(tile_rect.Top() + (tile_size - icon->h) / 2) }, *icon, tile,
                 enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
-
-            const int16_t label_end = has_extension ? extension.Left() - 10 : content.Left() + content.Width();
-            draw_label(Rect16(content.Left(), content.Top(), std::max<int>(label_end - content.Left(), 0), content.Height()), item.GetLabel(), enabled ? style::text : style::text_faint, bg);
+            draw_label(label_rect, item.GetLabel(), enabled ? style::text : style::text_faint, bg);
         }
 
         if (has_extension) {
-            if (extension_only) {
-                display::fill_rect(extension, bg); // une valeur plus courte ne laisse rien (certaines valeurs Prusa ne peignent que leurs glyphes)
-            }
+            display::fill_rect(extension, bg); // une valeur plus courte ne laisse rien (certaines valeurs Prusa ne peignent que leurs glyphes)
             // Les valeurs Prusa prennent leur couleur « ciblée » (gris foncé) pour un fond blanc : sur le fond G sombre,
             // on les dessine comme non ciblées (la valeur en cours d'édition garde sa couleur)
             AutoRestore unfocus(window_menu_item_private::focused_menu_item, static_cast<IWindowMenuItem *>(nullptr), !item.is_edited());
@@ -145,8 +159,8 @@ namespace {
 
 // ---- En-tête ----
 
-MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back, bool compact)
-    : header(parent, string_view_utf8::MakeRAM(title_text.data()), has_back, nullptr, compact) {
+MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back, bool compact, Card::Action back_action)
+    : header(parent, string_view_utf8::MakeRAM(title_text.data()), has_back, back_action, compact) {
     SetText(title);
 }
 

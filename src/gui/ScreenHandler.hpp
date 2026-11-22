@@ -24,7 +24,7 @@ struct screen_node {
         creator = {};
         init_data = screen_init_variant();
     }
-    bool IsEmpty() {
+    bool IsEmpty() const {
         return creator.func == nullptr;
     }
 };
@@ -64,6 +64,10 @@ public:
 
     /// @returns whether the currently open screen has a pending close
     bool is_close_pending() const { return close; }
+
+    /// OneDrop3D (interface G) : un changement d'écran attend le prochain Loop() (hors d'un dialogue bloquant, où il attend
+    /// la fin du dialogue) : inutile de dessiner l'écran qui s'en va (le toucher qui l'ouvre le faisait clignoter avant)
+    bool is_change_pending() const { return !is_dialog_open && (close || close_all || close_printing || !creator_node.IsEmpty()); }
 
     void PushBeforeCurrent(screen_node screen_creator);
 

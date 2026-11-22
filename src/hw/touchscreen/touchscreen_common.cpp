@@ -1,5 +1,7 @@
 #include "touchscreen_common.hpp"
 #include "touchscreen.hpp"
+#include <gui/od3d/gesture_od3d.hpp>
+#include <timing.h>
 #include <option/has_side_leds.h>
 #include <logging/log.hpp>
 #include <bsod/bsod.h>
@@ -80,6 +82,7 @@ void Touchscreen_Base::update() {
     else if (touch_state.multitouch_point_count == 1 && gesture_recognition_state_ == GestureRecognitionState::idle) {
         gesture_recognition_state_ = GestureRecognitionState::active;
         gesture_start_pos_ = touch_state.multitouch_points[0].position;
+        gesture_start_ms_ = ticks_ms();
     }
 
     // Multiple touch points -> invalid gesture state
@@ -105,31 +108,18 @@ void Touchscreen_Base::recognize_gesture() {
     const point_ui16_t last_touch_pos = last_touch_state_.multitouch_points[0].position;
 
     const point_i16_t touch_pos_diff = point_i16_t::from_point(last_touch_pos) - point_i16_t::from_point(gesture_start_pos_);
-    const point_i16_t touch_pos_diff_abs(abs(touch_pos_diff.x), abs(touch_pos_diff.y));
 
     /// Distance from the gesture_start_pos that is still considered a click
     const int16_t click_max_diff = lenient_click_allowed_ ? 3 : 0;
-
-    /// Distance from the gesture_start_pos that starts being considered a swipe gesture
-    static constexpr int16_t gesture_min_diff = 10;
-
-    /// Tangens of max angle that considers as a swipe gesture
-    static constexpr float swipe_max_angle_tan = 0.5;
 
     TouchscreenEvent event {
         .pos_x = gesture_start_pos_.x,
         .pos_y = gesture_start_pos_.y,
     };
 
-    if (touch_pos_diff_abs.x <= click_max_diff && touch_pos_diff_abs.y <= click_max_diff) {
-        event.type = GUI_event_t::TOUCH_CLICK;
-
-    } else if (touch_pos_diff_abs.y >= gesture_min_diff && static_cast<float>(touch_pos_diff_abs.x) / static_cast<float>(touch_pos_diff_abs.y) <= swipe_max_angle_tan) {
-        event.type = touch_pos_diff.y < 0 ? GUI_event_t::TOUCH_SWIPE_UP : GUI_event_t::TOUCH_SWIPE_DOWN;
-
-    } else if (touch_pos_diff_abs.x >= gesture_min_diff && static_cast<float>(touch_pos_diff_abs.y) / static_cast<float>(touch_pos_diff_abs.x) <= swipe_max_angle_tan) {
-        event.type = touch_pos_diff.x < 0 ? GUI_event_t::TOUCH_SWIPE_LEFT : GUI_event_t::TOUCH_SWIPE_RIGHT;
-    }
+    // OneDrop3D (interface G) : balayage horizontal (retour) plus exigeant que chez Prusa : 60 px, en moins de 600 ms
+    // (_count, rien, est déjà la valeur d'un événement vide)
+    event.type = od3d::gesture::classify(touch_pos_diff.x, touch_pos_diff.y, ticks_ms() - gesture_start_ms_, click_max_diff);
 
     metric_record_string(metric_touch_event(), "evt t%i x%i y%i", static_cast<int>(event.type), event.pos_x, event.pos_y);
 

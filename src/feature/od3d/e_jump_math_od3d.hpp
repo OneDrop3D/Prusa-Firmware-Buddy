@@ -96,8 +96,8 @@ Verdict classify(std::span<const Step> steps, bool complete);
 /// saut à limiter)
 float filament_accel(float jump, float k);
 
-/// Accélération de ligne [mm/s²] que permet F pour un cordon width × height (section rectangulaire), au plus
-/// xy_accel_cap : une estimation
+/// Accélération de ligne [mm/s²] que permet F pour un cordon width × height (section du trancheur : rectangle aux bouts
+/// arrondis, (width − height·(1 − π/4))·height), au plus xy_accel_cap : une estimation
 float line_accel(float f, float width = ref_width, float height = ref_height);
 
 /// Mémoire par emplacement (config_store « OD3D E Jump »), effacée au changement de bobine. Taille fixe : pour la

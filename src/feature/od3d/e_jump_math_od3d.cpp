@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace od3d::e_jump {
 
@@ -72,10 +73,11 @@ float filament_accel(float jump, float k) {
 }
 
 float line_accel(float f, float width, float height) {
-    if (!(f > 0.f) || !(width > 0.f) || !(height > 0.f)) {
+    const float area = (width - height * (1.f - std::numbers::pi_v<float> / 4.f)) * height;
+    if (!(f > 0.f) || !(area > 0.f)) {
         return NAN;
     }
-    return std::min(f * filament_area_mm2 / (width * height), xy_accel_cap);
+    return std::min(f * filament_area_mm2 / area, xy_accel_cap);
 }
 
 uint16_t jump_to_e1(float jump) {

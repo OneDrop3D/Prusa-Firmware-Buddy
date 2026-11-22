@@ -305,11 +305,15 @@ namespace {
             break;
         case Stage::cooling:
         case Stage::sock_off:
+            marlin_client::gcode("M107");
+            flow.stage = Stage::summary;
+            break;
         case Stage::attach:
         case Stage::checking:
         case Stage::rehome:
+            // Chaussette retirée, accéléromètre peut-être fixé : les remettre en ordre avant toute chauffe
             marlin_client::gcode("M107");
-            flow.stage = Stage::summary;
+            flow.stage = Stage::detach;
             break;
         default:
             flow.stage = Stage::summary;

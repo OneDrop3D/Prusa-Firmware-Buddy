@@ -3,6 +3,8 @@
 /// Partie pure, sans affichage : testée dans tests/unit/feature/od3d. Le dessin est od3d::draw_spool().
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <optional>
 #include <string_view>
@@ -22,13 +24,38 @@ struct Look {
 /// rayon qui tombe de chaque côté du bord. Distance au centre en px, depuis le centre du pixel.
 
 /// Distance du centre du pixel (x, y) au centre du carré side × side
-float radius_in_square(int x, int y, int side);
+inline float radius_in_square(int x, int y, int side) {
+    // En demi-pixels, les carrés restent entiers
+    const int dx = 2 * x + 1 - side;
+    const int dy = 2 * y + 1 - side;
+    return std::sqrt(static_cast<float>(dx * dx + dy * dy)) * 0.5f;
+}
 
 /// Quarts (0 à 4) du pixel à la distance r du centre qui tombent au-delà du cercle de rayon edge
-uint8_t beyond_quarters(float r, float edge);
+inline uint8_t beyond_quarters(float r, float edge) {
+    // La fenêtre [r - 0,5 ; r + 0,5] : la part au-delà du bord, arrondie au quart
+    // (tronquer + 0,5 arrondit les valeurs positives ; les négatives finissent à 0 de toute façon)
+    return static_cast<uint8_t>(std::clamp(static_cast<int>((r - edge + 0.5f) * 4 + 0.5f), 0, 4));
+}
 
 /// inner pour 4 - q quarts, outer pour q quarts (q de 0 à 4)
-Color mix_quarters(Color inner, Color outer, uint8_t q);
+inline Color mix_quarters(Color inner, Color outer, uint8_t q) {
+    if (q == 0 || inner == outer) {
+        return inner;
+    }
+    if (q >= 4) {
+        return outer;
+    }
+    const auto ch = [q](uint8_t a, uint8_t b) { return static_cast<uint8_t>((a * (4 - q) + b * q + 2) / 4); };
+    return Color::from_rgb(ch(inner.r, outer.r), ch(inner.g, outer.g), ch(inner.b, outer.b));
+}
+
+/// Coin arrondi de rayon r (cartes, boutons, dialogues ; retour du 22/11 : « les contours ne sont pas bien ») : quarts
+/// du pixel (x, y) de son carré de coin r × r, (0, 0) au coin extérieur, qui tombent hors de l'arrondi. En ligne : la
+/// couche d'affichage s'en sert aussi (display::draw_rounded_rect), sans dépendre de ce module.
+inline uint8_t corner_beyond_quarters(int x, int y, int r) {
+    return beyond_quarters(radius_in_square(x, y, 2 * r), r);
+}
 
 /// Couleur d'un pixel à la distance r : inside dans le cercle de rayon edge, outside au-delà, mélangées au bord
 inline Color edge_color(float r, float edge, Color inside, Color outside) {

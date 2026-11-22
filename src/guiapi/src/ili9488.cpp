@@ -509,6 +509,19 @@ uint8_t *ili9488_get_block(uint16_t start_x, uint16_t start_y, uint16_t end_x, u
     return ili9488_buff;
 }
 
+uint8_t *ili9488_read_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    debug_assert(!ili9488_buff_borrowed && "Buffer lent to someone");
+
+    const size_t size = size_t(w) * h * 3;
+    if (!w || !h || x + w > ILI9488_COLS || y + h > ILI9488_ROWS || size > sizeof(ili9488_buff)) {
+        return NULL;
+    }
+    ili9488_cmd_caset(x, x + w - 1);
+    ili9488_cmd_raset(y, y + h - 1);
+    ili9488_cmd_ramrd(ili9488_buff, size); // seulement la fenêtre : ili9488_get_block lit toujours tout le tampon
+    return ili9488_buff;
+}
+
 static void ili9488_fill_rect_color_fast(uint16_t rect_x, uint16_t rect_y, uint16_t rect_w, uint16_t rect_h, uint8_t clr33) {
     // prepare buffer; we are writing two pixels per byte
     const uint32_t pixel_count = (uint32_t)rect_w * rect_h;

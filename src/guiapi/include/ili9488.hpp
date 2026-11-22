@@ -49,6 +49,10 @@ extern void ili9488_brightness_disable(void);
 
 extern uint8_t *ili9488_get_block(uint16_t start_x, uint16_t start_y, uint16_t end_x, uint16_t end_y);
 
+/// OneDrop3D (fond givré des dialogues) : lit les w × h pixels de la fenêtre (3 octets chacun, ligne après ligne) dans
+/// le tampon de l'afficheur, que ili9488_draw_from_buffer() peut réécrire ; NULL si la fenêtre n'y tient pas
+uint8_t *ili9488_read_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+
 extern void ili9488_set_pixel(uint16_t point_x, uint16_t point_y, uint32_t clr666);
 
 /**

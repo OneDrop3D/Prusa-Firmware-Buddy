@@ -11,6 +11,7 @@
 #include <logging/log.hpp>
 #include <utils/byte_utils.hpp>
 #include <gui/qoi_decoder.hpp>
+#include <gui/od3d/spool_draw.hpp> // OneDrop3D : anticrénelage des coins (fonctions en ligne)
 
 #if HAS_ST7789_DISPLAY()
     #include "st7789v.hpp"
@@ -449,46 +450,28 @@ void draw_rounded_rect(Rect16 rect, Color back, Color front, uint8_t cor_rad, ui
 
         // cycle trough buffer rows
         for (int i = 0; i < buff_rows_to_draw; i++) {
-            uint16_t curr_row = part * buff_rows + i;
-
-            // draw top edges
-            if (curr_row < cor_rad) {
-                int cnt = 0; // number of pixels that will be drawn (in one line)
-                for (int col = 0; col < cor_rad; col++) {
-                    if (col * col + (cor_rad - curr_row - 1) * (cor_rad - curr_row - 1) < cor_rad * cor_rad) {
-                        cnt++;
-                    }
+            const int curr_row = part * buff_rows + i;
+            const bool top = curr_row < cor_rad;
+            if (!top && curr_row < rect.Height() - cor_rad) {
+                continue;
+            }
+            // OneDrop3D (interface G) : coins anticrénelés, comme les bobines (retour du 22/11 : contours en escalier). Le
+            // pixel coupé par l'arrondi prend le mélange en quarts du rectangle et du fond ; seuls les coins coûtent.
+            const int corner_row = top ? curr_row : rect.Height() - 1 - curr_row;
+            const uint8_t left = top ? MIC_TOP_LEFT : MIC_BOT_LEFT;
+            const uint8_t right = top ? MIC_TOP_RIGHT : MIC_BOT_RIGHT;
+            const Color left_back = flag & (top ? MIC_ALT_CL_TOP_LEFT : MIC_ALT_CL_BOT_LEFT) ? secondary_color : back;
+            const Color right_back = flag & (top ? MIC_ALT_CL_TOP_RIGHT : MIC_ALT_CL_BOT_RIGHT) ? secondary_color : back;
+            for (int col = 0; col < cor_rad; col++) {
+                const uint8_t q = od3d::spool::corner_beyond_quarters(col, corner_row, cor_rad);
+                if (q == 0) {
+                    break; // de l'extérieur vers l'intérieur : le reste de la ligne est dans le rectangle
                 }
-
-                if (cnt > 0) {
-                    // top right corner
-                    if (flag & MIC_TOP_RIGHT) {
-                        store_to_buffer(buffer, Rect16(rect.Width() - cor_rad + cnt, i, (cor_rad - cnt), 1), rect.Width(), flag & MIC_ALT_CL_TOP_RIGHT ? secondary_color : back);
-                    }
-                    // top left corner
-                    if (flag & MIC_TOP_LEFT) {
-                        store_to_buffer(buffer, Rect16(0, i, (cor_rad - cnt), 1), rect.Width(), flag & MIC_ALT_CL_TOP_LEFT ? secondary_color : back);
-                    }
+                if (flag & left) {
+                    store_to_buffer(buffer, Rect16(col, i, 1, 1), rect.Width(), od3d::spool::mix_quarters(front, left_back, q));
                 }
-
-                // draw bottom edges
-            } else if (curr_row >= rect.Height() - cor_rad) {
-                int cnt = 0; // number of pixels that will be drawn (in one line)
-                for (int col = 0; col < cor_rad; col++) {
-                    if (col * col + (curr_row - (rect.Height() - cor_rad)) * (curr_row - (rect.Height() - cor_rad)) < cor_rad * cor_rad) {
-                        cnt++;
-                    }
-                }
-
-                if (cnt > 0) {
-                    // bottom right corner
-                    if (flag & MIC_BOT_RIGHT) {
-                        store_to_buffer(buffer, Rect16(rect.Width() - cor_rad + cnt, i, (cor_rad - cnt), 1), rect.Width(), flag & MIC_ALT_CL_BOT_RIGHT ? secondary_color : back);
-                    }
-                    // bottom left corner
-                    if (flag & MIC_BOT_LEFT) {
-                        store_to_buffer(buffer, Rect16(0, i, (cor_rad - cnt), 1), rect.Width(), flag & MIC_ALT_CL_BOT_LEFT ? secondary_color : back);
-                    }
+                if (flag & right) {
+                    store_to_buffer(buffer, Rect16(rect.Width() - 1 - col, i, 1, 1), rect.Width(), od3d::spool::mix_quarters(front, right_back, q));
                 }
             }
         }

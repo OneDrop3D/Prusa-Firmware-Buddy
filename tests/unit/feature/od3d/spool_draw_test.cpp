@@ -148,3 +148,37 @@ TEST_CASE("bobine : couleurs par défaut") {
     CHECK(default_color("PETG") != default_color("PLA"));
     CHECK(default_color("INCONNU") == default_color("autre"));
 }
+
+TEST_CASE("anticrénelage : coins arrondis des cartes, boutons et dialogues") {
+    for (int r : { 2, 3, 8, 12, 13, 16, 26 }) {
+        CHECK(corner_beyond_quarters(0, 0, r) == (r == 2 ? 2 : 4)); // le coin extérieur est dehors (à moitié pour 2 px)
+        CHECK(corner_beyond_quarters(r - 1, r - 1, r) == 0); // le pixel près du centre de l'arrondi est dedans
+        int quarters = 0;
+        for (int y = 0; y < r; ++y) {
+            for (int x = 0; x < r; ++x) {
+                const uint8_t q = corner_beyond_quarters(x, y, r);
+                CHECK(q == corner_beyond_quarters(y, x, r)); // symétrique
+                if (x + 1 < r) {
+                    CHECK(corner_beyond_quarters(x + 1, y, r) <= q); // de moins en moins dehors vers l'intérieur
+                }
+                quarters += 4 - q;
+            }
+        }
+        // Partie dedans du carré de coin : un quart de disque, π r² / 4 (à un demi-pixel près par ligne)
+        const float inside = quarters / 4.0f;
+        const float quarter_disc = 3.14159265f * r * r / 4;
+        CHECK(inside > quarter_disc - r * 0.25f);
+        CHECK(inside < quarter_disc + r * 0.25f);
+    }
+}
+
+TEST_CASE("anticrénelage : un coin a des pixels mélangés, pas seulement dedans ou dehors") {
+    int blended = 0;
+    for (int y = 0; y < 12; ++y) {
+        for (int x = 0; x < 12; ++x) {
+            const uint8_t q = corner_beyond_quarters(x, y, 12);
+            blended += q > 0 && q < 4;
+        }
+    }
+    CHECK(blended >= 12);
+}

@@ -140,3 +140,9 @@ add_executable(
   )
 target_include_directories(collision_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(collision_od3d_tests)
+
+add_executable(
+  frost_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/frost_od3d_test.cpp ${CMAKE_SOURCE_DIR}/src/gui/od3d/frost_job_od3d.cpp
+  )
+target_include_directories(frost_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(frost_od3d_tests)

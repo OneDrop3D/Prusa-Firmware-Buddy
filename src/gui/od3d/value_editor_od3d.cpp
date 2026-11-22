@@ -1,6 +1,7 @@
 /// @file
 #include "value_editor_od3d.hpp"
 
+#include "frost_od3d.hpp"
 #include "print_info_od3d.hpp"
 #include "thumbnail_od3d.hpp"
 #include "widgets_od3d.hpp"
@@ -16,6 +17,7 @@
 #include <ScreenHandler.hpp>
 #include <option/has_touch.h>
 #include <sound.hpp>
+#include <utility>
 #if HAS_TOUCH()
     #include <hw/touchscreen/touchscreen.hpp>
 #endif
@@ -64,6 +66,7 @@ static_assert(sizeof(ValueEditor) <= sizeof(DialogNumericInput));
 std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit) {
     ValueEditor editor(label, value, config, apply, unit);
     Screens::Access()->gui_loop_until_dialog_closed();
+    frost::close(editor);
     if (editor.accepted) {
         return editor.value;
     }
@@ -74,7 +77,7 @@ std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float valu
 }
 
 ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit)
-    : IDialog(sheet_rect)
+    : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est givré) ; l'en-tête reste vivant
     , label(label)
     , config(config)
     , value(config.clamp(value))
@@ -85,8 +88,12 @@ ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const Numer
 }
 
 void ValueEditor::unconditionalDraw() {
-    // Coins du haut arrondis ; l'écran dessous n'est pas voilé (pas de transparence)
-    display::draw_rounded_rect(GetRect(), style::screen, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    // Coins du haut arrondis ; au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri par tranches (retour du
+    // 22/11) : les coins prennent la couleur de son fond uni
+    display::draw_rounded_rect(sheet_rect, style::veil, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    if (!std::exchange(frosted, true)) {
+        frost::start(*this, style::below_header, sheet_rect);
+    }
     // Le nom seul : les libellés des listes G ont souvent une 2e ligne d'explication (« Pas\nBaisse à chaque palier »)
     std::array<char, label_rect.Width() / width(Font::small) + 1> name;
     label.copyToRAM(name.data(), name.size());

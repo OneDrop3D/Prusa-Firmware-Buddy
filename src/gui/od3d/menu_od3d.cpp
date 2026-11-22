@@ -28,7 +28,12 @@ namespace od3d {
 namespace {
 
     constexpr Color tile_network = Color::from_raw(0x1F4436);
-    constexpr Color scrollbar = style::text_faint;
+    // Indicateur de défilement (retour du 22/11 : « ce qui dit s'il y a du texte en dessous est trop petit ») : piste
+    // visible de 4 px, à 2 px des lignes, et curseur clair d'au moins 24 px (3 px gris foncé avant)
+    constexpr Color scroll_track = style::line;
+    constexpr Color scroll_thumb = style::text_muted;
+    constexpr int16_t scroll_gap = 2, scroll_w = 4, scroll_min = 24;
+    constexpr uint8_t scroll_radius = 2;
     constexpr Color edited_row = Color::from_raw(0x3A2618); ///< valeur réglée à la molette : fond du choix sélectionné (SPEC_G.md §1.5)
     constexpr uint16_t row_w = 464; ///< le cadre : x 8 à 472
     constexpr int16_t tile_x = 12, tile_size = 26, label_x = 48, value_right = 12;
@@ -154,20 +159,32 @@ namespace {
         }
     }
 
-    void draw_scrollbar(const IWindowMenu &menu, int16_t pitch) {
+    void draw_scrollbar(const IWindowMenu &menu) {
         const int shown = menu.max_items_on_screen_count();
         const int count = menu.item_count();
-        const Rect16 track(menu.Left() + row_w + 3, menu.Top(), 3, shown * pitch);
-        display::fill_rect(track, style::screen);
+        const Rect16 track(menu.Left() + row_w + scroll_gap, menu.Top(), scroll_w, menu.Height());
         if (count <= shown) {
+            display::fill_rect(track, style::screen);
             return;
         }
-        const int16_t h = std::max(track.Height() * shown / count, 6);
+        // Piste au-dessus, curseur, piste en dessous : chaque pixel peint une fois
+        const int16_t h = std::max<int16_t>(track.Height() * shown / count, scroll_min);
         const int16_t y = (track.Height() - h) * menu.scroll_offset() / (count - shown);
-        display::draw_rounded_rect(Rect16(track.Left(), track.Top() + y, track.Width(), h), style::screen, scrollbar, 1, MIC_ALL_CORNERS);
+        const int16_t below = track.Height() - y - h;
+        if (y > 0) {
+            display::draw_rounded_rect(Rect16(track.Left(), track.Top(), scroll_w, y), style::screen, scroll_track, scroll_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        }
+        // Le curseur se fond dans la piste, sauf à ses bouts où il touche le fond de l'écran
+        const uint8_t ends = (y == 0 ? MIC_ALT_CL_TOP_LEFT | MIC_ALT_CL_TOP_RIGHT : 0) | (below == 0 ? MIC_ALT_CL_BOT_LEFT | MIC_ALT_CL_BOT_RIGHT : 0);
+        display::draw_rounded_rect(Rect16(track.Left(), track.Top() + y, scroll_w, h), scroll_track, scroll_thumb, scroll_radius, uint8_t(MIC_ALL_CORNERS | ends), style::screen);
+        if (below > 0) {
+            display::draw_rounded_rect(Rect16(track.Left(), track.Top() + y + h, scroll_w, below), style::screen, scroll_track, scroll_radius, MIC_BOT_LEFT | MIC_BOT_RIGHT);
+        }
     }
 
 } // namespace
+
+static_assert(row_w + scroll_gap + scroll_w <= list_rect.Width(), "l'indicateur de défilement tient dans la liste");
 
 // ---- En-tête ----
 
@@ -222,8 +239,8 @@ void MenuListBase::draw() {
     if (all) {
         const int16_t bottom = menu.Top() + count * pitch;
         display::fill_rect(Rect16(menu.Left(), bottom, row_w, menu.Top() + menu.Height() - bottom), style::screen);
-        display::fill_rect(Rect16(menu.Left() + row_w, menu.Top(), 3, menu.Height()), style::screen);
-        draw_scrollbar(menu, pitch);
+        display::fill_rect(Rect16(menu.Left() + row_w, menu.Top(), scroll_gap, menu.Height()), style::screen);
+        draw_scrollbar(menu);
     }
 
     drawn_rows = count;

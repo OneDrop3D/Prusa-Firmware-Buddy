@@ -26,6 +26,8 @@ target_sources(
           screen_spool_od3d.cpp
           screen_temperatures_od3d.cpp
           spinner_od3d.cpp
+          frost_job_od3d.cpp
+          frost_od3d.cpp
           spool_draw.cpp
           spool_sheet_od3d.cpp
           thumbnail_od3d.cpp

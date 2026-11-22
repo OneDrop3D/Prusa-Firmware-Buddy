@@ -2,6 +2,7 @@
 #include "spool_sheet_od3d.hpp"
 
 #include "atelier_od3d.hpp"
+#include "frost_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "screen_spool_od3d.hpp"
 
@@ -14,6 +15,7 @@
 #include <img_resources.hpp>
 #include <knob_event.hpp>
 #include <ScreenHandler.hpp>
+#include <utility>
 
 namespace od3d {
 
@@ -121,14 +123,20 @@ namespace {
     class SpoolSheet : public IDialog {
     public:
         explicit SpoolSheet(uint8_t index);
+        ~SpoolSheet();
 
         Choice choice = Choice::none;
+
+        Rect16 get_rect_for_touch() const override {
+            return style::screen_rect; // un toucher sur l'en-tête aussi ferme la fiche
+        }
 
     protected:
         void unconditionalDraw() override;
         void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
     private:
+        bool frosted = false; ///< le fond au-dessus de la fiche a été givré (1er dessin)
         StringViewUtf8Parameters<8> usage_params; ///< « Reste 350 g », avant le bouton qui garde le texte formaté
         std::array<char, 12> pa_text {}; ///< « PA 0.035 » ou « PA ? » (F4), avant le bouton qui le montre
         Head head;
@@ -146,7 +154,7 @@ namespace {
     };
 
     SpoolSheet::SpoolSheet(uint8_t index)
-        : IDialog(style::screen_rect) // tout l'écran : un toucher au-dessus de la fiche la ferme
+        : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est givré) ; l'en-tête reste vivant
         , head(this, index)
         , main(this, main_body, tag_main, Button::Look::primary, {}, nullptr, style::surface, style::radius_big)
         , calibrate(this, calibrate_body, tag_calibrate, Button::Look::secondary, _("Calibrate PA"), nullptr, style::surface, style::radius_big)
@@ -224,9 +232,17 @@ namespace {
         }
     }
 
+    SpoolSheet::~SpoolSheet() {
+        frost::close(*this);
+    }
+
     void SpoolSheet::unconditionalDraw() {
-        // Seulement la bande : au-dessus, l'écran d'origine reste tel quel
-        display::draw_rounded_rect(band, style::screen, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        // Seulement la bande ; au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri par tranches (retour du
+        // 22/11 : « un léger flou en arrière-plan ») ; les coins de la bande prennent la couleur de son fond uni
+        display::draw_rounded_rect(band, style::veil, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        if (!std::exchange(frosted, true)) {
+            frost::start(*this, style::below_header, band);
+        }
     }
 
     void SpoolSheet::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -267,6 +283,8 @@ namespace {
             return;
 
         case GUI_event_t::HELD_RELEASED:
+        case GUI_event_t::TOUCH_SWIPE_LEFT: // le balayage est le retour, comme « Fermer »
+        case GUI_event_t::TOUCH_SWIPE_RIGHT:
             close_dialog();
             return;
 

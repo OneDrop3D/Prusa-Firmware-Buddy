@@ -1,5 +1,6 @@
 /// @file
 #include "screen_progress_od3d.hpp"
+#include "frost_od3d.hpp"
 
 #include "island_od3d.hpp"
 
@@ -14,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <span>
+#include <utility>
 #include <display.hpp>
 #include <display_helper.h>
 #include <filament_to_load.hpp>
@@ -52,7 +54,7 @@ namespace {
     constexpr Rect16 mark_rect = { content_x, 56, 48, 48 }; ///< bobine Ø44 (46,58) ou icône d'erreur 48 × 48
     constexpr uint8_t spinner_d = 44; ///< anneau d'attente (spinner_od3d.hpp : un tour en 1,6 s, SPEC_G.md §3.4)
     constexpr uint8_t box_radius = style::radius_big; ///< coins de toutes nos grandes cartes
-    constexpr Color veil = Color::from_raw(0x0C0C0D); ///< le fond × 0,45, pour ce qui se repeint autour du dialogue
+    constexpr Color veil = style::veil; ///< coins du cadre : la couleur du fond givré autour
 
     static_assert(style::inside(box_rect, body_rect) && style::inside(box_rect, bar_rect) && style::inside(body_rect, mark_rect));
     static_assert(style::inside(box_rect, style::with_ring(Rect16(content_x, buttons_y, content_w, buttons_h))));
@@ -585,6 +587,7 @@ ScreenLoadUnload::ScreenLoadUnload()
 }
 
 ScreenLoadUnload::~ScreenLoadUnload() {
+    frost::stop(*this);
     sound::stop();
     atelier::release_request();
 }
@@ -767,10 +770,16 @@ void ScreenLoadUnload::respond(Response response) {
 }
 
 void ScreenLoadUnload::unconditionalDraw() {
-    // Toujours le fond sombre sous l'en-tête : les coins arrondis du cadre sont peints de cette couleur. Laisser l'écran
-    // d'origine autour au 1er dessin faisait des coins noirs carrés sur lui (retour de l'utilisateur, 21/11). L'en-tête
-    // garde son fond : ses éléments, peints sur #1B1C1E, faisaient des pavés clairs sur le voile.
+    // L'en-tête garde son fond : ses éléments, peints sur #1B1C1E, faisaient des pavés clairs sur le voile
     display::fill_rect(style::header, style::screen);
+    if (!std::exchange(frosted, true)) {
+        // 1er dessin : l'écran d'où l'on vient reste autour du cadre, flouté et assombri par tranches (retour du 22/11 :
+        // « il n'y a pas de fond ») ; les coins du cadre sont peints de la couleur qu'y prend le fond uni
+        frost::start(*this, style::below_header, box_rect);
+        return;
+    }
+    // Redessiné en entier : ce qui était autour n'est plus sûr, voile uni
+    frost::stop(*this);
     display::fill_rect(Rect16::fromLTRB(0, style::header_line.Top(), style::screen_w, style::screen_h), veil);
 }
 

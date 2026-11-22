@@ -44,30 +44,6 @@ Disc::Disc(const Look &look, uint8_t diameter)
     hole = std::max(0, std::min(pct(15, r), hub_ring - 1));
 }
 
-float radius_in_square(int x, int y, int side) {
-    // En demi-pixels, les carrés restent entiers
-    const int dx = 2 * x + 1 - side;
-    const int dy = 2 * y + 1 - side;
-    return std::sqrt(static_cast<float>(dx * dx + dy * dy)) * 0.5f;
-}
-
-uint8_t beyond_quarters(float r, float edge) {
-    // La fenêtre [r - 0,5 ; r + 0,5] : la part au-delà du bord, arrondie au quart
-    // (tronquer + 0,5 arrondit les valeurs positives ; les négatives finissent à 0 de toute façon)
-    return static_cast<uint8_t>(std::clamp(static_cast<int>((r - edge + 0.5f) * 4 + 0.5f), 0, 4));
-}
-
-Color mix_quarters(Color inner, Color outer, uint8_t q) {
-    if (q == 0 || inner == outer) {
-        return inner;
-    }
-    if (q >= 4) {
-        return outer;
-    }
-    const auto ch = [q](uint8_t a, uint8_t b) { return static_cast<uint8_t>((a * (4 - q) + b * q + 2) / 4); };
-    return Color::from_rgb(ch(inner.r, outer.r), ch(inner.g, outer.g), ch(inner.b, outer.b));
-}
-
 Color Disc::pixel(int x, int y, Color back) const {
     if (x < 0 || y < 0 || x >= d || y >= d) {
         return back;

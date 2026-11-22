@@ -5,6 +5,8 @@
 #include <gui.hpp>
 #include <raii/auto_restore.hpp>
 #include <gui_invalidate.hpp>
+#include <i_window_menu_item.hpp>
+#include <sound.hpp>
 #include <gui/od3d/widgets_od3d.hpp> // OneDrop3D : chrome::next_screen()
 
 static const uint32_t MENU_TIMEOUT_MS = 30000;
@@ -45,6 +47,17 @@ void Screens::ScreenEvent([[maybe_unused]] window_t *sender, GUI_event_t event, 
     }
     // todo shouldn't I use "sender ? sender : current.get()"?
     current->ScreenEvent(current.get(), event, param);
+
+    // OneDrop3D (interface G) : le balayage horizontal est le retour partout où il y en a un. Si rien ne l'a pris (ni le
+    // retour de l'en-tête G, ni l'écran lui-même), l'écran se ferme comme à l'appui long, à condition que Prusa le
+    // ferme aussi au bout du délai des menus : pas une machine à états, une impression ni une mesure en cours. Jamais
+    // sous un dialogue (question, éditeur de valeur), ni pendant le réglage d'une valeur à la molette, ni sur l'accueil.
+    if ((event == GUI_event_t::TOUCH_SWIPE_LEFT || event == GUI_event_t::TOUCH_SWIPE_RIGHT) && current && !is_dialog_open
+        && !current->GetFirstDialog() && current->ClosedOnTimeout() && stack_iterator != stack.begin() && !is_change_pending()
+        && !IWindowMenuItem::edited_item()) {
+        sound::play(SoundType::button_echo);
+        close_screen();
+    }
 }
 
 void Screens::WindowEvent(GUI_event_t event, void *const param) {

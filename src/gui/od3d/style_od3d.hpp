@@ -27,6 +27,8 @@ inline constexpr Color text_muted = Color::from_raw(0xA9ADB3); ///< sous-titres,
 inline constexpr Color text_faint = Color::from_raw(0x6B6F75); ///< éléments désactivés
 inline constexpr Color warning = Color::from_raw(0xF2C14E);
 inline constexpr Color danger = COLOR_RED_ALERT; ///< #E74626
+/// Voile noir à 55 % sur le fond (× 0,45) : fond givré derrière les dialogues (frost_od3d.hpp), coins de leurs cadres
+inline constexpr Color veil = Color::from_raw(0x0C0C0D);
 
 /// Corps d'un élément ciblé par la molette : un ton plus clair, sans anneau blanc (retour de l'utilisateur, 21/11).
 /// Une carte #26282B devient #34373C, la ligne de liste ciblée de SPEC_G.md §1.6 ; l'orange s'éclaircit davantage.
@@ -58,6 +60,8 @@ inline constexpr uint8_t radius_big = radius; ///< grandes cartes : même arrond
 inline constexpr Rect16 header = { 0, 0, screen_w, 40 }; ///< en-tête : retour, titre, températures, réseau, heure
 inline constexpr Rect16 header_line = { 0, 40, screen_w, 1 };
 inline constexpr Rect16 back_touch = { 0, 0, 46, 44 }; ///< zone tactile du retour : 46 × 44, plus grande que son disque
+/// Sous l'en-tête : ce que couvrent nos dialogues (l'en-tête reste vivant au-dessus) et ce qu'ils givrent autour d'eux
+inline constexpr Rect16 below_header = Rect16::fromLTRB(0, header_line.Bottom() + 1, screen_w, screen_h);
 inline constexpr Rect16 tab_line = { 0, 275, screen_w, 1 };
 inline constexpr Rect16 tab_bar_rect = { 0, 276, screen_w, 44 };
 inline constexpr uint16_t tab_w = screen_w / 4;

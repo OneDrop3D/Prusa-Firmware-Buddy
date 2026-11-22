@@ -127,6 +127,7 @@ private:
     std::array<Response, 3> responses {};
     uint8_t background_button = 0xff; ///< bouton « Continuer en arrière-plan » (étape sans question), 0xff : aucun
     uint8_t shown_buttons = 0; ///< boutons affichés : le cadre se repeint quand leur nombre change
+    bool frosted = false; ///< le fond autour du cadre a été givré (1er dessin)
 
     Header header; ///< températures en direct pendant la chauffe (le pied de page de Prusa les montrait)
     Box box;

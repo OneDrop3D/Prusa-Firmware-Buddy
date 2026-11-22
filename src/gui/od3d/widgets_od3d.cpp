@@ -1,6 +1,5 @@
 /// @file
 #include "widgets_od3d.hpp"
-#include "print_info_od3d.hpp"
 #include "screen_files_od3d.hpp"
 #include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
@@ -22,6 +21,7 @@
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <filament.hpp>
 #include <i18n.h>
+#include <i_window_menu_item.hpp>
 #include <img_resources.hpp>
 #include <common/marlin_vars.hpp>
 #include <netdev.h>
@@ -97,18 +97,18 @@ void draw_rounded_frame(Rect16 rect, Color back, Color border, Color fill, uint8
         display::draw_rounded_rect(rect, back, fill, radius, MIC_ALL_CORNERS);
         return;
     }
-    const int w = rect.Width(), h = rect.Height(), bw = border_w;
-    int row = -1, out = 0, in = 0; // retraits du bord et du contour pour la ligne row, comme display::draw_rounded_rect
+    const int w = rect.Width(), h = rect.Height(), r = radius, bw = border_w;
     draw_pixels(rect, [&](int x, int y) {
-        if (y != row) {
-            row = y;
-            out = print_info::corner_inset(y, h, radius);
-            in = (y < bw || y >= h - bw) ? w : bw + print_info::corner_inset(y - bw, h - 2 * bw, radius - bw);
+        const int cx = x < r ? x : w - 1 - x; // position dans le carré de coin le plus proche
+        const int cy = y < r ? y : h - 1 - y;
+        if (cx < r && cy < r) {
+            // Coin anticrénelé (retour du 22/11 : « Annuler » en escalier) : contour entre deux arcs concentriques,
+            // mélangé en quarts au fond à l'intérieur et à back à l'extérieur
+            const float d = spool::radius_in_square(cx, cy, 2 * r);
+            const Color inside = spool::mix_quarters(fill, border, spool::beyond_quarters(d, r - bw));
+            return spool::mix_quarters(inside, back, spool::beyond_quarters(d, r));
         }
-        if (x < out || x >= w - out) {
-            return back;
-        }
-        return (x < in || x >= w - in) ? border : fill;
+        return (x < bw || x >= w - bw || y < bw || y >= h - bw) ? border : fill;
     });
 }
 
@@ -267,7 +267,11 @@ screen_init_variant Screen::GetCurrentState() const {
     size_t i = 0;
     for (window_t *w = GetFirstEnabledSubWin(); w; w = GetNextEnabledSubWin(w), ++i) {
         if (w->IsFocused()) {
-            state.SetPosition(i);
+            // Pas un onglet : on quitte l'écran par lui, et au retour son focus restait sur « Réglages » alors qu'on était
+            // dans l'Accueil (retour du 22/11) ; l'écran revient alors avec son focus de départ
+            if (!style::inside(style::tab_bar_rect, w->GetRect())) {
+                state.SetPosition(i);
+            }
             break;
         }
     }
@@ -727,10 +731,13 @@ void BackButton::invalidate(Rect16 rect) {
 }
 
 void BackButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
-    // Les deux sens, comme les écrans de Prusa (un balayage vers la gauche y est aussi un retour)
-    if ((event == GUI_event_t::TOUCH_SWIPE_RIGHT || event == GUI_event_t::TOUCH_SWIPE_LEFT) && IsVisible() && IsEnabled()) {
-        sound::play(SoundType::button_echo);
-        action();
+    // Les deux sens, comme les écrans de Prusa (un balayage vers la gauche y est aussi un retour) ; pas pendant le réglage
+    // d'une valeur à la molette (ligne de liste en mode édition)
+    if (event == GUI_event_t::TOUCH_SWIPE_RIGHT || event == GUI_event_t::TOUCH_SWIPE_LEFT) {
+        if (IsVisible() && IsEnabled() && !IWindowMenuItem::edited_item()) {
+            sound::play(SoundType::button_echo);
+            action();
+        }
         return;
     }
     IconButton::windowEvent(sender, event, param);

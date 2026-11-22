@@ -29,6 +29,9 @@ public:
     void show_back(bool show) {
         header.show_back(show);
     }
+    bool back_shown() const {
+        return header.back_shown();
+    }
     void SetIcon(const img::Resource *) {} ///< pas d'icône dans l'en-tête G
     void set_show_bed_info(bool) {} ///< écrans FSM de Prusa : l'en-tête G a déjà les températures
 

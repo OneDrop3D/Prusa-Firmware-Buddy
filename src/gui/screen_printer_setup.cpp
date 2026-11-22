@@ -49,6 +49,7 @@ ScreenPrinterSetup::ScreenPrinterSetup()
     : ScreenMenu(_("PRINTER SETUP")) //
 {
     ClrMenuTimeoutClose(); // don't close on menu timeout
+    header.show_back(false); // OneDrop3D (interface G) : seulement « Terminé », comme chez Prusa (ni retour, ni balayage, ni appui long)
 
 #if HAS_INDX()
     // If INDX Nozzles were not calibrated yet, it doesn't make sense to display them.

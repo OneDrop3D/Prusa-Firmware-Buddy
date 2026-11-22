@@ -55,6 +55,7 @@ private:
     const char *unit;
     bool accepted = false;
     bool dragged = false; ///< le doigt a glissé sur la barre : le balayage qui suit n'annule pas
+    bool frosted = false; ///< le fond au-dessus de la feuille a été givré (1er dessin)
     ValueView view;
 };
 

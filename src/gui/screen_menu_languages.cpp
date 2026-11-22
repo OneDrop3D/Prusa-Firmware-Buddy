@@ -38,6 +38,7 @@ ScreenMenuLanguages::ScreenMenuLanguages(Context context)
     case Context::initial_language_selection:
         header.SetText(_("SELECT LANGUAGE"));
         Item<MI_RETURN>().hide();
+        header.show_back(false); // OneDrop3D (interface G) : pas de retour non plus dans l'en-tête (ni balayage, ni appui long)
         window_frame_t::ClrMenuTimeoutClose();
         window_frame_t::ClrOnSerialClose();
         break;

@@ -1,5 +1,5 @@
 /// @file
-/// Réimplémentation de la méthode de PrusaPATuner (CNC Kitchen, AGPL-3.0) d'après sa description : aucun code repris.
+/// Méthode inspirée de PrusaPATuner (CNC Kitchen, AGPL-3.0), réimplémentée d'après sa description : aucun code repris.
 #include "pa_math_od3d.hpp"
 
 #include <algorithm>
@@ -10,20 +10,26 @@ namespace od3d::pa {
 using force::Trace;
 
 Profile profile(const Params &p) {
-    const float ratio = filament_area_mm2 * p.e_per_mm; // mm³ de filament par mm de déplacement
     return {
-        .v_lo = p.slow_flow / ratio,
-        .v_hi = p.fast_flow / ratio,
+        .v_lo = pattern::speed_for_flow(p.bead, p.slow_flow),
+        .v_hi = pattern::speed_for_flow(p.bead, p.fast_flow),
         .slow_s = p.slow_s,
         .fast_s = p.fast_s,
     };
 }
 
+float line_length(const Params &p) {
+    const Profile prof = profile(p);
+    return prof.v_lo * p.slow_s * float(p.cycles + 1) + prof.v_hi * p.fast_s * float(p.cycles);
+}
+
 bool is_valid(const Params &p) {
     const auto in = [](float v, float lo, float hi) { return std::isfinite(v) && v >= lo && v <= hi; };
-    return in(p.slow_flow, 0.3f, 10.f) && in(p.fast_flow, 2.f, 40.f) && p.fast_flow >= 2.f * p.slow_flow
-        && in(p.slow_s, 0.4f, 3.f) && in(p.fast_s, 0.1f, 1.f) && in(p.e_per_mm, 0.01f, 0.5f)
-        && p.cycles >= 2 && p.cycles <= 8;
+    if (!pattern::is_valid(p.bead) || !in(p.slow_flow, 0.3f, 10.f) || !in(p.fast_flow, 2.f, 40.f) || p.fast_flow < 2.f * p.slow_flow
+        || !in(p.slow_s, 0.4f, 3.f) || !in(p.fast_s, 0.1f, 1.f) || p.cycles < 2 || p.cycles > 8) {
+        return false;
+    }
+    return profile(p).v_hi <= max_line_speed && line_length(p) <= max_line_length;
 }
 
 float block_duration_s(const Params &p) {
@@ -103,7 +109,7 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
         Level &l = levels[c];
         const Cycle &cy = cycles[c];
         const long pre0 = offset(cy.rise, -0.35f * n_slow), pre1 = offset(cy.rise, -0.05f * n_slow);
-        // Après la descente : le palier lent dure slow_s (demi-tour en son milieu), puis vient la montée suivante
+        // Après la descente : le tronçon lent dure slow_s, puis vient la montée suivante (ou la fin de la ligne)
         const long post0 = offset(cy.fall, 0.65f * n_slow), post1 = offset(cy.fall, 0.95f * n_slow);
         const long hi0 = offset(cy.fall, -0.35f * float(cy.fall - cy.rise)), hi1 = offset(cy.fall, -0.03f * float(cy.fall - cy.rise));
         if (pre0 < 0 || post1 > n || hi1 <= hi0) {
@@ -149,9 +155,9 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
             continue;
         }
         const Cycle &cy = cycles[c];
-        // Montée : de 0,1 palier lent avant le front jusqu'au début de la fin du palier rapide (la force y est
-        // établie) ; descente : de là jusqu'avant le demi-tour du palier lent. Couper au front de descente compterait
-        // le début de la décélération (avant le front) avec le signe de la montée.
+        // Montée : de 0,1 tronçon lent avant le front jusqu'au début de la fin du tronçon rapide (la force y est
+        // établie) ; descente : de là jusqu'à la moitié du tronçon lent. Couper au front de descente compterait le
+        // début de la décélération (avant le front) avec le signe de la montée.
         const long r0 = std::max(0L, offset(cy.rise, -0.1f * n_slow));
         const long f0 = offset(cy.fall, -0.35f * float(cy.fall - cy.rise));
         const long f1 = std::min(n, offset(cy.fall, 0.45f * n_slow));
@@ -304,6 +310,36 @@ Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, flo
         }
     }
 
+    // Zéro encadré : deux K voisins dont le retard change de signe, interpolés linéairement. Plus sûr que la droite
+    // quand la réponse n'est plus linéaire loin de l'optimum (écrasement du cordon qui sature) ; on garde l'encadrement
+    // le plus proche du zéro de la droite, s'il en est assez près.
+    {
+        std::array<float, max_points> sk, sl;
+        std::copy_n(ks.begin(), n, sk.begin());
+        std::copy_n(lags.begin(), n, sl.begin());
+        for (size_t i = 1; i < n; ++i) {
+            for (size_t j = i; j > 0 && sk[j] < sk[j - 1]; --j) {
+                std::swap(sk[j], sk[j - 1]);
+                std::swap(sl[j], sl[j - 1]);
+            }
+        }
+        float bracket = NAN, distance = INFINITY;
+        for (size_t i = 1; i < n; ++i) {
+            const float dk = sk[i] - sk[i - 1];
+            if (dk < 1e-6f || !(sl[i - 1] >= 0.f && sl[i] < 0.f)) {
+                continue;
+            }
+            const float z = sk[i - 1] + sl[i - 1] * dk / (sl[i - 1] - sl[i]);
+            if (std::fabs(z - k_lag) < distance) {
+                distance = std::fabs(z - k_lag);
+                bracket = z;
+            }
+        }
+        if (std::isfinite(bracket) && distance <= th.local_span) {
+            k_lag = bracket;
+        }
+    }
+
     // Contrôle croisé : minimum du coût, affiné par une parabole sur ses voisins
     size_t m = 0;
     for (const SweepPoint &s : sweep) {
@@ -337,10 +373,13 @@ Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, flo
     c.used = uint8_t(n);
     c.k = std::max(0.f, k_lag);
 
-    // Confiance : pente proche de −1, droite bien ajustée, accord avec le minimum du coût
+    // Confiance : pente nette (ni plate, ni démesurée), droite bien ajustée, accord avec le minimum du coût. Sur une
+    // ligne imprimée, l'écrasement du cordon s'ajoute à la pression : la pente dépasse −1 sans que la mesure soit moins
+    // sûre.
     const float step = k_step > 0 ? k_step : 0.01f;
     float confidence = 100.f;
-    confidence -= 40.f * std::fabs(f.b + 1.f);
+    confidence -= 80.f * std::max(0.f, 0.6f + f.b); // pente moins raide que −0,6
+    confidence -= 8.f * std::max(0.f, -f.b - 5.f); // plus raide que −5
     confidence -= std::max(0.f, 0.95f - f.r2) * 200.f;
     confidence -= std::max(0.f, std::fabs(k_lag - k_cost) / step - 1.f) * 20.f;
     if (k_lag < 0) {

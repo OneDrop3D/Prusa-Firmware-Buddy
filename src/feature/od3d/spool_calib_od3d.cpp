@@ -102,20 +102,14 @@ namespace {
 
     LastRun last;
 
-    constexpr float step_speed = 5.f; ///< la tête avance lentement en X pendant un palier : le filament s'étale [mm/s]
-    constexpr float row_pitch = 5.f; ///< paliers sur 4 lignes espacées de 5 mm en Y, en allers-retours
-    constexpr uint8_t rows = 4;
-    constexpr uint32_t rest_ms = 800; ///< tête arrêtée avant un palier : la pression retombe
-    constexpr uint32_t zero_ms = 200; ///< zéro de la force, tête arrêtée
-    constexpr uint32_t settle_ms = 1000; ///< début du palier écarté (montée de la pression)
-    constexpr uint32_t tail_ms = 400; ///< fin du palier écartée (le mouvement peut partir un peu après la demande)
+    constexpr uint32_t rest_ms = 800; ///< buse arrêtée juste au-dessus du départ d'une ligne : la pression retombe
+    constexpr uint32_t zero_ms = 200; ///< zéro de la force, buse au repos sans contact
     constexpr uint32_t min_window_points = 40; ///< à 160 Hz : 0,25 s
     constexpr float max_force_g = 4000.f; ///< au-delà, la rampe s'arrête (extrudeur à la peine)
-    constexpr float prime_mm = 8.f; ///< purge avant la mesure [mm de filament]
-    constexpr float prime_speed = 2.f; ///< [mm/s de filament]
     constexpr int16_t min_temperature_margin = 10; ///< jamais sous EXTRUDE_MINTEMP + 10 (extrusion à froid refusée)
     constexpr int16_t default_drop = 60; ///< F6 : plancher par défaut, 60 °C sous la température nominale
     constexpr uint32_t settle_timeout_ms = 4 * 60 * 1000; ///< F6 : descente d'un palier de température
+    constexpr float settle_lift = 5.f; ///< F6 : buse levée pendant qu'elle refroidit [mm]
 
     void fail(Error e) {
         st_error = e;
@@ -134,6 +128,8 @@ namespace {
             return Error::no_room;
         case session::Result::heating:
             return Error::heating;
+        case session::Result::leveling:
+            return Error::leveling;
         }
         return Error::stopped;
     }
@@ -152,13 +148,10 @@ namespace {
         st_phase = Phase::preparing;
     }
 
-    /// Lignes des paliers : la tête va de x_lo à x_hi (ou l'inverse) à step_speed, sur la ligne row % rows
-    struct Lines {
-        float x_lo = 0;
-        float x_hi = 0;
-        float y0 = 0;
-        bool forward = true;
-        uint8_t row = 0;
+    /// Lignes des paliers : centrées sur center, une par palier, en allers-retours
+    struct Layout {
+        pattern::Lines lines;
+        float center = 0;
     };
 
     enum class StepResult : uint8_t {
@@ -167,35 +160,41 @@ namespace {
         no_signal, ///< la cellule n'a pas donné assez d'échantillons
     };
 
-    /// Un palier d'extrusion à débit constant (flow mm³/s pendant step_s) avec la tête qui avance en X ; force moyenne
-    /// et écart type sur le milieu du palier, relatifs à la tête au repos juste avant
-    StepResult run_step(Lines &lines, float flow, float step_s, float label, StepPoint &out, FILE *csv) {
-        planner.synchronize();
-        if (must_stop()) {
+    /// Un palier : la ligne row imprimée à flow mm³/s pendant step_s au plus (moins si elle dépasserait la longueur
+    /// maximale) ; force moyenne et écart type sur le milieu de la ligne, relatifs à la buse au repos juste au-dessus
+    StepResult run_step(session::Session &session, const Layout &layout, uint8_t row, float flow, float step_s, float label, StepPoint &out, FILE *csv) {
+        const pattern::Lines &lines = layout.lines;
+        const float v = pattern::speed_for_flow(lines.bead, flow);
+        const float length = std::min(v * step_s, lines.length);
+        const float t = length / v; // durée réelle du palier
+        const bool forward = row % 2 == 0;
+        const float x_start = layout.center + (forward ? -length : length) / 2.f;
+        const float x_end = layout.center + (forward ? length : -length) / 2.f;
+        const float y = lines.y(row);
+        const float z = lines.bead.height;
+
+        // Buse levée au-dessus du départ (rétraction), puis repos : zéro de la force sans contact
+        if (!session.travel_to(x_start, y, z, false)) {
             return StepResult::stopped;
         }
-        const float y = lines.y0 + row_pitch * float(lines.row % rows);
-        do_blocking_move_to_xy(lines.forward ? lines.x_lo : lines.x_hi, y, session::travel_speed_xy);
-
-        // Cellule en haute précision (320 Hz) le temps du palier seulement
-        Loadcell::HighPrecisionEnabler high_precision(loadcell);
+        Loadcell::HighPrecisionEnabler high_precision(loadcell); // 320 Hz le temps du palier seulement
         if (!wait_ms(rest_ms)) {
             return StepResult::stopped;
         }
         force_probe::start();
         ScopeGuard stop_probe = [] { force_probe::stop(); };
-        if (!wait_ms(zero_ms)) {
+        if (!wait_ms(zero_ms) || !session.move_z(z) || !session.print_to(x_end, y, pattern::e_per_mm(lines.bead), v)) {
             return StepResult::stopped;
         }
-        current_position.x = lines.forward ? lines.x_hi : lines.x_lo;
-        current_position.e += flow / pa::filament_area_mm2 * step_s;
-        line_to_current_position(step_speed);
-        const uint32_t step_ms = uint32_t(step_s * 1000.f);
+        // Début (montée de la pression) et fin (le mouvement peut partir un peu après la demande) écartés
+        const uint32_t step_ms = uint32_t(t * 1000.f);
+        const uint32_t settle_ms = uint32_t(std::clamp(0.35f * t, 0.3f, 1.0f) * 1000.f);
+        const uint32_t tail_ms = uint32_t(std::clamp(0.12f * t, 0.1f, 0.4f) * 1000.f);
         if (!wait_ms(settle_ms)) {
             return StepResult::stopped;
         }
         force_probe::window_begin();
-        if (!wait_ms(step_ms - settle_ms - tail_ms)) {
+        if (step_ms > settle_ms + tail_ms && !wait_ms(step_ms - settle_ms - tail_ms)) {
             return StepResult::stopped;
         }
         force_probe::window_end();
@@ -203,8 +202,7 @@ namespace {
             return StepResult::stopped;
         }
         force_probe::stop();
-        lines.forward = !lines.forward;
-        ++lines.row;
+        session.retract();
 
         const force_probe::WindowStats w = force_probe::window();
         out = { label, w.mean_g, w.sd_g };
@@ -240,29 +238,56 @@ namespace {
         return type;
     }
 
-    /// Préparation commune : PA à 0 (pas d'effet du PA sur les paliers), position, chauffe, purge ; false si échec
-    bool prepare(session::Session &session, Lines &lines, float x, float &y, float z, float step_s, int16_t temperature) {
+    /// Préparation commune : PA à 0 (pas d'effet du PA sur les paliers), lignes dans la zone imprimable, plateau,
+    /// nivellement local, buse à temperature, purge ; false si échec (état déjà posé)
+    bool prepare(session::Session &session, Layout &layout, const Placement &place, uint8_t rows, float longest, const FilamentTypeParameters &material,
+        int16_t temperature) {
         pressure_advance::set_axis_e_config({ .pressure_advance = 0.f, .smooth_time = session.smooth_time() });
-        const float length = step_speed * step_s;
-        const float x_center = std::isfinite(x) ? x : X_BED_SIZE / 2.f;
-        lines.x_lo = x_center - length / 2.f;
-        lines.x_hi = x_center + length / 2.f;
-        if (const session::Result r = session.go_to(lines.x_lo, lines.x_hi, lines.x_lo, y, row_pitch * (rows - 1), z); r != session::Result::ok) {
+        layout.center = std::isfinite(place.x) ? place.x : X_BED_SIZE / 2.f;
+        pattern::Lines &lines = layout.lines;
+        lines.length = std::min(longest, place.max_length);
+        lines.x0 = layout.center - lines.length / 2.f;
+        lines.y0 = place.y;
+        lines.pitch = place.pitch;
+        lines.marks = 0;
+        lines.count = rows;
+        lines.bead = place.bead;
+        if (!session::printable_zone().contains(lines.area())) {
+            fail(Error::no_room);
+            return false;
+        }
+        const int16_t bed = std::clamp<int16_t>(place.bed_temperature > 0 ? place.bed_temperature : material.heatbed_temperature, 0, session::max_bed_temperature);
+        const int16_t probe = std::min<int16_t>(material.nozzle_preheat_temperature, temperature);
+        st_phase = Phase::bed;
+        if (const session::Result r = session.heat_bed(bed, probe); r != session::Result::ok) {
             fail(error_of(r));
             return false;
         }
-        lines.y0 = y;
+        st_phase = Phase::leveling;
+        if (const session::Result r = session.level(lines.area(), probe); r != session::Result::ok) {
+            fail(error_of(r));
+            return false;
+        }
         st_phase = Phase::heating;
+        if (const session::Result r = session.go_to_purge(); r != session::Result::ok) {
+            fail(error_of(r));
+            return false;
+        }
         if (const session::Result r = session.heat(temperature); r != session::Result::ok) {
             fail(error_of(r));
             return false;
         }
         st_phase = Phase::priming;
-        if (!session.prime(prime_mm, prime_speed)) {
+        if (!session.purge()) {
             fail(Error::stopped);
             return false;
         }
         return true;
+    }
+
+    /// Placement plausible
+    bool valid_place(const Placement &p) {
+        return pattern::is_valid(p.bead) && p.pitch >= 2.f && p.pitch <= 20.f && p.max_length >= 20.f && p.max_length <= 220.f && std::isfinite(p.y);
     }
 
     FILE *open_csv(bool wanted, const char *name, uint8_t slot) {
@@ -322,21 +347,21 @@ void measure_flow(const FlowRequest &rq) {
     const size_t n = pa::sweep_values(rq.flow_min, flow_max, rq.flow_step, flows);
     KneeThresholds th;
     th.excess = rq.excess;
-    if (!(rq.flow_min >= 0.5f) || !(rq.flow_step >= 0.5f) || n != expected || n < size_t(th.ref_points) + 2 || !(rq.step_s >= 2.f && rq.step_s <= 6.f)
-        || !(rq.excess >= 0.05f && rq.excess <= 2.f)) {
+    if (!(rq.flow_min >= 0.5f) || !(rq.flow_step >= 0.5f) || n != expected || n < size_t(th.ref_points) + 2 || !(rq.step_s >= 1.5f && rq.step_s <= 6.f)
+        || !(rq.excess >= 0.05f && rq.excess <= 2.f) || !valid_place(rq.place)) {
         fail(Error::bad_request);
         return;
     }
-    const int16_t temperature = std::clamp<int16_t>(rq.temperature > 0 ? rq.temperature : type.parameters().nozzle_temperature, EXTRUDE_MINTEMP + min_temperature_margin, session::max_temperature);
+    const FilamentTypeParameters material = type.parameters();
+    const int16_t temperature = std::clamp<int16_t>(rq.temperature > 0 ? rq.temperature : material.nozzle_temperature, EXTRUDE_MINTEMP + min_temperature_margin, session::max_temperature);
     st_temperature = temperature;
     st_steps = uint8_t(n);
 
     running = true;
     ScopeGuard not_running = [] { running = false; };
-    session::Session session(stop_requested); // réglages remis à la fin (PA, mouvements, consigne de la buse)
-    Lines lines;
-    float y = rq.y;
-    if (!prepare(session, lines, rq.x, y, rq.z, rq.step_s, temperature)) {
+    session::Session session(stop_requested); // réglages remis à la fin (PA, mouvements, consignes, maillage)
+    Layout layout;
+    if (!prepare(session, layout, rq.place, uint8_t(n), pattern::speed_for_flow(rq.place.bead, flow_max) * rq.step_s, material, temperature)) {
         return;
     }
 
@@ -348,9 +373,10 @@ void measure_flow(const FlowRequest &rq) {
     };
     st_csv = csv != nullptr;
     if (csv) {
-        fprintf(csv, "# OneDrop3D max flow (F5) slot %u, %s, %d C, %.1f to %.1f mm3/s by %.1f, %.1f s per step, excess %.2f\n", unsigned(rq.slot + 1),
-            type.parameters().name.data(), int(temperature), double(rq.flow_min), double(flow_max), double(rq.flow_step), double(rq.step_s), double(rq.excess));
-        fprintf(csv, "# D,flow,t_s,x_mm,force_g / R,flow,force_g,noise_g / C,fit,flow,a,n,index,skipping\n");
+        fprintf(csv, "# OneDrop3D max flow (F5) slot %u, %s, %d C, %.1f to %.1f mm3/s by %.1f, %.1f s per step (max %.0f mm), printed lines %.2f x %.2f mm, excess %.2f\n",
+            unsigned(rq.slot + 1), material.name.data(), int(temperature), double(rq.flow_min), double(flow_max), double(rq.flow_step), double(rq.step_s),
+            double(layout.lines.length), double(rq.place.bead.width), double(rq.place.bead.height), double(rq.excess));
+        fprintf(csv, "# force up positive, zero above the line start. D,flow,t_s,x_mm,force_g / R,flow,force_g,noise_g / C,fit,flow,a,n,index,skipping\n");
     }
 
     st_phase = Phase::measuring;
@@ -364,7 +390,7 @@ void measure_flow(const FlowRequest &rq) {
         st_step = uint8_t(i + 1);
         st_value = int16_t(std::lround(flows[i] * 10.f));
         StepPoint p;
-        const StepResult r = run_step(lines, flows[i], rq.step_s, flows[i], p, csv);
+        const StepResult r = run_step(session, layout, uint8_t(i), flows[i], rq.step_s, flows[i], p, csv);
         if (r != StepResult::ok) {
             fail(r == StepResult::stopped ? Error::stopped : Error::weak_signal);
             return;
@@ -425,8 +451,9 @@ void measure_temperature(const TempRequest &rq) {
         return;
     }
     // Jamais au-dessus de la température de la matière, jamais sous la température minimale d'extrusion (+10 °C)
-    const int16_t material = type.parameters().nozzle_temperature;
-    const int16_t start = std::min<int16_t>(rq.start > 0 ? std::min(rq.start, material) : material, session::max_temperature);
+    const FilamentTypeParameters material = type.parameters();
+    const int16_t nominal = material.nozzle_temperature;
+    const int16_t start = std::min<int16_t>(rq.start > 0 ? std::min(rq.start, nominal) : nominal, session::max_temperature);
     const int16_t lowest = EXTRUDE_MINTEMP + min_temperature_margin;
     const int16_t floor = std::max<int16_t>(rq.floor > 0 ? rq.floor : int16_t(start - default_drop), lowest);
     std::array<int16_t, LastRun::max_points> temps;
@@ -434,7 +461,7 @@ void measure_temperature(const TempRequest &rq) {
     MinTempThresholds th;
     th.max_ratio = rq.max_ratio;
     if (n < 2 || rq.step < 2 || rq.step > 20 || !(rq.flow >= 1.f && rq.flow <= 15.f) || !(rq.max_ratio >= 1.05f && rq.max_ratio <= 5.f)
-        || !(rq.step_s >= 2.f && rq.step_s <= 6.f) || !(rq.hold_s >= 0.f && rq.hold_s <= 30.f)) {
+        || !(rq.step_s >= 2.f && rq.step_s <= 6.f) || !(rq.hold_s >= 0.f && rq.hold_s <= 30.f) || !valid_place(rq.place)) {
         fail(Error::bad_request);
         return;
     }
@@ -444,9 +471,8 @@ void measure_temperature(const TempRequest &rq) {
     running = true;
     ScopeGuard not_running = [] { running = false; };
     session::Session session(stop_requested);
-    Lines lines;
-    float y = rq.y;
-    if (!prepare(session, lines, rq.x, y, rq.z, rq.step_s, start)) {
+    Layout layout;
+    if (!prepare(session, layout, rq.place, uint8_t(n), pattern::speed_for_flow(rq.place.bead, rq.flow) * rq.step_s, material, start)) {
         return;
     }
 
@@ -458,9 +484,10 @@ void measure_temperature(const TempRequest &rq) {
     };
     st_csv = csv != nullptr;
     if (csv) {
-        fprintf(csv, "# OneDrop3D min temperature (F6) slot %u, %s, %d to %d C by %d, %.1f mm3/s, %.1f s per step, ratio %.2f\n", unsigned(rq.slot + 1),
-            type.parameters().name.data(), int(start), int(floor), int(rq.step), double(rq.flow), double(rq.step_s), double(rq.max_ratio));
-        fprintf(csv, "# D,temp,t_s,x_mm,force_g / R,temp,force_g,noise_g / C,fit,temp,reference_g,index\n");
+        fprintf(csv, "# OneDrop3D min temperature (F6) slot %u, %s, %d to %d C by %d, %.1f mm3/s, %.1f s per step, printed lines %.2f x %.2f mm, ratio %.2f\n",
+            unsigned(rq.slot + 1), material.name.data(), int(start), int(floor), int(rq.step), double(rq.flow), double(rq.step_s), double(rq.place.bead.width),
+            double(rq.place.bead.height), double(rq.max_ratio));
+        fprintf(csv, "# force up positive, zero above the line start. D,temp,t_s,x_mm,force_g / R,temp,force_g,noise_g / C,fit,temp,reference_g,index\n");
     }
 
     last = {};
@@ -475,9 +502,14 @@ void measure_temperature(const TempRequest &rq) {
         st_step = uint8_t(i + 1);
         st_value = temps[i];
         if (i > 0) {
-            // Palier suivant : la buse descend et se stabilise à ±1 °C
+            // Palier suivant : la buse, levée au-dessus des lignes, descend et se stabilise à ±1 °C
             st_phase = Phase::settling;
             st_temperature = temps[i];
+            session.retract();
+            if (!session.move_z(layout.lines.bead.height + settle_lift)) {
+                fail(Error::stopped);
+                return;
+            }
             if (const session::Result r = session.heat(temps[i], 1.f, hold_ms, settle_timeout_ms); r != session::Result::ok) {
                 fail(error_of(r));
                 return;
@@ -485,7 +517,7 @@ void measure_temperature(const TempRequest &rq) {
         }
         st_phase = Phase::measuring;
         StepPoint p;
-        const StepResult r = run_step(lines, rq.flow, rq.step_s, float(temps[i]), p, csv);
+        const StepResult r = run_step(session, layout, uint8_t(i), rq.flow, rq.step_s, float(temps[i]), p, csv);
         if (r != StepResult::ok) {
             fail(r == StepResult::stopped ? Error::stopped : Error::weak_signal);
             return;

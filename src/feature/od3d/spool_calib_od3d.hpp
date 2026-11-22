@@ -1,18 +1,23 @@
 /// @file
 /// OneDrop3D (F5, F6) : calibrations de la bobine par la cellule de charge, par emplacement du MMU.
 ///
-/// - F5, débit maximal (M1995) : à la température de la matière, paliers de débit croissants ; la force de chaque
-///   palier donne la courbe force/débit, dont le coude est le débit maximal (spool_calib_math_od3d.hpp). Option
+/// - F5, débit maximal (M1995) : à la température de la matière, lignes à vitesse croissante (débit croissant) ; la
+///   force de chaque ligne donne la courbe force/débit, dont le coude est le débit maximal (spool_calib_math_od3d.hpp). Option
 ///   « limiter au débit mesuré » (coupée par défaut) : le planificateur ralentit un mouvement d'impression dont le
 ///   filament irait plus vite (flow_limit_od3d.hpp) ; la limite est bornée à [5, 40] mm³/s.
-/// - F6, température minimale (M1996) : à débit constant modéré, la température descend par paliers depuis celle de
-///   la matière (jamais au-dessus), jamais sous la température minimale d'extrusion de Prusa (+10 °C) ; on garde la
+/// - F6, température minimale (M1996) : lignes à débit constant modéré, la température descend d'une ligne à l'autre
+///   depuis celle de la matière (jamais au-dessus), jamais sous la température minimale d'extrusion de Prusa (+10 °C) ; on garde la
 ///   plus basse température dont la force reste sous un seuil relatif. Purement informatif.
-/// Les deux : refusées pendant une impression, bobine de l'emplacement chargée dans la buse, buse au-dessus de l'avant
-/// du plateau à hauteur sûre, arrêtables (request_stop), réglages remis (session commune avec F4), CSV sur la clé.
+/// Les deux **impriment des lignes** à l'avant du plateau (la mesure dans le vide ne suivait pas la pression, retour du
+/// 22/11) : cordon de largeur et de hauteur fixes (0,6 × 0,3 mm), une ligne par palier, la force verticale (positive
+/// vers le haut) moyennée sur le milieu de la ligne, relative à la buse au repos juste au-dessus. Préparation commune
+/// avec F4 (measure_session_od3d.hpp) : plateau, origine, nivellement local, purge au bord avant.
+/// Refusées pendant une impression, bobine de l'emplacement chargée dans la buse, arrêtables (request_stop), réglages
+/// remis et buse levée à la fin, CSV sur la clé.
 /// Mémoire : config_store « OD3D Spool Calib » (à côté du K de F4), effacée au changement de bobine.
 #pragma once
 
+#include "pattern_math_od3d.hpp"
 #include "spool_calib_math_od3d.hpp"
 
 #include <array>
@@ -54,11 +59,13 @@ enum class Kind : uint8_t {
 
 enum class Phase : uint8_t {
     idle,
-    preparing, ///< origine, position
-    heating,
-    priming,
-    measuring, ///< palier d'extrusion
-    settling, ///< F6 : la buse descend au palier suivant
+    preparing, ///< vérifications, réglages
+    bed, ///< le plateau chauffe (la buse va à sa température de palpage)
+    leveling, ///< origine, nettoyage de la buse, palpage de la zone des lignes
+    heating, ///< la buse chauffe à la température d'impression
+    priming, ///< ligne de purge
+    measuring, ///< ligne d'un palier
+    settling, ///< F6 : la buse, levée, descend au palier suivant
     done,
     failed, ///< voir Error
 };
@@ -69,8 +76,9 @@ enum class Error : uint8_t {
     bad_request, ///< emplacement ou paramètres invalides
     not_loaded, ///< la bobine de l'emplacement n'est pas chargée dans la buse
     homing,
-    no_room,
-    heating, ///< la buse n'a pas atteint la consigne à temps
+    no_room, ///< les lignes ne tiennent pas dans la zone imprimable
+    heating, ///< la buse ou le plateau n'a pas atteint la consigne à temps
+    leveling, ///< palpage du plateau impossible
     stopped, ///< annulé
     weak_signal, ///< force trop faible
     too_few_points, ///< pas assez de paliers exploitables
@@ -101,17 +109,25 @@ uint16_t run_count();
 /// Demande l'arrêt (depuis l'interface)
 void request_stop();
 
+/// Lignes des paliers (F5, F6) : centrées sur x, de l'avant (y) vers l'arrière
+struct Placement {
+    float x = NAN; ///< centre des lignes ; NAN : milieu du plateau
+    float y = 12.f; ///< première ligne, à l'avant du plateau
+    float pitch = 3.f; ///< écart entre deux lignes [mm]
+    pattern::Bead bead { 0.6f, 0.3f }; ///< cordon [mm] (plus gros qu'en F4 : débits élevés à vitesse raisonnable)
+    float max_length = 180.f; ///< longueur d'une ligne au plus [mm] : aux forts débits, le palier raccourcit
+    int16_t bed_temperature = 0; ///< plateau ; 0 : celle de la matière
+};
+
 struct FlowRequest {
     uint8_t slot = 0;
     float flow_min = 2.f; ///< premier palier [mm³/s]
     float flow_max = 30.f; ///< dernier palier [mm³/s], borné à flow_ceiling
     float flow_step = 2.f;
-    float step_s = 3.f; ///< durée d'un palier [s]
+    float step_s = 2.5f; ///< durée d'un palier [s] (moins si la ligne dépasserait max_length)
     float excess = 0.25f; ///< seuil du coude (dépassement relatif de la loi de référence)
     int16_t temperature = 0; ///< 0 : celle de la matière
-    float x = NAN; ///< centre ; NAN : milieu du plateau
-    float y = 10.f; ///< avant du plateau
-    float z = 20.f; ///< hauteur minimale de la buse (et 10 mm au-dessus de ce qui a été imprimé)
+    Placement place;
     bool csv = false; ///< /usb/OD3D_FL<n>.CSV
 };
 
@@ -127,9 +143,7 @@ struct TempRequest {
     float max_ratio = 1.5f; ///< force acceptable jusqu'à max_ratio × la force à la température nominale
     float step_s = 3.f; ///< durée d'un palier d'extrusion [s]
     float hold_s = 5.f; ///< stabilisation à ±1 °C avant chaque palier [s]
-    float x = NAN;
-    float y = 10.f;
-    float z = 20.f;
+    Placement place;
     bool csv = false; ///< /usb/OD3D_TM<n>.CSV
 };
 

@@ -11143,3 +11143,90 @@ msgstr "Ventilation anticipée\nLe ventilateur accélère jusqu'à 1 s plus tôt
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Fan lead"
 msgstr "Ventilation anticipée"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Chosen by eye"
+msgstr "Choisi à vue"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Best line"
+msgstr "Meilleure ligne"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Heating the bed..."
+msgstr "Chauffe du plateau..."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Line %d/%d: K = %s"
+msgstr "Ligne %d/%d : K = %s"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "The nozzle or the bed did not heat up."
+msgstr "La buse ou le plateau n'a pas chauffé."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Bed probing failed."
+msgstr "Échec du palpage du plateau."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Weak force: pick the best line by eye."
+msgstr "Force faible : choisissez la ligne à vue."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Force does not follow K: pick the best line."
+msgstr "La force ne suit pas K : choisissez la ligne."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "K out of range (%s): pick the best line."
+msgstr "K hors plage (%s) : choisissez la ligne."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Unsure (K = %s): pick the best line."
+msgstr "Incertain (K = %s) : choisissez la ligne."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Prints one test line per K at the bed front."
+msgstr "Imprime une ligne de test par K à l'avant."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?"
+msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe, son avant est palpé, puis une ligne de test par K y est imprimée (6 à 10 min). Démarrer ?"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Slot %d · Best line"
+msgstr "Empl. %d · Choix ligne"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Line 1 is at the front; count the ticks right of each line (long tick = 5). Pick the line with the most even width."
+msgstr "La ligne 1 est devant ; comptez les traits à droite de chaque ligne (trait long = 5). Choisissez la ligne la plus régulière."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Save K = %s (line %d) for this spool?"
+msgstr "Enregistrer K = %s (ligne %d) pour cette bobine ?"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Line at %s mm3/s (%d/%d)"
+msgstr "Ligne à %s mm3/s (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Line at %d° (%d/%d)"
+msgstr "Ligne à %d° (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Prints test lines at the bed front."
+msgstr "Imprime des lignes de test à l'avant."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then lines are printed there faster and faster (5 to 8 min). Start?"
+msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe, son avant est palpé, puis des lignes y sont imprimées de plus en plus vite (5 à 8 min). Démarrer ?"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then lines are printed there while the nozzle cools down step by step (8 to 12 min). Start?"
+msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe, son avant est palpé, puis des lignes y sont imprimées pendant que la buse refroidit palier par palier (8 à 12 min). Démarrer ?"

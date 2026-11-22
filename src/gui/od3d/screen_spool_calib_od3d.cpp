@@ -261,6 +261,12 @@ void ScreenSpoolCalib::show_note() {
         text = _("Starting...");
     } else if (shown_running && mine) {
         switch (shown.phase) {
+        case calib::Phase::bed:
+            text = _("Heating the bed...");
+            break;
+        case calib::Phase::leveling:
+            text = _("Probing bed");
+            break;
         case calib::Phase::heating:
             text = _("Heating the nozzle to %d°").formatted(params, int(shown.temperature));
             break;
@@ -270,9 +276,9 @@ void ScreenSpoolCalib::show_note() {
         case calib::Phase::measuring:
             if (flow) {
                 snprintf(value, sizeof(value), "%.1f", double(shown.value) / 10.0);
-                text = _("Extruding %s mm3/s (%d/%d)").formatted(params, value, int(shown.step), int(shown.steps));
+                text = _("Line at %s mm3/s (%d/%d)").formatted(params, value, int(shown.step), int(shown.steps));
             } else {
-                text = _("Extruding at %d° (%d/%d)").formatted(params, int(shown.value), int(shown.step), int(shown.steps));
+                text = _("Line at %d° (%d/%d)").formatted(params, int(shown.value), int(shown.step), int(shown.steps));
             }
             break;
         case calib::Phase::settling:
@@ -305,7 +311,10 @@ void ScreenSpoolCalib::show_note() {
             text = _("No room for the test.");
             break;
         case calib::Error::heating:
-            text = _("The nozzle did not heat up.");
+            text = _("The nozzle or the bed did not heat up.");
+            break;
+        case calib::Error::leveling:
+            text = _("Bed probing failed.");
             break;
         case calib::Error::stopped:
             text = _("Measurement cancelled.");
@@ -323,7 +332,7 @@ void ScreenSpoolCalib::show_note() {
     } else if (!loaded(slot)) {
         text = _("Load this spool into the nozzle to measure it.");
     } else {
-        text = _("Heats, then extrudes ~1 g at the bed front.");
+        text = _("Prints test lines at the bed front.");
     }
     text.copyToRAM(note_text.data(), note_text.size());
     note.SetText(string_view_utf8::MakeRAM(note_text.data()));
@@ -386,8 +395,8 @@ void ScreenSpoolCalib::measure(calib::Kind kind) {
     }
     const bool flow = kind == calib::Kind::flow;
     const string_view_utf8 question = flow
-        ? _("The nozzle heats up, then extrudes up to 1 g of filament at increasing flow above the front of the bed (1 to 2 min). Clear the bed. Start?")
-        : _("The nozzle heats up, then cools down step by step while extruding a little filament above the front of the bed (3 to 6 min). Clear the bed. Start?");
+        ? _("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then lines are printed there faster and faster (5 to 8 min). Start?")
+        : _("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then lines are printed there while the nozzle cools down step by step (8 to 12 min). Start?");
     if (MsgBoxQuestion(question, Responses_YesNo) != Response::Yes) {
         return;
     }

@@ -67,6 +67,10 @@ private:
     od3d::MenuList<Menu, false> menu_; ///< OneDrop3D : le « Retour » reste, seule sortie sans choisir (en-tête sans retour)
 };
 
+// OneDrop3D : le dialogue est sur la pile de l'interface (6 Ko). En G (en-tête et liste od3d), 1 064 octets mesurés le
+// 22/11, contre 1 248 pour celui de Prusa (window_header_t + WindowExtendedMenu) : il ne doit pas dépasser l'original
+static_assert(sizeof(Dialog) <= 1248, "dialogue de liste de choix plus gros que celui de Prusa : pile de l'interface");
+
 void MenuItem::click(IWindowMenu &menu) {
     handle_click(*this, menu);
 }

@@ -12291,3 +12291,130 @@ msgstr "accél. filament"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "lines"
 msgstr "lignes"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Pulley speed"
+msgstr "Vitesse de la poulie"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Prusa %d mm/s"
+msgstr "Prusa %d mm/s"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Each change %+.1f s (measured)"
+msgstr "Chaque changement %+.1f s (mesuré)"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "No faster speed passed"
+msgstr "Pas de vitesse plus rapide passée"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Not measured: Prusa speed"
+msgstr "Pas mesurée : vitesse de Prusa"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Cycle per speed, then the kept one (mm/s, s)"
+msgstr "Cycle par vitesse, puis celle gardée (mm/s, s)"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Cycle %d/%d at %d mm/s. Stop: after this cycle."
+msgstr "Cycle %d/%d à %d mm/s. Arrêt : après ce cycle."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Checking %d mm/s..."
+msgstr "Vérification à %d mm/s..."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Preload the spool, then Start: up to 7 cycles from 95 to 190 mm/s, 80% of the last clean level is kept (~4 min)."
+msgstr "Bobine préchargée, puis Démarrer : jusqu'à 7 cycles de 95 à 190 mm/s, 80 % du dernier palier sans erreur est gardé (~4 min)."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Saved: %d mm/s, sent to the MMU at each start."
+msgstr "Enregistrée : %d mm/s, envoyée au MMU à chaque démarrage."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "No faster speed passed without error: Prusa speed kept."
+msgstr "Aucune vitesse plus rapide sans erreur : vitesse de Prusa gardée."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Stopped: speed unchanged."
+msgstr "Arrêté : vitesse inchangée."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Error at Prusa speed: speed unchanged. Is the spool preloaded?"
+msgstr "Erreur à la vitesse de Prusa : vitesse inchangée. La bobine est-elle préchargée ?"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Error at the kept speed: back to Prusa speed."
+msgstr "Erreur à la vitesse gardée : retour à la vitesse de Prusa."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "The MMU loads the spool of slot %d to the extruder gears and unloads it, up to 7 times, faster each time. Is that spool preloaded?"
+msgstr "Le MMU charge la bobine de l'emplacement %d jusqu'aux engrenages de l'extrudeur puis la décharge, jusqu'à 7 fois, de plus en plus vite. Cette bobine est-elle préchargée ?"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Pulley speed\n%d mm/s, measured"
+msgstr "Vitesse de la poulie\n%d mm/s, mesurée"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Pulley speed\n%d mm/s (Prusa), not measured"
+msgstr "Vitesse de la poulie\n%d mm/s (Prusa), pas mesurée"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Filament tip, slot %d"
+msgstr "Pointe du filament, emplacement %d"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "No tool change in a print yet"
+msgstr "Pas encore de changement d'outil en impression"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Drift: %.1f mm, usual %.1f ± %.1f"
+msgstr "Dérive : %.1f mm, d'habitude %.1f ± %.1f"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "%.1f ± %.1f mm, %u changes"
+msgstr "%.1f ± %.1f mm, %u changements"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "MMU speed"
+msgstr "Vitesse MMU"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Pulley speed:"
+msgstr "Vitesse de la poulie :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "before"
+msgstr "avant"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Load + unload cycle (measured):"
+msgstr "Chargement + déchargement (mesuré) :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Last speed without error:"
+msgstr "Dernière vitesse sans erreur :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MMU change"
+msgstr "changement MMU"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MMU speed:"
+msgstr "Vitesse MMU :"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "tip drift"
+msgstr "dérive de la pointe"

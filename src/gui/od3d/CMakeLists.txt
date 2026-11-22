@@ -18,6 +18,7 @@ target_sources(
           screen_home_od3d.cpp
           screen_menu_od3d.cpp
           screen_mmu_od3d.cpp
+          screen_mmu_speed_od3d.cpp
           screen_mmu_usb_od3d.cpp
           screen_move_od3d.cpp
           screen_mpc_od3d.cpp

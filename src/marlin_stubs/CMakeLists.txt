@@ -20,6 +20,7 @@ target_sources(
           M1994_od3d.cpp
           M1998_od3d.cpp
           M1999_od3d.cpp
+          M2002_od3d.cpp
           M1995_od3d.cpp
           M1996_od3d.cpp
           M2001_od3d.cpp

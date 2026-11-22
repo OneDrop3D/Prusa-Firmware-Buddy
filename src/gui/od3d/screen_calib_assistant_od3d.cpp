@@ -6,6 +6,7 @@
 #include "screen_damping_od3d.hpp"
 #include "screen_fan_response_od3d.hpp"
 #include "screen_e_jump_od3d.hpp"
+#include "screen_mmu_speed_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
 #include "screen_nozzle_expansion_od3d.hpp"
 #include "screen_pa_od3d.hpp"
@@ -151,6 +152,8 @@ namespace {
             return N_("Expansion");
         case Test::e_jump:
             return N_("Filament accel.");
+        case Test::mmu_speed:
+            return N_("MMU speed");
         case Test::count:
             break;
         }
@@ -615,6 +618,21 @@ namespace {
             }
             break;
         }
+        case Test::mmu_speed:
+            w.label(N_("Pulley speed:"));
+            w.scaled(a[0], 1, " mm/s");
+            if (b[0] != none) {
+                w.add(" (");
+                w.text(N_("before"));
+                w.add(" %d)", int(b[0]));
+            }
+            w.label(N_("Load + unload cycle (measured):"));
+            w.scaled(a[1], 10, " s");
+            w.add(" -> ");
+            w.scaled(a[2], 10, " s");
+            w.label(N_("Last speed without error:"));
+            w.scaled(a[3], 1, " mm/s");
+            break;
         case Test::pa:
         case Test::max_flow:
         case Test::min_temp:
@@ -739,6 +757,17 @@ namespace {
                 w.text(N_("(estimated)"));
             }
         }
+        // Vitesse de la poulie du MMU (N4) : gain mesuré d'un changement d'outil
+        if (const auto &a = assistant::numbers_after(Test::mmu_speed); done(Test::mmu_speed) && a[1] != none && a[2] != none && a[2] < a[1]) {
+            next(N_("MMU change"));
+            w.add(" %+.1f s", (a[2] - a[1]) / 10.0);
+        }
+        if ((flow.started & test_bit(Test::mmu_speed)) && assistant::result(Test::mmu_speed) == Result::failed) {
+            if (const char *why = mmu_speed_result_text(mmu_speed::last().result)) {
+                w.label(N_("MMU speed:"));
+                w.text(why);
+            }
+        }
         // Tube PTFE avant (F41) : la raison de l'échec, jamais un « échec » seul
         if ((flow.started & test_bit(Test::mmu_ptfe)) && assistant::result(Test::mmu_ptfe) == Result::failed) {
             w.label(N_("Front PTFE length:"));
@@ -812,6 +841,8 @@ namespace {
             return ScreenFactory::Screen<ScreenFanResponse>;
         case Test::e_jump:
             return ScreenFactory::ScreenWithArg<ScreenEJump>(s.slot);
+        case Test::mmu_speed:
+            return ScreenFactory::Screen<ScreenMmuSpeed>;
         default:
             return {};
         }

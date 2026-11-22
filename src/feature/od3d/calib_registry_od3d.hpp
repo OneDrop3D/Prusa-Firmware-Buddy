@@ -38,6 +38,7 @@ enum class Test : uint8_t {
     fan_response, ///< N3, M2001 : temps de montée du ventilateur pièce, règle l'avance de F26 (sans besoin)
     nozzle_expansion, ///< M2003 : dilatation de la buse palpée de 170 à 260 °C (buse vide)
     e_jump, ///< M2000 par emplacement : saut de vitesse de l'extrudeur, accélération max du filament
+    mmu_speed, ///< N4, M2002 P : vitesse de la poulie du MMU (une bobine préchargée, rien dans l'extrudeur)
     count,
 };
 
@@ -65,8 +66,10 @@ struct Entry {
 
 /// Dans l'ordre d'exécution : d'abord l'accéléromètre (buse froide, une seule pose), puis le MPC (il part de la buse
 /// froide), le tube PTFE et la dilatation de la buse (rien dans l'extrudeur : avant les chargements), la réponse du
-/// ventilateur (sans besoin), puis par emplacement PA, débit, température minimale, accélération du filament (un seul
-/// chargement par bobine, chauffe gardée ; l'ordre par emplacement est celui de cette liste)
+/// ventilateur (sans besoin), la vitesse de la poulie du MMU (après le tube PTFE : sa longueur fait l'avance rapide),
+/// puis par emplacement PA, débit, température minimale, accélération du filament (un seul chargement par bobine,
+/// chauffe gardée ; l'ordre par emplacement est celui de cette liste ; build_steps() fait d'abord tous les tests sans
+/// Need::filament)
 inline constexpr std::array entries {
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
@@ -82,6 +85,7 @@ inline constexpr std::array entries {
     Entry { Test::skew, empty_bed, 0, 1, false },
     Entry { Test::fan_response, 0, 1, 1, true }, // sans besoin : avec les tests sans bobine (build_steps)
     Entry { Test::e_jump, filament, 3, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
+    Entry { Test::mmu_speed, mmu | one_spool, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
 };
 static_assert(entries.size() == size_t(Test::count), "une entrée par Test");
 

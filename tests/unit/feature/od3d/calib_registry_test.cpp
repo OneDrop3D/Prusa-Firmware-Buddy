@@ -108,8 +108,9 @@ TEST_CASE("calib_registry: manual tests never trigger the prompt alone") {
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 5 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateur, puis 4 mesures pour chacune des 2 bobines
-    REQUIRE(n == 5 + 1 + 1 + 1 + 1 + 4 * 2);
+    // 5 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateur, vitesse de la poulie, puis 4 mesures pour
+    // chacune des 2 bobines
+    REQUIRE(n == 5 + 1 + 1 + 1 + 1 + 1 + 4 * 2);
 
     // Accéléromètre d'abord (une seule pose), courroies en premier
     CHECK(steps[0].test == Test::belts);
@@ -123,12 +124,15 @@ TEST_CASE("calib_registry: steps order") {
     // Dilatation de la buse (buse vide) avant les chargements, une fois ; puis la réponse du ventilateur (sans besoin)
     CHECK(steps[7].test == Test::nozzle_expansion);
     CHECK(steps[8].test == Test::fan_response);
+    // Vitesse de la poulie : après le tube PTFE (sa longueur fait l'avance rapide), avant les chargements
+    CHECK(steps[9].test == Test::mmu_speed);
+    CHECK(steps[9].slot == 0);
 
     // Puis par bobine : PA, débit, température minimale, accélération du filament (un seul chargement par bobine)
     const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp, Test::e_jump };
     for (size_t k = 0; k < 8; ++k) {
-        CHECK(steps[9 + k].test == per_slot[k % 4]);
-        CHECK(steps[9 + k].slot == (k < 4 ? 0 : 2));
+        CHECK(steps[10 + k].test == per_slot[k % 4]);
+        CHECK(steps[10 + k].slot == (k < 4 ? 0 : 2));
     }
 
     // Jamais le test manuel
@@ -152,6 +156,14 @@ TEST_CASE("calib_registry: front PTFE needs the MMU and a spool") {
     ctx.spools = 0;
     CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_ptfe)));
     CHECK(build_steps(test_bit(Test::mmu_ptfe), ctx, steps) == 0);
+
+    // Vitesse de la poulie : mêmes besoins
+    ctx = full();
+    ctx.spools = 0b10000;
+    REQUIRE(build_steps(test_bit(Test::mmu_speed), ctx, steps) == 1);
+    CHECK(steps[0].slot == 4);
+    ctx.mmu = false;
+    CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_speed)));
 }
 
 TEST_CASE("calib_registry: nozzle expansion needs neither filament nor MMU") {
@@ -194,6 +206,7 @@ TEST_CASE("calib_registry: G-codes") {
     CHECK(gcode({ Test::fan_response }) == "M2001");
     CHECK(gcode({ Test::nozzle_expansion }) == "M2003");
     CHECK(gcode({ Test::e_jump, 3 }) == "M2000 S3");
+    CHECK(gcode({ Test::mmu_speed, 3 }) == "M2002 P3");
     CHECK(gcode({ Test::skew }) == "-");
 
     std::array<char, 4> tiny;

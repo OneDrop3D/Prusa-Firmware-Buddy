@@ -159,8 +159,11 @@ void InitialSetupRegisters(MMU2::ProtocolLogic &pl) {
     using namespace MMU2;
     // when adding a new init register it is necessary to add a StepAndCheckState line + set the register's correct value
     StepAndCheckState(pl, SetRegister8Ack(pl, 0), PST::InitSequence, PSC::StartSeq, Processing, SetRegister8(pl, 1, PULLEY_SLOW_FEED_RATE));
+    // OneDrop3D (N4) : vitesse de la poulie au chargement (0x11) puis au déchargement (0x0d), celle de Prusa par défaut
+    StepAndCheckState(pl, SetRegister8Ack(pl, 1), PST::InitSequence, PSC::StartSeq, Processing, SetRegister8(pl, 2, MMU2::ProtocolLogic::pulleyFeedRatePrusa));
+    StepAndCheckState(pl, SetRegister8Ack(pl, 2), PST::InitSequence, PSC::StartSeq, Processing, SetRegister8(pl, 3, MMU2::ProtocolLogic::pulleyFeedRatePrusa));
     // transition to fsensor
-    StepAndCheckState(pl, SetRegister8Ack(pl, 1), PST::InitSequence, PSC::StartSeq, Processing, "f0");
+    StepAndCheckState(pl, SetRegister8Ack(pl, 3), PST::InitSequence, PSC::StartSeq, Processing, "f0");
 }
 
 void InitCommunication2(MMU2::ProtocolLogic &pl, std::string command) {

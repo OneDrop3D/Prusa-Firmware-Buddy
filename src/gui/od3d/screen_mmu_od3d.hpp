@@ -8,6 +8,7 @@
 #include <basic_screen_menu.hpp>
 #include <gui/menu_item/specific/menu_items_hw_mmu.hpp>
 #include <gui/od3d/screen_menu_od3d.hpp>
+#include <gui/od3d/screen_mmu_speed_od3d.hpp>
 #include <gui/od3d/screen_ptfe_od3d.hpp>
 #include <MItem_mmu.hpp>
 #include <tool_index.hpp>
@@ -140,16 +141,19 @@ private:
 };
 
 /// Réglages du MMU (éléments Prusa, liste G) : MMU, coupe, mode furtif, longueur du tube et sa mesure automatique (F41,
-/// même écran que Réglages › Matériel › MMU), relais de bobine, mises à jour du MMU (par un ordinateur, par l'USB avant)
-using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH, MI_PTFE_AUTO, MI_SPOOL_JOIN_SLOTS, MI_MMU_USB, MI_MMU_USB_FRONT>;
+/// même écran que Réglages › Matériel › MMU), vitesse de la poulie (N4), relais de bobine, mises à jour du MMU (par un
+/// ordinateur, par l'USB avant)
+using ScreenMenuMMUSettingsBase = BasicScreenMenu<MI_MMU_ENABLE, MI_MMU_CUTTER, MI_MMU_STEALTH_MODE, MI_MMU_FRONT_PTFE_LENGTH, MI_PTFE_AUTO, MI_MMU_SPEED, MI_SPOOL_JOIN_SLOTS, MI_MMU_USB, MI_MMU_USB_FRONT>;
 
 class ScreenMenuMMUSettings final : public ScreenMenuMMUSettingsBase {
 public:
     ScreenMenuMMUSettings();
 };
 
-/// Infos du MMU (éléments Prusa, liste G) : FINDA et échecs de chargement
-using ScreenMenuMMUInfoBase = BasicScreenMenu<MI_INFO_FINDA, MI_MMU_LOAD_FAILS, MI_MMU_TOTAL_LOAD_FAILS, MI_MMU_GENERAL_FAILS, MI_MMU_TOTAL_GENERAL_FAILS>;
+/// Infos du MMU (éléments Prusa, liste G) : FINDA et échecs de chargement, puis la pointe du filament de chaque
+/// emplacement (F10)
+using ScreenMenuMMUInfoBase = BasicScreenMenu<MI_INFO_FINDA, MI_MMU_LOAD_FAILS, MI_MMU_TOTAL_LOAD_FAILS, MI_MMU_GENERAL_FAILS, MI_MMU_TOTAL_GENERAL_FAILS,
+    MI_TIP<0>, MI_TIP<1>, MI_TIP<2>, MI_TIP<3>, MI_TIP<4>>;
 
 class ScreenMenuMMUInfo final : public ScreenMenuMMUInfoBase {
 public:

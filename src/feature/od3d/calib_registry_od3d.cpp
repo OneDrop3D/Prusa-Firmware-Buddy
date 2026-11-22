@@ -158,6 +158,8 @@ bool step_gcode(const Step &step, std::span<char> out) {
         return write(out, "M2003");
     case Test::e_jump:
         return write(out, "M2000 S%u", unsigned(step.slot));
+    case Test::mmu_speed:
+        return write(out, "M2002 P%u", unsigned(step.slot));
     case Test::skew:
     case Test::count:
         break;

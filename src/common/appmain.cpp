@@ -72,6 +72,7 @@
 #include <option/has_mmu2.h>
 #if HAS_MMU2()
     #include <Marlin/src/feature/prusa/MMU2/mmu2_mk4.h>
+    #include <feature/od3d/mmu_speed_od3d.hpp> // OneDrop3D (N4)
 #endif
 
 #include <option/has_touch.h>
@@ -184,6 +185,7 @@ static void app_setup(void) {
     metric_record_event(&metric_app_start);
 
 #if HAS_MMU2()
+    od3d::mmu_speed::plan_saved(); // OneDrop3D (N4) : vitesse de la poulie mesurée, envoyée à chaque démarrage du MMU
     if (config_store().mmu2_enabled.get()) {
         MMU2::mmu2.Start();
     }

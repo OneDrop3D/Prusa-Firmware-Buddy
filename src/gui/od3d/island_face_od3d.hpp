@@ -45,6 +45,7 @@ enum class Process : uint8_t {
     fan_response, ///< M2001
     nozzle_expansion, ///< M2003
     e_jump, ///< M2000
+    mmu_speed, ///< M2002 : vitesse de la poulie du MMU, « cycle/cycles »
 };
 
 /// Étape d'un processus, écrite après son nom

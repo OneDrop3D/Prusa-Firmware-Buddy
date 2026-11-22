@@ -9,6 +9,7 @@
 #include "screen_fan_response_od3d.hpp"
 #include "screen_e_jump_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
+#include "screen_mmu_speed_od3d.hpp"
 #include "screen_mmu_usb_od3d.hpp"
 #include "screen_music_od3d.hpp"
 #include "screen_nozzle_expansion_od3d.hpp"
@@ -30,6 +31,7 @@
 #include <feature/od3d/damping_od3d.hpp>
 #include <feature/od3d/fan_response_od3d.hpp>
 #include <feature/od3d/e_jump_od3d.hpp>
+#include <feature/od3d/mmu_speed_od3d.hpp>
 #include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/od3d/mpc_control_od3d.hpp>
 #include <feature/od3d/music_player_od3d.hpp>
@@ -146,6 +148,15 @@ namespace {
         if (nozzle_expansion::is_running()) {
             return percent(Process::nozzle_expansion, nozzle_expansion::progress_percent());
         }
+        if (mmu_speed::is_running()) {
+            const mmu_speed::Measurement &m = mmu_speed::last();
+            f.process = Process::mmu_speed;
+            f.slot = m.slot;
+            f.stage = Stage::step;
+            f.step = uint8_t(m.step + 1);
+            f.steps = mmu_speed::cycles;
+            return f;
+        }
         if (const mpc::TuneStatus s = mpc::tune_status(); s.running) {
             return percent(Process::mpc, s.progress);
         }
@@ -197,6 +208,8 @@ namespace {
             return ScreenFactory::Screen<ScreenNozzleExpansion>;
         case Process::e_jump:
             return ScreenFactory::ScreenWithArg<ScreenEJump>(f.slot);
+        case Process::mmu_speed:
+            return ScreenFactory::Screen<ScreenMmuSpeed>;
         }
         return {};
     }
@@ -231,6 +244,8 @@ namespace {
             return _("Expansion");
         case Process::e_jump:
             return _("Accel");
+        case Process::mmu_speed:
+            return _("MMU speed");
         }
         return {};
     }

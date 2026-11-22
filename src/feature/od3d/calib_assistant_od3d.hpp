@@ -70,6 +70,8 @@ void request_cancel();
 ///   le temps de montée du dernier succès et l'avance réglée ;
 /// - nozzle_expansion : [0] pente (nm/°C ; avant : no_value pour le modèle de Prusa), après : [1] pente de Prusa
 ///   (nm/°C), [2] écart avec Prusa à 250 °C (0,1 µm), [3] retour − aller (0,1 µm) ;
+/// - mmu_speed : [0] vitesse de la poulie (mm/s) ; après : [1], [2] durée mesurée d'un cycle chargement + déchargement
+///   à la vitesse de Prusa puis à la vitesse gardée (0,1 s), [3] dernier palier passé (mm/s) ;
 /// - pa, max_flow, min_temp : [emplacement] K ×10 000, débit ×10 (mm³/s), température (°C) ;
 /// - e_jump : [emplacement] accélération max du filament (mm/s²) avec le K de l'emplacement.
 /// « Avant » des courroies, de l'amortissement, des vitesses, du phase stepping et du ventilateur : le dernier succès

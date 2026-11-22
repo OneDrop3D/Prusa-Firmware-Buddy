@@ -202,6 +202,7 @@ void M1989(); //< OneDrop3D : assistant de calibration (préparation, vérificat
 void M1994(); //< OneDrop3D (F4) : mesure du pressure advance d'un emplacement (cellule de charge)
 void M1998(); //< OneDrop3D (F29) : descente douce du plateau (démarrer, arrêter, état)
 void M1999(); //< OneDrop3D (F41) : tube PTFE avant du MMU mesuré
+void M2002(); //< OneDrop3D (N4) : vitesse de la poulie du MMU mesurée
 void M1995(); //< OneDrop3D (F5) : débit maximal d'un emplacement (cellule de charge)
 void M1996(); //< OneDrop3D (F6) : température minimale d'un emplacement (cellule de charge)
 void M2001(); //< OneDrop3D (N3) : temps de montée du ventilateur pièce, règle l'avance de F26

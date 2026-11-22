@@ -36,7 +36,7 @@
 // if anything chokes here, all the unit tests need their MakeRegistersCommand and MakeRegistersQuery updated, otherwise the unit tests may cycle indefinitely
 static_assert(MMU2::ProtocolLogic::regs8Count == 3);
 static_assert(MMU2::ProtocolLogic::regs16Count == 3);
-static_assert(MMU2::ProtocolLogic::initRegs8Count == 2);
+static_assert(MMU2::ProtocolLogic::initRegs8Count == 4);
 
 void SimulateCommStart(MMU2::MMU2 &mmu) {
     mmu.Start();
@@ -71,6 +71,12 @@ void SimulateCommStart(MMU2::MMU2 &mmu) {
     mmu2SerialSim.txbuffQ.clear();
     mmu.mmu_loop();
     mmu2SerialSim.SetRxBuffCRC("W14 A");
+    mmu2SerialSim.txbuffQ.clear();
+    mmu.mmu_loop();
+    mmu2SerialSim.SetRxBuffCRC("W11 A"); // OneDrop3D (N4) : vitesse de la poulie au chargement
+    mmu2SerialSim.txbuffQ.clear();
+    mmu.mmu_loop();
+    mmu2SerialSim.SetRxBuffCRC("Wd A"); // OneDrop3D (N4) : et au déchargement
     mmu2SerialSim.txbuffQ.clear();
     mmu.mmu_loop();
     mmu2SerialSim.SetRxBuffCRC("f0 A");

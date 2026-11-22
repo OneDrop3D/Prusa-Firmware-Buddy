@@ -1410,6 +1410,10 @@ void MMU2::ReportError(ErrorCode ec, ErrorSource res) {
     // - may be some combination of MMUAvailable + UseMMU flags and decide based on their state
     // Right now the filtering of MMU_NOT_RESPONDING is done in ReportErrorHook() as it is not a problem if mmu2.cpp
 
+    if (ec != ErrorCode::OK) {
+        ++errorReports; // OneDrop3D (N4) : avant le dédoublonnage, une erreur répétée compte aussi
+    }
+
     // Depending on the Progress code, we may want to do some action when an error occurs
     switch (logic.Progress()) {
     case ProgressCode::UnloadingToFinda:

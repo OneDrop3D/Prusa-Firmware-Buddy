@@ -11607,3 +11607,132 @@ msgstr "Tube sous 341 mm : inchangé"
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "%u mm measured, %u mm saved"
 msgstr "%u mm mesurés, %u mm enregistrés"
+
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Phase stepping"
+msgstr "Pas en phase"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "XY skew"
+msgstr "Équerrage XY"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "by hand"
+msgstr "à la main"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "to do"
+msgstr "à faire"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "up to date"
+msgstr "à jour"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "failed"
+msgstr "échec"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "skipped"
+msgstr "passé"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "running"
+msgstr "en cours"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nothing to calibrate."
+msgstr "Rien à calibrer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%d calibrations are new or changed in this firmware (about %d min). Once started, the tests run by themselves."
+msgstr "%d calibrations sont nouvelles ou modifiées dans ce firmware (environ %d min). Une fois lancés, les tests s'enchaînent seuls."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Full calibration: %d tests, about %d min. Once started, the tests run by themselves."
+msgstr "Calibration complète : %d tests, environ %d min. Une fois lancés, les tests s'enchaînent seuls."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Do you have the accelerometer (input shaper kit)? It is clipped on the nozzle only during its tests."
+msgstr "Avez-vous un accéléromètre (kit input shaper) ? Il n'est fixé sur la buse que pendant ses tests."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nozzle %d°C: cooling below 40°C before attaching the accelerometer (fan on)."
+msgstr "Buse à %d°C : elle doit descendre sous 40°C avant de fixer l'accéléromètre (ventilateur allumé)."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nozzle %d°C. Homing, please wait."
+msgstr "Buse à %d°C. Prise d'origine, patientez."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nozzle %d°C, below 40°C. Continue."
+msgstr "Buse à %d°C, sous 40°C. Continuez."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "The accelerometer does not answer. Check it is attached and plugged in, then Continue."
+msgstr "L'accéléromètre ne répond pas. Vérifiez qu'il est fixé et branché, puis Continuer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Attach the accelerometer to the nozzle and plug it into the board, then Continue."
+msgstr "Fixez l'accéléromètre sur la buse et branchez-le à la carte, puis Continuer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Checking the accelerometer..."
+msgstr "Vérification de l'accéléromètre..."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Home position lost. Remove the accelerometer, then Continue: the head homes again."
+msgstr "Origine perdue. Retirez l'accéléromètre, puis Continuer : la tête refait son origine."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Stopping..."
+msgstr "Arrêt..."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Step %d/%d: %s, slot %d. You may leave this screen: the pill shows the progress."
+msgstr "Étape %d/%d : %s, emplacement %d. Vous pouvez quitter cet écran : la pastille montre l'avancement."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Step %d/%d: %s. You may leave this screen: the pill shows the progress."
+msgstr "Étape %d/%d : %s. Vous pouvez quitter cet écran : la pastille montre l'avancement."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the accelerometer from the nozzle, then Continue."
+msgstr "Retirez l'accéléromètre de la buse, puis Continuer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Is the bed empty and clean? Test lines will be printed at the front of the bed."
+msgstr "Plateau vide et propre ? Des lignes de test vont être imprimées à l'avant du plateau."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed. Touch a failed test to run it again."
+msgstr "Terminé : %d OK, %d en échec. Touchez un test en échec pour le refaire."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Calibrate now"
+msgstr "Calibrer maintenant"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Later"
+msgstr "Plus tard"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Don't ask again"
+msgstr "Ne plus demander"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Yes"
+msgstr "Oui"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "No"
+msgstr "Non"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Calibration assistant\nAll tests in a row, by themselves"
+msgstr "Assistant de calibration\nTous les tests à la suite, seuls"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accelerometer available\nIts tests are offered"
+msgstr "Accéléromètre disponible\nSes tests sont proposés"

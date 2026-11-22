@@ -60,6 +60,7 @@
 #include <feature/od3d/spool_calib_math_od3d.hpp>
 #include <feature/od3d/mpc_od3d.hpp>
 #include <feature/od3d/sleep_math_od3d.hpp>
+#include <feature/od3d/calib_registry_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -504,6 +505,12 @@ struct CurrentStore
     /// OneDrop3D (F39) : mode veille (od3d::sleep::Settings : actif, délai, écran, lumières, chauffes et leur délai,
     /// moteurs, ventilateurs), à la place de l'atténuation des lumières de Prusa
     StoreItem<od3d::sleep::Settings, od3d::sleep::Settings {}, ItemFlag::user_interface, journal::hash("OD3D Sleep Settings")> od3d_sleep;
+    /// OneDrop3D (assistant de calibration) : par calibration du registre (indice = od3d::calib_registry::Test), dernière
+    /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible » ; signature du registre écartée
+    /// par « Ne plus demander pour cette version »
+    StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::max_tests> od3d_calib_done;
+    StoreItem<od3d::calib_registry::Accelerometer, od3d::calib_registry::Accelerometer::unknown, ItemFlag::features, journal::hash("OD3D Accelerometer")> od3d_accelerometer;
+    StoreItem<uint32_t, 0, ItemFlag::features, journal::hash("OD3D Calib Dismissed")> od3d_calib_dismissed;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

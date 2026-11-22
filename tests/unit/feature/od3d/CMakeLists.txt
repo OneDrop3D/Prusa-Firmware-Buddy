@@ -165,3 +165,10 @@ add_catch_test(layout_od3d_tests)
 add_executable(ptfe_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/ptfe_math_test.cpp)
 target_include_directories(ptfe_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(ptfe_od3d_tests)
+
+add_executable(
+  calib_registry_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/calib_registry_test.cpp
+                            ${CMAKE_SOURCE_DIR}/src/feature/od3d/calib_registry_od3d.cpp
+  )
+target_include_directories(calib_registry_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(calib_registry_od3d_tests)

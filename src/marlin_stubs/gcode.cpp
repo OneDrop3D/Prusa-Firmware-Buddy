@@ -13,6 +13,7 @@
 #include <option/has_gearbox_alignment.h>
 #include <option/has_mmu2.h>
 #include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
 #include <option/has_toolchanger.h>
 #include <option/has_side_leds.h>
 #include <option/has_leds.h>
@@ -383,6 +384,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 1997: // OneDrop3D (F33)
             PrusaGcodeSuite::M1997();
             break;
+    #if HAS_LOADCELL() && HAS_MMU2()
+        case 1989: // OneDrop3D : assistant de calibration
+            PrusaGcodeSuite::M1989();
+            break;
+    #endif
 #endif
         case 1994: // OneDrop3D (F4)
             PrusaGcodeSuite::M1994();

@@ -41,6 +41,7 @@ enum class Process : uint8_t {
     music, ///< M1991
     hit_test, ///< essai de la sécurité collision
     mmu_usb, ///< M709 S2 : MMU alimenté et muet, mise à jour de son firmware par son USB
+    calibration, ///< assistant de calibration (M1989) : le test en cours et « étape/étapes »
 };
 
 /// Étape d'un processus, écrite après son nom

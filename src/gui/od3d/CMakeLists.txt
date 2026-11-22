@@ -7,6 +7,7 @@ target_sources(
           menu_od3d.cpp
           print_info_od3d.cpp
           screen_belts_od3d.cpp
+          screen_calib_assistant_od3d.cpp
           screen_climate_od3d.cpp
           screen_collision_od3d.cpp
           screen_damping_od3d.cpp

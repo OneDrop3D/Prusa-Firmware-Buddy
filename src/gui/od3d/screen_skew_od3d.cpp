@@ -7,6 +7,7 @@
 #include <config_store/store_instance.hpp>
 #include <algorithm>
 #include <cstdio>
+#include <feature/od3d/calib_assistant_od3d.hpp>
 #include <feature/od3d/skew_od3d.hpp>
 #include <img_resources.hpp>
 #include <iterator>
@@ -126,6 +127,7 @@ void MI_SKEW_APPLY::click(IWindowMenu &) {
     }
     // M852 enregistre le facteur (config_store) et l'applique dans le fil de Marlin
     marlin_client::gcode_printf("M852 I%.6f", static_cast<double>(total));
+    calib_assistant::record_done(calib_registry::Test::skew); // l'assistant ne la demande plus (jusqu'à sa prochaine version)
     // Mesures consommées : un 2e « Appliquer » ajoutait encore l'écart (REV-1). Revenues au carré d'équerre (écart
     // nul, testé dans skew_od3d_test.cpp), elles attendent la pièce réimprimée ; la boîte refermée les redessine.
     std::copy(std::begin(square), std::end(square), measures);

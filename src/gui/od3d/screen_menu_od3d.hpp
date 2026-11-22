@@ -10,6 +10,7 @@
 /// Chaque fonction a une ligne d'explication sous son nom (libellé sur deux lignes, séparées par « \n »).
 #pragma once
 
+#include "screen_calib_assistant_od3d.hpp"
 #include "screen_climate_od3d.hpp"
 #include "screen_collision_od3d.hpp"
 #include "screen_mmu_usb_od3d.hpp"
@@ -153,7 +154,7 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_COLLISION, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_PA_AUTO, MI_PA_LARGE, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING, MI_MMU_USB, MI_PAIR_PRINTFORGE> {
+class ScreenMenuFeatures final : public BasicScreenMenu<MI_CALIB_ASSISTANT, MI_ACCELEROMETER, MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_COLLISION, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_PA_AUTO, MI_PA_LARGE, MI_FLOW_LIMIT, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING, MI_MMU_USB, MI_PAIR_PRINTFORGE> {
 public:
     ScreenMenuFeatures();
 };

@@ -12,6 +12,7 @@
 #include <option/has_nozzle_thermal_compensation.h>
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     #include <gui/od3d/screen_home_od3d.hpp> // OneDrop3D : interface G
+    #include <gui/od3d/screen_calib_assistant_od3d.hpp> // OneDrop3D : assistant de calibration
 #endif
 #include "screen_move_z.hpp"
 #include "ScreenFactory.hpp"
@@ -153,6 +154,14 @@ void init_screens() {
     // #error dead code found by automatic analyses (see BFW-5461)
     // don't present any screen or wizard
     return;
+#endif
+
+#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    // OneDrop3D : assistant de calibration après l'installation ou une mise à jour qui change une calibration ;
+    // empilé en premier, il s'ouvre après les écrans de première mise en route de Prusa
+    if (od3d::calibration_prompt_at_boot()) {
+        Screens::Access()->PushBeforeCurrent(ScreenFactory::Screen<od3d::ScreenCalibAssistant>);
+    }
 #endif
 
     if (ScreenPrintReadiness::should_show()) {

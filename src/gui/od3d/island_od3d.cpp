@@ -3,6 +3,7 @@
 
 #include "atelier_od3d.hpp"
 #include "screen_belts_od3d.hpp"
+#include "screen_calib_assistant_od3d.hpp"
 #include "screen_collision_od3d.hpp"
 #include "screen_damping_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
@@ -21,6 +22,7 @@
 #include <common/marlin_server_shared.h>
 #include <common/marlin_vars.hpp>
 #include <feature/od3d/belt_tension_od3d.hpp>
+#include <feature/od3d/calib_assistant_od3d.hpp>
 #include <feature/od3d/collision_od3d.hpp>
 #include <feature/od3d/damping_od3d.hpp>
 #include <feature/od3d/mmu_usb_od3d.hpp>
@@ -89,6 +91,16 @@ namespace {
             f.percent = std::min<uint8_t>(value, 100);
             return f;
         };
+        // L'assistant de calibration d'abord : ses étapes (PA, courroies...) sont montrées comme les siennes
+        if (calibration_assistant_active()) {
+            f.process = Process::calibration;
+            if (const calib_assistant::Progress p = calib_assistant::progress(); p.running) {
+                f.stage = Stage::step;
+                f.step = uint8_t(p.index + 1);
+                f.steps = p.count;
+            }
+            return f;
+        }
         if (pa::is_running()) {
             const pa::Status s = pa::status();
             f.process = Process::pa;
@@ -156,6 +168,8 @@ namespace {
             return ScreenFactory::Screen<ScreenCollision>;
         case Process::mmu_usb:
             return ScreenFactory::Screen<ScreenMmuUsb>;
+        case Process::calibration:
+            return ScreenFactory::Screen<ScreenCalibAssistant>;
         }
         return {};
     }
@@ -182,6 +196,8 @@ namespace {
             return _("Hit test");
         case Process::mmu_usb:
             return string_view_utf8::MakeCPUFLASH("MMU USB");
+        case Process::calibration:
+            return calibration_assistant_name();
         }
         return {};
     }

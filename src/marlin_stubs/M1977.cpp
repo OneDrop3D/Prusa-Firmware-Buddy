@@ -40,6 +40,7 @@ struct Context {
     uint8_t reduction_y;
     phase_stepping::CalibrateAxisError error;
     bool unattended;
+    bool od3d_attached; ///< OneDrop3D : accéléromètre déjà fixé et vérifié par l'assistant de calibration (A)
 };
 
 /// Waits for the user to respond in the given phase. Unattended, answers with
@@ -324,7 +325,10 @@ namespace state {
         bsod_unreachable();
     }
 
-    PhasesPhaseStepping attach_to_extruder(Context &) {
+    PhasesPhaseStepping attach_to_extruder(Context &context) {
+        if (context.od3d_attached) {
+            return PhasesPhaseStepping::calib_x;
+        }
         marlin_server::fsm_change(PhasesPhaseStepping::attach_to_extruder);
         switch (marlin_server::wait_for_response(PhasesPhaseStepping::attach_to_extruder)) {
         case Response::Abort:
@@ -480,7 +484,7 @@ namespace PrusaGcodeSuite {
  *
  *#### Usage
  *
- *    M1977 [ D | U ]
+ *    M1977 [ D | U ] [A]
  *
  *#### Parameters
  *
@@ -488,6 +492,8 @@ namespace PrusaGcodeSuite {
  * - `U` - Unattended: confirm the intro and result dialogs automatically and
  *         abort instead of waiting on an error screen. Dialogs that ask for a
  *         physical action (attaching the accelerometer) still wait.
+ * - `A` - OneDrop3D: the calibration assistant already had the accelerometer
+ *         attached and checked: do not wait on the attach dialog either.
  *
  *#### Examples
  *
@@ -499,6 +505,7 @@ void M1977() {
     PhasesPhaseStepping phase = D ? PhasesPhaseStepping::restore_defaults : PhasesPhaseStepping::intro;
     Context context {};
     context.unattended = parser.seen('U');
+    context.od3d_attached = parser.seen('A');
     marlin_server::FSM_Holder holder { phase };
     do {
         phase = get_next_phase(context, phase);

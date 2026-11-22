@@ -4,6 +4,7 @@
 #include <common/marlin_server.hpp>
 #include <Marlin/src/gcode/calibrate/M958.hpp>
 #include <Marlin/src/gcode/gcode.h>
+#include <Marlin/src/gcode/parser.h>
 #include <mapi/motion.hpp>
 #include <option/development_items.h>
 #include <option/has_input_shaper_calibration.h>
@@ -33,6 +34,10 @@ static void set_test_result(TestResult test_result) {
 }
 
 using marlin_server::wait_for_response;
+
+/// OneDrop3D : M1959 A, depuis l'assistant de calibration, qui a déjà vérifié la buse froide et l'accéléromètre fixé
+/// (od3d::accel::ready()) : aucune question, résultats valables enregistrés, sinon échec sans rien enregistrer
+static bool od3d_unattended = false;
 
 static bool was_abort_requested(PhasesInputShaperCalibration phase) {
     switch (marlin_server::get_response_from_phase(phase)) {
@@ -138,6 +143,9 @@ static PhasesInputShaperCalibration info_proceed() {
 }
 
 static PhasesInputShaperCalibration info() {
+    if (od3d_unattended) {
+        return info_proceed();
+    }
     switch (wait_for_response(PhasesInputShaperCalibration::info)) {
     case Response::Continue:
         return info_proceed();
@@ -196,6 +204,10 @@ static PhasesInputShaperCalibration parking(Context &context) {
 #if HAS_ATTACHABLE_ACCELEROMETER()
 
 static PhasesInputShaperCalibration connect_to_board(Context &) {
+    if (od3d_unattended) {
+        set_test_result(TestResult::failed);
+        return PhasesInputShaperCalibration::abort;
+    }
     marlin_server::fsm_change(PhasesInputShaperCalibration::connect_to_board);
     switch (wait_for_response(PhasesInputShaperCalibration::connect_to_board)) {
     case Response::Abort:
@@ -235,6 +247,9 @@ static PhasesInputShaperCalibration wait_for_extruder_temperature(Context &) {
 }
 
 static PhasesInputShaperCalibration attach_to_extruder(Context &) {
+    if (od3d_unattended) {
+        return PhasesInputShaperCalibration::measuring_x_axis;
+    }
     marlin_server::fsm_change(PhasesInputShaperCalibration::attach_to_extruder);
     switch (wait_for_response(PhasesInputShaperCalibration::attach_to_extruder)) {
     case Response::Abort:
@@ -388,6 +403,10 @@ static PhasesInputShaperCalibration measuring_y_axis(Context &context) {
 }
 
 static PhasesInputShaperCalibration measurement_failed(Context &context) {
+    if (od3d_unattended) {
+        set_test_result(TestResult::failed);
+        return PhasesInputShaperCalibration::abort;
+    }
     marlin_server::fsm_change(PhasesInputShaperCalibration::measurement_failed);
     switch (wait_for_response(PhasesInputShaperCalibration::measurement_failed)) {
     case Response::Retry:
@@ -468,7 +487,11 @@ static PhasesInputShaperCalibration results(Context &context) {
         static_cast<uint8_t>(context.axis_config_y.frequency),
     };
     marlin_server::fsm_change(result_phase, data); // PhasesInputShaperCalibration::results or PhasesInputShaperCalibration::bad_results
-    switch (wait_for_response(result_phase)) {
+    if (od3d_unattended && result_phase != PhasesInputShaperCalibration::results) {
+        set_test_result(TestResult::failed); // OneDrop3D : hors des limites de Prusa, rien d'enregistré
+        return PhasesInputShaperCalibration::finish;
+    }
+    switch (od3d_unattended ? Response::Yes : wait_for_response(result_phase)) {
     case Response::Yes:
         config_store().input_shaper_axis_x_config.set(context.axis_config_x);
         input_shaper::set_axis_config(X_AXIS, context.axis_config_x);
@@ -550,11 +573,15 @@ namespace PrusaGcodeSuite {
  *
  *#### Usage
  *
- *    M1959
+ *    M1959 [A]
  *
+ *#### Parameters
+ *
+ * - `A` - OneDrop3D : depuis l'assistant de calibration (accéléromètre déjà fixé et vérifié), sans question
  */
 
 void M1959() {
+    od3d_unattended = parser.seen('A');
     Context context;
     PhasesInputShaperCalibration phase =
 #if HAS_ATTACHABLE_ACCELEROMETER()

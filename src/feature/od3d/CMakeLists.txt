@@ -1,5 +1,5 @@
 target_sources(
-  firmware PRIVATE lookahead_math_od3d.cpp lookahead_od3d.cpp mpc_control_od3d.cpp mpc_od3d.cpp music_od3d.cpp
+  firmware PRIVATE calib_registry_od3d.cpp lookahead_math_od3d.cpp lookahead_od3d.cpp mpc_control_od3d.cpp mpc_od3d.cpp music_od3d.cpp
                    music_player_od3d.cpp pairing_od3d.cpp skew_od3d.cpp sleep_math_od3d.cpp sleep_od3d.cpp
   )
 if(HAS_CHAMBER_API)
@@ -53,4 +53,12 @@ if(HAS_LOADCELL AND HAS_MMU2)
             spool_calib_math_od3d.cpp
             spool_calib_od3d.cpp
     )
+endif()
+if(HAS_MANUAL_BELT_TUNING
+   AND HAS_INPUT_SHAPER_CALIBRATION
+   AND HAS_LOADCELL
+   AND HAS_MMU2
+   )
+  # Assistant de calibration (M1989) : accéléromètre, puis cellule de charge et MPC
+  target_sources(firmware PRIVATE calib_assistant_od3d.cpp)
 endif()

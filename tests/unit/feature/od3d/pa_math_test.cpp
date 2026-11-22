@@ -578,6 +578,13 @@ TEST_CASE("PA : choix sur des coûts connus, parabole, interpolation, médiane, 
     }
     CHECK(pa::choose_k(points, 0.01f).fit == pa::Fit::out_of_range);
 
+    const float lx[] = { 0.f, 1.f, 2.f, 3.f };
+    const float ly[] = { 1.f, 3.f, 5.f, 7.f };
+    const pa::LineFit f = pa::fit_line(lx, ly);
+    CHECK(f.ok);
+    CHECK_THAT(f.b, WithinAbs(2.0, 1e-5));
+    CHECK_THAT(f.r2, WithinAbs(1.0, 1e-5));
+
     // y = (x − 0,037)² + 2 sur trois K non équidistants
     const auto y = [](float x) { return (x - 0.037f) * (x - 0.037f) + 2.f; };
     CHECK_THAT(pa::parabola_vertex(0.02f, y(0.02f), 0.03f, y(0.03f), 0.05f, y(0.05f)), WithinAbs(0.037, 1e-4));

@@ -175,6 +175,15 @@ size_t sweep_values(float lo, float hi, float step, std::span<float> out);
 /// count valeurs centrées sur center, espacées de step, bornées à [lo, hi] (sans doublon) ; rend le nombre écrit
 size_t refine_values(float center, float step, uint8_t count, float lo, float hi, std::span<float> out);
 
+/// Droite des moindres carrés y = a + b·x ; r2 : coefficient de détermination (F6)
+struct LineFit {
+    float a = 0;
+    float b = 0;
+    float r2 = 0;
+    bool ok = false;
+};
+LineFit fit_line(std::span<const float> xs, std::span<const float> ys);
+
 /// Abscisse du sommet de la parabole qui passe par 3 points (x distincts) ; x1 si les points sont alignés
 float parabola_vertex(float x0, float y0, float x1, float y1, float x2, float y2);
 

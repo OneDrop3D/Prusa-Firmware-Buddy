@@ -29,7 +29,7 @@ inline FilamentTypeParameters apply(FilamentTypeParameters p, const Override &o)
     if (!o.any()) {
         return p;
     }
-    const Values v = apply(values(p), o);
+    const Values v = merged(values(p), o);
     p.nozzle_temperature = v[nozzle];
     p.nozzle_preheat_temperature = v[nozzle_preheat];
     p.heatbed_temperature = v[bed];

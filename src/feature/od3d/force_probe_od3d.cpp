@@ -20,12 +20,9 @@ namespace {
     bool have_base = false;
     float base_force = 0;
     float base_x = 0;
-    float base_e = 0;
     float last_x = 0;
-    float last_e = 0;
     float sum_force = 0;
     float sum_x = 0;
-    float sum_e = 0;
     uint8_t summed = 0;
     uint32_t first_us = 0;
     std::atomic<uint32_t> last_us = 0;
@@ -39,7 +36,7 @@ namespace {
 
 } // namespace
 
-void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float e_mm) {
+void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm) {
     if (!armed.load(std::memory_order_acquire)) {
         return;
     }
@@ -54,21 +51,14 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float e_mm)
     } else {
         x_mm = last_x; // positionLookback ne connaît pas encore cet instant : dernière position connue
     }
-    if (std::isfinite(e_mm)) {
-        last_e = e_mm;
-    } else {
-        e_mm = last_e;
-    }
     if (!have_base) {
         have_base = true;
         base_force = force_g;
         base_x = x_mm;
-        base_e = e_mm;
         first_us = time_us;
     }
     sum_force += force_g;
     sum_x += x_mm;
-    sum_e += e_mm;
     if (++summed < decimation) {
         return;
     }
@@ -84,7 +74,7 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float e_mm)
     }
     const uint16_t n = count.load(std::memory_order_relaxed);
     if (n < capacity) {
-        buffer[n] = force::make_point(point_force, sum_x / float(summed) - base_x, sum_e / float(summed) - base_e);
+        buffer[n] = force::make_point(point_force, sum_x / float(summed) - base_x);
         last_us.store(time_us, std::memory_order_relaxed);
         count.store(n + 1, std::memory_order_release);
     } else {
@@ -92,7 +82,6 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float e_mm)
     }
     sum_force = 0;
     sum_x = 0;
-    sum_e = 0;
     summed = 0;
 }
 
@@ -103,10 +92,8 @@ void start() {
     have_base = false;
     sum_force = 0;
     sum_x = 0;
-    sum_e = 0;
     summed = 0;
     last_x = NAN;
-    last_e = NAN;
     count.store(0, std::memory_order_relaxed);
     overflow.store(false, std::memory_order_relaxed);
     armed.store(true, std::memory_order_release);
@@ -158,10 +145,6 @@ float dt() {
     return float(span_us) * 1e-6f * float(decimation) / float(uint32_t(n) * decimation - 1);
 }
 
-float base_force_g() {
-    return have_base ? base_force : NAN;
-}
-
 bool overflowed() {
     return overflow.load(std::memory_order_relaxed);
 }
@@ -186,9 +169,7 @@ bool write_csv(FILE *file, float label) {
     const force::Trace t = trace();
     const float step = dt();
     for (size_t i = 0; i < t.size(); ++i) {
-        if (csv_printf(file, "D,%.4f,%.4f,%.2f,%.2f,%.2f\n", double(label), double(float(i) * step), double(force::x_mm(t[i])), double(force::e_mm(t[i])),
-                double(force::force_g(t[i])))
-            < 0) {
+        if (csv_printf(file, "D,%.4f,%.4f,%.2f,%.2f\n", double(label), double(float(i) * step), double(force::x_mm(t[i])), double(force::force_g(t[i]))) < 0) {
             return false;
         }
     }

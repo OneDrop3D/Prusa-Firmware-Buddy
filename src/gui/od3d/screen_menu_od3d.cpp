@@ -109,14 +109,6 @@ void MI_PA_PRINTER_WINS::OnChange(size_t) {
     pa::set_printer_wins(value());
 }
 
-// Vaut dès la prochaine impression : les emplacements utilisés sans K sont mesurés avant les lignes du fichier.
-MI_PA_AUTO::MI_PA_AUTO()
-    : WI_ICON_SWITCH_OFF_ON_t(pa::auto_measure(), _("Measure PA at print start\nUnknown spools are measured before printing"), &img::nozzle_16x16) {}
-
-void MI_PA_AUTO::OnChange(size_t) {
-    pa::set_auto_measure(value());
-}
-
 // ---- Limite de débit (F5) ----
 
 // Vaut dès maintenant pour l'emplacement chargé ; la mesure se lance depuis la fiche de la bobine (PA › Débit, temp.).

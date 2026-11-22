@@ -50,17 +50,4 @@ Rect probe_rect(const Rect &pattern, float grow_x, float grow_y, const Rect &bed
     return pattern.grown(grow_x, grow_y).clipped(bed);
 }
 
-float line_length(const PaLine &p) {
-    return speed_for_flow(p.bead, p.slow_flow) * p.slow_s * float(p.cycles + 1) + speed_for_flow(p.bead, p.fast_flow) * p.fast_s * float(p.cycles);
-}
-
-bool is_valid_line(const PaLine &p) {
-    const auto in = [](float v, float lo, float hi) { return std::isfinite(v) && v >= lo && v <= hi; };
-    if (!is_valid(p.bead) || !in(p.slow_flow, 0.3f, 10.f) || !in(p.fast_flow, 2.f, 40.f) || p.fast_flow < 2.f * p.slow_flow
-        || !in(p.slow_s, 0.4f, 3.f) || !in(p.fast_s, 0.1f, 1.f) || p.cycles < 2 || p.cycles > 8) {
-        return false;
-    }
-    return speed_for_flow(p.bead, p.fast_flow) <= max_line_speed && line_length(p) <= max_line_length;
-}
-
 } // namespace od3d::pattern

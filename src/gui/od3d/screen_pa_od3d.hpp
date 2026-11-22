@@ -1,12 +1,10 @@
 /// @file
-/// OneDrop3D (F4) : écran « Emplacement n · PA », ouvert par la puce « PA » de la fiche d'une bobine, et par l'écran
-/// d'impression pendant la mesure automatique du début d'une impression. Valeur mesurée (ou choisie) et confiance,
-/// courbe de force (forme moyenne d'un créneau au K le plus bas, au meilleur coût et au K le plus haut, avec la
-/// commande, mise à jour séquence après séquence), « Mesurer » (M1994 : dans le vide, la bobine est chargée par le MMU
-/// s'il le faut, feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer » ; pendant la mesure automatique : « Passer »
-/// (l'impression garde le PA du trancheur) et « Arrêter l'impression ». Réglage général « le PA de l'imprimante
-/// prime » et « Lignes test » / « Meilleure ligne » : repli visuel, un motif imprimé où l'utilisateur choisit la ligne
-/// la plus régulière (écran ScreenPaLines). « Débit, temp. » ouvre l'écran frère des autres calibrations de la bobine (F5, F6 :
+/// OneDrop3D (F4) : écran « Emplacement n · PA », ouvert par la puce « PA » de la fiche d'une bobine. Valeur mesurée
+/// (ou choisie) et confiance, courbe de force de la dernière mesure (forme moyenne d'un créneau au K le plus bas, au
+/// meilleur K et au K le plus haut, avec la commande), « Mesurer » (M1994 : motif imprimé à l'avant du plateau,
+/// feature/od3d/pa_od3d.hpp) et « Annuler », « Effacer », réglage général « le PA de l'imprimante prime » et
+/// « Meilleure ligne » : repli visuel, l'utilisateur choisit lui-même la ligne la plus régulière du motif (écran
+/// ScreenPaLines). « Débit, temp. » ouvre l'écran frère des autres calibrations de la bobine (F5, F6 :
 /// screen_spool_calib_od3d.hpp), où se règle aussi l'export des courbes sur la clé (commun).
 #pragma once
 
@@ -59,7 +57,7 @@ private:
     void update(); ///< état de la mesure, boutons actifs, texte
     void show_toggles();
     void show_note();
-    void measure(bool pattern);
+    void measure();
 
     uint8_t slot;
     StringViewUtf8Parameters<4> title_params; ///< avant l'en-tête, qui garde le titre formaté
@@ -79,8 +77,7 @@ private:
     uint16_t runs_at_request = 0;
     bool shown_running = false;
     bool shown_pending = false;
-    uint8_t second_mode = 0; ///< « second » montre « Effacer » (0), « Annuler » (1), « Passer » (2, mesure automatique)
-    bool lines_shown = true; ///< « Meilleure ligne » (lignes imprimées) ou « Lignes test »
+    bool second_cancels = false; ///< « second » montre « Annuler »
     pa::Status shown {};
     uint16_t shown_runs = 0;
 };

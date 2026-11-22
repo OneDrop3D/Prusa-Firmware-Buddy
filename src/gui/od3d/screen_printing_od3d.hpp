@@ -175,7 +175,6 @@ private:
     PrintState state = PrintState::initial;
     bool stop_pressed = false;
     bool waiting_for_abort = false; ///< arrêt demandé pendant le palpage (G29) : renvoyé quand il se termine
-    uint16_t pa_auto_shown = 0; ///< F4 : dernière mesure automatique du PA dont l'écran a été ouvert
 };
 
 } // namespace od3d

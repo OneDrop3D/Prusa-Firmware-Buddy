@@ -376,7 +376,7 @@ void measure_flow(const FlowRequest &rq) {
         force_probe::csv_printf(csv, "# OneDrop3D max flow (F5) slot %u, %s, %d C, %.1f to %.1f mm3/s by %.1f, %.1f s per step (max %.0f mm), printed lines %.2f x %.2f mm, excess %.2f\n",
             unsigned(rq.slot + 1), material.name.data(), int(temperature), double(rq.flow_min), double(flow_max), double(rq.flow_step), double(rq.step_s),
             double(layout.lines.length), double(rq.place.bead.width), double(rq.place.bead.height), double(rq.excess));
-        force_probe::csv_printf(csv, "# force up positive, zero above the line start. D,flow,t_s,x_mm,e_mm,force_g / R,flow,force_g,noise_g / C,fit,flow,a,n,index,skipping\n");
+        force_probe::csv_printf(csv, "# force up positive, zero above the line start. D,flow,t_s,x_mm,force_g / R,flow,force_g,noise_g / C,fit,flow,a,n,index,skipping\n");
     }
 
     st_phase = Phase::measuring;
@@ -487,7 +487,7 @@ void measure_temperature(const TempRequest &rq) {
         force_probe::csv_printf(csv, "# OneDrop3D min temperature (F6) slot %u, %s, %d to %d C by %d, %.1f mm3/s, %.1f s per step, printed lines %.2f x %.2f mm, ratio %.2f\n",
             unsigned(rq.slot + 1), material.name.data(), int(start), int(floor), int(rq.step), double(rq.flow), double(rq.step_s), double(rq.place.bead.width),
             double(rq.place.bead.height), double(rq.max_ratio));
-        force_probe::csv_printf(csv, "# force up positive, zero above the line start. D,temp,t_s,x_mm,e_mm,force_g / R,temp,force_g,noise_g / C,fit,temp,reference_g,index\n");
+        force_probe::csv_printf(csv, "# force up positive, zero above the line start. D,temp,t_s,x_mm,force_g / R,temp,force_g,noise_g / C,fit,temp,reference_g,index\n");
     }
 
     last = {};

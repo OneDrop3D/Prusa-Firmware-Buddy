@@ -1,11 +1,8 @@
 /// @file
 /// OneDrop3D (F4, F5, F6, puis F9) : cadre commun des mesures par la cellule de charge, côté firmware (fil de Marlin).
 ///
-/// F4 mesure **dans le vide** à la position de purge de Prusa (comme PrusaPATuner) ; F5, F6 et le test PA à l'œil
-/// **impriment un motif** à hauteur de première couche à l'avant du plateau (pattern_math_od3d.hpp). Les lignes
-/// imprimées passent par le même chemin que G1 (maillage du plateau appliqué et découpé) : jusqu'à la 8.0.2.19 elles
-/// partaient au planificateur sans le maillage, d'où des cordons posés trop haut (« des fils ») là où le plateau est
-/// plus bas que le point d'origine. Une Session :
+/// Les mesures **impriment un motif** à hauteur de première couche à l'avant du plateau (pattern_math_od3d.hpp : dans
+/// le vide, la force ne suit pas la pression dans la buse). Une Session :
 /// - garde l'état d'avant (pressure advance, réglages du planificateur, mode furtif, consignes de la buse et du
 ///   plateau, maillage actif ou non), suspend la détection de filament coincé et la limite de débit (F5) le temps de la
 ///   mesure, et remet tout à sa destruction, même après un arrêt : petite rétraction, buse levée de 10 mm ;
@@ -13,9 +10,7 @@
 ///   matière, buse à sa température de palpage (170 °C pour le PLA), origine, nettoyage de la buse par tapotements
 ///   (G29 P9), nivellement local de la zone du motif et de la purge (G29 P1, P3.2, P3.13, A), buse à la température
 ///   d'impression, ligne de purge au bord avant ;
-/// - imprime des lignes (déplacements levés, rétraction) ;
-/// - peut tourner **au début d'une impression** (mesure automatique du PA, F4) : elle s'arrête alors si l'impression
-///   est annulée ou si l'on demande de passer (« Passer » de l'écran d'impression, SkippableGCode de Prusa).
+/// - imprime des lignes (déplacements levés, rétraction).
 /// Une seule session à la fois (les G-codes de mesure passent l'un après l'autre).
 #pragma once
 
@@ -23,8 +18,6 @@
 
 #include <atomic>
 #include <cstdint>
-
-class SkippableGCode;
 
 namespace od3d::session {
 
@@ -48,8 +41,8 @@ enum class Result : uint8_t {
     leveling, ///< palpage du plateau impossible
 };
 
-/// La mesure doit s'arrêter : arrêt demandé (session en cours), Marlin vide ses files ; hors impression : impression
-/// lancée ou imprimante occupée par autre chose ; au début d'une impression : impression annulée ou « Passer »
+/// La mesure doit s'arrêter : arrêt demandé (session en cours), Marlin vide ses files, impression lancée, imprimante
+/// occupée par autre chose
 bool must_stop();
 
 /// Attend ms millisecondes (marche de Marlin assurée) ; false s'il faut s'arrêter
@@ -66,9 +59,8 @@ pattern::Rect printable_zone();
 
 class Session {
 public:
-    /// stop_requested : drapeau d'arrêt de la mesure (posé par l'interface) ; in_print : mesure au début d'une
-    /// impression (Prusa peut alors demander de passer : must_stop())
-    explicit Session(const std::atomic<bool> &stop_requested, bool in_print = false);
+    /// stop_requested : drapeau d'arrêt de la mesure (posé par l'interface)
+    explicit Session(const std::atomic<bool> &stop_requested);
     ~Session();
     Session(const Session &) = delete;
     Session &operator=(const Session &) = delete;
@@ -90,14 +82,6 @@ public:
 
     /// Va au-dessus du départ de la ligne de purge (bord avant droit), à 15 mm du plateau
     Result go_to_purge();
-
-    /// Origine si nécessaire, puis position de purge de Prusa (M600 : bord avant, hors des pièces), buse à z au moins
-    /// au-dessus du plateau (le filament tombe dans le vide) ; x et y reçoivent la position atteinte
-    Result go_to_park(float z, float &x, float &y);
-
-    /// Mouvement de (dx, 0) avec de mm de filament, en duration s, mis en file sans attendre la fin (attente d'une
-    /// place) par le chemin de G1 (maillage appliqué) ; false s'il faut s'arrêter
-    bool extrude_by(float dx, float de, float duration);
 
     /// Ligne de purge au bord avant du plateau, comme le G-code de départ de la CORE One ; false s'il faut s'arrêter
     bool purge();

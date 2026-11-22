@@ -2,9 +2,11 @@
 /// OneDrop3D (F4, F5, F6) : géométrie des motifs de mesure imprimés sur le plateau, partie pure (sans firmware), testée
 /// dans tests/unit/feature/od3d.
 ///
-/// F5 et F6 mesurent en imprimant des lignes à hauteur de première couche ; pour F4 (PA), la mesure automatique se
-/// fait dans le vide (pa_math_od3d.hpp) et les lignes ne sont plus qu'un repli visuel : une ligne par K, avec à sa
-/// droite des traits qui donnent son numéro (un sur cinq plus long), pour choisir la meilleure ligne à l'œil.
+/// Les mesures par la cellule de charge se font en imprimant des lignes à hauteur de première couche : le plastique
+/// écrasé entre la buse et le plateau repousse la buse vers le haut, avec une force qui suit la pression dans la buse
+/// (dans le vide, la poussée de l'extrudeur et la contre-pression de la buse se compensent presque dans l'ensemble
+/// pesé par la cellule). Les lignes sont parallèles à X, de l'avant du plateau vers l'arrière ; chaque ligne de F4 porte
+/// à sa droite des traits qui donnent son numéro (un sur cinq plus long), pour choisir la meilleure ligne à l'œil.
 #pragma once
 
 #include <cstddef>
@@ -88,28 +90,5 @@ struct Lines {
 /// Rectangle palpé avant le motif : la surface du motif agrandie de grow (comme Prusa agrandit la zone d'impression
 /// d'un point majeur de la grille), bornée au plateau
 Rect probe_rect(const Rect &pattern, float grow_x, float grow_y, const Rect &bed);
-
-// ---- Lignes du test PA à l'œil (F4, repli visuel) ----
-
-/// Une ligne par K, le long de +X : lancement lent, puis cycles × (rapide, lent), comme le test PA d'Orca. Elle ne sert
-/// plus à la mesure automatique (faite dans le vide, pa_math_od3d.hpp) : l'utilisateur choisit la ligne la plus
-/// régulière.
-struct PaLine {
-    float slow_flow = 1.5f; ///< débit lent [mm³/s]
-    float fast_flow = 10.0f; ///< débit rapide [mm³/s]
-    float slow_s = 0.8f; ///< durée d'un tronçon lent [s]
-    float fast_s = 0.3f; ///< durée d'un tronçon rapide [s]
-    Bead bead { 0.45f, 0.2f }; ///< cordon : largeur et hauteur de première couche [mm]
-    uint8_t cycles = 3; ///< tronçons rapides par ligne
-};
-
-inline constexpr float max_line_length = 200.f; ///< [mm]
-inline constexpr float max_line_speed = 300.f; ///< [mm/s]
-
-/// Longueur d'une ligne [mm]
-float line_length(const PaLine &p);
-
-/// Paramètres valides (cordon, débits, durées, rapport, nombre de tronçons, vitesse et longueur de la ligne)
-bool is_valid_line(const PaLine &p);
 
 } // namespace od3d::pattern

@@ -9,6 +9,7 @@
 #include <option/has_indx.h>
 #include <option/has_indx_head.h>
 #include <bsod/bsod.h>
+#include <feature/od3d/fan_response_od3d.hpp> // OneDrop3D (N3)
 
 #if HAS_INDX()
     #include <fanctl/xlbuddy/CFanCtlPuppy.hpp>
@@ -110,7 +111,15 @@ void Fans::tick() {
 
     // heatbreak_fan and print_fan share the same pin for measuring rpm.
     // if we are done measuring / we are skipping measuring given fan, switch to the other one
-    if (heatbreak_fan.getSkipTacho() != skip_tacho_t::yes && (heatbreak_fan.get_rpm_measured() || !heatbreak_fan.is_autocontrol_enabled())) {
+    const bool od3d_sampling = od3d::fan_response::sampling();
+    if (od3d_sampling) {
+        // OneDrop3D (N3, M2001) : pendant la mesure, le tachymètre reste sur le ventilateur pièce
+        if (print_fan.getSkipTacho() == skip_tacho_t::yes) {
+            buddy::hw::tachoSelectPrintFan.write(buddy::hw::Pin::State::high);
+            print_fan.setSkipTacho(skip_tacho_t::no);
+            heatbreak_fan.setSkipTacho(skip_tacho_t::yes);
+        }
+    } else if (heatbreak_fan.getSkipTacho() != skip_tacho_t::yes && (heatbreak_fan.get_rpm_measured() || !heatbreak_fan.is_autocontrol_enabled())) {
         buddy::hw::tachoSelectPrintFan.write(buddy::hw::Pin::State::high);
         print_fan.setSkipTacho(skip_tacho_t::no);
         heatbreak_fan.setSkipTacho(skip_tacho_t::yes);
@@ -121,6 +130,9 @@ void Fans::tick() {
     }
     Fans::print(PhysicalToolIndex::from_raw(0)).tick();
     Fans::heat_break(PhysicalToolIndex::from_raw(0)).tick();
+    if (od3d_sampling) {
+        od3d::fan_response::tick(buddy::hw::fanTach.readb()); // fronts comptés par créneaux de 50 ms
+    }
 #endif
 }
 

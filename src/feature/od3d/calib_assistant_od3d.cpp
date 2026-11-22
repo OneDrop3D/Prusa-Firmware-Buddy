@@ -4,6 +4,8 @@
 #include "accelerometer_od3d.hpp"
 #include "belt_tension_od3d.hpp"
 #include "damping_od3d.hpp"
+#include "fan_response_od3d.hpp"
+#include "lookahead_od3d.hpp"
 #include "filament_memory_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mpc_od3d.hpp"
@@ -113,6 +115,8 @@ namespace {
         }
         case Test::mmu_ptfe:
             return ptfe::status().result == ptfe::Result::saved;
+        case Test::fan_response:
+            return fan_response::status() == fan_response::Status::done;
         case Test::max_flow:
         case Test::min_temp: {
             const calib::Status st = calib::status();
@@ -140,6 +144,17 @@ namespace {
             if (!after) {
                 std::copy(stored.v.begin(), stored.v.end(), n.begin());
             } // après : M1977
+            break;
+        case Test::fan_response:
+            if (!after) {
+                std::copy(stored.v.begin(), stored.v.end(), n.begin()); // temps de montée de la fois d'avant
+                n[1] = int16_t(lookahead::fan_lead_ds());
+            } else {
+                const fan_response::Result &r = fan_response::result();
+                n[0] = scaled(r.rise.rise_s, 1000.f);
+                n[1] = int16_t(r.lead_ds);
+                n[2] = scaled(r.rise.rpm, 1.f);
+            }
             break;
         case Test::belts:
         case Test::damping:
@@ -383,6 +398,11 @@ void request_cancel() {
     case Test::min_temp:
         if (calib::is_running()) {
             calib::request_stop();
+        }
+        break;
+    case Test::fan_response:
+        if (fan_response::is_running()) {
+            fan_response::request_stop();
         }
         break;
     default:

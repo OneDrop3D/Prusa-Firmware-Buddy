@@ -239,3 +239,31 @@ TEST_CASE("od3d F5: memory and planner limit", "[od3d][calib]") {
     CHECK_FALSE(r.has_flow());
     CHECK_FALSE(r.has_min_temperature());
 }
+
+TEST_CASE("od3d F5: purge at the measured flow", "[od3d][calib]") {
+    constexpr float area = 2.4053f;
+    constexpr float prusa = 3.f; // advanced_pause_purge de Prusa [mm/s]
+
+    // Sans mesure : la vitesse de Prusa
+    CHECK(purge_feedrate(prusa, Record {}, 40.f, area) == prusa);
+
+    // 20 mm³/s mesurés : purge à 12 mm³/s, 5 mm/s ; 40 mm en 8 s au lieu de 13 s (80 mm en HF : 16 s au lieu de 27 s)
+    Record r;
+    r.max_flow_e1 = flow_to_e1(20.f);
+    const float fr = purge_feedrate(prusa, r, 40.f, area);
+    CHECK_THAT(fr, WithinAbs(0.6 * 20.0 / area, 1e-4));
+    CHECK_THAT(fr * area, WithinAbs(12.0, 1e-3));
+    CHECK(std::lround(40.f / fr) == 8);
+    CHECK(std::lround(80.f / fr) == 16);
+    CHECK(std::lround(40.f / prusa) == 13);
+
+    // Jamais plus lente que Prusa (petit débit, filament flexible déjà ralenti par Prusa)
+    r.max_flow_e1 = flow_to_e1(8.f); // 0,6 × 8 / 2,4 = 2 mm/s
+    CHECK(purge_feedrate(prusa, r, 40.f, area) == prusa);
+    CHECK_THAT(purge_feedrate(1.5f, r, 40.f, area), WithinAbs(0.6 * 8.0 / area, 1e-4));
+
+    // Valeur aberrante de la mémoire : bornée au plafond de la rampe
+    r.max_flow_e1 = 6000;
+    CHECK_THAT(purge_feedrate(prusa, r, 40.f, area), WithinAbs(0.6 * 40.0 / area, 1e-4));
+    CHECK(purge_feedrate(prusa, r, 40.f, 0.f) == prusa);
+}

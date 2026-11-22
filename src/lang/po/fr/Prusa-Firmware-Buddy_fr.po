@@ -12073,3 +12073,53 @@ msgstr "Tube > 1000 mm (max. du MMU) : inchangé"
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Failed: load interrupted (MMU error?)"
 msgstr "Échec : chargement interrompu (erreur MMU ?)"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Rise time"
+msgstr "Temps de montée"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Part fan speed"
+msgstr "Régime du ventilateur"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Part fan response"
+msgstr "Réponse du ventilateur"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+#, c-format
+msgid "Measuring the part fan... %d%%"
+msgstr "Mesure du ventilateur... %d%%"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Part fan started at full speed, no filament or heating (about 8 s). Sets the fan lead."
+msgstr "Ventilateur lancé à fond, sans filament ni chauffe (8 s environ). Règle la ventilation anticipée."
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+#, c-format
+msgid "Fan lead set from the rise time (before: %s)."
+msgstr "Ventilation anticipée réglée d'après le temps de montée (avant : %s)."
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "No fan speed read: fan lead unchanged."
+msgstr "Régime illisible : ventilation anticipée inchangée."
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Part fan response\nMeasured, sets the fan lead"
+msgstr "Réponse du ventilateur\nMesurée, règle la ventilation anticipée"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Part fan rise time:"
+msgstr "Montée du ventilateur :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fan lead applied:"
+msgstr "Ventilation anticipée appliquée :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "part fan"
+msgstr "ventilateur"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "lead"
+msgstr "avance"

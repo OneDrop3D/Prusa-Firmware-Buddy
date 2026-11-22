@@ -41,6 +41,14 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Réglages › Fonctions OneDrop3D › « Réponse du ventilateur » (N3) : temps de montée du ventilateur pièce mesuré
+/// (M2001), qui règle la ventilation anticipée (F26)
+class MI_FAN_RESPONSE final : public IWindowMenuItem {
+public:
+    MI_FAN_RESPONSE();
+    void click(IWindowMenu &) override;
+};
+
 /// Réglages › « Impression » : sécurités et réactions pendant l'impression (éléments de Prusa regroupés)
 class MI_SET_PRINTING final : public IWindowMenuItem {
 public:

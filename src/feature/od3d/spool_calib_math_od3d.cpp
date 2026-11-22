@@ -180,4 +180,11 @@ float e_speed_limit(float max_flow, float floor, float ceiling, float filament_a
     return std::clamp(max_flow, floor, ceiling) / filament_area_mm2;
 }
 
+float purge_feedrate(float prusa_mm_s, const Record &r, float ceiling, float filament_area_mm2) {
+    if (!r.has_flow() || !(filament_area_mm2 > 0)) {
+        return prusa_mm_s;
+    }
+    return std::max(prusa_mm_s, purge_flow_ratio * std::min(flow_from_e1(r.max_flow_e1), ceiling) / filament_area_mm2);
+}
+
 } // namespace od3d::calib

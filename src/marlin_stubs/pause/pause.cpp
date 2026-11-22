@@ -28,6 +28,10 @@ static_assert(HAS_PAUSE());
     #include <feature/od3d/filament_memory_od3d.hpp> // OneDrop3D (F43)
     #include <feature/od3d/filament_memory_math_od3d.hpp>
 #endif
+#include <option/has_loadcell.h>
+#if HAS_LOADCELL() && HAS_MMU2()
+    #include <feature/od3d/spool_calib_od3d.hpp> // OneDrop3D (F5) : purge au débit mesuré
+#endif
 
 #include "Marlin/src/lcd/extensible_ui/ui_api.h"
 #include "Marlin/src/core/language.h"
@@ -819,8 +823,13 @@ void Pause::purge_process([[maybe_unused]] Response response) {
 }
 
 bool Pause::standard_purge_sequence() {
-    const auto purge_result = do_e_move_notify_progress_hotextrude(
-        settings.purge_length(), standard_feedrates::extruder(standard_feedrates::Extruder::advanced_pause_purge, filament::get_type_to_load()), StopConditions::All);
+    feedRate_t purge_feedrate = standard_feedrates::extruder(standard_feedrates::Extruder::advanced_pause_purge, filament::get_type_to_load());
+#if HAS_LOADCELL() && HAS_MMU2()
+    // OneDrop3D (F5) : 0,6 × le débit maximal mesuré de la bobine (M1995), jamais plus lent que Prusa ; sans mesure,
+    // la vitesse de Prusa. Aussi pour « Purger plus » (qui revient ici)
+    purge_feedrate = od3d::calib::purge_feedrate(purge_feedrate, od3d::calib::record(settings.virtual_tool().to_raw()), od3d::calib::flow_ceiling, od3d::pattern::filament_area_mm2);
+#endif
+    const auto purge_result = do_e_move_notify_progress_hotextrude(settings.purge_length(), purge_feedrate, StopConditions::All);
 
     if (purge_result == StopConditions::SideFilamentSensorRunout) {
         set(LoadState::runout_during_load);

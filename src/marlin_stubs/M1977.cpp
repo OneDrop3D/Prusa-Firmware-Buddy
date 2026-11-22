@@ -11,6 +11,7 @@
 #include <Marlin/src/gcode/gcode.h>
 #include <option/developer_mode.h>
 #include <selftest/selftest_invocation.hpp>
+#include <feature/od3d/calib_assistant_od3d.hpp>
 #include <sys/fcntl.h>
 #include <sys/unistd.h>
 #include <version/version.hpp>
@@ -405,6 +406,9 @@ namespace state {
         config_store().set_phase_stepping_enabled(Y_AXIS, true);
         config_store().selftest_result_phase_stepping.set(TestResult::passed);
         log_info(Marlin, "M1977: calibration passed, reduction X %u%% Y %u%%", context.reduction_x, context.reduction_y);
+        // OneDrop3D : bilan de l'assistant de calibration (baisse des vibrations des moteurs mesurée ici)
+        od3d::calib_assistant::set_number(od3d::calib_registry::Test::phase_stepping, true, 0, context.reduction_x);
+        od3d::calib_assistant::set_number(od3d::calib_registry::Test::phase_stepping, true, 1, context.reduction_y);
         switch (get_dialog_response(context, PhasesPhaseStepping::calib_ok, Response::Ok)) {
         case Response::Ok:
             return PhasesPhaseStepping::finish;

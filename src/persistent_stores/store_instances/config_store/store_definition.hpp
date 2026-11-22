@@ -519,6 +519,9 @@ struct CurrentStore
     /// OneDrop3D (F43) : emplacement chargé jusqu'à la buse, sa matière et la date (filament_memory_od3d.hpp), repris
     /// au démarrage du MMU si les capteurs sont d'accord
     StoreItem<od3d::filament_memory::Record, od3d::filament_memory::Record {}, ItemFlag::printer_state, journal::hash("OD3D Loaded Filament")> od3d_loaded_filament;
+    /// OneDrop3D (assistant de calibration, bilan chiffré) : chiffres du dernier succès de chaque test (indice = Test),
+    /// le « avant » de la fois suivante (od3d::calib_registry::Values)
+    StoreItemArray<od3d::calib_registry::Values, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Values"), 16, od3d::calib_registry::max_tests> od3d_calib_values;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

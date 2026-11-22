@@ -16,6 +16,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <optional>
 #include <span>
 
 namespace od3d::calib_registry {
@@ -189,6 +191,31 @@ constexpr Record after_run(Record r, const Entry &e, Result result, uint32_t dat
     }
     return r;
 }
+
+// ---- Chiffres du bilan (demande du 22/11 : « vitesse améliorée de x %, vibrations réduites de x % ») ----
+// Seulement des valeurs mesurées ou calculées par les tests ; une prédiction est affichée « estimé ».
+
+inline constexpr int16_t no_value = std::numeric_limits<int16_t>::min();
+
+/// Chiffres d'un test, avant ou après la série. Par emplacement (Need::filament) : v[emplacement] ; sinon propres au
+/// test (calib_assistant_od3d.hpp, numbers_before() / numbers_after())
+using Numbers = std::array<int16_t, 8>;
+inline constexpr Numbers no_numbers { no_value, no_value, no_value, no_value, no_value, no_value, no_value, no_value };
+
+/// Gardés après un succès (config_store « OD3D Calib Values », indice = Test) : le « avant » de la fois suivante pour
+/// les tests dont le résultat n'est enregistré nulle part ailleurs (courroies, amortissement, vitesses, phase stepping).
+/// Taille fixe : pour la changer, créer un nouvel élément sous un autre nom.
+struct Values {
+    std::array<int16_t, 4> v { no_value, no_value, no_value, no_value };
+
+    constexpr bool operator==(const Values &) const = default;
+};
+
+/// Baisse en % (arrondie, négative si ça augmente) de remaining par rapport à reference ; nullopt sans référence
+std::optional<int16_t> drop_percent(float remaining, float reference);
+
+/// Oscillations (périodes) pour que l'amplitude d'une résonance tombe à 5 % avec l'amortissement zeta : ln 20 / (2π zeta)
+float ringing_cycles(float zeta);
 
 /// Buse froide avant de fixer l'accéléromètre (consigne de l'utilisateur : en dessous de 40 °C), chauffe coupée
 inline constexpr float cold_nozzle_max = 40.f;

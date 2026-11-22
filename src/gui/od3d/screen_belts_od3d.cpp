@@ -1,5 +1,6 @@
 /// @file
 #include "screen_belts_od3d.hpp"
+#include "screen_calib_assistant_od3d.hpp" // confirm_stop_measure
 #include "accelerometer_guide_od3d.hpp"
 #include "menu_items_od3d.hpp"
 #include "menu_od3d.hpp"
@@ -376,7 +377,9 @@ void ScreenBelts::windowEvent(window_t *sender, GUI_event_t event, void *param) 
         const uint8_t tag = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(param));
         if (tag == tag_action) {
             if (belts::is_running() || pending) {
-                belts::request_stop();
+                if (confirm_stop_measure()) { // pendant une série de l'assistant : il passe à la suivante
+                    belts::request_stop();
+                }
             } else {
                 start();
             }

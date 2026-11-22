@@ -1,5 +1,6 @@
 /// @file
 #include "screen_pa_od3d.hpp"
+#include "screen_calib_assistant_od3d.hpp" // confirm_stop_measure
 #include "screen_spool_calib_od3d.hpp"
 
 #include <algorithm>
@@ -467,7 +468,9 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             break;
         case tag_second:
             if (pa::is_running() || pending) {
-                pa::request_stop();
+                if (confirm_stop_measure()) { // pendant une série de l'assistant : il passe à la suivante
+                    pa::request_stop();
+                }
             } else {
                 pa::clear(slot);
                 card.Invalidate();

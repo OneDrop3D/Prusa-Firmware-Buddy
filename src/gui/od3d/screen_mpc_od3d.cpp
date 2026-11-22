@@ -1,5 +1,6 @@
 /// @file
 #include "screen_mpc_od3d.hpp"
+#include "screen_calib_assistant_od3d.hpp" // confirm_stop_measure
 #include "atelier_od3d.hpp"
 #include "menu_od3d.hpp"
 #include "screen_mmu_od3d.hpp" // Panel
@@ -484,7 +485,9 @@ void ScreenMpcCalibration::windowEvent(window_t *sender, GUI_event_t event, void
         if (tag == tag_start) {
             start();
         } else if (tag == tag_cancel) {
-            mpc::request_cancel(); // aussi avant le début : M306 T s'arrêtera aussitôt
+            if (confirm_stop_measure()) { // pendant une série de l'assistant : il passe à la suivante
+                mpc::request_cancel(); // aussi avant le début : M306 T s'arrêtera aussitôt
+            }
         }
         update();
         return;

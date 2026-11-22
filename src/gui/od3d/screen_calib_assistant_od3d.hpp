@@ -28,6 +28,19 @@ bool calibration_assistant_active();
 /// Nom court de ce que fait l'assistant (test en cours, sinon « Calibration »), pour la pastille
 string_view_utf8 calibration_assistant_name();
 
+/// Une série de l'assistant tourne : les assistants de Prusa qu'elle lance (input shaper, phase stepping, sans question)
+/// ne prennent pas l'écran (DialogHandler) ; l'écran de l'assistant et la pastille les montrent
+bool calibration_series_running();
+
+/// À chaque tour de nos écrans : si l'utilisateur suit la série (l'assistant, ou l'écran de l'étape d'avant, est à
+/// l'écran), l'écran de la mesure qui commence s'ouvre (courbes en direct) ; retour à l'assistant pour les étapes sans
+/// écran à nous et à la fin de la série
+void calibration_follow();
+
+/// Avant d'arrêter une mesure depuis son écran : pendant une série, demande confirmation (l'assistant passe à la
+/// suivante) ; vrai hors série
+bool confirm_stop_measure();
+
 /// Un test du registre : nom à gauche, état à droite (couleur selon le résultat)
 class CalibTile final : public Button {
 public:
@@ -64,7 +77,7 @@ private:
     Button button_c;
     TabBar tabs;
 
-    StringViewUtf8Parameters<40> info_params;
+    StringViewUtf8Parameters<64> info_params;
     uint32_t shown_key = 0xffffffff; ///< ce qui est affiché (étape, températures, avancement) : redessiné s'il change
     uint8_t buttons_stage = 0xff; ///< étape dont les boutons portent les libellés
     uint8_t focus_stage = 0xff; ///< étape dont le focus a été posé

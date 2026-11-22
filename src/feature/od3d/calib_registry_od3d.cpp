@@ -1,9 +1,12 @@
 /// @file
 #include "calib_registry_od3d.hpp"
 
+#include <algorithm>
 #include <bit>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <numbers>
 
 namespace od3d::calib_registry {
 
@@ -110,6 +113,17 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
         }
     }
     return n;
+}
+
+std::optional<int16_t> drop_percent(float remaining, float reference) {
+    if (!(reference > 0.f) || !std::isfinite(remaining) || remaining < 0.f) {
+        return std::nullopt;
+    }
+    return int16_t(std::lround(std::clamp(100.f * (1.f - remaining / reference), -999.f, 100.f)));
+}
+
+float ringing_cycles(float zeta) {
+    return zeta > 0.f ? std::log(20.f) / (2.f * std::numbers::pi_v<float> * zeta) : NAN;
 }
 
 bool pa_gcode(uint8_t slot, std::span<char> out) {

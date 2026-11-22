@@ -460,6 +460,8 @@ struct CurrentStore
     StoreItemArray<od3d::pa::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D PA Slot"), 8, VirtualToolIndex::count> od3d_pa;
     /// OneDrop3D (F4) : « le PA de l'imprimante prime » sur le M572 du trancheur (coupé par défaut)
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D PA Printer Wins")> od3d_pa_printer_wins;
+    /// OneDrop3D (F4) : mesurer le PA des emplacements sans K au début de l'impression (activé par défaut)
+    StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D PA Auto")> od3d_pa_auto;
     /// OneDrop3D (F5, F6) : débit maximal et température minimale mesurés par emplacement, effacés au changement de bobine.
     StoreItemArray<od3d::calib::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Spool Calib"), 8, VirtualToolIndex::count> od3d_spool_calib;
     /// OneDrop3D (F5) : « limiter au débit mesuré » (coupé par défaut)

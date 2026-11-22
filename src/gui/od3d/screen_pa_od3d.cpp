@@ -48,10 +48,10 @@ namespace {
     /// Courbes exportées sur la clé : choix gardé jusqu'au redémarrage (réglé sur l'écran Débit/T°)
     bool csv_on = true;
 
-    /// La dernière mesure de l'emplacement a imprimé au moins une ligne : le choix à l'œil est possible
+    /// Le dernier motif de l'emplacement a imprimé au moins une ligne : le choix à l'œil est possible
     bool has_lines(uint8_t slot) {
         const pa::LastRun &run = pa::last_run();
-        return !pa::is_running() && run.slot == slot && run.points > 0;
+        return !pa::is_running() && run.slot == slot && run.pattern && run.points > 0;
     }
 
     // Écran « Meilleure ligne » : aide sur 3 lignes, puis les lignes en colonnes de 5
@@ -80,6 +80,11 @@ namespace {
 
     bool loaded(uint8_t slot) {
         return Slot::read(slot).loaded;
+    }
+
+    /// La bobine peut être mesurée : dans la buse, ou chargeable par le MMU
+    bool can_load(uint8_t slot) {
+        return loaded(slot) || atelier::mmu_active();
     }
 
 } // namespace
@@ -142,7 +147,8 @@ void PaGraph::unconditionalDraw() {
     const Rect16 r = GetRect();
     display::draw_rounded_rect(r, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
     const pa::LastRun &run = pa::last_run();
-    const bool has = !pa::is_running() && run.slot == slot && run.best.step_s > 0;
+    // Aussi pendant la mesure : les courbes arrivent séquence après séquence
+    const bool has = run.slot == slot && !run.pattern && run.best.step_s > 0;
     if (!has) {
         draw_text(Rect16(r.Left() + 8, r.Top() + (r.Height() - height(Font::small)) / 2, r.Width() - 16, height(Font::small)), _("No force curve yet"), Font::small, style::text_faint, style::surface, Align_t::Center());
         return;
@@ -257,27 +263,38 @@ void ScreenPa::show_note() {
         case pa::Phase::heating:
             text = _("Heating the nozzle to %d°").formatted(params, int(shown.temperature));
             break;
+        case pa::Phase::loading:
+            text = _("Loading filament");
+            break;
         case pa::Phase::priming:
             text = _("Purging...");
             break;
         case pa::Phase::measuring:
             format_k(k, sizeof(k), shown.k_e4);
-            text = _("Line %d/%d: K = %s").formatted(params, int(shown.step), int(shown.steps), k);
+            text = shown.pattern ? _("Line %d/%d: K = %s").formatted(params, int(shown.step), int(shown.steps), k)
+                                 : _("Test %d/%d: K = %s").formatted(params, int(shown.step), int(shown.steps), k);
             break;
         default:
             text = _("Homing and moving...");
             break;
         }
-    } else if (marlin_client::is_printing()) {
-        text = _("Not while printing.");
+    } else if (mine && shown.phase == pa::Phase::done && shown.pattern) {
+        text = _("Lines printed: pick the best one.");
     } else if (mine && shown.phase == pa::Phase::done) {
         format_k(k, sizeof(k), shown.k_e4);
         text = shown.csv ? _("Measured: K = %s. Curves on the USB drive.").formatted(params, k) : _("Measured: K = %s").formatted(params, k);
-    } else if (mine && shown.phase == pa::Phase::failed && shown.error != pa::Error::not_loaded) {
+    } else if (mine && shown.phase == pa::Phase::failed && shown.automatic && shown.error == pa::Error::skipped) {
+        text = _("Skipped: the print uses the slicer's PA.");
+    } else if (mine && shown.phase == pa::Phase::failed && shown.automatic && shown.error != pa::Error::stopped) {
+        text = _("Failed: the print uses the slicer's PA.");
+    } else if (mine && shown.phase == pa::Phase::failed) {
         format_k(k, sizeof(k), shown.k_e4);
         switch (shown.error) {
         case pa::Error::printing:
             text = _("Not while printing.");
+            break;
+        case pa::Error::not_loaded:
+            text = _("The spool could not be loaded.");
             break;
         case pa::Error::homing:
             text = _("Homing failed.");
@@ -292,29 +309,35 @@ void ScreenPa::show_note() {
             text = _("Bed probing failed.");
             break;
         case pa::Error::stopped:
+        case pa::Error::skipped:
             text = _("Measurement cancelled.");
+            break;
+        case pa::Error::saturated:
+            text = _("Force saturated: see the CSV.");
             break;
         case pa::Error::weak_signal:
             text = _("Weak force: pick the best line by eye.");
             break;
         case pa::Error::no_crossing:
         case pa::Error::too_few_points:
-            text = _("Force does not follow K: pick the best line.");
+            text = _("Force does not follow K: nothing saved.");
             break;
         case pa::Error::out_of_range:
-            text = _("K out of range (%s): pick the best line.").formatted(params, k);
+            text = _("K out of range (%s): nothing saved.").formatted(params, k);
             break;
         case pa::Error::low_confidence:
-            text = _("Unsure (K = %s): pick the best line.").formatted(params, k);
+            text = _("Unsure result (K = %s): nothing saved.").formatted(params, k);
             break;
         default:
             text = _("Invalid request.");
             break;
         }
-    } else if (!loaded(slot)) {
+    } else if (marlin_client::is_printing()) {
+        text = _("Not while printing.");
+    } else if (!can_load(slot)) {
         text = _("Load this spool into the nozzle to measure it.");
     } else {
-        text = _("Prints one test line per K at the bed front.");
+        text = _("Measures in the air; loads the spool if needed.");
     }
     text.copyToRAM(note_text.data(), note_text.size());
     note.SetText(string_view_utf8::MakeRAM(note_text.data()));
@@ -330,29 +353,38 @@ void ScreenPa::update() {
     const pa::Status s = pa::status();
     const bool finished = runs != shown_runs || (shown_running && !running);
     if (running != shown_running || pending != shown_pending || !(s == shown) || finished) {
+        if (finished || s.step != shown.step) {
+            card.Invalidate();
+            graph.Invalidate(); // une séquence de plus : sa courbe
+        }
         shown_running = running;
         shown_pending = pending;
         shown = s;
         shown_runs = runs;
         show_note();
-        if (finished) {
-            card.Invalidate();
-            graph.Invalidate();
-        }
     }
 
     const bool busy = running || pending;
     const bool printing = marlin_client::is_printing();
+    // Mesure automatique au début d'une impression : « Passer » et « Arrêter l'impression »
+    const bool automatic = running && s.automatic && s.slot == slot;
     // Pas pendant une mesure du débit ou de la température (F5, F6) : elle passerait après
-    const bool can_measure = !busy && !calib::is_running() && !printing && loaded(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+    const bool can_measure = !busy && !calib::is_running() && !printing && can_load(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
     measure_button.enable(can_measure);
-    if (busy != second_cancels) {
-        second_cancels = busy; // libellé changé seulement quand il le faut : pas de redessin à chaque passage
-        second.set(Button::Look::outline, busy ? _("Cancel") : _("Clear"));
+    const uint8_t mode = automatic ? 2 : (busy ? 1 : 0);
+    if (mode != second_mode) {
+        second_mode = mode; // libellés changés seulement quand il le faut : pas de redessin à chaque passage
+        second.set(Button::Look::outline, mode == 2 ? _("Skip") : (mode == 1 ? _("Cancel") : _("Clear")));
+        calib.set(mode == 2 ? Button::Look::outline : Button::Look::secondary, mode == 2 ? _("Stop print") : _("Flow, temp."));
+    }
+    const bool lines_now = has_lines(slot);
+    if (lines_now != lines_shown) {
+        lines_shown = lines_now;
+        lines.set(Button::Look::secondary, lines_now ? _("Best line") : _("Test lines"));
     }
     second.enable(busy || pa::record(slot).has_k());
     wins.enable(true);
-    lines.enable(has_lines(slot));
+    lines.enable(lines_now || can_measure);
     calib.enable(true); // on y regarde les valeurs même pendant une mesure ou une impression
 
     // Un élément désactivé ne garde pas le focus
@@ -363,20 +395,23 @@ void ScreenPa::update() {
     }
 }
 
-void ScreenPa::measure() {
+void ScreenPa::measure(bool pattern) {
     if (marlin_client::is_printing()) {
         MsgBoxWarning(_("Not while printing."), Responses_Ok);
         return;
     }
-    if (!loaded(slot)) {
+    if (!can_load(slot)) {
         MsgBoxWarning(_("Load this spool into the nozzle to measure it."), Responses_Ok);
         return;
     }
-    if (MsgBoxQuestion(_("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?"), Responses_YesNo) != Response::Yes) {
+    const string_view_utf8 question = pattern
+        ? _("Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then one test line per K is printed there (6 to 10 min). Start?")
+        : _("The nozzle heats up, the spool is loaded if needed, then the PA is measured in the air at the front edge (about 5 min, a little filament falls). Start?");
+    if (MsgBoxQuestion(question, Responses_YesNo) != Response::Yes) {
         return;
     }
     char gcode[24];
-    snprintf(gcode, sizeof(gcode), "M1994 P%u O%u", unsigned(slot), csv_on ? 1u : 0u);
+    snprintf(gcode, sizeof(gcode), "M1994 P%u O%u%s", unsigned(slot), csv_on ? 1u : 0u, pattern ? " V1" : "");
     const uint16_t before = pa::run_count();
     if (marlin_client::gcode_try(gcode) == marlin_client::GcodeTryResult::Submitted) {
         runs_at_request = before;
@@ -402,12 +437,15 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
                 Screens::Access()->Open(ScreenFactory::ScreenWithArg<ScreenPaLines>(slot));
                 return;
             }
+            measure(true); // repli visuel : imprimer les lignes de test
             break;
         case tag_measure:
-            measure();
+            measure(false);
             break;
         case tag_second:
-            if (pa::is_running() || pending) {
+            if (second_mode == 2) {
+                pa::request_skip();
+            } else if (pa::is_running() || pending) {
                 pa::request_stop();
             } else {
                 pa::clear(slot);
@@ -415,6 +453,12 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             }
             break;
         case tag_calib:
+            if (second_mode == 2) {
+                if (MsgBoxWarning(_("Are you sure to stop this printing?"), Responses_YesNo, 1) == Response::Yes) {
+                    marlin_client::print_abort();
+                }
+                break;
+            }
             open_spool_calib(slot);
             return;
         }

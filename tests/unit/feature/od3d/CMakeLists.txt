@@ -73,6 +73,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/feature/od3d/force_trace_od3d.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/pattern_math_od3d.cpp
   )
 target_include_directories(pa_math_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(pa_math_od3d_tests PRIVATE OD3D_PA_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_catch_test(pa_math_od3d_tests)
 add_executable(
   mpc_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/mpc_od3d_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/mpc_od3d.cpp

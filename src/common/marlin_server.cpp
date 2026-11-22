@@ -2536,6 +2536,10 @@ static void _server_print_loop(void) {
 #endif
 
         if (!server.print_is_serial) {
+#if HAS_LOADCELL() && HAS_MMU2()
+            // OneDrop3D (F4) : mesure du PA des emplacements sans K, avant les lignes du fichier (et avant le T0 ci-dessous)
+            od3d::pa::on_print_init();
+#endif
             // TODO: Fix them enqueue hacks
 
 #if HAS_TOOLCHANGER()

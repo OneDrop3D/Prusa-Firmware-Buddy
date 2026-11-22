@@ -11230,3 +11230,44 @@ msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe, son
 #: src/gui/od3d/screen_spool_calib_od3d.cpp
 msgid "Clean sheet in place, front of the bed free? The bed heats up, its front is probed, then lines are printed there while the nozzle cools down step by step (8 to 12 min). Start?"
 msgstr "Plaque propre en place, avant du plateau libre ? Le plateau chauffe, son avant est palpé, puis des lignes y sont imprimées pendant que la buse refroidit palier par palier (8 à 12 min). Démarrer ?"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Test %d/%d: K = %s"
+msgstr "Essai %d/%d : K = %s"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "The spool could not be loaded."
+msgstr "La bobine n'a pas pu être chargée."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Force saturated: see the CSV."
+msgstr "Force saturée : voir le CSV."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Skipped: the print uses the slicer's PA."
+msgstr "Passé : l'impression garde le PA du trancheur."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Failed: the print uses the slicer's PA."
+msgstr "Échec : l'impression garde le PA du trancheur."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Measures in the air; loads the spool if needed."
+msgstr "Mesure dans le vide ; charge la bobine si besoin."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Test lines"
+msgstr "Lignes test"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Lines printed: pick the best one."
+msgstr "Lignes imprimées : choisissez la meilleure."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "The nozzle heats up, the spool is loaded if needed, then the PA is measured in the air at the front edge (about 5 min, a little filament falls). Start?"
+msgstr "La buse chauffe, la bobine est chargée si besoin, puis le PA est mesuré dans le vide au bord avant (environ 5 min, un peu de filament tombe). Démarrer ?"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Measure PA at print start\nUnknown spools are measured before printing"
+msgstr "Mesurer le PA au départ\nBobines inconnues mesurées avant d'imprimer"

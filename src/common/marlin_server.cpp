@@ -2419,6 +2419,7 @@ static void _server_print_loop(void) {
 #endif
 #if HAS_LOADCELL() && HAS_MMU2()
         od3d::pa::on_print_start(); // OneDrop3D (F4)
+        od3d::collision::on_print_start(); // OneDrop3D (F38) : chocs oubliés, accéléromètre vérifié (tête à l'arrêt)
 #endif
 #if HAS_CHAMBER_API()
         od3d::chamber_climate::on_print_start(); // OneDrop3D (F29) : une descente douce en cours s'arrête

@@ -16,6 +16,7 @@
 #include <timing.h>
 #include <utils/atomic_circular_queue.hpp>
 #if HAS_LOCAL_ACCELEROMETER()
+    #include "accelerometer_od3d.hpp"
     #include <module/prusa/accelerometer.h>
     #include <module/prusa/accelerometer_local.hpp>
 #endif
@@ -35,6 +36,7 @@ namespace {
     // Fil de Marlin → interruption
     std::atomic<bool> armed { false };
     std::atomic<bool> test_mode { false };
+    std::atomic<bool> accel_ok { false }; ///< accéléromètre vérifié au départ de l'impression en cours
     std::atomic<float> log_threshold_g { 200.f };
 
     // Interruption seulement
@@ -57,7 +59,6 @@ namespace {
     // Fil de Marlin seulement
     HitMap hit_map;
     uint32_t test_end_ms = 0;
-    bool was_in_print = false;
 
     struct Row {
         uint32_t time_ms;
@@ -175,9 +176,9 @@ void on_loadcell_sample(uint32_t time_us, float up_g, float x, float y, float z,
     }
     isr_on = true;
 #if HAS_LOCAL_ACCELEROMETER()
-    // Accéléromètre de la buse, seulement s'il répond et que personne ne s'en sert (sinon rien)
+    // Accéléromètre de la buse, seulement s'il a répondu au départ de l'impression et que personne ne s'en sert
     accelerometer::RawAcceleration raw;
-    while (prusa_accelerometer_local_try_get_sample(raw)) {
+    while (accel_ok.load(std::memory_order_relaxed) && prusa_accelerometer_local_try_get_sample(raw)) {
         detector.accel(accelerometer::raw_to_accel(PrusaAccelerometer::to_printer_coords(raw).val[2]) / 9.80665f);
     }
 #endif
@@ -206,16 +207,13 @@ void step() {
             test_end_ms = now + test_duration_ms;
             test_on = true;
             hit_map.clear();
+            accel_ok = false; // l'essai ne vaut que pour la cellule ; la prochaine impression revérifie
         }
     }
     bool test = test_on.load();
     if (test && (in_print || ticks_diff(now, test_end_ms) >= 0)) {
         test_on = test = false;
     }
-    if (in_print && !was_in_print) {
-        hit_map.clear(); // nouvelle impression : les chocs d'avant ne comptent plus
-    }
-    was_in_print = in_print;
 
     const Settings s = settings();
     const bool arm = ((s.enabled && printing) || test) && !EMotorStallDetector::Instance().Blocked();
@@ -234,6 +232,13 @@ void step() {
     if (row_count && marlin_server::printer_idle()) {
         write_csv();
     }
+}
+
+void on_print_start() {
+    hit_map.clear(); // nouvelle impression : les chocs d'avant ne comptent plus
+#if HAS_LOCAL_ACCELEROMETER()
+    accel_ok.store(enabled.load() && accel::ready(), std::memory_order_relaxed);
+#endif
 }
 
 // ---- Interface ----

@@ -64,6 +64,13 @@ namespace {
         return planner.draining() || must_stop();
     }
 
+    /// Mouvement mis en file comme G1 : maillage du plateau appliqué (to_machine_pos) et découpé. Le planificateur de Prusa
+    /// prend la position de line_to_current_position telle quelle, sans le maillage : les lignes du motif étaient posées à
+    /// une hauteur qui ne suivait pas le plateau (cordons trop hauts, « des fils » ; trouvé par la version dans le vide, e49fff00)
+    void queue_to(const xyze_pos_t &target, float speed) {
+        destination = target;
+        prepare_internal_move_to_destination(speed);
+    }
 } // namespace
 
 bool must_stop() {
@@ -142,8 +149,9 @@ Session::~Session() {
         // Un peu de filament en arrière contre le suintement, buse levée au-dessus du motif
         retract();
         if (!axes_need_homing()) {
-            current_position.z = std::min(current_position.z + end_lift, float(soft_endstop.max.z));
-            line_to_current_position(travel_speed_z);
+            xyze_pos_t target = current_position;
+            target.z = std::min(current_position.z + end_lift, float(soft_endstop.max.z));
+            queue_to(target, travel_speed_z);
         }
         planner.synchronize();
     }
@@ -316,10 +324,11 @@ bool Session::purge(float x, float dir) {
         if (!wait_queue()) {
             return false;
         }
-        current_position.x = x + dir * s.dx;
-        current_position.z = s.z;
-        current_position.e += s.e;
-        line_to_current_position(s.feedrate_mm_min / 60.f);
+        xyze_pos_t target = current_position;
+        target.x = x + dir * s.dx;
+        target.z = s.z;
+        target.e += s.e;
+        queue_to(target, s.feedrate_mm_min / 60.f);
     }
     return wait_moves();
 }
@@ -353,10 +362,11 @@ bool Session::print_to(float x, float y, float e_per_mm, float speed) {
     }
     deretract();
     const float d = std::hypot(x - current_position.x, y - current_position.y);
-    current_position.x = x;
-    current_position.y = y;
-    current_position.e += d * e_per_mm;
-    line_to_current_position(speed);
+    xyze_pos_t target = current_position;
+    target.x = x;
+    target.y = y;
+    target.e += d * e_per_mm;
+    queue_to(target, speed);
     return true;
 }
 
@@ -364,8 +374,9 @@ void Session::retract() {
     if (retracted || !hot()) {
         return;
     }
-    current_position.e -= retract_mm;
-    line_to_current_position(retract_speed);
+    xyze_pos_t target = current_position;
+    target.e -= retract_mm;
+    queue_to(target, retract_speed);
     retracted = true;
 }
 
@@ -373,8 +384,9 @@ void Session::deretract() {
     if (!retracted) {
         return;
     }
-    current_position.e += retract_mm;
-    line_to_current_position(retract_speed);
+    xyze_pos_t target = current_position;
+    target.e += retract_mm;
+    queue_to(target, retract_speed);
     retracted = false;
 }
 

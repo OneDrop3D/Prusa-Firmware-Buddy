@@ -279,6 +279,14 @@ public:
     inline uint16_t BowdenLength() const { return logic.BowdenLength(); }
     inline uint16_t PulleyPosition() const { return logic.PulleyPosition(); } ///< OneDrop3D (F41)
     inline ProgressCode Progress() const { return logic.Progress(); } ///< OneDrop3D (F41) : progression relue
+    /// OneDrop3D (N4) : vitesse de la poulie (chargement et déchargement) renvoyée au MMU à chaque démarrage ; ne
+    /// l'envoie pas maintenant (WriteRegister le fait)
+    inline void PlanPulleyFeedRate(uint8_t mm_s) { logic.PlanPulleyFeedRate(mm_s); }
+    inline uint8_t PulleyFeedRate() const { return logic.PulleyFeedRate(); }
+    /// OneDrop3D (N4) : erreurs signalées depuis l'allumage (MMU ou imprimante, réessais automatiques compris)
+    inline uint16_t ErrorReports() const { return errorReports; }
+    /// OneDrop3D (F10) : recul de l'extrudeur jusqu'à ce que son capteur ne voie plus le filament, au dernier changement
+    inline float UnloadEPosOnFSOff() const { return unloadEPosOnFSOff; }
 
     CommandInProgressManager commandInProgressManager;
 
@@ -447,6 +455,7 @@ private:
 
     uint16_t toolchange_counter;
     uint16_t tmcFailures;
+    uint16_t errorReports = 0; ///< OneDrop3D (N4)
 
     /// MMU originated CIP reports have a custom guard - this variable holds whether we have called incGuard for that case
     bool mmuOriginatedCommandGuard = false;

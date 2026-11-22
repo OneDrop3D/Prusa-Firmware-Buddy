@@ -48,6 +48,8 @@ const Register ProtocolLogic::regs16Addrs[ProtocolLogic::regs16Count] PROGMEM = 
 const Register ProtocolLogic::initRegs8Addrs[ProtocolLogic::initRegs8Count] PROGMEM = {
     Register::Extra_Load_Distance, // extra load distance [mm]
     Register::Pulley_Slow_Feedrate, // pulley slow feedrate [mm/s]
+    Register::Pulley_Load_Feedrate, // OneDrop3D (N4) : pulley load feedrate [mm/s]
+    Register::Pulley_Unload_Feedrate, // OneDrop3D (N4) : pulley unload feedrate [mm/s]
 };
 
 void ProtocolLogic::CheckAndReportAsyncEvents() {
@@ -722,6 +724,7 @@ ProtocolLogic::ProtocolLogic(
     // avr-gcc seems to like such a syntax, ARM gcc doesn't
     initRegs8[0] = extraLoadDistance;
     initRegs8[1] = pulleySlowFeedrate;
+    initRegs8[2] = initRegs8[3] = pulleyFeedRatePrusa;
 }
 
 void ProtocolLogic::Start() {

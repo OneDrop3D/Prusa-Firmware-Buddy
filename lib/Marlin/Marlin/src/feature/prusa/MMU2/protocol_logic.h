@@ -162,6 +162,17 @@ public:
         return initRegs8[1]; // even though MMU register 0x14 is 16bit, reasonable speeds are way below 255mm/s - saving space ;)
     }
 
+    /// OneDrop3D (N4) : vitesse de la poulie au chargement (registre 0x11) et au déchargement (0x0d), que le MMU ne
+    /// garde pas. Comme PlanPulleySlowFeedRate : rien n'est envoyé ici, le MMU la reçoit à chaque démarrage (ou par
+    /// WriteRegister).
+    static constexpr uint8_t pulleyFeedRatePrusa = 95; ///< config::pulleyLoadFeedrate / pulleyUnloadFeedrate du MMU [mm/s]
+    inline void PlanPulleyFeedRate(uint8_t mm_s) {
+        initRegs8[2] = initRegs8[3] = mm_s;
+    }
+    inline uint8_t PulleyFeedRate() const {
+        return initRegs8[2];
+    }
+
     /// Step the state machine
     StepStatus Step();
 
@@ -442,7 +453,7 @@ private:
     uint16_t regs16[regs16Count] = { 0, 0, 360 };
 
     // 8bit init values to be sent to the MMU after line up
-    static constexpr uint8_t initRegs8Count = 2;
+    static constexpr uint8_t initRegs8Count = 4;
     static_assert(initRegs8Count > 0); // code is not ready for empty lists of registers
     static const Register initRegs8Addrs[initRegs8Count] PROGMEM;
     uint8_t initRegs8[initRegs8Count];

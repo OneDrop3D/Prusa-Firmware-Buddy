@@ -64,6 +64,8 @@
 #include <feature/od3d/calib_registry_od3d.hpp>
 #include <feature/od3d/filament_memory_math_od3d.hpp>
 #include <feature/od3d/filament_presets_math_od3d.hpp>
+#include <feature/od3d/mmu_speed_math_od3d.hpp>
+#include <feature/od3d/tip_math_od3d.hpp>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_switchable_homing_calibration.h>
 #include <option/has_door_sensor_calibration.h>
@@ -527,6 +529,11 @@ struct CurrentStore
     /// OneDrop3D (assistant de calibration, bilan chiffré) : chiffres du dernier succès de chaque test (indice = Test),
     /// le « avant » de la fois suivante (od3d::calib_registry::Values)
     StoreItemArray<od3d::calib_registry::Values, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Values"), 16, od3d::calib_registry::max_tests> od3d_calib_values;
+    /// OneDrop3D (N4) : vitesse de la poulie du MMU mesurée par M2002 et durée d'un cycle avant / après
+    /// (od3d::mmu_speed::Saved), renvoyée au MMU à chaque démarrage
+    StoreItem<od3d::mmu_speed::Saved, od3d::mmu_speed::Saved {}, ItemFlag::calibrations, journal::hash("OD3D MMU Speeds")> od3d_mmu_speeds;
+    /// OneDrop3D (F10) : pointe du filament par emplacement (od3d::tip::Stats), écrite à la fin de chaque impression
+    StoreItemArray<od3d::tip::Stats, AnyDefaultConstructor {}, ItemFlag::stats, journal::hash("OD3D Tip Stats"), 8, VirtualToolIndex::count> od3d_tip_stats;
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

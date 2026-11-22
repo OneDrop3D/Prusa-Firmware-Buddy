@@ -6,6 +6,7 @@
 #include "damping_od3d.hpp"
 #include "filament_memory_od3d.hpp"
 #include "mpc_control_od3d.hpp"
+#include "mmu_speed_od3d.hpp"
 #include "mpc_od3d.hpp"
 #include "pa_od3d.hpp"
 #include "ptfe_od3d.hpp"
@@ -113,6 +114,8 @@ namespace {
         }
         case Test::mmu_ptfe:
             return ptfe::status().result == ptfe::Result::saved;
+        case Test::mmu_speed:
+            return mmu_speed::last().result == mmu_speed::Result::saved;
         case Test::max_flow:
         case Test::min_temp: {
             const calib::Status st = calib::status();
@@ -180,6 +183,19 @@ namespace {
                 n[0] = int16_t(length);
             }
             break;
+        case Test::mmu_speed:
+            if (after) {
+                const mmu_speed::Measurement &m = mmu_speed::last();
+                const mmu_speed::Saved saved = mmu_speed::saved();
+                n[0] = m.speed;
+                n[1] = int16_t(saved.prusa_ds);
+                n[2] = int16_t(saved.cycle_ds);
+                const auto passed = std::find(m.passed.begin(), m.passed.begin() + mmu_speed::levels.size(), false) - m.passed.begin();
+                n[3] = passed ? mmu_speed::levels[passed - 1] : no_value;
+            } else {
+                n[0] = mmu_speed::speed_of(mmu_speed::saved());
+            }
+            break;
         case Test::pa:
             if (const pa::Record r = pa::record(s.slot); r.has_k()) {
                 n[s.slot % n.size()] = int16_t(r.k_e4);
@@ -224,6 +240,8 @@ namespace {
         const Step &s = steps[i];
         if (s.test == Test::mmu_ptfe) {
             ptfe::forget(); // le bilan lit le résultat de cette mesure, jamais celui d'une mesure d'avant
+        } else if (s.test == Test::mmu_speed) {
+            mmu_speed::forget();
         }
         char gcode[24];
         char marker[16];
@@ -235,10 +253,11 @@ namespace {
         }
         // F5, F6 : bobine pas dans la buse (pas de PA juste avant) : « Charger dans la buse » de Prusa d'abord, comme
         // M1994 en un clic (origine si besoin, position de chargement levée), par la file d'injection qui passe avant
-        // Tube PTFE : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides : déchargement d'abord
+        // Tube PTFE, vitesse de la poulie : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides :
+        // déchargement d'abord
         const auto loaded = VirtualToolIndex::currently_selected_opt();
         const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp) && filament_memory::loaded_slot() != s.slot; // F43
-        const bool needs_unload = s.test == Test::mmu_ptfe && loaded;
+        const bool needs_unload = (s.test == Test::mmu_ptfe || s.test == Test::mmu_speed) && loaded;
         if (needs_load || needs_unload) {
             char filament[16];
             StringBuilder sb(filament);
@@ -384,6 +403,9 @@ void request_cancel() {
         if (calib::is_running()) {
             calib::request_stop();
         }
+        break;
+    case Test::mmu_speed:
+        mmu_speed::request_stop(); // entre deux cycles
         break;
     default:
         break; // assistants de Prusa (input shaper, phase stepping) : leur écran a son « Annuler »

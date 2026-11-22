@@ -66,6 +66,8 @@ void request_cancel();
 /// - speed_map : [0] nombre de vitesses critiques, [1] sur X, [2] sur Y ;
 /// - mpc : [0] P ×10 (W), [1] C ×10 (J/K), [2] A ×1000 (W/K), [3] F ×1000 (W/K) ;
 /// - mmu_ptfe : [0] longueur enregistrée (mm), après : [1] longueur relevée (mm) ;
+/// - mmu_speed : [0] vitesse de la poulie (mm/s) ; après : [1], [2] durée mesurée d'un cycle chargement + déchargement
+///   à la vitesse de Prusa puis à la vitesse gardée (0,1 s), [3] dernier palier passé (mm/s) ;
 /// - pa, max_flow, min_temp : [emplacement] K ×10 000, débit ×10 (mm³/s), température (°C).
 /// « Avant » des courroies, de l'amortissement, des vitesses et du phase stepping : le dernier succès (OD3D Calib Values).
 const Numbers &numbers_before(Test test);

@@ -35,6 +35,7 @@ enum class Test : uint8_t {
     min_temp, ///< F6, M1996 par emplacement
     skew, ///< F15 : pièce imprimée à mesurer, à faire à la main
     mmu_ptfe, ///< F41, M1999 B1 : longueur du tube PTFE avant du MMU (une bobine préchargée, rien dans l'extrudeur)
+    mmu_speed, ///< N4, M2002 P : vitesse de la poulie du MMU (une bobine préchargée, rien dans l'extrudeur)
     count,
 };
 
@@ -62,7 +63,8 @@ struct Entry {
 
 /// Dans l'ordre d'exécution : d'abord l'accéléromètre (buse froide, une seule pose), puis le MPC (il part de la buse
 /// froide), le tube PTFE (rien dans l'extrudeur : avant les chargements), puis par emplacement PA, débit, température
-/// minimale (un seul chargement par bobine, chauffe gardée)
+/// minimale (un seul chargement par bobine, chauffe gardée). La vitesse de la poulie du MMU, ajoutée en fin de liste,
+/// passe juste après le tube PTFE : build_steps() fait d'abord tous les tests sans Need::filament.
 inline constexpr std::array entries {
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
@@ -75,6 +77,7 @@ inline constexpr std::array entries {
     Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
     Entry { Test::min_temp, filament | empty_bed, 6, 1, true },
     Entry { Test::skew, empty_bed, 0, 1, false },
+    Entry { Test::mmu_speed, mmu | one_spool, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
 };
 static_assert(entries.size() == size_t(Test::count), "une entrée par Test");
 

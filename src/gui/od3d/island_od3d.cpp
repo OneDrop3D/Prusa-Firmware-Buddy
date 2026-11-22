@@ -7,6 +7,7 @@
 #include "screen_collision_od3d.hpp"
 #include "screen_damping_od3d.hpp"
 #include "screen_mpc_od3d.hpp"
+#include "screen_mmu_speed_od3d.hpp"
 #include "screen_mmu_usb_od3d.hpp"
 #include "screen_music_od3d.hpp"
 #include "screen_pa_od3d.hpp"
@@ -25,6 +26,7 @@
 #include <feature/od3d/calib_assistant_od3d.hpp>
 #include <feature/od3d/collision_od3d.hpp>
 #include <feature/od3d/damping_od3d.hpp>
+#include <feature/od3d/mmu_speed_od3d.hpp>
 #include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/od3d/mpc_control_od3d.hpp>
 #include <feature/od3d/music_player_od3d.hpp>
@@ -128,6 +130,15 @@ namespace {
         if (damping::is_running()) {
             return percent(Process::damping, damping::progress_percent());
         }
+        if (mmu_speed::is_running()) {
+            const mmu_speed::Measurement &m = mmu_speed::last();
+            f.process = Process::mmu_speed;
+            f.slot = m.slot;
+            f.stage = Stage::step;
+            f.step = uint8_t(m.step + 1);
+            f.steps = mmu_speed::cycles;
+            return f;
+        }
         if (const mpc::TuneStatus s = mpc::tune_status(); s.running) {
             return percent(Process::mpc, s.progress);
         }
@@ -170,6 +181,8 @@ namespace {
             return ScreenFactory::Screen<ScreenMmuUsb>;
         case Process::calibration:
             return ScreenFactory::Screen<ScreenCalibAssistant>;
+        case Process::mmu_speed:
+            return ScreenFactory::Screen<ScreenMmuSpeed>;
         }
         return {};
     }
@@ -198,6 +211,8 @@ namespace {
             return string_view_utf8::MakeCPUFLASH("MMU USB");
         case Process::calibration:
             return calibration_assistant_name();
+        case Process::mmu_speed:
+            return _("MMU speed");
         }
         return {};
     }

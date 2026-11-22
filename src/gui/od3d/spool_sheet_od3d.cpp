@@ -12,6 +12,7 @@
 #include <cstring>
 #include <display.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
+#include <feature/od3d/tip_od3d.hpp>
 #include <i18n.h>
 #include <IDialog.hpp>
 #include <img_resources.hpp>
@@ -118,10 +119,17 @@ namespace {
             const uint16_t w = r.Left() + r.Width() - x;
             draw_text(Rect16(x, top + 14, w, height(Font::normal)), _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
 
-            // État, la température de la matière, puis le reste (F13 ou étiquette OpenPrintTag)
-            char status[56];
+            // État, l'alerte de la pointe (F10, en jaune ; détail dans Atelier › Infos du MMU), la température de la
+            // matière, puis le reste (F13 ou étiquette OpenPrintTag)
+            char status[72];
             const char *state = slot.loaded ? N_("In the nozzle") : (type ? N_("In the MMU") : N_("Empty"));
             _(state).copyToRAM(status, sizeof(status));
+            const bool tip_drift = index < tip::slots && tip::drifting(tip::stats(index));
+            if (tip_drift) {
+                strlcat(status, " · ", sizeof(status));
+                const size_t len = strlen(status);
+                _("tip drift").copyToRAM(status + len, sizeof(status) - len);
+            }
             if (type) {
                 const FilamentTypeParameters p = type.parameters();
                 const size_t len = strlen(status);
@@ -131,7 +139,7 @@ namespace {
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · ~%d g", int(usage->remaining_g));
             }
-            draw_text(Rect16(x, top + 36, w, height(Font::small)), string_view_utf8::MakeRAM(status), Font::small, style::text_muted, style::surface);
+            draw_text(Rect16(x, top + 36, w, height(Font::small)), string_view_utf8::MakeRAM(status), Font::small, tip_drift ? style::warning : style::text_muted, style::surface);
         }
 
     private:

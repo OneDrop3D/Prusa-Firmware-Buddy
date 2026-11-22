@@ -107,8 +107,8 @@ TEST_CASE("calib_registry: manual tests never trigger the prompt alone") {
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 5 à l'accéléromètre, MPC, tube PTFE, puis 3 mesures pour chacune des 2 bobines
-    REQUIRE(n == 5 + 1 + 1 + 3 * 2);
+    // 5 à l'accéléromètre, MPC, tube PTFE, vitesse de la poulie, puis 3 mesures pour chacune des 2 bobines
+    REQUIRE(n == 5 + 1 + 1 + 1 + 3 * 2);
 
     // Accéléromètre d'abord (une seule pose), courroies en premier
     CHECK(steps[0].test == Test::belts);
@@ -119,12 +119,15 @@ TEST_CASE("calib_registry: steps order") {
     // Tube PTFE avant les chargements, une fois, avec la première bobine
     CHECK(steps[6].test == Test::mmu_ptfe);
     CHECK(steps[6].slot == 0);
+    // Vitesse de la poulie juste après : avec la longueur du tube mesurée, avant les chargements
+    CHECK(steps[7].test == Test::mmu_speed);
+    CHECK(steps[7].slot == 0);
 
     // Puis par bobine : PA, débit, température minimale (un seul chargement par bobine)
     const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp };
     for (size_t k = 0; k < 6; ++k) {
-        CHECK(steps[7 + k].test == per_slot[k % 3]);
-        CHECK(steps[7 + k].slot == (k < 3 ? 0 : 2));
+        CHECK(steps[8 + k].test == per_slot[k % 3]);
+        CHECK(steps[8 + k].slot == (k < 3 ? 0 : 2));
     }
 
     // Jamais le test manuel
@@ -148,6 +151,14 @@ TEST_CASE("calib_registry: front PTFE needs the MMU and a spool") {
     ctx.spools = 0;
     CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_ptfe)));
     CHECK(build_steps(test_bit(Test::mmu_ptfe), ctx, steps) == 0);
+
+    // Vitesse de la poulie : mêmes besoins
+    ctx = full();
+    ctx.spools = 0b10000;
+    REQUIRE(build_steps(test_bit(Test::mmu_speed), ctx, steps) == 1);
+    CHECK(steps[0].slot == 4);
+    ctx.mmu = false;
+    CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_speed)));
 }
 
 TEST_CASE("calib_registry: steps of a subset and a short buffer") {
@@ -175,6 +186,7 @@ TEST_CASE("calib_registry: G-codes") {
     CHECK(gcode({ Test::damping }) == "M1997");
     CHECK(gcode({ Test::mpc }) == "M306 T");
     CHECK(gcode({ Test::mmu_ptfe, 1 }) == "M1999 B1 P1");
+    CHECK(gcode({ Test::mmu_speed, 3 }) == "M2002 P3");
     CHECK(gcode({ Test::skew }) == "-");
 
     std::array<char, 4> tiny;

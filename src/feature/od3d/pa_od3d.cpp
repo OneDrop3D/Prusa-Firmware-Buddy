@@ -179,7 +179,7 @@ namespace {
     std::optional<std::pair<int16_t, int16_t>> before_load; ///< consignes buse et plateau d'avant ce chargement
 
     /// Suite de G-codes mise en file (une seule à la fois : lue dès que M1994 rend la main)
-    char sequence[192];
+    char sequence[256];
 
     /// Met sequence en file avant tout le reste, par la file d'injection de Prusa (ses suites internes, M600 de
     /// l'écran...) : elle passe dès que la commande en cours rend la main, avant les lignes du fichier ; rien si vide

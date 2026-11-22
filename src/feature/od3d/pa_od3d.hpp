@@ -14,7 +14,8 @@
 ///   Refusée pendant une impression, arrêtable à tout moment (request_stop()), état remis à la fin (session commune).
 ///   Trace et résultats exportables en CSV sur la clé.
 /// - En un clic (retour du 22/11) : si la bobine n'est pas dans la buse, M1994 met en file « Charger dans la buse » de
-///   Prusa (M701 S W2 P : l'autre filament est déchargé d'abord, question de la couleur comprise) puis lui-même avec
+///   Prusa (G28 O I et G27 W2 d'abord : origine si besoin, buse levée à la position de chargement ; puis M701 S W2 P :
+///   l'autre filament est déchargé d'abord, question de la couleur comprise) puis lui-même avec
 ///   J1, et rend la main : le MMU n'est jamais piloté depuis la pile de M1994 (débordement de la pile de Marlin en
 ///   8.0.2.23). Le filament reste chargé à la fin.
 /// - Automatique (réglage « PA automatique », comme la calibration de la dynamique du débit des Bambu) : M1994 A, mis

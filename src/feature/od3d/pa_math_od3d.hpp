@@ -223,6 +223,9 @@ struct Request {
 // autre M1994. Suites de G-codes séparés par '\n' ; filament : paramètre S codé de la matière (« #<n> », comme le menu
 // de Prusa) ; false si out est trop court.
 
+/// Chaque chargement ou déchargement est précédé de G28 O I (origine si besoin) et G27 W2 (position de chargement de
+/// Prusa, buse levée) : jamais de purge ni de descente de Z avant l'origine.
+///
 /// En un clic, bobine pas dans la buse : « Charger dans la buse » de Prusa (M701 S"<matière>" W2 P<n> : l'autre
 /// filament est déchargé d'abord), puis la même demande avec J1 (chargement tenté : pas de seconde tentative)
 bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament);

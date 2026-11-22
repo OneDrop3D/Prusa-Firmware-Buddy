@@ -532,8 +532,14 @@ namespace {
         return true;
     }
 
+    /// Avant tout chargement ou déchargement : origine si besoin (comme la session : G28 seulement si nécessaire, sans
+    /// affinage), puis position de chargement de Prusa (G27 W2 : avant droite, buse au moins à Z_AXIS_LOAD_POS et
+    /// Z_NOZZLE_PARK_RISE au-dessus de la dernière impression, jamais plus bas qu'avant). M701 ne se gare pas quand rien
+    /// n'est chargé : sans cela, la purge tombait là où était la buse (8.0.2.25 : plateau tout en haut, sans origine).
+    constexpr const char *park = "G28 O I\nG27 W2\n";
+
     bool load_line(std::span<char> out, size_t &n, uint8_t slot, const char *filament) {
-        return append(out, n, "M701 S\"%s\" W2 P%u", filament, unsigned(slot));
+        return append(out, n, "%sM701 S\"%s\" W2 P%u", park, filament, unsigned(slot));
     }
 
 } // namespace
@@ -579,7 +585,7 @@ bool auto_restore_sequence(std::span<char> out, std::optional<uint8_t> initial, 
     if (initial == loaded) {
         return append(out, n, "%s", "");
     }
-    return initial ? load_line(out, n, *initial, filament) : append(out, n, "M702 W2");
+    return initial ? load_line(out, n, *initial, filament) : append(out, n, "%sM702 W2", park);
 }
 
 } // namespace od3d::pa

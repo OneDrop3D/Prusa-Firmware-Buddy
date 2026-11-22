@@ -520,7 +520,7 @@ TEST_CASE("od3d pa: place du motif automatique à côté de l'impression", "[od3
 }
 
 TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994", "[od3d][pa]") {
-    char out[192];
+    char out[256];
     const auto text = [&] { return std::string(out); };
 
     SECTION("en un clic : « Charger dans la buse » de Prusa, puis la même mesure avec J1") {
@@ -528,7 +528,7 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         rq.slot = 2;
         rq.csv = true;
         REQUIRE(pa::oneclick_sequence(out, rq, "#5"));
-        CHECK(text() == "M701 S\"#5\" W2 P2\nM1994 P2 O1 J1");
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#5\" W2 P2\nM1994 P2 O1 J1");
 
         rq.slot = 0;
         rq.csv = false;
@@ -537,11 +537,11 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         rq.x = 30.f;
         rq.temperature = 230;
         REQUIRE(pa::oneclick_sequence(out, rq, "#12"));
-        CHECK(text() == "M701 S\"#12\" W2 P0\nM1994 P0 H0.2000 R0 T230 X30.0000 J1");
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#12\" W2 P0\nM1994 P0 H0.2000 R0 T230 X30.0000 J1");
     }
     SECTION("automatique : chargement si besoin, puis M1994 P<n> A1") {
         REQUIRE(pa::auto_step_sequence(out, 3, "#5"));
-        CHECK(text() == "M701 S\"#5\" W2 P3\nM1994 P3 A1");
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#5\" W2 P3\nM1994 P3 A1");
         REQUIRE(pa::auto_step_sequence(out, 3, nullptr));
         CHECK(text() == "M1994 P3 A1");
     }
@@ -551,11 +551,34 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         REQUIRE(pa::auto_restore_sequence(out, 1, 1, "#7"));
         CHECK(text().empty());
         REQUIRE(pa::auto_restore_sequence(out, std::nullopt, 2, ""));
-        CHECK(text() == "M702 W2");
+        CHECK(text() == "G28 O I\nG27 W2\nM702 W2");
         REQUIRE(pa::auto_restore_sequence(out, 1, 3, "#7"));
-        CHECK(text() == "M701 S\"#7\" W2 P1");
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#7\" W2 P1");
         REQUIRE(pa::auto_restore_sequence(out, 1, std::nullopt, "#7"));
-        CHECK(text() == "M701 S\"#7\" W2 P1");
+        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#7\" W2 P1");
+    }
+    SECTION("jamais de M701 ni de M702 avant l'origine et la position de chargement levée") {
+        pa::Request rq;
+        REQUIRE(pa::oneclick_sequence(out, rq, "#5"));
+        CHECK(text().rfind("G28 O I\nG27 W2\nM701 ", 0) == 0);
+        REQUIRE(pa::auto_step_sequence(out, 4, "#5"));
+        CHECK(text().rfind("G28 O I\nG27 W2\nM701 ", 0) == 0);
+        REQUIRE(pa::auto_restore_sequence(out, std::nullopt, 0, ""));
+        CHECK(text().rfind("G28 O I\nG27 W2\nM702 ", 0) == 0);
+        // Tous les paramètres changés : la ligne tient encore dans le tampon de M1994 (256)
+        rq.slot = 4;
+        rq.k_min = 0.01f;
+        rq.k_max = 0.12f;
+        rq.k_step = 0.015f;
+        rq.refine = 4;
+        rq.params = { .slow_flow = 2.f, .fast_flow = 12.f, .slow_s = 0.9f, .fast_s = 0.35f, .bead = { 0.5f, 0.25f }, .cycles = 4 };
+        rq.temperature = 245;
+        rq.bed_temperature = 85;
+        rq.x = 25.f;
+        rq.y = 14.f;
+        rq.pitch = 6.f;
+        rq.csv = true;
+        CHECK(pa::oneclick_sequence(out, rq, "#65535"));
     }
     SECTION("tampon trop court : refusé, jamais tronqué") {
         char small[20];

@@ -28,7 +28,8 @@
  *   met en file pour chacun « Charger dans la buse » de Prusa et `M1994 P<n> A1` (sa mesure courte), enfin le filament
  *   remis comme avant ; un échec ou « Passer » laisse le PA du trancheur, l'impression continue
  * - `P` - emplacement 0 à 4 ; s'il n'est pas dans la buse, « Charger dans la buse » de Prusa est mis en file (l'autre
- *   filament est déchargé), suivi du même M1994 avec J1 ; sans P, l'emplacement chargé
+ *   filament est déchargé) après l'origine si besoin et la position de chargement levée (G28 O I, G27 W2), suivi du
+ *   même M1994 avec J1 ; sans P, l'emplacement chargé
  * - `J1` - chargement déjà tenté (mis par M1994 lui-même) : sans la bobine dans la buse, échec sans autre tentative
  * - `L`, `H`, `S` - balayage de K : de L à H par pas de S (0, 0,10, 0,02)
  * - `R` - lignes du second balayage au pas S/4 autour du premier choix (5 ; 0 : aucune) ; 15 lignes au plus en tout

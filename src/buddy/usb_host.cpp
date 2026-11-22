@@ -5,6 +5,10 @@
 #include <buddy/fatfs.h>
 #include <device/board.h>
 #include "common/timing.h"
+#include <option/has_mmu2.h>
+#if HAS_MMU2()
+    #include <feature/od3d/mmu_flash_od3d.hpp>
+#endif
 
 #include <atomic>
 #include "marlin_client.hpp"
@@ -147,6 +151,9 @@ void MX_USB_HOST_Init(void) {
     if (USBH_RegisterClass(&hUsbHostHS, USBH_MSC_CLASS) != USBH_OK) {
         bsod_system();
     }
+#if HAS_MMU2()
+    od3d::mmu_flash::register_usb_class();
+#endif
     if (USBH_Start(&hUsbHostHS) != USBH_OK) {
         bsod_system();
     }

@@ -1,5 +1,6 @@
 /// @file
 #include "mmu_usb_od3d.hpp"
+#include "mmu_flash_od3d.hpp"
 
 #include <atomic>
 
@@ -23,6 +24,7 @@ bool start() {
     }
     // Plus de requête vers l'extension, donc plus rien sur l'UART du MMU ; l'alimentation et nreset restent tels quels
     MMU2::mmu2.StopForUsbUpdate();
+    mmu_flash::forget_result();
     on = true;
     return true;
 }

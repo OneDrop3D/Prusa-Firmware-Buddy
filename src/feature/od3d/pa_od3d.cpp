@@ -599,7 +599,9 @@ namespace {
         if (const session::Result r = session.go_to_purge(x, y, dir); r != session::Result::ok) {
             return error_of(r);
         }
-        if (const session::Result r = session.heat(nozzle, purge_below, 0); r != session::Result::ok) {
+        // Jamais sous la limite d'extrusion à froid de Prusa (consigne bornée à EXTRUDE_MINTEMP + 10 au moins)
+        const float purge_tolerance = std::min(purge_below, float(nozzle - EXTRUDE_MINTEMP - 5));
+        if (const session::Result r = session.heat(nozzle, purge_tolerance, 0); r != session::Result::ok) {
             return error_of(r);
         }
         st_phase = Phase::priming;
@@ -878,15 +880,19 @@ namespace {
         // Réglages remis à la fin ; « Passer » sur l'écran Impression arrête la mesure, l'impression continue
         session::Session session(stop_requested, true);
         fast_moves(rq.params);
-        Error e;
-        if (plan.leveled && !axes_need_homing()) {
-            // Maillage de l'étape précédente, gardé en mémoire : pas de palpage, la buse monte déjà pendant le plateau
+        // Maillage palpé par une étape précédente de cette impression, gardé en mémoire : pas de palpage, la buse monte
+        // déjà pendant le plateau ; sinon (1re étape, origine perdue, maillage refusé) départ complet
+        Error e = Error::none;
+        bool reuse = plan.leveled && !axes_need_homing();
+        if (reuse) {
             st_phase = Phase::bed;
             e = error_of(session.heat_bed(t.bed, t.nozzle));
             if (e == Error::none) {
                 set_bed_leveling_enabled(true);
+                reuse = planner.leveling_active;
             }
-        } else {
+        }
+        if (e == Error::none && !reuse) {
             e = prepare_bed(session, plan.block, t);
             plan.leveled = e == Error::none;
         }

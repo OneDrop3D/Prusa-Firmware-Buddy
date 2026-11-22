@@ -406,7 +406,9 @@ void window_t::ScreenEvent(window_t *sender, GUI_event_t event, void *const para
         last_gui_input_event = event;
     }
 
-    if (event == GUI_event_t::HELD_RELEASED && flags.has_long_hold_screen_action) {
+    // OneDrop3D : sous un dialogue, l'appui long va au dialogue (screen_t::screenEvent : Annuler de l'éditeur de valeur)
+    // et n'ouvre pas l'écran de l'action par-dessus
+    if (event == GUI_event_t::HELD_RELEASED && flags.has_long_hold_screen_action && !GetLastDialog()) {
         gui::knob::LongPressScreenAction();
     } else {
         screenEvent(sender, event, param);

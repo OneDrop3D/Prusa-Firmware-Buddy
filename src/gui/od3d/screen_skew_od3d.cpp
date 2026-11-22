@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <feature/od3d/skew_od3d.hpp>
 #include <img_resources.hpp>
+#include <iterator>
 #include <marlin_client.hpp>
 #include <numeric_input_config.hpp>
 #include <window_msgbox.hpp>

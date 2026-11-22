@@ -41,6 +41,13 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Réglages › Fonctions OneDrop3D › Température de la buse › « Mesurer la dilatation » (M2003) : ouvre son écran
+class MI_NOZZLE_EXPANSION final : public IWindowMenuItem {
+public:
+    MI_NOZZLE_EXPANSION();
+    void click(IWindowMenu &) override;
+};
+
 /// Réglages › « Impression » : sécurités et réactions pendant l'impression (éléments de Prusa regroupés)
 class MI_SET_PRINTING final : public IWindowMenuItem {
 public:

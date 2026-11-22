@@ -66,6 +66,8 @@ void request_cancel();
 /// - speed_map : [0] nombre de vitesses critiques, [1] sur X, [2] sur Y ;
 /// - mpc : [0] P ×10 (W), [1] C ×10 (J/K), [2] A ×1000 (W/K), [3] F ×1000 (W/K) ;
 /// - mmu_ptfe : [0] longueur enregistrée (mm), après : [1] longueur relevée (mm) ;
+/// - nozzle_expansion : [0] pente (nm/°C ; avant : no_value pour le modèle de Prusa), après : [1] pente de Prusa
+///   (nm/°C), [2] écart avec Prusa à 250 °C (0,1 µm), [3] retour − aller (0,1 µm) ;
 /// - pa, max_flow, min_temp : [emplacement] K ×10 000, débit ×10 (mm³/s), température (°C).
 /// « Avant » des courroies, de l'amortissement, des vitesses et du phase stepping : le dernier succès (OD3D Calib Values).
 const Numbers &numbers_before(Test test);

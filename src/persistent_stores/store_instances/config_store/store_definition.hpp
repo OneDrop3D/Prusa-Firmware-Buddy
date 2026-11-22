@@ -442,6 +442,9 @@ struct CurrentStore
 #if HAS_NOZZLE_THERMAL_COMPENSATION()
     /// OneDrop3D (F2) : compensation de la dilatation de la buse, désactivable
     StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Nozzle Thermal Compensation")> od3d_nozzle_thermal_compensation;
+    /// OneDrop3D (M2003) : pente de la dilatation mesurée [nm/°C] par buse réglée (indice :
+    /// buddy::nozzle_thermal_compensation::nozzle_key()) ; 0 : jamais mesurée, modèle de Prusa
+    StoreItemArray<uint16_t, uint16_t(0), ItemFlag::calibrations, journal::hash("OD3D Nozzle Expansion"), 16, 16> od3d_nozzle_expansion;
 #endif
 
 #if HAS_SPOOL_JOIN()

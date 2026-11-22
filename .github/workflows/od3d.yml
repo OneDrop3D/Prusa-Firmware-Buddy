@@ -9,6 +9,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  controles:
+    # Contrôles statiques rapides (quelques secondes) : un écran de menu Prusa qui redéfinit windowEvent sans relayer
+    # à la base de son menu ne répond plus avec nos menus sans capture (BUG-2)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Écrans de menus Prusa et relais des événements
+        run: python3 utils/od3d/check_window_events.py
+
   firmware:
     runs-on: ubuntu-24.04
     steps:
@@ -55,7 +64,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/od3d-')
-    needs: [firmware, tests]
+    needs: [controles, firmware, tests]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

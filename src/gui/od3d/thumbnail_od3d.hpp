@@ -15,12 +15,12 @@
 
 namespace od3d {
 
+class QoiCache;
+
 /// Relit une image QOI réduite d'un rapport num/factor (moyenne des pixels de chaque case), posée sur un fond
 /// (transparence), coins arrondis. Le résultat est encore un flux QOI : display::draw_img() l'affiche sans rien garder en
 /// mémoire. band() le coupe en bandes de quelques lignes : la source reste ouverte entre deux et l'interface répond
 /// pendant la lecture (une vignette de la clé prend ~0,1 s).
-class QoiCache;
-
 class ScaledQoiReader final : public AbstractByteReader {
 public:
     static constexpr uint16_t max_width = 192; ///< largeur maximale de l'image réduite [px]

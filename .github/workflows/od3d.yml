@@ -50,6 +50,22 @@ jobs:
           name: firmware
           path: build/products/*.bbf
           if-no-files-found: error
+      - name: Piles des fonctions (.su de -fstack-usage)
+        if: always()
+        run: |
+          mkdir -p build/su
+          find build /tmp -name '*.su' -size +0c -not -path 'build/su/*' -exec cp --backup=numbered -t build/su {} + 2>/dev/null || true
+          ls build/su | head -20
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # ELF et map pour lire un vidage (dump_buddy.bin), et taille de pile de chaque fonction
+          name: elf-pile
+          path: |
+            build/products/*
+            !build/products/*.bbf
+            build/su
+          if-no-files-found: warn
 
   tests:
     runs-on: ubuntu-24.04

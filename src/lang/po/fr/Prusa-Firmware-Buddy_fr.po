@@ -11484,3 +11484,7 @@ msgstr "purge"
 #: src/gui/od3d/island_od3d.cpp
 msgid "Wait"
 msgstr "Patientez"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Spool not loaded: nothing measured."
+msgstr "Bobine non chargée : rien n'a été mesuré."

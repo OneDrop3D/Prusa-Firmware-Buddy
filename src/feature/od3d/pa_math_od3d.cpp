@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdarg>
+#include <cstdio>
 
 namespace od3d::pa {
 
@@ -77,10 +79,11 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
     const float n_slow = p.slow_s / dt; // points d'un palier lent
 
     // 1. Fronts de vitesse, puis créneaux : une montée suivie d'une descente, d'une durée proche du palier rapide
-    std::array<force::Edge, 2 * max_cycles + 6> edges;
+    // Hors de la pile de Marlin (une seule mesure à la fois ; la fonction peut être incorporée à la mesure d'une ligne)
+    static std::array<force::Edge, 2 * max_cycles + 6> edges;
     const uint8_t min_run = uint8_t(std::clamp(std::lround(0.02f / dt), 2L, 20L));
     const size_t n_edges = force::find_edges(t, dt, 0.5f * (p.v_lo + p.v_hi), min_run, edges);
-    std::array<Cycle, max_cycles> cycles;
+    static std::array<Cycle, max_cycles> cycles;
     size_t n_cycles = 0;
     for (size_t e = 0; e + 1 < n_edges && n_cycles < max_cycles; ++e) {
         if (!edges[e].rising || edges[e + 1].rising) {
@@ -101,9 +104,10 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
         bool ok;
         float base(float k) const { return b0 + (b1 - b0) * (k - c0) / (c1 - c0); }
     };
-    std::array<Level, max_cycles> levels {};
-    std::array<float, max_cycles> amplitudes;
-    std::array<float, max_cycles> noises;
+    static std::array<Level, max_cycles> levels;
+    static std::array<float, max_cycles> amplitudes;
+    static std::array<float, max_cycles> noises;
+    levels.fill({});
     size_t n_levels = 0;
     for (size_t c = 0; c < n_cycles; ++c) {
         Level &l = levels[c];
@@ -141,12 +145,15 @@ BlockResult analyse_block(Trace t, float dt, const Profile &p, Waveform *wave) {
     const auto command = [&](long k) { return (force::speed_at(t, size_t(k), dt) - p.v_lo) / (p.v_hi - p.v_lo); };
     const auto response = [&](const Level &l, long k) { return (force::force_at(t, size_t(k)) - l.base(float(k))) / amplitude; };
 
-    std::array<float, max_cycles> lags, costs, overs, unders;
+    static std::array<float, max_cycles> lags, costs, overs, unders;
     size_t used = 0;
     if (wave) {
-        *wave = {};
+        static constexpr Waveform empty_wave {};
+        *wave = empty_wave; // copie : pas de temporaire sur la pile de Marlin
     }
-    std::array<float, Waveform::points> wave_force {}, wave_command {};
+    static std::array<float, Waveform::points> wave_force, wave_command;
+    wave_force.fill(0.f);
+    wave_command.fill(0.f);
     const float wave_step = (0.1f + p.fast_s + 0.45f * p.slow_s) / float(Waveform::points);
 
     for (size_t c = 0; c < n_cycles; ++c) {
@@ -261,7 +268,7 @@ float parabola_vertex(float x0, float y0, float x1, float y1, float x2, float y2
 Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, float k_step, const Thresholds &th) {
     Choice c;
     constexpr size_t max_points = 32;
-    std::array<float, max_points> ks, lags, cost_k, costs;
+    static std::array<float, max_points> ks, lags, cost_k, costs; // hors de la pile de Marlin (une seule mesure à la fois)
     size_t n = 0, weak = 0;
     for (const SweepPoint &s : sweep) {
         if (!s.r.valid()) {
@@ -292,7 +299,7 @@ Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, flo
     }
     float k_lag = -f.a / f.b;
     {
-        std::array<float, max_points> lk, ll;
+        static std::array<float, max_points> lk, ll;
         size_t m = 0;
         for (size_t i = 0; i < n; ++i) {
             if (std::fabs(ks[i] - k_lag) <= th.local_span) {
@@ -314,7 +321,7 @@ Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, flo
     // quand la réponse n'est plus linéaire loin de l'optimum (écrasement du cordon qui sature) ; on garde l'encadrement
     // le plus proche du zéro de la droite, s'il en est assez près.
     {
-        std::array<float, max_points> sk, sl;
+        static std::array<float, max_points> sk, sl;
         std::copy_n(ks.begin(), n, sk.begin());
         std::copy_n(lags.begin(), n, sl.begin());
         for (size_t i = 1; i < n; ++i) {
@@ -506,6 +513,74 @@ std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern:
         }
     }
     return std::nullopt;
+}
+
+namespace {
+
+    /// Ajoute à out depuis n ; false si out est trop court
+    [[gnu::format(printf, 3, 4)]] bool append(std::span<char> out, size_t &n, const char *format, ...) {
+        if (n >= out.size()) {
+            return false;
+        }
+        va_list args;
+        va_start(args, format);
+        const int w = vsnprintf(out.data() + n, out.size() - n, format, args);
+        va_end(args);
+        if (w < 0 || size_t(w) >= out.size() - n) {
+            return false;
+        }
+        n += size_t(w);
+        return true;
+    }
+
+    bool load_line(std::span<char> out, size_t &n, uint8_t slot, const char *filament) {
+        return append(out, n, "M701 S\"%s\" W2 P%u", filament, unsigned(slot));
+    }
+
+} // namespace
+
+bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament) {
+    size_t n = 0;
+    bool ok = load_line(out, n, rq.slot, filament) && append(out, n, "\nM1994 P%u", unsigned(rq.slot));
+    // Seuls les paramètres changés, pour une ligne courte
+    const Request d;
+    const auto real = [&](char c, float v, float def) {
+        ok = ok && (v == def || append(out, n, " %c%.4f", c, double(v)));
+    };
+    const auto whole = [&](char c, int v, int def) {
+        ok = ok && (v == def || append(out, n, " %c%d", c, v));
+    };
+    real('L', rq.k_min, d.k_min);
+    real('H', rq.k_max, d.k_max);
+    real('S', rq.k_step, d.k_step);
+    whole('R', rq.refine, d.refine);
+    real('B', rq.params.slow_flow, d.params.slow_flow);
+    real('F', rq.params.fast_flow, d.params.fast_flow);
+    real('U', rq.params.slow_s, d.params.slow_s);
+    real('D', rq.params.fast_s, d.params.fast_s);
+    real('W', rq.params.bead.width, d.params.bead.width);
+    real('Z', rq.params.bead.height, d.params.bead.height);
+    whole('C', rq.params.cycles, d.params.cycles);
+    whole('T', rq.temperature, d.temperature);
+    whole('Q', rq.bed_temperature, d.bed_temperature);
+    real('X', rq.x, d.x);
+    real('Y', rq.y, d.y);
+    real('I', rq.pitch, d.pitch);
+    whole('O', rq.csv, d.csv);
+    return ok && append(out, n, " J1");
+}
+
+bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament) {
+    size_t n = 0;
+    return (!filament || (load_line(out, n, slot, filament) && append(out, n, "\n"))) && append(out, n, "M1994 P%u A1", unsigned(slot));
+}
+
+bool auto_restore_sequence(std::span<char> out, std::optional<uint8_t> initial, std::optional<uint8_t> loaded, const char *filament) {
+    size_t n = 0;
+    if (initial == loaded) {
+        return append(out, n, "%s", "");
+    }
+    return initial ? load_line(out, n, *initial, filament) : append(out, n, "M702 W2");
 }
 
 } // namespace od3d::pa

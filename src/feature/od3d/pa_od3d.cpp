@@ -11,7 +11,11 @@
 #include <cmath>
 #include <cstdio>
 #include <tuple>
+#include <utility>
 #include <span>
+
+#include <FreeRTOS.h>
+#include <task.h>
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
@@ -32,7 +36,9 @@
 #include <module/planner.h>
 #include <module/temperature.h>
 #include <raii/scope_guard.hpp>
+#include <tool/hotend/hotend.hpp>
 #include <tool_index.hpp>
+#include <utils/string_builder.hpp>
 
 METRIC_DEF(metric_od3d_pa, "od3d_pa", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
 
@@ -167,6 +173,36 @@ namespace {
     std::atomic<bool> st_csv = false;
 
     LastRun last;
+    constexpr LastRun no_run {}; ///< copiée dans last : pas de temporaire de ~1 Ko sur la pile de Marlin
+
+    std::atomic<bool> followup = false; ///< en un clic : M1994 J1 en file derrière le chargement de Prusa
+    std::optional<std::pair<int16_t, int16_t>> before_load; ///< consignes buse et plateau d'avant ce chargement
+
+    /// Suite de G-codes mise en file (une seule à la fois : lue dès que M1994 rend la main)
+    char sequence[192];
+
+    /// Met sequence en file avant tout le reste, par la file d'injection de Prusa (ses suites internes, M600 de
+    /// l'écran...) : elle passe dès que la commande en cours rend la main, avant les lignes du fichier ; rien si vide
+    bool inject_sequence() {
+        return sequence[0] == '\0' || marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(sequence) });
+    }
+
+    /// Paramètre S de M701 pour la matière de l'emplacement, comme le menu « Charger dans la buse » de Prusa
+    const char *filament_param(uint8_t slot, std::span<char> out) {
+        StringBuilder sb(out);
+        FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).build_encoded_gcode_param(sb);
+        return sb.str();
+    }
+
+    METRIC_DEF(metric_od3d_stack, "od3d_stack", METRIC_VALUE_INTEGER, 0, METRIC_DISABLED);
+
+    /// Pile libre la plus basse de la tâche de Marlin depuis son démarrage [octets] : la marge réelle, relevée après la
+    /// purge et après les lignes (les points les plus profonds de la mesure)
+    uint32_t stack_free_min() {
+        const uint32_t free = uint32_t(uxTaskGetStackHighWaterMark(nullptr)) * sizeof(StackType_t);
+        metric_record_integer(&metric_od3d_stack, int(free));
+        return free;
+    }
 
     using session::must_stop;
     using session::wait_moves;
@@ -237,7 +273,7 @@ namespace {
         }
 
         // Repères : numéro de la ligne en traits vers l'arrière, un sur cinq plus long
-        std::array<pattern::Tick, max_lines> ticks;
+        static std::array<pattern::Tick, max_lines> ticks; // hors de la pile de Marlin (une seule mesure à la fois)
         const size_t n = pattern::tally(uint8_t(index + 1), ticks);
         const float x_ticks = lines.x0 + lines.length + pattern::tick_gap;
         for (size_t i = 0; i < n; ++i) {
@@ -323,7 +359,7 @@ Status status() {
 }
 
 bool is_running() {
-    return running.load();
+    return running.load() || followup.load();
 }
 
 uint16_t run_count() {
@@ -331,7 +367,8 @@ uint16_t run_count() {
 }
 
 void request_stop() {
-    stop_requested = true;
+    stop_requested = true; // aussi pour le M1994 J1 en file : il s'arrêtera aussitôt
+    followup = false;
 }
 
 const LastRun &last_run() {
@@ -385,28 +422,22 @@ namespace {
         return MMU2::mmu2.Enabled() && (code == Code::OK || code == Code::RUNNING);
     }
 
-    /// Chemin de Prusa pour « Charger dans la buse » (MI_MMU_LOAD_TO_NOZZLE → M701 W2 P → Pause), sans la question de
-    /// la couleur : le filament chargé est d'abord déchargé (pointe formée), la buse doit être à la consigne de la
-    /// nouvelle matière. Une erreur du MMU ouvre son écran habituel et attend l'utilisateur.
-    bool load(uint8_t slot) {
-        MMU2::mmu2.load_filament_to_nozzle(slot);
-        return loaded_slot() == slot;
-    }
-
     /// Balayage grossier puis fin autour du premier choix, une ligne par K dans l'ordre ; K enregistré s'il est sûr.
     /// Buse chaude et purgée, lignes placées.
     Error sweep(session::Session &session, const Request &rq, const pattern::Lines &lines, FILE *csv) {
-        std::array<float, LastRun::max_points> ks;
+        // Hors de la pile de Marlin (une seule mesure à la fois)
+        static std::array<float, LastRun::max_points> ks;
+        static std::array<SweepPoint, LastRun::max_points> points;
+        static Waveform wave;
+        static std::array<float, 8> fine;
         const size_t coarse = sweep_values(rq.k_min, rq.k_max, rq.k_step, std::span(ks.data(), ks.size() - 8));
         const float smooth_time = session.smooth_time();
         st_phase = Phase::measuring;
         st_steps = lines.count;
-        last = {};
+        last = no_run;
         last.slot = rq.slot;
-        std::array<SweepPoint, LastRun::max_points> points;
         size_t n = 0;
         float best_cost = INFINITY;
-        Waveform wave;
         const auto run_line = [&](float k, bool first, bool keep_high) -> bool {
             st_step = uint8_t(n + 1);
             st_k = k_to_e4(k);
@@ -445,7 +476,6 @@ namespace {
         }
         Choice choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
         if (choice.fit == Fit::ok && rq.refine > 0) {
-            std::array<float, 8> fine;
             const size_t m = refine_values(choice.k, rq.k_step / 4.f, rq.refine, 0.f, 1.f, fine);
             st_steps = uint8_t(coarse + m);
             for (size_t i = 0; i < m && n < lines.count; ++i) {
@@ -456,9 +486,11 @@ namespace {
             choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
         }
         last.choice = choice;
+        const uint32_t stack_free = stack_free_min();
         if (csv) {
             force_probe::csv_printf(csv, "C,%.4f,%u,%u,%.3f,%.4f,%.4f\n", double(choice.k), unsigned(choice.confidence), unsigned(choice.fit), double(choice.slope),
                 double(choice.k_lag), double(choice.k_cost));
+            force_probe::csv_printf(csv, "# stack_free_min %u B after the lines\n", unsigned(stack_free));
         }
         st_k = k_to_e4(choice.k);
         if (choice.fit != Fit::ok) {
@@ -500,16 +532,25 @@ namespace {
 
 } // namespace
 
-void calibrate(const Request &rq) {
-    stop_requested = false;
+void calibrate(const Request &rq, bool load_tried) {
+    followup = false;
+    if (!load_tried) {
+        stop_requested = false; // J1 : un « Annuler » pendant le chargement vaut pour cette suite
+    }
     ScopeGuard count_run = [] { ++runs; }; // après l'état : l'interface lit l'état une fois runs changé
     begin(rq.slot);
+    if (load_tried && before_load) {
+        // Consignes remises comme avant le chargement de Prusa (il laisse la buse chaude) : la session les remettra à la fin
+        Hotend::for_tool(PhysicalToolIndex::from_raw(0)).set_nozzle_target_temp(before_load->first);
+        thermalManager.setTargetBed(before_load->second);
+        before_load.reset();
+    }
 
     if (marlin_server::is_printing() || !marlin_server::printer_idle()) {
         fail(Error::printing);
         return;
     }
-    std::array<float, LastRun::max_points> ks;
+    static std::array<float, LastRun::max_points> ks; // hors de la pile de Marlin
     const size_t coarse = sweep_values(rq.k_min, rq.k_max, rq.k_step, std::span(ks.data(), ks.size() - 8));
     if (rq.slot >= VirtualToolIndex::count || !is_valid(rq.params) || coarse < 3 || coarse + rq.refine > max_lines || rq.k_min < 0.f || rq.k_max > 1.f
         || rq.refine > 8 || !(rq.pitch >= 3.f && rq.pitch <= 20.f) || !std::isfinite(rq.x) || !std::isfinite(rq.y)) {
@@ -523,6 +564,14 @@ void calibrate(const Request &rq) {
     }
     // En un clic : la bobine est chargée par le MMU si elle n'est pas dans la buse ; jamais avec un MMU en erreur
     const bool in_nozzle = loaded_slot() == rq.slot;
+    if (load_tried && stop_requested) {
+        fail(Error::stopped); // annulé pendant le chargement
+        return;
+    }
+    if (!in_nozzle && load_tried) {
+        fail(Error::load_failed); // chargement déjà tenté : pas de seconde tentative
+        return;
+    }
     if (MMU2::mmu2.Enabled() && !mmu_ready()) {
         fail(Error::mmu);
         return;
@@ -543,10 +592,24 @@ void calibrate(const Request &rq) {
         return;
     }
 
+    if (!in_nozzle) {
+        // Jamais le MMU depuis cette pile (débordement en 8.0.2.23) : « Charger dans la buse » de Prusa mis en file,
+        // puis cette mesure avec J1 ; M1994 rend la main
+        char filament[16];
+        if (!oneclick_sequence(sequence, rq, filament_param(rq.slot, filament)) || !inject_sequence()) {
+            fail(Error::mmu);
+            return;
+        }
+        before_load.emplace(Hotend::for_tool(PhysicalToolIndex::from_raw(0)).nozzle_target_temp(), thermalManager.degTargetBed());
+        st_phase = Phase::loading;
+        followup = true; // « en cours » pour l'interface jusqu'à la suite
+        return;
+    }
+
     running = true;
     ScopeGuard not_running = [] { running = false; };
     st_steps = lines.count;
-    last = {};
+    last = no_run;
     last.slot = rq.slot;
 
     // Réglages remis à la fin, même sur un arrêt de Marlin : PA, mouvements, consignes, maillage (session commune)
@@ -565,8 +628,7 @@ void calibrate(const Request &rq) {
         return;
     }
 
-    // Buse à la température de la matière au-dessus de la purge, chargement si besoin (comme le T du G-code de départ
-    // du MMU), puis ligne de purge au bord avant
+    // Buse à la température de la matière au-dessus de la purge, puis ligne de purge au bord avant
     st_phase = Phase::heating;
     if (const session::Result r = session.go_to_purge(); r != session::Result::ok) {
         fail(error_of(r));
@@ -576,18 +638,12 @@ void calibrate(const Request &rq) {
         fail(error_of(r));
         return;
     }
-    if (!in_nozzle) {
-        st_phase = Phase::loading;
-        if (!load(rq.slot)) {
-            fail(must_stop() ? Error::stopped : Error::not_loaded);
-            return;
-        }
-    }
     st_phase = Phase::priming;
     if (!session.purge()) {
         fail(Error::stopped);
         return;
     }
+    const uint32_t stack_free = stack_free_min();
 
     // CSV facultatif sur la clé : un fichier par emplacement, réécrit à chaque mesure
     FILE *csv = nullptr;
@@ -596,10 +652,10 @@ void calibrate(const Request &rq) {
         snprintf(path, sizeof(path), "/usb/OD3D_PA%u.CSV", unsigned(rq.slot + 1));
         csv = fopen(path, "w");
         if (csv) {
-            force_probe::csv_printf(csv, "# OneDrop3D PA (F4) slot %u, %s, nozzle %d C, bed %d C, printed lines %.2f x %.2f mm from X%.1f Y%.1f pitch %.1f, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, cycles %u\n",
+            force_probe::csv_printf(csv, "# OneDrop3D PA (F4) slot %u, %s, nozzle %d C, bed %d C, printed lines %.2f x %.2f mm from X%.1f Y%.1f pitch %.1f, slow %.2f mm3/s %.2f s, fast %.2f mm3/s %.2f s, cycles %u, stack_free_min %u B\n",
                 unsigned(rq.slot + 1), material.name.data(), int(t.nozzle), int(t.bed), double(rq.params.bead.width), double(rq.params.bead.height),
                 double(rq.x), double(rq.y), double(rq.pitch), double(rq.params.slow_flow), double(rq.params.slow_s), double(rq.params.fast_flow),
-                double(rq.params.fast_s), unsigned(rq.params.cycles));
+                double(rq.params.fast_s), unsigned(rq.params.cycles), unsigned(stack_free));
             force_probe::csv_printf(csv, "# force up positive. D,k,t_s,x_mm,force_g / R,k,lag_s,cost,overshoot,undershoot,amplitude_g,noise,cycles / C,k,confidence,fit,slope,k_lag,k_cost\n");
         }
     }
@@ -696,7 +752,98 @@ void set_auto_mode(AutoMode mode) {
     }
 }
 
+namespace {
+
+    /// Mesure automatique en cours : décidée par M1994 A, faite étape par étape (chargement de Prusa, puis M1994 P<n> A1)
+    struct AutoPlan {
+        std::array<uint8_t, VirtualToolIndex::count> order {}; ///< emplacements à mesurer, dans l'ordre
+        uint8_t count = 0;
+        uint8_t next = 0; ///< prochaine étape
+        std::optional<uint8_t> initial; ///< filament dans la buse au départ, remis à la fin
+        pattern::Rect block {}; ///< zone des motifs
+        int16_t bed = 0;
+        int16_t probe = 0; ///< buse pendant le palpage
+        bool leveled = false; ///< zone palpée par une étape précédente (maillage en mémoire)
+        bool active = false;
+    };
+    AutoPlan plan;
+
+    /// Lignes de l'étape i (un bloc par emplacement : purge, puis lignes)
+    pattern::Lines auto_lines_of(size_t i, uint8_t slot) {
+        const pattern::Rect one = lines_for(auto_request(slot), auto_lines, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
+        const float y = plan.block.y0 + float(i) * (one.y1 + auto_spacing);
+        return lines_for(auto_request(slot), auto_lines, plan.block.x0 - one.x0, y + auto_purge_half + auto_purge_gap);
+    }
+
+    /// L'impression continue (pas d'arrêt en cours) : la mesure automatique peut mettre la suite en file
+    bool print_goes_on() {
+        return marlin_server::is_printing() && !marlin_server::aborting_or_aborted();
+    }
+
+    /// Met en file l'étape suivante avant le reste de l'impression ; après la dernière, le filament remis comme au départ
+    void auto_next() {
+        char filament[16];
+        bool ok;
+        if (plan.next < plan.count) {
+            const uint8_t slot = plan.order[plan.next];
+            ok = auto_step_sequence(sequence, slot, loaded_slot() == slot ? nullptr : filament_param(slot, filament));
+        } else {
+            plan.active = false;
+            ok = auto_restore_sequence(sequence, plan.initial, loaded_slot(), plan.initial ? filament_param(*plan.initial, filament) : "");
+        }
+        if (!ok || !inject_sequence()) {
+            plan.active = false; // file d'injection pleine : l'impression continue avec le PA du trancheur
+            log_slot(plan.next < plan.count ? plan.order[plan.next] : 0xff, Error::mmu);
+        }
+    }
+
+    /// Mesure de l'emplacement slot (étape i), filament dans la buse ; stopped : « Passer », pause ou arrêt
+    Error measure_auto_slot(uint8_t slot, size_t i, bool &stopped) {
+        const Request rq = auto_request(slot);
+        const pattern::Lines lines = auto_lines_of(i, slot);
+        const Temperatures t = temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).parameters(), 0, 0);
+        st_temperature = t.nozzle;
+
+        // Réglages remis à la fin ; « Passer » sur l'écran Impression arrête la mesure, l'impression continue
+        session::Session session(stop_requested, true);
+        fast_moves(rq.params);
+        st_phase = Phase::bed;
+        session::Result r = session.heat_bed(plan.bed, plan.probe);
+        if (r == session::Result::ok && plan.leveled && !axes_need_homing()) {
+            set_bed_leveling_enabled(true); // maillage de l'étape précédente, gardé en mémoire
+        }
+        if (r == session::Result::ok && !planner.leveling_active) {
+            st_phase = Phase::leveling;
+            r = session.level(plan.block, plan.probe);
+            plan.leveled = r == session::Result::ok;
+        }
+        Error e = error_of(r);
+
+        // Comme le G-code de départ du MMU : au-dessus du début de la purge, buse chaude, purge
+        if (e == Error::none) {
+            st_phase = Phase::heating;
+            if (session.go_to_purge(lines.x0, lines.y0 - auto_purge_gap, 1.f) != session::Result::ok || session.heat(t.nozzle) != session::Result::ok) {
+                e = must_stop() ? Error::stopped : Error::heating;
+            }
+        }
+        if (e == Error::none) {
+            st_phase = Phase::priming;
+            if (!session.purge(lines.x0, 1.f)) {
+                e = Error::stopped;
+            }
+        }
+        if (e == Error::none) {
+            std::ignore = stack_free_min();
+            e = sweep(session, rq, lines, nullptr);
+        }
+        stopped = must_stop(); // avant la fin de la session (« Passer » n'est lu que pendant)
+        return e;
+    }
+
+} // namespace
+
 void calibrate_auto() {
+    plan = {};
     const AutoMode mode = auto_mode();
     if (mode == AutoMode::off || running || !marlin_server::is_printing()) {
         return;
@@ -754,12 +901,11 @@ void calibrate_auto() {
     }
 
     // Place : un bloc par emplacement (purge, puis lignes), autant d'emplacements qu'il en tient à côté de la pièce
-    const Request first = auto_request(order[0]);
-    const pattern::Rect one = lines_for(first, auto_lines, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
+    const pattern::Rect one = lines_for(auto_request(order[0]), auto_lines, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
     const float block_w = one.width();
     const float block_h = one.y1;
-    std::array<float, 2 * GRID_MAX_POINTS_X> xs;
-    std::array<float, 2 * GRID_MAX_POINTS_Y> ys;
+    static std::array<float, 2 * GRID_MAX_POINTS_X> xs; // hors de la pile de Marlin
+    static std::array<float, 2 * GRID_MAX_POINTS_Y> ys;
     const size_t nx = major_points(xs, GRID_MAX_POINTS_X, unified_bed_leveling::mesh_index_to_xpos);
     const size_t ny = major_points(ys, GRID_MAX_POINTS_Y, unified_bed_leveling::mesh_index_to_ypos);
     const pattern::Rect print { area->a.x, area->a.y, area->b.x, area->b.y };
@@ -777,91 +923,62 @@ void calibrate_auto() {
     for (size_t i = fitting; i < count; ++i) {
         report_slot(order[i], Error::no_room); // pas la place pour tous : à la prochaine impression
     }
-    const pattern::Rect block = *spot;
-    const auto block_of = [&](size_t i) {
-        const float y = block.y0 + float(i) * (block_h + auto_spacing);
-        return lines_for(auto_request(order[i]), auto_lines, block.x0 - one.x0, y + auto_purge_half + auto_purge_gap);
-    };
+
+    // Matières des emplacements mesurés : plateau de l'impression (M140 du fichier), buse de palpage la plus basse
+    plan.probe = session::max_temperature;
+    for (size_t i = 0; i < fitting; ++i) {
+        plan.order[i] = order[i];
+        plan.probe = std::min(plan.probe, temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(order[i])).parameters(), 0, 0).probe);
+    }
+    const FilamentTypeParameters first_material = FilamentType::for_tool(VirtualToolIndex::from_raw(order[0])).parameters();
+    plan.bed = temperatures_for(first_material, 0, int16_t(GCodeInfo::getInstance().get_bed_preheat_temp().value_or(0))).bed;
+    plan.count = uint8_t(fitting);
+    plan.initial = initial;
+    plan.block = *spot;
+    plan.active = true;
+    thermalManager.setTargetBed(plan.bed); // chaud entre les étapes : chacune remet cette consigne à sa fin
+    auto_next();
+}
+
+void calibrate_auto_step(uint8_t slot) {
+    if (!plan.active || plan.next >= plan.count || plan.order[plan.next] != slot) {
+        return; // pas l'étape attendue (G-code tapé à la main, impression d'avant)
+    }
+    const size_t i = plan.next++;
+    if (!print_goes_on()) {
+        // Impression arrêtée pendant le chargement : plus rien (Prusa s'occupe de la fin)
+        for (size_t j = i; j < plan.count; ++j) {
+            log_slot(plan.order[j], Error::stopped);
+        }
+        plan.active = false;
+        return;
+    }
 
     stop_requested = false;
     running = true;
     ScopeGuard not_running = [] { running = false; ++runs; };
-    begin(order[0]);
+    begin(slot);
+    bool stopped = false;
+    // Chargement de Prusa déjà tenté : sans la bobine dans la buse, pas de seconde tentative
+    const Error e = loaded_slot() == slot ? measure_auto_slot(slot, i, stopped) : Error::load_failed;
+    fail(e);
+    report_slot(slot, e);
 
-    // Matières des emplacements mesurés : plateau de l'impression (M140 du fichier), buse de palpage la plus basse
-    int16_t probe = session::max_temperature;
-    for (size_t i = 0; i < fitting; ++i) {
-        probe = std::min(probe, temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(order[i])).parameters(), 0, 0).probe);
+    // Mesure ratée sur ses lignes : on passe à la suivante ; sinon (« Passer », chauffe, palpage, chargement) les
+    // emplacements restants gardent le PA du trancheur, et le filament est remis comme au départ
+    const bool next_slot = !stopped
+        && (e == Error::none || e == Error::weak_signal || e == Error::no_crossing || e == Error::too_few_points || e == Error::out_of_range
+            || e == Error::low_confidence);
+    if (!next_slot) {
+        for (size_t j = plan.next; j < plan.count; ++j) {
+            log_slot(plan.order[j], Error::stopped);
+        }
+        plan.next = plan.count;
     }
-    const FilamentTypeParameters first_material = FilamentType::for_tool(VirtualToolIndex::from_raw(order[0])).parameters();
-    const int16_t bed = temperatures_for(first_material, 0, int16_t(GCodeInfo::getInstance().get_bed_preheat_temp().value_or(0))).bed;
-
-    {
-        // Réglages remis à la fin ; « Passer » sur l'écran Impression arrête la mesure, l'impression continue
-        session::Session session(stop_requested, true);
-        fast_moves(first.params);
-        st_phase = Phase::bed;
-        session::Result r = session.heat_bed(bed, probe);
-        if (r == session::Result::ok) {
-            st_phase = Phase::leveling;
-            r = session.level(block, probe);
-        }
-        if (r != session::Result::ok) {
-            fail(error_of(r));
-            for (size_t i = 0; i < fitting; ++i) {
-                report_slot(order[i], error_of(r));
-            }
-        }
-        size_t i = 0;
-        for (; r == session::Result::ok && i < fitting; ++i) {
-            const uint8_t slot = order[i];
-            const Request rq = auto_request(slot);
-            const pattern::Lines lines = block_of(i);
-            const Temperatures t = temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).parameters(), 0, 0);
-            begin(slot);
-            st_temperature = t.nozzle;
-            Error e = Error::none;
-
-            // Comme le G-code de départ du MMU : au-dessus du début de la purge, buse chaude, chargement, purge
-            st_phase = Phase::heating;
-            if (session.go_to_purge(lines.x0, lines.y0 - auto_purge_gap, 1.f) != session::Result::ok || session.heat(t.nozzle) != session::Result::ok) {
-                e = must_stop() ? Error::stopped : Error::heating;
-            }
-            if (e == Error::none && loaded_slot() != slot) {
-                st_phase = Phase::loading;
-                if (!load(slot)) {
-                    e = must_stop() ? Error::stopped : Error::not_loaded;
-                }
-            }
-            if (e == Error::none) {
-                st_phase = Phase::priming;
-                if (!session.purge(lines.x0, 1.f)) {
-                    e = Error::stopped;
-                }
-            }
-            if (e == Error::none) {
-                e = sweep(session, rq, lines, nullptr);
-            }
-            fail(e);
-            report_slot(slot, e);
-            if (must_stop()) {
-                ++i;
-                break; // « Passer », pause ou arrêt : les emplacements restants gardent le PA du trancheur
-            }
-        }
-        for (; r == session::Result::ok && i < fitting; ++i) {
-            log_slot(order[i], Error::stopped);
-        }
-
-        // Filament remis comme au départ (déchargé en général) : le G-code de départ charge lui-même sa bobine
-        if (!planner.draining() && loaded_slot() != initial) {
-            st_phase = Phase::loading;
-            if (initial) {
-                std::ignore = load(*initial);
-            } else {
-                MMU2::mmu2.unload();
-            }
-        }
+    if (print_goes_on()) {
+        auto_next();
+    } else {
+        plan.active = false;
     }
 }
 

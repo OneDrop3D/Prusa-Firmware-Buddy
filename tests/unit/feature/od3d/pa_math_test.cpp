@@ -13,6 +13,8 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
+#include <string>
 #include <vector>
 
 using namespace od3d;
@@ -514,5 +516,57 @@ TEST_CASE("od3d pa: place du motif automatique à côté de l'impression", "[od3
     SECTION("plusieurs emplacements : la hauteur réduit les places") {
         const pattern::Rect print { 85.f, 70.f, 165.f, 150.f };
         CHECK_FALSE(pa::auto_spot(zone, print, w, 3.f * h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
+    }
+}
+
+TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994", "[od3d][pa]") {
+    char out[192];
+    const auto text = [&] { return std::string(out); };
+
+    SECTION("en un clic : « Charger dans la buse » de Prusa, puis la même mesure avec J1") {
+        pa::Request rq;
+        rq.slot = 2;
+        rq.csv = true;
+        REQUIRE(pa::oneclick_sequence(out, rq, "#5"));
+        CHECK(text() == "M701 S\"#5\" W2 P2\nM1994 P2 O1 J1");
+
+        rq.slot = 0;
+        rq.csv = false;
+        rq.k_max = 0.2f;
+        rq.refine = 0;
+        rq.x = 30.f;
+        rq.temperature = 230;
+        REQUIRE(pa::oneclick_sequence(out, rq, "#12"));
+        CHECK(text() == "M701 S\"#12\" W2 P0\nM1994 P0 H0.2000 R0 T230 X30.0000 J1");
+    }
+    SECTION("automatique : chargement si besoin, puis M1994 P<n> A1") {
+        REQUIRE(pa::auto_step_sequence(out, 3, "#5"));
+        CHECK(text() == "M701 S\"#5\" W2 P3\nM1994 P3 A1");
+        REQUIRE(pa::auto_step_sequence(out, 3, nullptr));
+        CHECK(text() == "M1994 P3 A1");
+    }
+    SECTION("fin automatique : filament remis comme au départ") {
+        REQUIRE(pa::auto_restore_sequence(out, std::nullopt, std::nullopt, ""));
+        CHECK(text().empty());
+        REQUIRE(pa::auto_restore_sequence(out, 1, 1, "#7"));
+        CHECK(text().empty());
+        REQUIRE(pa::auto_restore_sequence(out, std::nullopt, 2, ""));
+        CHECK(text() == "M702 W2");
+        REQUIRE(pa::auto_restore_sequence(out, 1, 3, "#7"));
+        CHECK(text() == "M701 S\"#7\" W2 P1");
+        REQUIRE(pa::auto_restore_sequence(out, 1, std::nullopt, "#7"));
+        CHECK(text() == "M701 S\"#7\" W2 P1");
+    }
+    SECTION("tampon trop court : refusé, jamais tronqué") {
+        char small[20];
+        CHECK_FALSE(pa::oneclick_sequence(small, pa::Request {}, "#5"));
+        CHECK_FALSE(pa::auto_step_sequence(small, 1, "#5"));
+    }
+    SECTION("aucun % : la suite sert de format à GCodeLiteral") {
+        pa::Request rq;
+        rq.params.slow_flow = 2.f;
+        rq.y = 15.5f;
+        REQUIRE(pa::oneclick_sequence(out, rq, "#5"));
+        CHECK(text().find('%') == std::string::npos);
     }
 }

@@ -150,7 +150,7 @@ bool overflowed() {
 }
 
 int csv_printf(FILE *file, const char *format, ...) {
-    char line[256];
+    static char line[256]; // hors de la pile de Marlin (seul fil qui écrit les CSV)
     va_list args;
     va_start(args, format);
     const int n = vsnprintf(line, sizeof(line), format, args);

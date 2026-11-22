@@ -449,6 +449,10 @@ target_compile_options(
           -Wdouble-promotion
   )
 target_link_options(firmware PRIVATE -Wno-psabi)
+# OneDrop3D : pile de chaque fonction (.su ; avec LTO, celles de l'édition des liens), pour vérifier les cadres des
+# G-codes lourds (débordement de la pile de Marlin en 8.0.2.23 et .24) ; ne change pas le code produit
+target_compile_options(firmware PRIVATE -fstack-usage)
+target_link_options(firmware PRIVATE -fstack-usage)
 
 if(ENABLE_HW_STD_RAND)
   # Wrap rand and replace the implementation with one using HW RNG

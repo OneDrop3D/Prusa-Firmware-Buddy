@@ -22,6 +22,10 @@
 #include <timing.h>
 #include <tool/hotend/hotend.hpp>
 #include <option/has_crash_detection.h>
+#include <option/has_emergency_stop.h>
+#if HAS_EMERGENCY_STOP()
+    #include <feature/emergency_stop/emergency_stop.hpp>
+#endif
 #if HAS_CRASH_DETECTION()
     #include <feature/prusa/crash_recovery.hpp>
 #endif
@@ -67,9 +71,31 @@ namespace {
     /// Mouvement mis en file comme G1 : maillage du plateau appliqué (to_machine_pos) et découpé. Le planificateur de Prusa
     /// prend la position de line_to_current_position telle quelle, sans le maillage : les lignes du motif étaient posées à
     /// une hauteur qui ne suivait pas le plateau (cordons trop hauts, « des fils » ; trouvé par la version dans le vide, e49fff00)
+    ///
+    /// Prusa découpe le mouvement (maillage tous les LEVELED_SEGMENT_LENGTH, arrêt d'urgence tous les 0,05 mm en Z et
+    /// toutes les 0,1 s) : la descente de 15 mm de la purge en faisait ~300, et buffer_segment attendait ses places avec
+    /// idle() au fond de la pile de la mesure (débordement de la pile de Marlin en 8.0.2.24, juste après la purge). Ici,
+    /// des morceaux d'au plus `pieces` segments, chacun après une place dans la file : buffer_segment n'attend jamais.
     void queue_to(const xyze_pos_t &target, float speed) {
-        destination = target;
-        prepare_internal_move_to_destination(speed);
+        constexpr float pieces = 16.f; // + queue_depth déjà en file < BLOCK_BUFFER_SIZE
+        static_assert(pieces + queue_depth + 2 < BLOCK_BUFFER_SIZE);
+        const xyze_pos_t start = current_position;
+        const xyze_pos_t diff = target - start;
+        const float xy = std::hypot(diff.x, diff.y);
+        float n = xy / (float(LEVELED_SEGMENT_LENGTH) * pieces);
+#if HAS_EMERGENCY_STOP()
+        n = std::max({ n, std::fabs(diff.z) / (buddy::EmergencyStop::max_segment_z_mm * pieces),
+            speed > 0.f ? xy / speed / (buddy::EmergencyStop::max_segment_time_s * pieces) : 0.f });
+#endif
+        const int count = std::max(1, int(std::ceil(n)));
+        for (int i = 1; i <= count; ++i) {
+            // Même après un arrêt demandé (levée finale) : la file se vide d'elle-même ; vidée par Marlin, le mouvement est écarté
+            while (planner.movesplanned() >= queue_depth && !planner.draining()) {
+                idle(true);
+            }
+            destination = i == count ? target : start + diff * (float(i) / float(count));
+            prepare_internal_move_to_destination(speed);
+        }
     }
 } // namespace
 

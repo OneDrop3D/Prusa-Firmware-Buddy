@@ -198,4 +198,41 @@ uint8_t slots_to_measure(AutoMode mode, uint8_t used, uint8_t known, uint8_t has
 std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern::Rect &print, float w, float h, std::span<const float> xs,
     std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f);
 
+// ---- Demande de mesure (M1994) ----
+
+inline constexpr uint8_t max_lines = 15; ///< lignes du motif au plus (grossier + fin)
+
+struct Request {
+    uint8_t slot = 0;
+    float k_min = 0.f;
+    float k_max = 0.10f;
+    float k_step = 0.02f;
+    uint8_t refine = 5; ///< lignes du second balayage, au pas k_step / 4, autour du premier choix (0 : aucune)
+    Params params;
+    int16_t temperature = 0; ///< buse ; 0 : celle de la matière de l'emplacement
+    int16_t bed_temperature = 0; ///< plateau ; 0 : celle de la matière
+    float x = 20.f; ///< début des lignes (gauche)
+    float y = 12.f; ///< première ligne, à l'avant du plateau (les suivantes vers l'arrière)
+    float pitch = 5.f; ///< écart entre deux lignes [mm]
+    bool csv = false; ///< écrit /usb/OD3D_PA<n>.CSV
+};
+
+// ---- Chargement par le MMU : jamais depuis la pile de M1994 ----
+// Le chargement appelé depuis M1994 a fait déborder la pile de Marlin (8.0.2.23, BSOD « STACK_OVF marlin » pendant
+// « Déchargement vers la FINDA »). M1994 met donc en file les G-codes de Prusa et rend la main ; la mesure suit dans un
+// autre M1994. Suites de G-codes séparés par '\n' ; filament : paramètre S codé de la matière (« #<n> », comme le menu
+// de Prusa) ; false si out est trop court.
+
+/// En un clic, bobine pas dans la buse : « Charger dans la buse » de Prusa (M701 S"<matière>" W2 P<n> : l'autre
+/// filament est déchargé d'abord), puis la même demande avec J1 (chargement tenté : pas de seconde tentative)
+bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament);
+
+/// Mesure automatique, étape de slot : son chargement comme ci-dessus si filament (sinon : déjà dans la buse), puis
+/// M1994 P<n> A1
+bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament);
+
+/// Fin de la mesure automatique : filament remis comme au départ. Vide si c'est déjà le cas ; M702 W2 (« Décharger »
+/// de Prusa) s'il n'y en avait pas ; sinon le chargement de initial (filament : sa matière)
+bool auto_restore_sequence(std::span<char> out, std::optional<uint8_t> initial, std::optional<uint8_t> loaded, const char *filament);
+
 } // namespace od3d::pa

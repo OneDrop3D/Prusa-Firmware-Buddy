@@ -332,6 +332,9 @@ void ScreenPa::show_note() {
         case pa::Error::mmu:
             text = _("MMU not ready.");
             break;
+        case pa::Error::load_failed:
+            text = _("Spool not loaded: nothing measured.");
+            break;
         default:
             text = _("Invalid request.");
             break;

@@ -18,15 +18,18 @@
  *#### Usage
  *
  *    M1994 A
- *    M1994 [P<slot>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [W<mm>] [Z<mm>] [C<n>] [T<C>] [Q<C>] [X<mm>] [Y<mm>] [I<mm>] [O<0|1>]
+ *    M1994 P<slot> A1
+ *    M1994 [P<slot>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [W<mm>] [Z<mm>] [C<n>] [T<C>] [Q<C>] [X<mm>] [Y<mm>] [I<mm>] [O<0|1>] [J1]
  *
  *#### Parameters
  *
  * - `A` - mesure automatique au départ d'une impression (mise en file par l'imprimante si le réglage « PA automatique »
- *   est actif) : mesure courte des emplacements utilisés à mesurer, à côté de la zone d'impression (M555) ; un échec ou
- *   « Passer » laisse le PA du trancheur, l'impression continue
- * - `P` - emplacement 0 à 4 ; s'il n'est pas dans la buse, le MMU l'y charge (l'autre filament est déchargé) ; sans P,
- *   l'emplacement chargé
+ *   est actif) : choisit les emplacements utilisés à mesurer et leur place à côté de la zone d'impression (M555), puis
+ *   met en file pour chacun « Charger dans la buse » de Prusa et `M1994 P<n> A1` (sa mesure courte), enfin le filament
+ *   remis comme avant ; un échec ou « Passer » laisse le PA du trancheur, l'impression continue
+ * - `P` - emplacement 0 à 4 ; s'il n'est pas dans la buse, « Charger dans la buse » de Prusa est mis en file (l'autre
+ *   filament est déchargé), suivi du même M1994 avec J1 ; sans P, l'emplacement chargé
+ * - `J1` - chargement déjà tenté (mis par M1994 lui-même) : sans la bobine dans la buse, échec sans autre tentative
  * - `L`, `H`, `S` - balayage de K : de L à H par pas de S (0, 0,10, 0,02)
  * - `R` - lignes du second balayage au pas S/4 autour du premier choix (5 ; 0 : aucune) ; 15 lignes au plus en tout
  * - `B`, `F` - débits lent et rapide (1,5 et 10 mm³/s)
@@ -46,7 +49,11 @@
  */
 void PrusaGcodeSuite::M1994() {
     if (parser.seen('A')) {
-        od3d::pa::calibrate_auto();
+        if (parser.seenval('P')) {
+            od3d::pa::calibrate_auto_step(parser.value_byte());
+        } else {
+            od3d::pa::calibrate_auto();
+        }
         return;
     }
     od3d::pa::Request rq;
@@ -87,7 +94,7 @@ void PrusaGcodeSuite::M1994() {
         rq.bed_temperature = parser.value_int();
     }
     rq.csv = parser.seen('O') && parser.value_bool();
-    od3d::pa::calibrate(rq);
+    od3d::pa::calibrate(rq, parser.seen('J') && parser.value_bool());
 }
 
 /** @}*/

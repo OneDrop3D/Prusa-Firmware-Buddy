@@ -101,6 +101,7 @@ namespace {
     std::atomic<bool> st_csv = false;
 
     LastRun last;
+    constexpr LastRun no_run {}; ///< copiée dans last : pas de temporaire sur la pile de Marlin
 
     constexpr uint32_t rest_ms = 800; ///< buse arrêtée juste au-dessus du départ d'une ligne : la pression retombe
     constexpr uint32_t zero_ms = 200; ///< zéro de la force, buse au repos sans contact
@@ -341,7 +342,7 @@ void measure_flow(const FlowRequest &rq) {
     if (!type) {
         return;
     }
-    std::array<float, LastRun::max_points> flows;
+    static std::array<float, LastRun::max_points> flows; // hors de la pile de Marlin (une seule mesure à la fois)
     const float flow_max = std::min(rq.flow_max, flow_ceiling); // jamais au-delà du plafond sûr
     const size_t expected = rq.flow_step > 0 && flow_max >= rq.flow_min ? size_t((flow_max - rq.flow_min) / rq.flow_step + 1e-3f) + 1 : 0;
     const size_t n = pa::sweep_values(rq.flow_min, flow_max, rq.flow_step, flows);
@@ -380,10 +381,10 @@ void measure_flow(const FlowRequest &rq) {
     }
 
     st_phase = Phase::measuring;
-    last = {};
+    last = no_run;
     last.kind = Kind::flow;
     last.slot = rq.slot;
-    std::array<StepPoint, LastRun::max_points> pts;
+    static std::array<StepPoint, LastRun::max_points> pts; // hors de la pile de Marlin
     size_t m = 0;
     bool overload = false;
     for (size_t i = 0; i < n; ++i) {
@@ -456,7 +457,7 @@ void measure_temperature(const TempRequest &rq) {
     const int16_t start = std::min<int16_t>(rq.start > 0 ? std::min(rq.start, nominal) : nominal, session::max_temperature);
     const int16_t lowest = EXTRUDE_MINTEMP + min_temperature_margin;
     const int16_t floor = std::max<int16_t>(rq.floor > 0 ? rq.floor : int16_t(start - default_drop), lowest);
-    std::array<int16_t, LastRun::max_points> temps;
+    static std::array<int16_t, LastRun::max_points> temps; // hors de la pile de Marlin
     const size_t n = temperature_steps(start, floor, rq.step, temps);
     MinTempThresholds th;
     th.max_ratio = rq.max_ratio;
@@ -490,11 +491,11 @@ void measure_temperature(const TempRequest &rq) {
         force_probe::csv_printf(csv, "# force up positive, zero above the line start. D,temp,t_s,x_mm,force_g / R,temp,force_g,noise_g / C,fit,temp,reference_g,index\n");
     }
 
-    last = {};
+    last = no_run;
     last.kind = Kind::temperature;
     last.slot = rq.slot;
     last.max_ratio = rq.max_ratio;
-    std::array<StepPoint, LastRun::max_points> pts;
+    static std::array<StepPoint, LastRun::max_points> pts; // hors de la pile de Marlin
     size_t m = 0;
     bool overload = false;
     const uint32_t hold_ms = uint32_t(rq.hold_s * 1000.f);

@@ -13,14 +13,16 @@
 ///   l'utilisateur choisit la meilleure ligne à l'œil (choose_line()), comme le test PA d'Orca.
 ///   Refusée pendant une impression, arrêtable à tout moment (request_stop()), état remis à la fin (session commune).
 ///   Trace et résultats exportables en CSV sur la clé.
-/// - En un clic (retour du 22/11) : si la bobine n'est pas dans la buse, la mesure la charge elle-même, par le chemin
-///   de Prusa (« Charger dans la buse » du MMU : l'autre filament est déchargé d'abord), après le palpage, au-dessus de
-///   la purge, comme le G-code de départ. Le filament reste chargé à la fin.
+/// - En un clic (retour du 22/11) : si la bobine n'est pas dans la buse, M1994 met en file « Charger dans la buse » de
+///   Prusa (M701 S W2 P : l'autre filament est déchargé d'abord, question de la couleur comprise) puis lui-même avec
+///   J1, et rend la main : le MMU n'est jamais piloté depuis la pile de M1994 (débordement de la pile de Marlin en
+///   8.0.2.23). Le filament reste chargé à la fin.
 /// - Automatique (réglage « PA automatique », comme la calibration de la dynamique du débit des Bambu) : M1994 A, mis
-///   en file au départ de l'impression (PrintInit), avant le G-code de départ du trancheur, mesure courte (5 lignes) des
-///   emplacements utilisés sans K (ou de tous) dans une bande libre à côté de la pièce (auto_spot()), puis remet le
-///   filament comme avant (déchargé en général) ; le G-code de départ fait ensuite tout comme d'habitude. Un échec ou
-///   un « Passer » ne bloque jamais l'impression : le PA du trancheur reste, et un message le dit.
+///   en file au départ de l'impression (PrintInit), choisit les emplacements utilisés sans K (ou tous) et une bande libre
+///   à côté de la pièce (auto_spot()) ; puis, une étape à la fois par la file d'injection (avant les lignes du fichier) :
+///   « Charger dans la buse » de Prusa, M1994 P<n> A1 (mesure courte, 5 lignes) ; enfin le filament remis comme avant
+///   (M702 W2 en général). Le G-code de départ fait ensuite tout comme d'habitude. Un échec ou un « Passer » ne bloque
+///   jamais l'impression : le PA du trancheur reste, et un message le dit.
 /// Le PA adaptatif est pour plus tard.
 #pragma once
 
@@ -99,6 +101,7 @@ enum class Error : uint8_t {
     low_confidence, ///< mesure trop peu sûre pour être enregistrée
     mmu, ///< le MMU n'est pas prêt (absent ou en erreur)
     no_area, ///< mesure automatique : l'impression ne déclare pas sa zone (M555)
+    load_failed, ///< le chargement de Prusa n'a pas mis la bobine dans la buse (pas de seconde tentative)
 };
 
 struct Status {
@@ -116,7 +119,7 @@ struct Status {
 
 Status status();
 
-/// Une mesure est en cours (M1994)
+/// Une mesure est en cours (M1994), ou attend son chargement par Prusa (en un clic)
 bool is_running();
 
 /// Nombre de M1994 traités (mesurés ou refusés) depuis le démarrage : l'interface sait quand sa demande a répondu
@@ -125,35 +128,23 @@ uint16_t run_count();
 /// Demande l'arrêt (depuis l'interface) : les mouvements déjà en file finissent (3 s au plus)
 void request_stop();
 
-inline constexpr uint8_t max_lines = 15; ///< lignes du motif au plus (grossier + fin)
-
-struct Request {
-    uint8_t slot = 0;
-    float k_min = 0.f;
-    float k_max = 0.10f;
-    float k_step = 0.02f;
-    uint8_t refine = 5; ///< lignes du second balayage, au pas k_step / 4, autour du premier choix (0 : aucune)
-    Params params;
-    int16_t temperature = 0; ///< buse ; 0 : celle de la matière de l'emplacement
-    int16_t bed_temperature = 0; ///< plateau ; 0 : celle de la matière
-    float x = 20.f; ///< début des lignes (gauche)
-    float y = 12.f; ///< première ligne, à l'avant du plateau (les suivantes vers l'arrière)
-    float pitch = 5.f; ///< écart entre deux lignes [mm]
-    bool csv = false; ///< écrit /usb/OD3D_PA<n>.CSV
-};
-
-/// Corps de M1994 : charge la bobine de l'emplacement si besoin, mesure son K et l'enregistre ; bloque jusqu'à la fin
-/// ou l'arrêt
-void calibrate(const Request &request);
+/// Corps de M1994 : mesure le K de l'emplacement et l'enregistre ; bloque jusqu'à la fin ou l'arrêt. Bobine pas dans
+/// la buse : met en file le chargement de Prusa puis le même M1994 avec J1 (load_tried), et rend la main aussitôt ;
+/// avec load_tried, une bobine toujours pas dans la buse est un échec (load_failed), sans seconde tentative
+void calibrate(const Request &request, bool load_tried = false);
 
 /// Réglage « PA automatique » ; un mode actif allume aussi « le PA de l'imprimante prime » (sinon le K mesuré ne
 /// servirait pas)
 AutoMode auto_mode();
 void set_auto_mode(AutoMode mode);
 
-/// Corps de M1994 A, au départ d'une impression : mesure courte des emplacements à mesurer, sans jamais bloquer ni
-/// arrêter l'impression
+/// Corps de M1994 A, au départ d'une impression : choisit les emplacements à mesurer et leur place, puis met en file,
+/// avant les lignes du fichier, une étape par emplacement (chargement de Prusa, puis M1994 P<n> A1) ; jamais bloquant
 void calibrate_auto();
+
+/// Corps de M1994 P<n> A1 : mesure courte de l'emplacement chargé par l'étape, puis met en file l'étape suivante, ou
+/// à la fin le filament remis comme au départ ; un échec ou « Passer » laisse le PA du trancheur, l'impression continue
+void calibrate_auto_step(uint8_t slot);
 
 /// Dernière mesure (en mémoire vive seulement), pour l'écran : K de chaque ligne imprimée **dans l'ordre des lignes**
 /// (ligne 1 à l'avant), retard, coût, et forme moyenne d'un créneau au K le plus bas, au meilleur coût et au K le plus

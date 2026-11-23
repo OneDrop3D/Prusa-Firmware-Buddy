@@ -679,14 +679,13 @@ void calibrate(const Request &rq, bool load_tried) {
         fail(Error::load_failed); // chargement déjà tenté : pas de seconde tentative
         return;
     }
-    if (MMU2::mmu2.Enabled() && !mmu_ready()) {
+    // MMU activé qui ne répond pas (à flasher, M709 S2) : rien n'est sûr dans la buse, jamais de motif dans le vide
+    if (config_store().mmu2_enabled.get() && !mmu_ready()) {
         fail(Error::mmu);
         return;
     }
-    if (!in_nozzle && !MMU2::mmu2.Enabled()) {
-        fail(Error::not_loaded);
-        return;
-    }
+    // Pas dans la buse : chargement de Prusa mis en file, avec le MMU ou, sans MMU, sa demande d'insérer le filament
+    // (« Arrêter » y passe la mesure : load_failed au retour)
     const FilamentTypeParameters material = type.parameters();
     const Temperatures t = temperatures_for(material, rq.temperature, rq.bed_temperature);
     st_temperature = t.nozzle;

@@ -43,13 +43,14 @@ namespace {
 
 std::optional<uint8_t> loaded_slot() {
     const auto tool = VirtualToolIndex::currently_selected_opt();
-    if (!tool) {
-        return std::nullopt;
-    }
-    if (!MMU2::mmu2.Enabled()) {
-        return tool->to_raw(); // sans MMU : l'outil unique, comme Prusa
-    }
-    return confirmed_slot(tool->to_raw(), MMU2::mmu2.FindaDetectsFilament(), extruder_sees_filament());
+    const FilamentSensorState head = FSensors_instance().sensor_state(LogicalFilamentSensor::extruder);
+    return nozzle_slot({
+        .mmu_configured = config_store().mmu2_enabled.get(),
+        .mmu_active = MMU2::mmu2.Enabled(),
+        .prusa_slot = tool ? tool->to_raw() : no_slot,
+        .finda = MMU2::mmu2.FindaDetectsFilament(),
+        .extruder = head == FilamentSensorState::HasFilament ? Sensor::has : (head == FilamentSensorState::NoFilament ? Sensor::none : Sensor::unknown),
+    });
 }
 
 void step() {

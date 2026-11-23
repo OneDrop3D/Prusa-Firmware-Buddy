@@ -1,5 +1,6 @@
 /// @file
 #include "spool_calib_od3d.hpp"
+#include "filament_memory_od3d.hpp"
 #include "flow_limit_od3d.hpp"
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
@@ -230,9 +231,8 @@ namespace {
             fail(Error::bad_request);
             return FilamentType::none;
         }
-        const auto loaded = VirtualToolIndex::currently_selected_opt();
         const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
-        if (!loaded || loaded->to_raw() != slot || !type) {
+        if (filament_memory::loaded_slot() != slot || !type) { // jamais de motif dans le vide (retour du 23/11)
             fail(Error::not_loaded);
             return FilamentType::none;
         }

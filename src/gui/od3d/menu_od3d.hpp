@@ -10,7 +10,9 @@
 #include <utility>
 #include <i_window_menu.hpp>
 #include <i_window_menu_container.hpp>
+#include <type_traits>
 #include <window_frame.hpp>
+#include <window_menu_virtual.hpp>
 
 namespace od3d {
 
@@ -71,6 +73,9 @@ public:
     MenuList(window_t *parent, Rect16 rect, Args &&...args)
         : MenuListBase(parent, rect)
         , menu(this, rect, std::forward<Args>(args)...) {
+        if constexpr (std::is_base_of_v<WindowMenuVirtualBase, Menu>) {
+            menu.set_peek_item(); // la liste virtuelle prépare la demi-ligne
+        }
         attach(menu);
     }
 

@@ -62,6 +62,10 @@ Status status();
 /// Lance l'écriture sur la tâche des travaux asynchrones : refusé hors du mode M709 S2 ou pendant une écriture
 bool start();
 
+/// Mise à jour du MMU en cours : le MMU est inutilisable, du passage en mode M709 S2 à « Terminer » (M709 X2), et tant
+/// que l'écriture tourne. L'assistant de calibration y reporte les tests qui ont besoin du MMU. Lisible de toute tâche.
+bool busy();
+
 /// Nouvelle séance du mode M709 S2 (mmu_usb_od3d.cpp) : oublie le résultat de la précédente
 void forget_result();
 

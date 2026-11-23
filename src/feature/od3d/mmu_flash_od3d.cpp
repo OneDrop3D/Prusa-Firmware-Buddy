@@ -360,6 +360,10 @@ bool start() {
     return true;
 }
 
+bool busy() {
+    return mmu_usb::active() || job.is_active();
+}
+
 void forget_result() {
     Phase p = Phase::done;
     if (!phase.compare_exchange_strong(p, Phase::idle)) {

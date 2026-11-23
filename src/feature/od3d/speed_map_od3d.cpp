@@ -56,11 +56,10 @@ namespace {
         std::array<float, axis_count> bound; ///< mm de part et d'autre du centre
     };
 
-    /// Prise d'origine si besoin, hauteur sûre, centre du plateau borné par les butées logicielles
+    /// Hauteur sûre, centre du plateau borné par les butées logicielles ; not_homed sans origine
     Status prepare(Geometry &g) {
-        if (axes_need_homing()) {
-            GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
-        }
+        // Jamais d'origine ici (retour du 23/11 : le plateau montait palper, accéléromètre fixé) : l'écran ou
+        // l'assistant la prend avant de demander de le fixer (M1989 H) ; perdue depuis : refusé, sans bouger
         if (must_stop()) {
             return Status::stopped;
         }

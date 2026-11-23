@@ -39,12 +39,12 @@ enum class Status : uint8_t {
     hot_nozzle, ///< refusé : buse au-dessus de 50 °C (l'accéléromètre se fixe sur l'extrudeur)
     no_accelerometer, ///< l'accéléromètre ne répond pas (texte de Prusa)
     failed, ///< la mesure a échoué en cours de route (accéléromètre)
-    not_homed, ///< la prise d'origine a échoué
+    not_homed, ///< pas d'origine : refusé (jamais prise accéléromètre fixé)
 };
 
 /// Étape en cours, pour l'interface
 enum class Stage : uint8_t {
-    preparing, ///< prise d'origine, déplacement
+    preparing, ///< déplacement à la position de mesure
     calibrating, ///< étalonnage de la fréquence d'échantillonnage de l'accéléromètre (~15 s)
     belt_a,
     belt_b,

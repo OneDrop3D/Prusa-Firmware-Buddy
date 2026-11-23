@@ -23,7 +23,7 @@
  * - `I` - harmonique mesurée : 1 (par défaut) = la fréquence d'excitation, 2 = son double (essai)
  *
  * L'accéléromètre de l'input shaper doit être fixé sur l'extrudeur. Refusé pendant une impression et si la buse dépasse
- * 50 °C. Prise d'origine si nécessaire, buse à 10 mm au moins, position du réglage manuel des courroies de Prusa (M961),
+ * 50 °C, et sans origine (jamais prise accéléromètre fixé). Buse à 10 mm au moins, position du réglage manuel des courroies de Prusa (M961),
  * puis chaque moteur seul (A, puis B) fait vibrer la tête de 70 à 120 Hz ; le pic de la réponse donne la fréquence
  * de la courroie. S'arrête depuis l'écran.
  */

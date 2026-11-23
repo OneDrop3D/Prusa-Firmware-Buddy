@@ -207,7 +207,7 @@ void ScreenDamping::show_info() {
         switch (shown_status) {
         case Status::idle:
         case Status::running:
-            text = _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).");
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).");
             break;
         case Status::done: {
             char x[8], y[8], prusa[8]; // recopiés dans info_params
@@ -232,8 +232,8 @@ void ScreenDamping::show_info() {
         case Status::failed:
             text = _("Measurement failed.");
             break;
-        case Status::not_homed:
-            text = _("Homing failed.");
+        case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).");
             break;
         }
     }
@@ -259,12 +259,14 @@ void ScreenDamping::update() {
         curves.Invalidate();
     }
 
-    if (now_running != shown_running || pending != shown_pending || s != shown_status || axis != shown_axis || progress != shown_progress || calibrating != shown_calibrating) {
+    const char *homing = now_running || pending ? nullptr : accelerometer_homing_text();
+    if (now_running != shown_running || pending != shown_pending || s != shown_status || axis != shown_axis || progress != shown_progress || calibrating != shown_calibrating || homing != shown_homing) {
         const bool was_busy = shown_running || shown_pending;
         shown_running = now_running;
         shown_pending = pending;
         shown_status = s;
         shown_axis = axis;
+        shown_homing = homing;
         shown_progress = progress;
         shown_calibrating = calibrating;
         show_info();
@@ -303,6 +305,9 @@ void ScreenDamping::start() {
     if (hotend.temp_nozzle.get() > damping::max_nozzle_temperature || hotend.target_nozzle.get() > damping::max_nozzle_temperature) {
         MsgBoxWarning(_("Let the nozzle cool below 50°C, then start again."), Responses_Ok);
         return;
+    }
+    if (!accelerometer_homed_or_home()) {
+        return; // origine d'abord, accéléromètre pas encore fixé : l'écran demande ensuite de le fixer
     }
     // ACC-1 : M1997 vérifie l'accéléromètre avant tout mouvement ; s'il ne répond pas, update() guide l'utilisateur
     const uint16_t before = damping::run_count();

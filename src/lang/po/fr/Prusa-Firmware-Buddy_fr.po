@@ -12496,8 +12496,8 @@ msgid "Measured: belt %c at %d.%d Hz"
 msgstr "Mesuré : courroie %c à %d,%d Hz"
 
 #: src/feature/od3d/live_od3d.hpp
-msgid "Homing and moving to the measuring position"
-msgstr "Origine et déplacement à la position de mesure"
+msgid "Moving to the measuring position"
+msgstr "Déplacement à la position de mesure"
 
 #: src/feature/od3d/live_od3d.hpp
 msgid "Axis %c: vibrations measured at each speed"
@@ -12586,3 +12586,11 @@ msgstr "Buse vide, plateau dégagé. Centre palpé 170-260°C aller-retour, nett
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "MMU not answering: %d tests postponed, still to do."
 msgstr "MMU muet : %d tests reportés, restent à faire."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Homing without the accelerometer, please wait..."
+msgstr "Prise d'origine sans l'accéléromètre, patientez..."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Start homes the printer first: accelerometer not on the nozzle yet (remove it if it is)."
+msgstr "Démarrer prend d'abord l'origine : accéléromètre pas encore sur la buse (retirez-le s'il y est)."

@@ -61,6 +61,7 @@ private:
 class ScreenCalibAssistant final : public Screen {
 public:
     ScreenCalibAssistant();
+    ~ScreenCalibAssistant();
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
@@ -83,6 +84,7 @@ private:
     uint32_t shown_key = 0xffffffff; ///< ce qui est affiché (étape, températures, avancement) : redessiné s'il change
     uint8_t buttons_stage = 0xff; ///< étape dont les boutons portent les libellés
     uint8_t focus_stage = 0xff; ///< étape dont le focus a été posé
+    bool motors_held = false; ///< od3d::sleep::hold_motors : de la buse qui refroidit à la fin des tests à l'accéléromètre
 };
 
 /// Réglages › Fonctions OneDrop3D › « Assistant de calibration »

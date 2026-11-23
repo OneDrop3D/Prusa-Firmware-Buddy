@@ -35,6 +35,7 @@
 #include <feature/od3d/mpc_control_od3d.hpp>
 #include <feature/od3d/nozzle_expansion_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
+#include <feature/od3d/sleep_od3d.hpp>
 #include <feature/od3d/speed_map_od3d.hpp>
 #include <feature/od3d/spool_calib_od3d.hpp>
 #include <filament.hpp>
@@ -1063,7 +1064,21 @@ ScreenCalibAssistant::ScreenCalibAssistant()
     update();
 }
 
+ScreenCalibAssistant::~ScreenCalibAssistant() {
+    if (motors_held) {
+        sleep::hold_motors(false);
+    }
+}
+
 void ScreenCalibAssistant::update() {
+    // Origine prise avant de demander de fixer l'accéléromètre (M1989 H) : les moteurs restent alimentés jusqu'à la
+    // fin de ses tests, sinon elle se perdrait et serait refaite accéléromètre fixé (retour du 23/11)
+    const bool hold = flow.stage == Stage::cooling || flow.stage == Stage::sock_off || flow.stage == Stage::attach || flow.stage == Stage::checking
+        || flow.stage == Stage::accel_run;
+    if (hold != motors_held) {
+        motors_held = hold;
+        sleep::hold_motors(hold);
+    }
     switch (flow.stage) {
     case Stage::checking:
         if (assistant::check_count() != flow.checks_at_request) {

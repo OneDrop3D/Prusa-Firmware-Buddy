@@ -47,12 +47,11 @@ namespace {
         return stop_requested.load() || planner.draining() || !marlin_server::printer_idle();
     }
 
-    /// Prise d'origine si besoin, puis la position de M1959 (centre du plateau, mi-hauteur), sans descendre sous ce
-    /// qui a été imprimé ; bornée par les butées logicielles
+    /// La position de M1959 (centre du plateau, mi-hauteur), sans descendre sous ce qui a été imprimé ; bornée par les
+    /// butées logicielles ; false sans origine
     bool prepare() {
-        if (axes_need_homing()) {
-            GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
-        }
+        // Jamais d'origine ici (retour du 23/11 : le plateau montait palper, accéléromètre fixé) : l'écran ou
+        // l'assistant la prend avant de demander de le fixer (M1989 H) ; perdue depuis : refusé, sans bouger
         if (must_stop() || axes_need_homing()) {
             return false;
         }

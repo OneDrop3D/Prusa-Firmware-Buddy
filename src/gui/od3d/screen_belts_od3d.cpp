@@ -253,7 +253,7 @@ void ScreenBelts::show_info() {
         switch (shown_status) {
         case Status::idle:
         case Status::running:
-            text = _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
             break;
         case Status::done: {
             if (!m.peaks[0].found || !m.peaks[1].found) {
@@ -293,8 +293,8 @@ void ScreenBelts::show_info() {
         case Status::failed:
             text = _("Measurement failed.");
             break;
-        case Status::not_homed:
-            text = _("Homing failed.");
+        case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
             break;
         }
     }
@@ -324,12 +324,14 @@ void ScreenBelts::update() {
         curve.Invalidate();
     }
 
-    if (now_running != shown_running || pending != shown_pending || s != shown_status || stage != shown_stage || progress != shown_progress) {
+    const char *homing = now_running || pending ? nullptr : accelerometer_homing_text();
+    if (now_running != shown_running || pending != shown_pending || s != shown_status || stage != shown_stage || progress != shown_progress || homing != shown_homing) {
         const bool was_busy = shown_running || shown_pending;
         shown_running = now_running;
         shown_pending = pending;
         shown_status = s;
         shown_stage = stage;
+        shown_homing = homing;
         shown_progress = progress;
         show_info();
         const bool busy = now_running || pending;
@@ -357,6 +359,9 @@ void ScreenBelts::start() {
     if (hotend.temp_nozzle.get() > belts::max_nozzle_temperature || hotend.target_nozzle.get() > belts::max_nozzle_temperature) {
         MsgBoxWarning(_("Let the nozzle cool below 50°C, then start again."), Responses_Ok);
         return;
+    }
+    if (!accelerometer_homed_or_home()) {
+        return; // origine d'abord, accéléromètre pas encore fixé : l'écran demande ensuite de le fixer
     }
     // ACC-1 : M1992 vérifie l'accéléromètre avant tout mouvement ; s'il ne répond pas, update() guide l'utilisateur
     const uint16_t before = belts::run_count();

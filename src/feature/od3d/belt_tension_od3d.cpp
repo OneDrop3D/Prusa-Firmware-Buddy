@@ -51,12 +51,10 @@ namespace {
         return stop_requested.load() || planner.draining() || !marlin_server::printer_idle();
     }
 
-    /// Prise d'origine si besoin, hauteur sûre, position de mesure de Prusa (M961) bornée par les butées logicielles
+    /// Hauteur sûre, position de mesure de Prusa (M961) bornée par les butées logicielles ; false sans origine
     bool prepare() {
-        if (axes_need_homing()) {
-            // Comme l'assistant input shaper de Prusa (M1959)
-            GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
-        }
+        // Jamais d'origine ici (retour du 23/11 : le plateau montait palper, accéléromètre fixé) : l'écran ou
+        // l'assistant la prend avant de demander de le fixer (M1989 H) ; perdue depuis : refusé, sans bouger
         if (must_stop() || axes_need_homing()) {
             return false;
         }
@@ -144,7 +142,7 @@ namespace {
         }
 
         current_stage = Stage::preparing;
-        live::set(N_("Homing and moving to the measuring position"));
+        live::set(N_("Moving to the measuring position"));
         if (!prepare()) {
             return must_stop() ? Status::stopped : Status::not_homed;
         }

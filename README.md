@@ -1,117 +1,114 @@
-# Buddy
-This repository includes source code and firmware releases for the Original Prusa 3D printers based on the 32-bit ARM microcontrollers.
+<p align="center">
+  <img src="doc/od3d/banniere.png" alt="Firmware OneDrop3D pour Prusa CORE One et MMU3 : écran d'accueil avec les 5 bobines du MMU, liste des fichiers et fiche d'une bobine" width="880">
+</p>
 
-Tested on CORE One with MMU3, 
-and is normally compatible with:
-- Original Prusa MK3.5
-- Original Prusa MK3.9
-- Original Prusa MK4
-- Original Prusa XL
-## Getting Started
+<p align="center">
+  <a href="https://github.com/OneDrop3D/Prusa-Firmware-Buddy/releases/latest"><img src="https://img.shields.io/github/v/release/OneDrop3D/Prusa-Firmware-Buddy?label=version&color=fa6831" alt="Dernière version"></a>
+  <img src="https://img.shields.io/badge/imprimante-CORE%20One%20%2B%20MMU3-0097d4" alt="CORE One + MMU3">
+  <img src="https://img.shields.io/badge/base-Prusa%208.0.2-44444d" alt="Base Prusa 8.0.2">
+  <img src="https://img.shields.io/badge/licence-GPLv3-44444d" alt="GPLv3">
+</p>
 
-### Requirements
+**Firmware OneDrop3D** part du firmware officiel 8.0.2 de Prusa et y ajoute une nouvelle interface tactile, un assistant qui calibre la machine en un clic par la cellule de charge, et plus de contrôle sur le MMU3. Chaque version reprend les dernières corrections de Prusa.
 
-- Python 3.8 or newer
-- system installation of Python's `requests` package (use either pip or your system package manager)
+> [!WARNING]
+> Projet **non officiel**, sans lien avec Prusa Research. Il faut casser l'appendice de la carte xBuddy pour l'installer ([article Prusa](https://help.prusa3d.com/article/zoiw36imrs-flashing-custom-firmware)). Le retour au firmware officiel reste possible à tout moment.
 
-### Cloning this repository
+## Compatibilité
 
-Run `git clone https://github.com/prusa3d/Prusa-Firmware-Buddy.git`.
+| Imprimante | État |
+|---|---|
+| **CORE One + MMU3** | la machine de test du projet |
+| CORE One sans MMU | devrait fonctionner, sans les fonctions du MMU (pas testé) |
+| MK4, MK3.5, MK3.9, XL | pas de fichier fourni : seule la CORE One est compilée |
 
-### Building (on all platforms, without an IDE)
+## Les écrans
 
-Run `python utils/build.py`. The binaries are then going to be stored under `./build/products`.
+> Ces images viennent de la maquette de l'interface. Les captures de l'imprimante les remplaceront.
 
-- Without any arguments, it will build a release version of the firmware for all supported printers and bootloader settings.
-- Use `--build-type` to select build configurations to be built (`debug`, `release`).
-- Use `--preset` to select for which printers the firmware should be built.
-- By default, it will build the firmware in "prerelease mode" set to `beta`. You can change the prerelease using `--prerelease alpha`, or use `--final` to build a final version of the firmware.
-- Use `--host-tools` to include host tools in the build
-- Find more options using the `--help` flag!
+<table>
+  <tr>
+    <td width="50%"><img src="doc/od3d/accueil.png" alt="Accueil : températures, les 5 bobines du MMU, le dernier fichier et ses couleurs"><br><b>Accueil</b> — les bobines du MMU, le dernier fichier, les températures.</td>
+    <td width="50%"><img src="doc/od3d/fichiers.png" alt="Fichiers de la clé USB avec leurs aperçus, durée et poids"><br><b>Imprimer</b> — les fichiers de la clé avec leurs aperçus, durée et couleurs.</td>
+  </tr>
+  <tr>
+    <td><img src="doc/od3d/fiche.png" alt="Fiche d'une bobine : charger, précharger, éjecter, couper, mesurer le PA"><br><b>Fiche de bobine</b> — tout le MMU depuis une seule fiche.</td>
+    <td><img src="doc/od3d/moteurs.png" alt="Moteurs du MMU : sélecteur, galet et poulie"><br><b>Moteurs du MMU</b> — sélecteur, galet et poulie à la main.</td>
+  </tr>
+  <tr>
+    <td><img src="doc/od3d/courroies.png" alt="Mesure de la tension des courroies à l'accéléromètre"><br><b>Courroies</b> — tension mesurée, conseil en huitièmes de tour.</td>
+    <td><img src="doc/od3d/prereglage.png" alt="Préréglage PLA avec la température de la chambre modifiable"><br><b>Préréglages</b> — ceux de Prusa, modifiables (chambre comprise).</td>
+  </tr>
+  <tr>
+    <td><img src="doc/od3d/relais.png" alt="Relais automatique d'une bobine vide vers une autre"><br><b>Relais de bobine</b> — une bobine vide passe la main à la suivante.</td>
+    <td><img src="doc/od3d/musique.png" alt="Musique jouée par les moteurs depuis un fichier MIDI"><br><b>Musique</b> — les moteurs jouent un fichier MIDI de la clé.</td>
+  </tr>
+</table>
 
-#### Examples:
+## Ce qu'il ajoute
 
-Build the firmware for MINI and XL in `debug` mode:
+✅ = vérifié sur la machine. Le reste est en test : les notes de chaque [version](https://github.com/OneDrop3D/Prusa-Firmware-Buddy/releases) disent quoi essayer.
+
+**Interface**
+- Nouvelle interface tactile en 4 onglets (Accueil, Imprimer, Atelier, Réglages), tout atteignable aussi à la molette.
+- Tous les menus de Prusa redessinés dans le même style ; retour en glissant.
+- Pastille qui suit le processus en cours (impression, chargement, mesure) pendant qu'on navigue ailleurs.
+- Mode veille : écran et lumière éteints, réveil au toucher, à la molette ou par une impression.
+
+**Calibration en un clic**
+- Assistant qui enchaîne les tests et affiche un bilan chiffré avant → après.
+- ✅ Pressure advance mesuré par la cellule de charge sur des lignes imprimées, une fois par bobine.
+- Débit maximal et température minimale par bobine, régulation MPC de la buse.
+- Tension des courroies, vitesses critiques, amortissement, input shaper environ 100 fois plus rapide (même résultat que Prusa).
+- Dilatation de la buse, réponse du ventilateur, accélération du filament, équerrage XY.
+
+**MMU3**
+- Fiche par bobine : charger, précharger, éjecter, couper, poids restant.
+- Longueur du tube PTFE mesurée seule ; vitesse de la poulie mesurée.
+- Filament chargé gardé en mémoire après un redémarrage : pas de purge inutile ; purge au débit mesuré.
+- Mise à jour du MMU par son port USB (✅ avec PrusaSlicer) ou depuis [PrintForge](https://github.com/OneDrop3D/PrintForge).
+
+**Impression**
+- Maillage du plateau réutilisé quand rien n'a changé : départ plus rapide.
+- Préréglages filament modifiables, avec retour à la valeur de Prusa.
+- Arrêt sur collision détectée par la cellule de charge.
+- Nouvelle version installée par le réseau, depuis PrintForge.
+
+## Installer
+
+**Avec OneDrop PrintForge (le plus simple).** L'application choisit la version, prépare la clé USB ou envoie le firmware par le réseau, et met aussi le MMU3 à jour.
+
+<p align="center"><img src="doc/od3d/printforge-firmware.webp" alt="PrintForge : installation du firmware de l'imprimante et du MMU3" width="720"></p>
+
+**À la main**
+1. Téléchargez `coreone_release_boot_8.0.2-OD3D.<n>.bbf` dans la [dernière version](https://github.com/OneDrop3D/Prusa-Firmware-Buddy/releases/latest).
+2. Copiez-le **seul** à la racine d'une clé USB en FAT32 (schéma MBR).
+3. Imprimante éteinte, cassez l'appendice de la carte xBuddy si ce n'est pas déjà fait ([article Prusa](https://help.prusa3d.com/article/zoiw36imrs-flashing-custom-firmware)).
+4. Branchez la clé, allumez : l'imprimante propose l'installation.
+5. Vérifiez dans Réglages › Info › Version : `8.0.2-OD3D.<n>`.
+
+**Revenir au firmware officiel** : chaque version joint le `.bbf` officiel de Prusa. Mettez-le seul sur la clé, appuyez sur reset, puis une fois sur la molette dès que le logo apparaît.
+
+## Compiler
+
+Comme le firmware de Prusa (Python 3.8 ou plus récent) :
 
 ```bash
-python utils/build.py --preset mini,xl --build-type debug
+python utils/build.py --preset coreone --build-type release --bootloader yes \
+  --version-suffix=-OD3D --version-suffix-short=-OD3D \
+  -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
 ```
 
-Build the firmware for MINI using a custom version of gcc-arm-none-eabi (available in `$PATH`) and use `Make` instead of `Ninja` (not recommended):
+Les versions sont compilées et testées par GitHub Actions (`.github/workflows/od3d.yml`). Le guide complet de Prusa, inchangé : [doc/](doc/) et [tests/unit/README.md](tests/unit/README.md).
 
-```bash
-python utils/build.py --preset mini --toolchain cmake/AnyGccArmNoneEabi.cmake --generator 'Unix Makefiles'
-```
+## English
 
-#### Windows 10 troubleshooting
+OneDrop3D firmware is an unofficial fork of Prusa firmware 8.0.2 for the **CORE One with MMU3**: a new touch interface, a one-click calibration assistant driven by the load cell (pressure advance from printed lines, max flow, belts, input shaper, nozzle expansion…), and deeper MMU3 control. The interface is in English and French. Grab the `.bbf` from the [releases](https://github.com/OneDrop3D/Prusa-Firmware-Buddy/releases) or use [OneDrop PrintForge](https://github.com/OneDrop3D/PrintForge).
 
-If you have python installed and in your PATH but still getting cmake error `Python3 not found.` Try running python and python3 from cmd. If one of it opens Microsoft Store instead of either opening python interpreter or complaining `'python3' is not recognized as an internal or external command,
-operable program or batch file.` Open `manage app execution aliases` and disable `App Installer` association with `python.exe` and `python3.exe`.
+## Crédits et licence
 
-### Development
+- [Prusa Research](https://github.com/prusa3d/Prusa-Firmware-Buddy) — le firmware d'origine.
+- [Marlin](https://marlinfw.org/) — le cœur de l'impression 3D.
+- [Klipper](https://www.klipper3d.org/) — le code de l'input shaper.
 
-The build process of this project is driven by CMake and `build.py` is just a high-level wrapper around it. As most modern IDEs support some kind of CMake integration, it should be possible to use almost any editor for development. Below are some documents describing how to setup some popular text editors.
-
-- [Visual Studio Code](doc/editor/vscode.md)
-- [Vim](doc/editor/vim.md)
-- [Eclipse, STM32CubeIDE](doc/editor/stm32cubeide.md)
-- [Other LSP-based IDEs (Atom, Sublime Text, ...)](doc/editor/lsp-based-ides.md)
-
-#### Contributing
-
-If you want to contribute to the codebase, please read the [Contribution Guidelines](doc/contributing.md).
-
-#### XL and Puppies
-
-With the XL, the situation gets a bit more complex. The firmware of XLBuddy contains firmwares for the puppies (Dwarf and Modularbed) to flash them when necessary. We support several ways of dealing with those firmwares when developing:
-
-1. Build Dwarf/Modularbed firmware automatically and flash it on startup by XLBuddy (the default)
-    - The Dwarf & ModularBed firmware will be built from this repo.
-    - The puppies are going to be flashed on startup by the XLBuddy. The puppies have to be running the [Puppy Bootloader](http://github.com/prusa3d/Prusa-Bootloader-Puppy).
-
-2. Use pre-built Dwarf/Modularbed firmware and flash it on startup by xlBuddy
-    - Specify the location of the .bin file with `DWARF_BINARY_PATH`/`MODULARBED_BINARY_PATH`.
-    - For example
-    ```
-    cmake .. --preset xl_release_boot -DDWARF_BINARY_PATH=/Downloads/dwarf-4.4.0-boot.bin
-    ```
-
-3. Do not include any puppy firmware, and do not flash the puppies by XLBuddy.
-    ```
-    -DENABLE_PUPPY_BOOTLOAD=NO
-    ```
-    - With the `ENABLE_PUPPY_BOOTLOAD` set to false, the project will disable Puppy flashing & interaction with Puppy bootloaders.
-    - It is up to you to flash the correct firmware to the puppies (noboot variant).
-
-5. Keep bootloaders but do not write firmware on boot.
-    ```
-    -DPUPPY_SKIP_FLASH_FW=YES
-    ```
-    - With the `PUPPY_SKIP_FLASH_FW` set to true, the project will disable Puppy flashing on boot.
-    - You can keep other puppies that are not debugged in the same state as before.
-    - Use puppy build config with bootloaders (e.g. `xl-dwarf_debug_boot`) on one or more puppies.
-    - Recommend breakpoint at the end of `puppy_task_body()` to prevent buddy from resetting the puppy immediately when puppy stops on breakpoint.
-
-See /ProjectOptions.cmake for more information about those cache variables.
-
-#### Running tests
-See the detailed testing guide in our [comprehensive testing guide].
-
-[comprehensive testing guide]: tests/unit/README.md
-
-## Flashing Custom Firmware
-
-To install custom firmware, you have to break the appendix on the board. Learn how to in the following article https://help.prusa3d.com/article/zoiw36imrs-flashing-custom-firmware.
-
-## Feedback
-
-- [Feature Requests from Community](https://github.com/prusa3d/Prusa-Firmware-Buddy/labels/feature%20request)
-
-## Credits
-
-- [Marlin](https://marlinfw.org/) - 3D printing core driver
-- [Klipper](https://www.klipper3d.org/) - input shaper code based on Klipper
-
-## License
-
-The firmware source code is licensed under the GNU General Public License v3.0 and the graphics and design are licensed under Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0). Fonts are licensed under different license (see [LICENSE](LICENSE.md)).
+Code source sous GNU GPL v3.0 ; graphismes et design sous CC BY-NC-SA 4.0 ; les polices ont leur propre licence (voir [LICENSE](LICENSE.md)).

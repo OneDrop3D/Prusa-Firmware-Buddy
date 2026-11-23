@@ -421,6 +421,9 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 2000: // OneDrop3D : accélération du filament
             PrusaGcodeSuite::M2000();
             break;
+        case 2010: // OneDrop3D (lot UI-0) : mesure de l'écran
+            PrusaGcodeSuite::M2010();
+            break;
 #if ENABLED(OD3D_MPCTEMP)
         case 306: // OneDrop3D (F7) : régulation MPC de la buse (absente du Marlin de Prusa)
             PrusaGcodeSuite::M306();

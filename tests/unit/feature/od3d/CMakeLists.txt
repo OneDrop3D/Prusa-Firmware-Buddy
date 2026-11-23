@@ -238,3 +238,7 @@ add_executable(
   )
 target_include_directories(e_jump_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(e_jump_od3d_tests)
+
+add_executable(perf_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/perf_od3d_test.cpp)
+target_include_directories(perf_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(perf_od3d_tests)

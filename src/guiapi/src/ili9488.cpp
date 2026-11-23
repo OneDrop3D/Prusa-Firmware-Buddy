@@ -23,6 +23,7 @@
 #include <option/has_touch.h>
 #include <logging/log.hpp>
 #include <bsod/bsod.h>
+#include <gui/od3d/perf_od3d.hpp> // OneDrop3D (lot UI-0) : octets, fenêtres et attente du DMA
 
 #if HAS_TOUCH()
     #include <hw/touchscreen/touchscreen.hpp>
@@ -194,13 +195,16 @@ void ili9488_spi_wr_byte(uint8_t b) {
 }
 
 void ili9488_spi_wr_bytes(const uint8_t *pb, uint16_t size) {
+    od3d::perf::counters.bytes += size;
     if ((ili9488_flg & ILI9488_FLG_DMA) && !(ili9488_flg & ILI9488_FLG_SAFE) && (size > 4)) {
         debug_assert_correct_task();
         osSignalSet(ili9488_task_handle, ILI9488_SIG_SPI_TX);
         osSignalWait(ILI9488_SIG_SPI_TX, osWaitForever);
         debug_assert(can_be_used_by_dma(pb));
         HAL_SPI_Transmit_DMA(spi_handle_lcd, const_cast<uint8_t *>(pb), size);
+        const uint32_t wait_start = od3d::perf::cycles();
         osSignalWait(ILI9488_SIG_SPI_TX, osWaitForever);
+        od3d::perf::counters.dma_cycles += od3d::perf::cycles() - wait_start;
     } else {
         HAL_SPI_Transmit(spi_handle_lcd, const_cast<uint8_t *>(pb), size, HAL_MAX_DELAY);
     }
@@ -312,6 +316,7 @@ void ili9488_cmd_dispoff(void) {
 }
 
 void ili9488_cmd_caset(uint16_t x, uint16_t cx) {
+    ++od3d::perf::counters.windows;
     uint8_t data[4] = { static_cast<uint8_t>(x >> 8), static_cast<uint8_t>(x & 0xff), static_cast<uint8_t>(cx >> 8), static_cast<uint8_t>(cx & 0xff) };
     ili9488_cmd(CMD_CASET, data, 4);
 }

@@ -11838,6 +11838,14 @@ msgid "MMU disconnected."
 msgstr "MMU débranché."
 
 #: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "No MMU seen: check the data cable, then Retry."
+msgstr "Aucun MMU vu : vérifiez le câble, puis Réessayer."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Press the MMU reset button, next to its USB."
+msgstr "Appuyez sur le reset du MMU, près de son USB."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
 msgid "The MMU did not enter its bootloader."
 msgstr "Le MMU n'est pas passé dans son chargeur."
 
@@ -11866,8 +11874,8 @@ msgid "Remove the USB drive from the front port."
 msgstr "Retirez la clé USB du port avant."
 
 #: src/gui/od3d/screen_mmu_usb_od3d.cpp
-msgid "Waiting for the MMU on the front USB port..."
-msgstr "En attente du MMU sur le port USB avant..."
+msgid "MMU not seen? Tap Install, then its reset button."
+msgstr "MMU non vu ? Installer, puis son bouton reset."
 
 #: src/gui/od3d/screen_mmu_usb_od3d.cpp
 #, c-format

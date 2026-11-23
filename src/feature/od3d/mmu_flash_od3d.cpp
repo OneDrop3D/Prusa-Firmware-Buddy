@@ -25,12 +25,9 @@ namespace od3d::mmu_flash {
 
 namespace {
 
-    constexpr uint16_t prusa_vid = 0x2c99;
-    constexpr uint16_t pid_bootloader = 0x0003;
-    constexpr uint16_t pid_firmware = 0x0004;
     constexpr const char *firmware_path = "/system/res/mmu/fw.bin";
     constexpr uint32_t transfer_timeout_ms = 1'000;
-    constexpr uint32_t bootloader_wait_ms = 10'000; ///< redémarrage du MMU (250 ms) puis énumération du chargeur
+    constexpr uint32_t bootloader_wait_ms = 30'000; ///< le temps d'appuyer sur reset, comme PrusaSlicer (avr109_wait_for_bootloader)
 
     // Écrits par la tâche de l'hôte USB (init, deinit), lus sous le verrou partagé class_mutex comme la clé
     // (usbh_diskio.cpp) : l'hôte prend le verrou exclusif pour défaire la classe quand l'appareil part
@@ -40,7 +37,7 @@ namespace {
         uint16_t in_size = 0;
         uint16_t out_size = 0;
         uint8_t comm_interface = 0;
-        uint16_t pid = 0;
+        Device device = Device::none;
     };
     Pipes pipes;
     std::atomic<Device> connected = Device::none;
@@ -61,11 +58,11 @@ namespace {
 
     USBH_StatusTypeDef class_init(USBH_HandleTypeDef *phost) {
         const auto &dev = phost->device.DevDesc;
-        if (dev.idVendor != prusa_vid || (dev.idProduct != pid_bootloader && dev.idProduct != pid_firmware)) {
+        Pipes p;
+        p.device = usb_device(dev.idVendor, dev.idProduct);
+        if (p.device == Device::none) {
             return USBH_FAIL; // autre appareil CDC : ignoré, comme avant
         }
-        Pipes p;
-        p.pid = dev.idProduct;
         uint8_t in_ep = 0;
         uint8_t out_ep = 0;
         const auto &cfg = phost->device.CfgDesc;
@@ -128,7 +125,7 @@ namespace {
     }
 
     USBH_StatusTypeDef class_requests(USBH_HandleTypeDef *) {
-        connected = pipes.pid == pid_bootloader ? Device::bootloader : Device::firmware;
+        connected = pipes.device;
         return USBH_OK;
     }
 
@@ -293,12 +290,17 @@ namespace {
             return fail(Error::file);
         }
 
-        if (device() == Device::firmware && !touch()) {
-            return fail(Error::no_mmu);
-        }
+        // Un firmware vu est renvoyé dans son chargeur (1200 bauds), une fois ; sans MMU vu, l'écran demande son bouton reset
+        bool touched = false;
         for (const uint32_t start = ticks_ms(); device() != Device::bootloader; osDelay(100)) {
+            if (device() == Device::firmware && !touched) {
+                touched = true;
+                if (!touch()) {
+                    return fail(Error::no_mmu);
+                }
+            }
             if (ticks_diff(ticks_ms(), start) > int32_t(bootloader_wait_ms)) {
-                return fail(device() == Device::none ? Error::no_mmu : Error::no_bootloader);
+                return fail(touched ? Error::no_bootloader : Error::not_seen);
             }
         }
 

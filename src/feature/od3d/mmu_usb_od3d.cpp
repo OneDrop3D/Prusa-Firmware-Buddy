@@ -22,8 +22,11 @@ bool start() {
     if (marlin_server::is_printing() || !config_store().mmu2_enabled.get()) {
         return false;
     }
-    // Plus de requête vers l'extension, donc plus rien sur l'UART du MMU ; l'alimentation et nreset restent tels quels
+    // Plus de requête vers l'extension, donc plus rien sur l'UART du MMU ; nreset reste tel quel
     MMU2::mmu2.StopForUsbUpdate();
+    // Alimenté même si l'imprimante l'avait coupé (test des capteurs de filament, MMU2::Stop) : sans courant, aucun USB.
+    // Sur la CORE One, simple consigne à la carte d'extension, sans effet si le MMU l'est déjà
+    MMU2::mmu2.PowerOn();
     mmu_flash::forget_result();
     on = true;
     return true;

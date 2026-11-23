@@ -1,6 +1,7 @@
 // OneDrop3D : écriture du firmware du MMU3 dans son chargeur Caterina (AVR109). Le chargeur simulé suit Caterina.c paquet
 // USB par paquet USB (16 octets) : une commande et ses arguments, puis le reste du paquet jeté (Endpoint_ClearOUT).
 #include <feature/od3d/avr109_od3d.hpp>
+#include <feature/od3d/mmu_flash_od3d.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -206,4 +207,14 @@ TEST_CASE("avr109: a silent bootloader is reported on S, nothing written") {
     CHECK(report.result == Result::no_answer);
     CHECK(report.command == 'S');
     CHECK(mmu.written.empty());
+}
+
+TEST_CASE("mmu_flash: only the MMU firmware and its Caterina bootloader are taken") {
+    using od3d::mmu_flash::Device;
+    using od3d::mmu_flash::usb_device;
+    CHECK(usb_device(0x2c99, 0x0004) == Device::firmware);
+    CHECK(usb_device(0x2c99, 0x0003) == Device::bootloader); // mode de secours : MMU entré par son bouton reset
+    CHECK(usb_device(0x2c99, 0x0007) == Device::none); // chargeur d'un autre appareil Prusa
+    CHECK(usb_device(0x2341, 0x0036) == Device::none); // chargeur Caterina d'Arduino : même protocole, autre carte
+    CHECK(usb_device(0x0000, 0x0004) == Device::none);
 }

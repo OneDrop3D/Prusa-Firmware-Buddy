@@ -133,8 +133,9 @@ TEST_CASE("nozzle_expansion: back to Prusa's model without a measurement") {
     CHECK(comp::slope_to_nm(NAN) == 0);
 
     // Une pente par buse réglée dans Prusa
-    CHECK(comp::nozzle_key(0, false, false) == 0);
-    CHECK(comp::nozzle_key(0, true, false) != comp::nozzle_key(0, false, false)); // buse HF
-    CHECK(comp::nozzle_key(1, false, false) != comp::nozzle_key(0, false, false)); // chaussette
-    CHECK(comp::nozzle_key(3, true, true) < comp::nozzle_keys); // hotend haute température, HF, trempée
+    CHECK(comp::nozzle_key(false, false) == 0);
+    CHECK(comp::nozzle_key(true, false) != comp::nozzle_key(false, false)); // buse HF
+    CHECK(comp::nozzle_key(false, true) != comp::nozzle_key(false, false)); // buse trempée
+    CHECK(comp::nozzle_key(true, true) != comp::nozzle_key(true, false));
+    CHECK(comp::nozzle_key(true, true) < comp::nozzle_keys);
 }

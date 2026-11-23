@@ -84,10 +84,12 @@ constexpr float prusa_slope_mm_per_c = nozzle_expanding_length_mm * nozzle_therm
 
 // ---- OneDrop3D (M2003) : pente mesurée par buse (« OD3D Nozzle Expansion ») ----
 
-/// Buses distinguées, comme réglées dans Prusa : type de hotend (2 bits), haut débit, trempée
-inline constexpr uint8_t nozzle_keys = 16;
-constexpr uint8_t nozzle_key(uint8_t hotend_type, bool high_flow, bool hardened) {
-    return uint8_t((hotend_type & 3u) | (high_flow ? 4u : 0u) | (hardened ? 8u : 0u));
+/// Buses distinguées, comme réglées dans Prusa : haut débit, trempée. Le type de hotend n'en fait pas partie : il dit
+/// surtout s'il y a la chaussette en silicone, qui ne change pas la dilatation de la buse (et changer ce réglage ne doit
+/// pas perdre la mesure) ; 4 cases tiennent dans le config_store presque plein
+inline constexpr uint8_t nozzle_keys = 4;
+constexpr uint8_t nozzle_key(bool high_flow, bool hardened) {
+    return uint8_t((high_flow ? 1u : 0u) | (hardened ? 2u : 0u));
 }
 
 /// Pente gardée [nm/degC] → [mm/degC] ; 0 (jamais mesurée) : le modèle de Prusa

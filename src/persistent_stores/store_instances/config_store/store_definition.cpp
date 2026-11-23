@@ -31,6 +31,13 @@
 namespace config_store_ns {
 #if not HAS_CONFIG_STORE_WO_BACKEND()
 static_assert((sizeof(CurrentStore) + aggregate_arity<CurrentStore>() * sizeof(journal::Backend::ItemHeader)) < (BANK_SIZE / 100) * 75, "EEPROM bank is almost full");
+// OneDrop3D : en cas de dépassement, l'erreur montre les octets utilisés et la limite dans les paramètres du modèle
+// (RESTE_A_FAIRE CS-1 : il reste peu de place, toute nouvelle mémoire doit être compacte)
+template <size_t used, size_t limit>
+struct od3d_config_store_used_limit {
+    static_assert(used < limit, "config_store plein : voir used et limit ci-dessus");
+};
+template struct od3d_config_store_used_limit<sizeof(CurrentStore) + aggregate_arity<CurrentStore>() * sizeof(journal::Backend::ItemHeader), (BANK_SIZE / 100) * 75>;
 static_assert(journal::has_unique_items<config_store_ns::CurrentStore>(), "Just added items are causing collisions with reserved backend IDs");
 static_assert(aggregate_arity<config_store_ns::CurrentStore>() > 10, "Config store sanity check failed");
 static_assert(

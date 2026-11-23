@@ -24,7 +24,7 @@ namespace {
 
 uint8_t current_nozzle_key() {
     const PhysicalToolIndex tool = PhysicalToolIndex::from_raw(0);
-    return nozzle_key(uint8_t(config_store().hotend_type.get(tool.to_raw())), config_store().get_nozzle_is_high_flow(tool), config_store().get_nozzle_is_hardened(tool));
+    return nozzle_key(config_store().get_nozzle_is_high_flow(tool), config_store().get_nozzle_is_hardened(tool));
 }
 
 uint16_t measured_nm_per_c(uint8_t key) {

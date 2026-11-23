@@ -36,12 +36,15 @@ namespace {
     // y 111 avec sa marge) au lieu de la recouvrir de 2 px, ce qui coupait leurs coins du bas
     constexpr int16_t top = 114;
     constexpr Rect16 band = { 0, top, style::screen_w, style::screen_h - top };
-    constexpr Rect16 head_rect = { 0, top, 393, 55 };
+    // « Fermer » en haut à gauche, comme le retour de nos écrans (retour de l'utilisateur, 23/11 : « pas de retour en
+    // haut à droite ») ; le haut de la fiche (bobine, nom, état) prend la droite
+    constexpr Rect16 close_body = { 16, top + 16, 67, 28 };
+    constexpr Rect16 head_rect = Rect16::fromLTRB(close_body.Right() + 1 + style::ring + 2, top, style::screen_w, top + 55);
     constexpr uint8_t band_radius = style::radius; ///< arrondi normé (18 avant)
     // Le grand bouton (charger / décharger) partage sa ligne avec « Calibrer le PA » (F4, en un clic)
     constexpr Rect16 main_body = { 16, top + 60, 288, 42 };
     constexpr Rect16 calibrate_body = { 312, top + 60, 152, 42 };
-    constexpr Rect16 close_body = { 397, top + 16, 67, 28 };
+    static_assert(style::with_ring(close_body).Right() < head_rect.Left(), "le haut de la fiche ne repeint pas « Fermer »");
     /// Où un doigt saisit la fiche pour la tirer vers le bas : la poignée et le haut, sauf « Fermer »
     constexpr Rect16 grab_rect = { 0, top, style::screen_w, 56 };
     /// Tirée au plus jusque-là : son bord arrondi reste sur l'écran
@@ -101,22 +104,23 @@ namespace {
     protected:
         void unconditionalDraw() override {
             const Rect16 r = GetRect();
-            // Son coin arrondi : il se redessine seul après un glissement de la fiche ; givré s'il n'a pas bougé
-            frost::draw_body(r, style::surface, band_radius, MIC_TOP_LEFT);
+            // Son coin arrondi (en haut à droite) : il se redessine seul après un glissement de la fiche ; givré s'il n'a
+            // pas bougé
+            frost::draw_body(r, style::surface, band_radius, MIC_TOP_RIGHT);
             draw_handle(top);
 
             const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
             const FilamentType type = FilamentType::for_tool(tool);
             const Slot slot = Slot::read(index);
             constexpr uint8_t d = 40;
-            const point_i16_t at { 16, top + 13 };
+            const point_i16_t at { int16_t(r.Left() + 6), top + 13 };
             draw_spool(at, slot.look, d, style::surface, slot.loaded ? std::optional(style::accent) : std::nullopt);
 
             char name[24];
             atelier::spool_name(name, type);
             StringViewUtf8Parameters<32> params;
-            const int16_t x = 66;
-            const uint16_t w = r.Left() + r.Width() - x;
+            const int16_t x = at.x + d + 10;
+            const uint16_t w = r.Left() + r.Width() - 16 - x; // marge de droite, comme les boutons
             draw_text(Rect16(x, top + 14, w, height(Font::normal)), _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
 
             // État, l'alerte de la pointe (F10, en jaune ; détail dans Atelier › Infos du MMU), la température de la

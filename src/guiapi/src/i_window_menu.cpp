@@ -19,7 +19,6 @@ IWindowMenu::IWindowMenu(window_t *parent, Rect16 rect)
 }
 
 void IWindowMenu::set_scroll_offset(int set) {
-    set = std::max(set, first_index_); // OneDrop3D (interface G) : ligne « Retour » de tête masquée
     debug_assert(set >= 0 && set <= max_scroll_offset());
 
     if (scroll_offset_ == set) {
@@ -69,7 +68,7 @@ bool IWindowMenu::scroll_page(PageScrollDirection direction) {
 
     const int new_scroll_offset = //
         (direction == PageScrollDirection::up) //
-        ? std::max(scroll_offset() - step_size, first_index_) // OneDrop3D (interface G) : first_index_ au lieu de 0
+        ? std::max(scroll_offset() - step_size, 0)
         : std::min(scroll_offset() + step_size, max_scroll_offset());
 
     if (scroll_offset() == new_scroll_offset) {
@@ -104,7 +103,7 @@ bool IWindowMenu::move_focus_to_index(std::optional<int> index_opt, gui_event::F
 
     // Find the nearest focusable item
     while (true) {
-        if (index < first_index_ || index >= count) { // OneDrop3D (interface G) : first_index_ au lieu de 0
+        if (index < 0 || index >= count) {
             return false;
         }
 
@@ -148,7 +147,7 @@ bool IWindowMenu::move_focus_by(int amount) {
 
     if (auto opt_old_index = focused_item_index()) {
         const int old_index = *opt_old_index;
-        new_index = (amount >= 0) ? std::min(old_index + amount, item_count() - 1) : std::max(old_index + amount, first_index_); // OneDrop3D : first_index_
+        new_index = (amount >= 0) ? std::min(old_index + amount, item_count() - 1) : std::max(old_index + amount, 0);
 
         if (new_index == old_index) {
             return false;
@@ -409,7 +408,7 @@ void IWindowMenu::windowEvent(window_t *sender, GUI_event_t event, void *param) 
             break;
 
         case Reason::forward_focus_chain:
-            move_focus_to_index(first_index_, gui_event::FocusInEvent::Reason::forward_focus_chain); // OneDrop3D : « Retour » masqué
+            move_focus_to_index(0, gui_event::FocusInEvent::Reason::forward_focus_chain);
             break;
 
         case Reason::reverse_focus_chain:

@@ -133,6 +133,8 @@ namespace {
             const img::Resource *icon = ItemAccess::icon(item);
             if (!icon) {
                 icon = &img::settings_16x16;
+            } else if (icon == &img::folder_up_16x16) {
+                icon = &img::arrow_left_16x16; // « ‹ Retour » : la flèche de l'ancien retour de l'en-tête
             }
             const Color tile = tile_color(icon);
             const Rect16 tile_rect(row.Left() + tile_x, row.Top() + (row.Height() - tile_size) / 2, tile_size, tile_size);
@@ -188,8 +190,9 @@ static_assert(row_w + scroll_gap + scroll_w <= list_rect.Width(), "l'indicateur 
 
 // ---- En-tête ----
 
-MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back, bool compact, Card::Action back_action)
-    : header(parent, string_view_utf8::MakeRAM(title_text.data()), has_back, back_action, compact) {
+MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back, bool compact)
+    : header(parent, string_view_utf8::MakeRAM(title_text.data()), false, nullptr, compact)
+    , back(has_back) {
     SetText(title);
 }
 
@@ -208,11 +211,8 @@ MenuListBase::MenuListBase(window_t *parent, Rect16 rect)
     Enable(); // la molette entre dans la liste depuis l'en-tête ou les onglets
 }
 
-void MenuListBase::attach(IWindowMenu &menu, bool hide_return) {
+void MenuListBase::attach(IWindowMenu &menu) {
     list = &menu;
-    if (hide_return) {
-        menu.hide_leading_return(); // listes virtuelles de Prusa : le « Retour » en double de l'en-tête
-    }
     menu.SetFocus();
 }
 
@@ -255,17 +255,6 @@ void MenuListBase::windowEvent(window_t *sender, GUI_event_t event, void *param)
         return;
     }
     window_frame_t::windowEvent(sender, event, param);
-}
-
-void hide_return_items(IWinMenuContainer &container) {
-    // Seuls les « Retour » simples : un retour qui fait autre chose (« Enregistrer et revenir ») reste
-    const string_view_utf8 back = _(MI_RETURN::label);
-    for (int i = 0; i < container.GetRawCount(); ++i) {
-        IWindowMenuItem *item = container.GetItemByRawIndex(i);
-        if (item->has_return_behavior() && item->GetLabel().is_same_ref(back)) {
-            item->hide();
-        }
-    }
 }
 
 TabBar::Tab section_tab() {

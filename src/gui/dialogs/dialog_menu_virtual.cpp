@@ -64,7 +64,7 @@ public:
 
 private:
     od3d::MenuHeader header_;
-    od3d::MenuList<Menu, false> menu_; ///< OneDrop3D : le « Retour » reste, seule sortie sans choisir (en-tête sans retour)
+    od3d::MenuList<Menu> menu_; ///< OneDrop3D : liste G, avec sa ligne « Retour » comme toutes les listes
 };
 
 // OneDrop3D : le dialogue est sur la pile de l'interface (6 Ko). En G (en-tête et liste od3d), 1 064 octets mesurés le

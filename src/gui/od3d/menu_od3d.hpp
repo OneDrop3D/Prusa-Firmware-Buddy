@@ -19,18 +19,19 @@ inline constexpr Rect16 list_rect = { style::margin, style::top, 470, 200 };
 static_assert(style::inside(style::content, list_rect));
 
 /// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible.
-/// has_back = false dans un dialogue : le retour de l'en-tête fermerait l'écran dessous. back_action : ce que fait le
-/// retour (et le balayage), à la place de la fermeture de l'écran (machine à états : la réponse « Retour »).
+/// Sans retour (retour de l'utilisateur, 23/11 : « dans les menus, en ligne ») : le retour est la ligne « Retour » de
+/// la liste, que le balayage touche aussi (WindowMenu). has_back : l'appui long ferme l'écran (ScreenMenuBase_) ; false
+/// dans un dialogue et au 1er démarrage (langue, configuration de l'imprimante).
 class MenuHeader {
 public:
-    MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true, bool compact = false, Card::Action back_action = nullptr);
+    MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true, bool compact = false);
 
     void SetText(const string_view_utf8 &title);
     void show_back(bool show) {
-        header.show_back(show);
+        back = show;
     }
     bool back_shown() const {
-        return header.back_shown();
+        return back;
     }
     void SetIcon(const img::Resource *) {} ///< pas d'icône dans l'en-tête G
     void set_show_bed_info(bool) {} ///< écrans FSM de Prusa : l'en-tête G a déjà les températures
@@ -38,6 +39,7 @@ public:
 private:
     std::array<char, 64> title_text {};
     Header header;
+    bool back;
 };
 
 /// Dessine le menu qu'elle contient en liste G, à la place du dessin Prusa (partie commune, pour la flash)
@@ -45,8 +47,7 @@ class MenuListBase : public window_frame_t {
 protected:
     MenuListBase(window_t *parent, Rect16 rect);
 
-    /// hide_return : la ligne « Retour » de tête est masquée (le retour passe par l'en-tête)
-    void attach(IWindowMenu &menu, bool hide_return);
+    void attach(IWindowMenu &menu);
 
     void draw() override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
@@ -57,22 +58,18 @@ private:
 };
 
 /// Remplace WindowExtendedMenu<Menu> : même membre « menu », la molette passe à l'en-tête et aux onglets aux bouts de la liste.
-/// hide_return = false dans un dialogue : son en-tête n'a pas de retour, la ligne « Retour » est la seule sortie.
-template <class Menu, bool hide_return = true>
+template <class Menu>
 class MenuList : public MenuListBase {
 public:
     template <typename... Args>
     MenuList(window_t *parent, Rect16 rect, Args &&...args)
         : MenuListBase(parent, rect)
         , menu(this, rect, std::forward<Args>(args)...) {
-        attach(menu, hide_return);
+        attach(menu);
     }
 
     Menu menu;
 };
-
-/// Cache les lignes « Retour » : le retour passe par l'en-tête (molette ou toucher) et l'appui long
-void hide_return_items(IWinMenuContainer &container);
 
 /// Onglet de la section ouverte (SPEC_G.md §1.4) : Réglages si l'écran des réglages est dans la pile, etc.
 TabBar::Tab section_tab();

@@ -185,7 +185,7 @@ void WindowMenuPreheat::set_data(const PreheatData &data) {
     tool = data.tool;
     mode = data.mode;
 
-    index_mapping.set_item_enabled<Item::return_>(false); // OneDrop3D (interface G) : retour par l'en-tête G (ScreenPreheat)
+    index_mapping.set_item_enabled<Item::return_>(data.has_return_option);
     index_mapping.set_item_enabled<Item::cooldown>(data.has_cooldown_option);
 
 #if HAS_ANFC()
@@ -399,7 +399,7 @@ using Frames
 
 // * ScreenPreheat
 namespace {
-// OneDrop3D (interface G) : en-tête G de 40 px avec retour, puis la liste (pas d'onglets : la machine à états attend une réponse)
+// OneDrop3D (interface G) : en-tête G de 40 px, puis la liste et sa ligne « Retour » (pas d'onglets : la machine à états attend une réponse)
 constexpr Rect16 preheat_inner_rect = Rect16::fromLTRB(0, od3d::style::header_line.Top() + 1, GuiDefaults::ScreenWidth, GuiDefaults::ScreenHeight);
 static_assert(od3d::style::inside(preheat_inner_rect, Rect16(od3d::list_rect.Left(), od3d::list_rect.Top(), od3d::list_rect.Width(), 6 * 40)));
 
@@ -409,7 +409,7 @@ void abort_preheat() {
 } // namespace
 
 ScreenPreheat::ScreenPreheat()
-    : ScreenFSM(nullptr, preheat_inner_rect, abort_preheat) {
+    : ScreenFSM(nullptr, preheat_inner_rect, true) {
     od3d::chrome::gap_screen(this);
     create_frame();
 }
@@ -457,7 +457,7 @@ bool ScreenPreheat::handle_filament_selection(FilamentType filament_type, Prehea
 }
 
 void ScreenPreheat::screenEvent(window_t *sender, GUI_event_t event, void *param) {
-    // OneDrop3D (interface G) : appui long = retour de l'en-tête, comme dans les menus G (le balayage passe par lui)
+    // OneDrop3D (interface G) : appui long = la ligne « Retour », comme dans les menus G (le balayage passe par la liste)
     if (event == GUI_event_t::HELD_RELEASED && can_return && !GetFirstDialog()) {
         abort_preheat();
         return;
@@ -501,7 +501,6 @@ void ScreenPreheat::update_frame() {
 
     header.SetText(_(title));
 
-    // OneDrop3D (interface G) : le retour de l'en-tête, là où Prusa mettait une ligne « Retour » dans la liste
+    // OneDrop3D (interface G) : l'appui long fait la ligne « Retour » de la liste
     can_return = get_phase() == PhasesPreheat::user_temp_selection && data.has_return_option;
-    header.show_back(can_return);
 }

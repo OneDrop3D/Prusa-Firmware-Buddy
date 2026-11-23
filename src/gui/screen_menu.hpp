@@ -45,7 +45,8 @@ protected:
     void unconditionalDraw() override; ///< le fond entre eux d'abord, pour les écrans qui appellent window_frame_t::draw()
 
 protected:
-    /// OneDrop3D (interface G) : en-tête G ; la barre d'onglets remplace le pied de page
+    /// OneDrop3D (interface G) : en-tête G, sans retour (c'est la ligne « Retour » de la liste) ; la barre d'onglets
+    /// remplace le pied de page
     od3d::MenuHeader header;
 
 private:
@@ -85,7 +86,6 @@ public:
 
     ScreenMenu(const string_view_utf8 &label, window_t *parent = nullptr)
         : ScreenMenuBase(parent, label, FOOTER) {
-        od3d::hide_return_items(container); // OneDrop3D (interface G) : retour par l'en-tête et l'appui long
         menu.menu.BindContainer(container);
     }
 

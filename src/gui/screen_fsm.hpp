@@ -98,11 +98,12 @@ protected:
 class ScreenFSM : public WindowFSM<screen_t, 2016> {
 
 public:
-    /// back_action (OneDrop3D, interface G) : en-tête G normal, avec un retour qui fait back_action (le contenu commence
-    /// alors sous son trait, à style::header_line.Bottom() + 1) ; sans, l'en-tête compact sans retour
-    ScreenFSM(const char *header_txt, Rect16 inner_frame_rect = GuiDefaults::RectScreenNoHeader, od3d::Card::Action back_action = nullptr)
+    /// normal_header (OneDrop3D, interface G) : en-tête G de 40 px (le contenu commence sous son trait, à
+    /// style::header_line.Bottom() + 1) ; sinon l'en-tête compact. Jamais de retour dans l'en-tête : la machine à états
+    /// décide de la fermeture (préchauffage : sa ligne « Retour »)
+    ScreenFSM(const char *header_txt, Rect16 inner_frame_rect = GuiDefaults::RectScreenNoHeader, bool normal_header = false)
         : WindowFSM(inner_frame_rect)
-        , header { this, _(header_txt), back_action != nullptr, back_action == nullptr, back_action } {}
+        , header { this, _(header_txt), false, !normal_header } {}
 
     virtual void InitState(screen_init_variant var) override {
         if (auto fsm_base_data = var.GetFsmBaseData()) {

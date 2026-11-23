@@ -369,9 +369,6 @@ public:
 
     /// Montre ou cache le retour
     void show_back(bool show);
-    bool back_shown() const {
-        return back.HasVisibleFlag();
-    }
 
     /// Change le titre, même s'il est dans le même tampon (menus Prusa)
     void set_title(const string_view_utf8 &text);

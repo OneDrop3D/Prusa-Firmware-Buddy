@@ -32,9 +32,6 @@ public:
 
     void set_scroll_offset(int set) override;
 
-    /// OneDrop3D (interface G) : la ligne d'index 0, si c'est un « Retour » simple, ne s'affiche plus
-    void hide_leading_return() override;
-
 protected:
     /// Calls setup_item for the individual slots.
     /// Call this:

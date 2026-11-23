@@ -1,7 +1,6 @@
 #include "window_menu_virtual.hpp"
 
 #include <ScreenHandler.hpp>
-#include <WindowMenuItems.hpp>
 #include <sound.hpp>
 #include <bsod/bsod.h>
 
@@ -59,26 +58,7 @@ std::optional<int> WindowMenuVirtualBase::item_index(const IWindowMenuItem *item
     return std::nullopt;
 }
 
-void WindowMenuVirtualBase::hide_leading_return() {
-    // L'index 0 n'est dans le tampon qu'au début de la liste ; ensuite first_index_ reste
-    if (first_index_ != 0 || scroll_offset() != 0 || item_count() == 0) {
-        return;
-    }
-    IWindowMenuItem *item = item_at_buffer_slot(0);
-    if (!item || !item->has_return_behavior() || !item->GetLabel().is_same_ref(_(MI_RETURN::label))) {
-        return;
-    }
-    const bool focused = item->is_focused();
-    first_index_ = 1;
-    set_scroll_offset(1);
-    if (focused || (!focused_item_index() && should_focus_item_on_init())) {
-        move_focus_to_index(1, gui_event::FocusInEvent::Reason::forward_focus_chain);
-    }
-    Invalidate();
-}
-
 void WindowMenuVirtualBase::set_scroll_offset(int set) {
-    set = std::max(set, first_index_); // OneDrop3D (interface G) : ligne « Retour » de tête masquée
     if (set == scroll_offset()) {
         return;
     }

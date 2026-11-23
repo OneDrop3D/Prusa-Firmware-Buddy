@@ -30,8 +30,6 @@
 
 namespace config_store_ns {
 #if not HAS_CONFIG_STORE_WO_BACKEND()
-template <size_t S, size_t A, size_t M, size_t T> struct od3d_diag_size_arity_mmu_tip;
-inline constexpr size_t od3d_diag = sizeof(od3d_diag_size_arity_mmu_tip<sizeof(CurrentStore), aggregate_arity<CurrentStore>(), sizeof(od3d::mmu_speed::Saved), sizeof(od3d::tip::Stats)>);
 static_assert((sizeof(CurrentStore) + aggregate_arity<CurrentStore>() * sizeof(journal::Backend::ItemHeader)) < (BANK_SIZE / 100) * 75, "EEPROM bank is almost full");
 static_assert(journal::has_unique_items<config_store_ns::CurrentStore>(), "Just added items are causing collisions with reserved backend IDs");
 static_assert(aggregate_arity<config_store_ns::CurrentStore>() > 10, "Config store sanity check failed");

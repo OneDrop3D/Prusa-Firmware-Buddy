@@ -304,10 +304,10 @@ MI_TIP_SLOT::MI_TIP_SLOT(uint8_t slot)
     if (!s.count) {
         _("No tool change in a print yet").copyToRAM(rest.data(), rest.size());
     } else if (tip::drifting(s)) {
-        put(rest, N_("Drift: %.1f mm, usual %.1f \xC2\xB1 %.1f"), double(s.recent), double(s.mean), double(tip::sigma(s)));
+        put(rest, N_("Drift: %.1f mm, usual %.1f \xC2\xB1 %.1f"), double(tip::mm_of(s.recent)), double(tip::mm_of(s.mean)), double(tip::sigma(s)));
         SetIconId(&img::warning_16x16);
     } else {
-        put(rest, N_("%.1f \xC2\xB1 %.1f mm, %u changes"), double(s.mean), double(tip::sigma(s)), unsigned(s.count));
+        put(rest, N_("%.1f \xC2\xB1 %.1f mm, %u changes"), double(tip::mm_of(s.mean)), double(tip::sigma(s)), unsigned(s.count));
     }
     SetLabel(string_view_utf8::MakeRAM(text.data()));
 }

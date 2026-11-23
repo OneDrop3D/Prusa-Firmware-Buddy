@@ -148,11 +148,12 @@ void ScreenMmuUsb::front_state(Text &text, bool &busy) {
         shown_retry = retry;
         install_button.set(Button::Look::primary, retry ? _("Retry") : _("Install"));
     }
-    install_button.enable(!busy && st.phase != Phase::done && mmu_flash::device() != mmu_flash::Device::none && version_text[0]);
+    // Sans MMU vu aussi : mode de secours, l'écriture attend que l'on appuie sur son bouton reset
+    install_button.enable(!busy && st.phase != Phase::done && !usb_host::is_media_inserted() && version_text[0]);
 
     switch (st.phase) {
     case Phase::connecting:
-        return put(text, _("Starting the MMU bootloader..."));
+        return put(text, mmu_flash::device() == mmu_flash::Device::none ? _("Press the MMU reset button, next to its USB.") : _("Starting the MMU bootloader..."));
     case Phase::writing:
         return compose(text, _("Writing and reading back:"), "%u %%", unsigned(st.percent));
     case Phase::done:
@@ -163,6 +164,8 @@ void ScreenMmuUsb::front_state(Text &text, bool &busy) {
             return put(text, _("MMU firmware missing in the printer."));
         case Error::no_mmu:
             return put(text, _("MMU disconnected."));
+        case Error::not_seen:
+            return put(text, _("No MMU seen: check the data cable, then Retry."));
         case Error::no_bootloader:
             return put(text, _("The MMU did not enter its bootloader."));
         case Error::no_answer:
@@ -185,7 +188,7 @@ void ScreenMmuUsb::front_state(Text &text, bool &busy) {
     } else if (usb_host::is_media_inserted()) {
         put(text, _("Remove the USB drive from the front port."));
     } else {
-        put(text, _("Waiting for the MMU on the front USB port..."));
+        put(text, _("MMU not seen? Tap Install, then its reset button."));
     }
 }
 

@@ -5,6 +5,8 @@
 /// appareils Prusa 0x2c99:0x0004 (firmware du MMU) et 0x2c99:0x0003 (son chargeur Caterina). Le firmware écrit est celui
 /// que contient l'imprimante (/system/res/mmu/fw.bin, dépendance « firmware-mmu » de utils/bootstrap.py). Seulement en
 /// mode `M709 S2` (mmu_usb_od3d.hpp) : l'imprimante ne parle plus au MMU par la carte d'extension.
+/// Mode de secours, comme PrusaSlicer (FirmwareDialog.cpp, avr109_lookup_port) : un MMU que l'on ne voit pas (son firmware
+/// n'apparaît pas en USB) passe dans son chargeur par son bouton reset ; l'écriture l'attend 30 s.
 #pragma once
 
 #include <cstdint>
@@ -16,6 +18,14 @@ enum class Device : uint8_t {
     firmware, ///< 0x2c99:0x0004, renvoyé dans son chargeur par une ligne à 1200 bauds
     bootloader, ///< 0x2c99:0x0003
 };
+
+/// Le MMU d'après l'identifiant USB : seuls les appareils Prusa 0x2c99:0x0004 et 0x2c99:0x0003
+constexpr Device usb_device(uint16_t vid, uint16_t pid) {
+    if (vid != 0x2c99) {
+        return Device::none;
+    }
+    return pid == 0x0004 ? Device::firmware : pid == 0x0003 ? Device::bootloader : Device::none;
+}
 
 /// Le MMU branché sur le port avant
 Device device();
@@ -42,6 +52,7 @@ enum class Error : uint8_t {
     none,
     file, ///< firmware de l'imprimante absent ou illisible : rien n'a été écrit
     no_mmu, ///< MMU débranché
+    not_seen, ///< aucun MMU vu en 30 s, même après le reset demandé : câble de charge seule ?
     no_bootloader, ///< le MMU n'est pas passé dans son chargeur
     no_answer, ///< `command` sans réponse
     refused, ///< `command` refusée
@@ -59,7 +70,8 @@ struct Status {
 
 Status status();
 
-/// Lance l'écriture sur la tâche des travaux asynchrones : refusé hors du mode M709 S2 ou pendant une écriture
+/// Lance l'écriture sur la tâche des travaux asynchrones : refusé hors du mode M709 S2 ou pendant une écriture.
+/// Sans MMU vu, l'écran demande d'appuyer sur son bouton reset et l'écriture attend son chargeur.
 bool start();
 
 /// Mise à jour du MMU en cours : le MMU est inutilisable, du passage en mode M709 S2 à « Terminer » (M709 X2), et tant

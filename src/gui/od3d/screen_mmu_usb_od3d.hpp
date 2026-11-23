@@ -5,7 +5,8 @@
 /// de Prusa) et affiche la version relue. Quitter l'écran garde le mode : la pastille de l'en-tête le rouvre.
 /// « Mettre à jour le MMU par le port USB avant » (Atelier › MMU › Réglages) ouvre le même écran, guidé pour brancher le
 /// micro-USB du MMU sur le port avant : l'imprimante y écrit et relit le firmware qu'elle contient
-/// (feature/od3d/mmu_flash_od3d.hpp), après confirmation.
+/// (feature/od3d/mmu_flash_od3d.hpp), après confirmation. Un MMU que l'on ne voit pas s'installe aussi : « Installer »,
+/// puis son bouton reset quand l'écran le demande (mode de secours).
 #pragma once
 
 #include "atelier_od3d.hpp"

@@ -91,7 +91,7 @@ namespace {
 
     enum class Stage : uint8_t {
         idle,
-        propose, ///< calibrations à faire, durée ; au démarrage ou depuis le menu
+        propose, ///< calibrations à faire, durée (depuis le menu)
         ask_accel, ///< « Avez-vous un accéléromètre ? »
         cooling, ///< buse sous 40 °C (ventilateur), origine, buse au centre (M1989 H)
         sock_off, ///< « Retirez la chaussette en silicone » (buse avec chaussette seulement)
@@ -110,7 +110,6 @@ namespace {
     /// L'assistant, gardé hors de l'écran : il survit à sa fermeture (sous-écran, onglet, pastille)
     struct Flow {
         Stage stage = Stage::idle;
-        bool boot = false; ///< proposé au démarrage : « Plus tard », « Ne plus demander »
         bool cancelled = false;
         bool check_failed = false; ///< l'accéléromètre n'a pas répondu à la dernière vérification
         uint32_t session = 0; ///< tests de cette session (affichés au bilan ; décochés : « passé »)
@@ -1002,17 +1001,6 @@ namespace {
 
 } // namespace
 
-bool calibration_prompt_at_boot() {
-    const auto records = assistant::records();
-    const calib_registry::Context ctx = assistant::context();
-    if (!calib_registry::should_propose(ctx, records, assistant::dismissed())) {
-        return false;
-    }
-    const uint32_t mask = calib_registry::proposed(ctx, records);
-    flow = Flow { .stage = Stage::propose, .boot = true, .mask = mask, .offered = mask };
-    return true;
-}
-
 bool calibration_assistant_active() {
     return flow.stage != Stage::idle && flow.stage != Stage::propose && flow.stage != Stage::summary;
 }
@@ -1229,13 +1217,10 @@ void ScreenCalibAssistant::show() {
     switch (flow.stage) {
     case Stage::idle:
     case Stage::propose: {
-        const int count = std::popcount(flow.mask);
-        const int minutes = calib_registry::minutes(flow.mask, ctx, redo_tests());
         const uint32_t cold = flow.mask & cold_tests(), heat = flow.mask & heat_tests();
-        const string_view_utf8 head = !count ? _("Nothing to calibrate. Touch a test to add it.")
-            : flow.boot                      ? _("%d calibrations are new or changed in this firmware (about %d min). Touch a test to add or skip it; the tests then run by themselves.").formatted(info_params, count, minutes)
-                                             : _("Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it.")
-                                         .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
+        const string_view_utf8 head = !flow.mask ? _("Nothing to calibrate. Touch a test to add it.")
+                                                 : _("Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it.")
+                                                       .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
         // Bobines dont le PA est déjà mesuré (vert, pas refait) : leur K (retour du 23/11)
         static char propose[300]; // la fenêtre de texte le lit jusqu'au prochain show()
         char first[200];
@@ -1334,8 +1319,7 @@ void ScreenCalibAssistant::show() {
     case Stage::idle:
     case Stage::propose:
         // Deux séries lancées chacune par son bouton, avec ses tests cochés
-        s = flow.boot ? Buttons { N_("Calibrate now"), N_("Later"), N_("Don't ask again"), flow.mask != 0 }
-                      : Buttons { N_("Accelerometer"), N_("Heating"), N_("Close"), (flow.mask & cold_tests()) != 0, (flow.mask & heat_tests()) != 0 };
+        s = { N_("Accelerometer"), N_("Heating"), N_("Close"), (flow.mask & cold_tests()) != 0, (flow.mask & heat_tests()) != 0 };
         break;
     case Stage::ask_accel:
         s = { N_("Yes"), N_("No"), N_("Cancel") };
@@ -1372,7 +1356,7 @@ void ScreenCalibAssistant::show() {
         break;
     }
     // Libellés posés au changement d'étape seulement (set() redessine le bouton)
-    if (const uint8_t stage_key = uint8_t(uint8_t(flow.stage) | (flow.boot ? 0x80 : 0)); stage_key != buttons_stage) {
+    if (const uint8_t stage_key = uint8_t(flow.stage); stage_key != buttons_stage) {
         buttons_stage = stage_key;
         const std::pair<Button *, const char *> buttons[] = { { &button_a, s.a }, { &button_b, s.b }, { &button_c, s.c } };
         for (const auto &[button, label] : buttons) {
@@ -1415,15 +1399,10 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     switch (flow.stage) {
     case Stage::idle:
     case Stage::propose:
-        if (flow.boot && tag == tag_a) {
-            flow.boot = false; // « Calibrer maintenant » : le choix de la série
-        } else if (!flow.boot && (tag == tag_a || tag == tag_b)) {
+        if (tag == tag_a || tag == tag_b) {
             const uint32_t series = tag == tag_a ? cold_tests() : heat_tests();
             start_session(flow.offered & series, flow.mask & series, true);
-        } else if (tag == tag_b || tag == tag_c) {
-            if (flow.boot && tag == tag_c) {
-                assistant::dismiss(); // jusqu'à la prochaine version qui change une calibration
-            }
+        } else if (tag == tag_c) {
             flow.stage = Stage::idle;
             Screens::Access()->close_screen();
         }

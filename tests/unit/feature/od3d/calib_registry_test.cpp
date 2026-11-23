@@ -77,13 +77,13 @@ TEST_CASE("calib_registry: spools and flow limit") {
 TEST_CASE("calib_registry: version bump proposes only that test") {
     Records r = all_done();
     CHECK(select(full(), r, true) == 0);
-    CHECK_FALSE(should_propose(measured(), r, 0));
+    CHECK(proposed(measured(), r) == 0);
 
     // Une mise à jour a augmenté la version des courroies et du PA : seuls eux sont à refaire
     r[size_t(Test::belts)].version = uint8_t(entry(Test::belts).version - 1);
     r[size_t(Test::pa)].version = uint8_t(entry(Test::pa).version - 1);
     CHECK(select(full(), r, true) == (test_bit(Test::belts) | test_bit(Test::pa)));
-    CHECK(should_propose(measured(), r, 0));
+    CHECK(proposed(measured(), r) != 0);
 
     // Sans accéléromètre, seul le PA
     CHECK(select(full(Accelerometer::no), r, true) == test_bit(Test::pa));
@@ -96,20 +96,14 @@ TEST_CASE("calib_registry: first install proposes everything automatic") {
     const Records none {};
     const uint32_t m = select(full(), none, true);
     CHECK((m & automatic_mask()) == automatic_mask());
-    CHECK(should_propose(full(), none, 0));
+    CHECK(proposed(full(), none) != 0);
 }
 
-TEST_CASE("calib_registry: don't ask again until a version changes") {
-    const Records none {};
-    CHECK_FALSE(should_propose(full(), none, signature()));
-    CHECK(should_propose(full(), none, signature() ^ 1)); // signature d'une autre version du registre
-}
-
-TEST_CASE("calib_registry: manual tests never trigger the prompt alone") {
+TEST_CASE("calib_registry: manual tests are never checked by default") {
     Records r = all_done();
     r[size_t(Test::skew)] = {};
     CHECK((select(full(), r, true) == test_bit(Test::skew)));
-    CHECK_FALSE(should_propose(measured(), r, 0));
+    CHECK(proposed(measured(), r) == 0);
     CHECK_FALSE((automatic_mask() & test_bit(Test::skew)));
 }
 
@@ -311,7 +305,6 @@ TEST_CASE("calib_registry: what is already done is not checked, and not redone")
     Records r = all_done();
     ctx.measured.fill(0b00111);
     CHECK(proposed(ctx, r) == 0);
-    CHECK_FALSE(should_propose(ctx, r, 0));
     r[size_t(Test::belts)] = {};
     CHECK(proposed(ctx, r) == test_bit(Test::belts));
 

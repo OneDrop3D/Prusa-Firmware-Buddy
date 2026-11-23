@@ -34,10 +34,6 @@ std::array<Record, calib_registry::max_tests> records();
 Accelerometer accelerometer();
 void set_accelerometer(Accelerometer value);
 
-/// « Ne plus demander pour cette version » : jusqu'au prochain changement de version d'une calibration
-void dismiss();
-uint32_t dismissed();
-
 /// Calibration faite hors de l'assistant (équerrage, manuel)
 void record_done(Test test);
 

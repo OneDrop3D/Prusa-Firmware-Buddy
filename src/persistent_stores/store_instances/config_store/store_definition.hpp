@@ -525,11 +525,9 @@ struct CurrentStore
     /// moteurs, ventilateurs), à la place de l'atténuation des lumières de Prusa
     StoreItem<od3d::sleep::Settings, od3d::sleep::Settings {}, ItemFlag::user_interface, journal::hash("OD3D Sleep Settings")> od3d_sleep;
     /// OneDrop3D (assistant de calibration) : par calibration du registre (indice = od3d::calib_registry::Test), dernière
-    /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible » ; signature du registre écartée
-    /// par « Ne plus demander pour cette version »
+    /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible »
     StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::max_tests> od3d_calib_done;
     StoreItem<od3d::calib_registry::Accelerometer, od3d::calib_registry::Accelerometer::unknown, ItemFlag::features, journal::hash("OD3D Accelerometer")> od3d_accelerometer;
-    StoreItem<uint32_t, 0, ItemFlag::features, journal::hash("OD3D Calib Dismissed")> od3d_calib_dismissed;
     /// OneDrop3D (F43) : emplacement chargé jusqu'à la buse, sa matière et la date (filament_memory_od3d.hpp), repris
     /// au démarrage du MMU si les capteurs sont d'accord
     StoreItem<od3d::filament_memory::Record, od3d::filament_memory::Record {}, ItemFlag::printer_state, journal::hash("OD3D Loaded Filament")> od3d_loaded_filament;
@@ -1317,6 +1315,9 @@ struct DeprecatedStore
     };
     StoreItem<bool, fsensor_enabled_v2_default, journal::hash("FSensor Enabled V2")> fsensor_enabled_v2;
     StoreItem<SelftestResult, defaults::selftest_result, journal::hash("Selftest Result INDX")> selftest_result;
+
+    // OneDrop3D : « Ne plus demander » de l'assistant de calibration au démarrage, proposition retirée le 23/11
+    StoreItem<uint32_t, 0, journal::hash("OD3D Calib Dismissed")> od3d_calib_dismissed;
 
     /*
         StoreItemArray<float, defaults::nozzle_diameter, ItemFlag::hw_config, journal::hash("Nozzle Diameter Array"), 16, HOTENDS> nozzle_diameters;

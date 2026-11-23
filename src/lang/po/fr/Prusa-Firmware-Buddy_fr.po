@@ -11606,10 +11606,6 @@ msgid "Nothing to calibrate."
 msgstr "Rien à calibrer."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "%d calibrations are new or changed in this firmware (about %d min). Once started, the tests run by themselves."
-msgstr "%d calibrations sont nouvelles ou modifiées dans ce firmware (environ %d min). Une fois lancés, les tests s'enchaînent seuls."
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Full calibration: %d tests, about %d min. Once started, the tests run by themselves."
 msgstr "Calibration complète : %d tests, environ %d min. Une fois lancés, les tests s'enchaînent seuls."
 
@@ -11660,18 +11656,6 @@ msgstr "Plateau vide et propre ? Chaque test imprime à sa propre place sur le p
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "The bed is full of test prints. Remove them and put the clean sheet back, then Continue."
 msgstr "Le plateau est plein de motifs de test. Retirez-les et remettez la plaque propre, puis Continuer."
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Calibrate now"
-msgstr "Calibrer maintenant"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Later"
-msgstr "Plus tard"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Don't ask again"
-msgstr "Ne plus demander"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Yes"
@@ -12446,10 +12430,6 @@ msgstr "Quelle bobine ?"
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Spool preloaded in the MMU"
 msgstr "Bobine préchargée dans le MMU"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "%d calibrations are new or changed in this firmware (about %d min). Touch a test to add or skip it; the tests then run by themselves."
-msgstr "%d calibrations sont nouvelles ou modifiées dans ce firmware (environ %d min). Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it."

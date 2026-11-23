@@ -458,14 +458,6 @@ void set_accelerometer(Accelerometer value) {
     config_store().od3d_accelerometer.set(value);
 }
 
-void dismiss() {
-    config_store().od3d_calib_dismissed.set(signature());
-}
-
-uint32_t dismissed() {
-    return config_store().od3d_calib_dismissed.get();
-}
-
 void record_done(Test test) {
     const size_t i = size_t(test);
     config_store().od3d_calib_done.set(i, after_run(config_store().od3d_calib_done.get(i), entry(test), Result::ok, now()));

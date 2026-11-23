@@ -94,10 +94,6 @@ uint32_t proposed(const Context &ctx, std::span<const Record> records) {
     return mask;
 }
 
-bool should_propose(const Context &ctx, std::span<const Record> records, uint32_t dismissed) {
-    return proposed(ctx, records) && dismissed != signature();
-}
-
 std::array<uint8_t, 8> spool_order(std::span<const int16_t> bed, std::span<const int16_t> nozzle, std::optional<uint8_t> loaded) {
     std::array<uint8_t, 8> order { 0, 1, 2, 3, 4, 5, 6, 7 };
     const auto key = [&](uint8_t slot) -> int32_t {
@@ -113,16 +109,6 @@ std::array<uint8_t, 8> spool_order(std::span<const int16_t> bed, std::span<const
 bool numbers_shown(const Entry &e, Result result, std::span<const int16_t> after) {
     const bool any = std::any_of(after.begin(), after.end(), [](int16_t v) { return v != no_value; });
     return any && (result == Result::ok || (e.needs & filament));
-}
-
-uint32_t signature() {
-    uint32_t h = 2166136261u; // FNV-1a sur (test, version)
-    for (const Entry &e : entries) {
-        for (const uint8_t byte : { uint8_t(e.test), e.version }) {
-            h = (h ^ byte) * 16777619u;
-        }
-    }
-    return h;
 }
 
 uint16_t minutes(uint32_t mask, const Context &ctx, uint32_t redo) {

@@ -6,8 +6,8 @@
 /// RÈGLE POUR LES AGENTS — la version d'une entrée (Entry::version) est la seule source de vérité :
 /// - un commit qui change ce que mesure une calibration (algorithme, paramètres, format ou usage du résultat), au point
 ///   qu'il faille la refaire pour en profiter, augmente sa version de 1 dans `entries` ;
-/// - au démarrage suivant, l'imprimante compare avec la version enregistrée (config_store « OD3D Calib Done ») et
-///   propose de refaire seulement les calibrations dont la version a augmenté ;
+/// - l'assistant (ouvert depuis le menu, jamais proposé au démarrage) compare avec la version enregistrée
+///   (config_store « OD3D Calib Done ») et coche d'office seulement les calibrations dont la version a augmenté ;
 /// - ne jamais baisser une version ni réutiliser la valeur d'un Test retiré ; une nouvelle calibration = une nouvelle
 ///   valeur de Test juste avant `count` (16 au plus), son entrée dans `entries` à sa place dans l'ordre d'exécution,
 ///   version 1, et son G-code dans step_gcode().
@@ -190,17 +190,10 @@ constexpr uint8_t spools_to_measure(Test test, const Context &ctx, bool redo) {
 /// augmenté (redo_mask()). Ce qui est déjà fait n'est pas coché ; le cocher à l'écran le refait (toutes les bobines).
 uint32_t proposed(const Context &ctx, std::span<const Record> records);
 
-/// Proposer l'assistant au démarrage : un test coché d'office (proposed()), et ce registre n'a pas été écarté par
-/// « Ne plus demander » (dismissed = signature() enregistrée à ce moment)
-bool should_propose(const Context &ctx, std::span<const Record> records, uint32_t dismissed);
-
 /// Ordre des bobines d'une série (accélérer : jamais refroidir le plateau entre deux bobines, qui prend plusieurs
 /// minutes) : plateau, puis buse, de la plus froide à la plus chaude ; à égalité, la bobine déjà dans la buse d'abord.
 /// bed, nozzle : consignes de la matière de chaque emplacement
 std::array<uint8_t, 8> spool_order(std::span<const int16_t> bed, std::span<const int16_t> nozzle, std::optional<uint8_t> loaded);
-
-/// Empreinte des versions du registre : elle change dès qu'une version change
-uint32_t signature();
 
 /// Durée estimée des tests automatiques de mask [min] ; redo : tests par bobine à refaire sur toutes les bobines
 uint16_t minutes(uint32_t mask, const Context &ctx, uint32_t redo = 0);

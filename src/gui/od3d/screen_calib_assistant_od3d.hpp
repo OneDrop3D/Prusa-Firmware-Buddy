@@ -1,7 +1,6 @@
 /// @file
-/// OneDrop3D : écran « Assistant de calibration » (demande du 22/11). Proposé au démarrage après l'installation de
-/// OneDrop3D ou une mise à jour qui change une calibration (calib_registry_od3d.hpp), et ouvert depuis Réglages ›
-/// Fonctions OneDrop3D. Un seul écran dont le contenu suit les étapes :
+/// OneDrop3D : écran « Assistant de calibration » (demande du 22/11), ouvert depuis Réglages › Fonctions OneDrop3D
+/// (jamais proposé au démarrage, demande du 23/11). Un seul écran dont le contenu suit les étapes :
 /// proposition (calibrations à faire, durée) → « Avez-vous un accéléromètre ? » → buse sous 40 °C (température en
 /// direct, ventilateur) → « Fixez l'accéléromètre » (vérifié) → tests à l'accéléromètre en série → « Retirez
 /// l'accéléromètre » → « Plateau vide et propre ? » → MPC et mesures par bobine en série → bilan (toucher un échec le
@@ -19,9 +18,6 @@
 #include <WindowMenuSwitch.hpp>
 
 namespace od3d {
-
-/// Au démarrage (guimain) : vrai s'il faut proposer l'assistant (il est alors prêt à s'ouvrir en proposition)
-bool calibration_prompt_at_boot();
 
 /// L'assistant attend l'utilisateur ou fait une série (pas la proposition ni le bilan) : la pastille le montre
 bool calibration_assistant_active();

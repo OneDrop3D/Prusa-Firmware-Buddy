@@ -40,8 +40,9 @@
 // Durées des lectures de la clé, en ms (M331 od3d_files pour les activer) : dir = liste du dossier, info = métadonnées
 // d'un fichier (ouverture comprise), thumb = vignette (de l'ouverture du fichier à sa dernière bande, pauses comprises),
 // band = la plus longue bande de cette vignette (temps où l'interface ne répond pas), ready = de l'affichage de la page
-// à sa dernière vignette, scroll = rangée ou page tournée (dossier relu et cartes), cache = octets du cache des vignettes
-// (0 : pas assez de mémoire libre)
+// à sa dernière vignette, scroll = rangée ou page tournée (dossier relu si besoin et cartes), step = d'un cran de molette
+// à l'écran repeint (attente du dessin compris, 40 ms au plus), cache = octets du cache des vignettes (0 : pas assez de
+// mémoire libre), window = entrées du dossier gardées en mémoire (4 : pas assez de mémoire libre, relu à chaque rangée)
 METRIC_DEF(metric_od3d_files, "od3d_files", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
 
 namespace od3d {
@@ -263,6 +264,13 @@ namespace {
             thumb_cache = nullptr;
         }
     }
+
+    // Fenêtre du dossier : 24 entrées en mémoire au lieu des 4 de la page. Avant (8.0.2.33), chaque rangée (deux crans de
+    // molette) relisait tout le dossier sur la clé : LazyDirView n'avance sa fenêtre qu'en le relisant. Un dossier de 23
+    // fichiers au plus n'est plus relu après son ouverture ; un plus grand, une fois toutes les 10 rangées. ~5 Ko du tas
+    // tant que la grille est ouverte, avec la même marge que le cache des vignettes ; sinon la page seule, comme avant.
+    using DirWindow = LazyDirView<24>;
+    DirWindow *dir_window = nullptr;
 
     /// Taille de la vignette de la grille (la 313 × 173 réduite au tiers), centrée dans sa case
     constexpr uint16_t grid_img_w = thumb_w / grid_factor, grid_img_h = thumb_h / grid_factor;
@@ -503,11 +511,22 @@ ScreenFiles::ScreenFiles()
     , tabs(this, TabBar::Tab::print) {
     instance = this;
     open_thumb_cache();
+    if (xPortGetFreeHeapSize() >= sizeof(DirWindow) + heap_margin) {
+        if (void *block = malloc_fallible(sizeof(DirWindow))) {
+            view = dir_window = new (block) DirWindow();
+        }
+    }
+    metric_record_custom(&metric_od3d_files, " window=%ii", view->WindowSize());
 }
 
 ScreenFiles::~ScreenFiles() {
     stop_load();
     close_thumb_cache();
+    if (dir_window) {
+        dir_window->~DirWindow();
+        free(dir_window);
+        dir_window = nullptr;
+    }
     if (instance == this) {
         instance = nullptr;
     }
@@ -532,13 +551,13 @@ bool ScreenFiles::in_subfolder() const {
 }
 
 int ScreenFiles::item_count() const {
-    return view.TotalFilesCount() - 1 + (in_subfolder() ? 1 : 0); // la liste compte toujours « .. »
+    return view->TotalFilesCount() - 1 + (in_subfolder() ? 1 : 0); // la liste compte toujours « .. »
 }
 
 void ScreenFiles::load() {
     loaded = true;
     const uint32_t start_ms = ticks_ms();
-    view.ChangeDirectory(dir.data(), FileSort::SortPolicy::BY_CRMOD_DATETIME);
+    view->ChangeDirectory(dir.data(), FileSort::SortPolicy::BY_CRMOD_DATETIME);
     first = grid::clamp_first(item_count(), cols, rows, first);
     fill();
     metric_record_custom(&metric_od3d_files, " dir=%ui,n=%ii", unsigned(ticks_diff(ticks_ms(), start_ms)), item_count());
@@ -556,13 +575,13 @@ void ScreenFiles::fill() {
     ready_logged = false;
     shown_ms = ticks_ms();
 
-    // Entrées numérotées -1 (« .. ») à last ; à la racine, « .. » ne s'affiche pas. Près de la fin, LazyDirView recule
-    // sa fenêtre pour qu'elle reste pleine : on décale alors l'index dans la fenêtre. Une rangée de plus ou de moins ne
-    // relit le dossier qu'une fois (set_window_offset part de la fenêtre actuelle).
+    // Entrées numérotées -1 (« .. ») à last ; à la racine, « .. » ne s'affiche pas. La page se lit dans la fenêtre en
+    // mémoire ; le dossier n'est relu que si elle en sort (grid::window_start). Près de la fin, LazyDirView garde sa
+    // fenêtre pleine : on décale alors l'index dans la fenêtre.
     const int count = item_count();
-    const int last = view.TotalFilesCount() - 2;
+    const int last = view->TotalFilesCount() - 2;
     const int wanted = first - (in_subfolder() ? 1 : 0);
-    const int start = view.set_window_offset(wanted);
+    const int start = view->set_window_offset(grid::window_start(view->TotalFilesCount(), view->WindowSize(), view->window_offset(), wanted, tiles_count));
     const bool was_shown = tiles[0].HasVisibleFlag();
     for (FileTile &t : tiles) {
         const int entry = wanted + t.index;
@@ -571,7 +590,7 @@ void ScreenFiles::fill() {
         if (entry <= last) {
             index = entry - start;
             kind = entry < 0 ? FileTile::Kind::up
-                             : (view.display_name_at(index).second == FileSort::EntryType::DIR ? FileTile::Kind::folder : FileTile::Kind::file);
+                             : (view->display_name_at(index).second == FileSort::EntryType::DIR ? FileTile::Kind::folder : FileTile::Kind::file);
         }
         t.set(kind, index);
         t.set_visible(count > 0);
@@ -631,12 +650,12 @@ void ScreenFiles::update_title() {
 }
 
 bool ScreenFiles::entry_path(const FileTile &t, std::span<char> out) const {
-    const int n = snprintf(out.data(), out.size(), "%s/%s", dir.data(), view.canonical_name_at(t.view_index).first);
+    const int n = snprintf(out.data(), out.size(), "%s/%s", dir.data(), view->canonical_name_at(t.view_index).first);
     return n > 0 && size_t(n) < out.size();
 }
 
 const char *ScreenFiles::display_name(const FileTile &t) const {
-    return view.display_name_at(t.view_index).first;
+    return view->display_name_at(t.view_index).first;
 }
 
 void ScreenFiles::open(const FileTile &t) {
@@ -678,6 +697,7 @@ bool ScreenFiles::knob(const FileTile &tile, int step) {
         return false;
     }
     last_input_ms = ticks_ms();
+    step_ms = step_ms ? step_ms : last_input_ms;
     fling = 0;
     scroll_to(view_after->first);
     tiles[view_after->focus - first].SetFocus();
@@ -710,6 +730,14 @@ bool ScreenFiles::draw_cached(const FileTile &tile, Rect16 box) const {
     display::fill_rect(Rect16::fromLTRB(img.Left(), img.Bottom() + 1, img.Right() + 1, box.Bottom() + 1), style::thumb_back);
     display::draw_img(point_ui16(img.Left(), img.Top()), *image);
     return true;
+}
+
+void ScreenFiles::draw() {
+    Screen::draw();
+    if (step_ms) {
+        metric_record_custom(&metric_od3d_files, " step=%ui", unsigned(ticks_diff(ticks_ms(), step_ms)));
+        step_ms = 0;
+    }
 }
 
 void ScreenFiles::unconditionalDraw() {

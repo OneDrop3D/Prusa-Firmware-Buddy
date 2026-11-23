@@ -2,6 +2,7 @@
 #include <gui/od3d/layout_od3d.hpp>
 #include <gui/od3d/spool_draw.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
 
 using namespace od3d;
 
@@ -93,6 +94,48 @@ TEST_CASE("od3d grid: a fling adds a few rows") {
     CHECK(grid::fling_rows(-1200) == 2);
     CHECK(grid::fling_rows(-9000) == 3); // inertie légère
     CHECK(grid::fling_rows(1200) == -2); // doigt vers le bas : retour au début
+}
+
+TEST_CASE("od3d grid: the folder window moves only when the page leaves it") {
+    // 23 fichiers à la racine : 24 entrées avec « .. », toutes dans la fenêtre de 24
+    CHECK(grid::window_start(24, 24, -1, 0, 4) == -1);
+    CHECK(grid::window_start(24, 24, -1, 20, 4) == -1); // dernière page (une case vide) : rien à relire
+    // 60 fichiers, fenêtre de 24 : entrées -1 à 22 en mémoire
+    CHECK(grid::window_start(61, 24, -1, 19, 4) == -1);
+    CHECK(grid::window_start(61, 24, -1, 20, 4) == 20); // en dessous : la page en haut de la fenêtre
+    CHECK(grid::window_start(61, 24, 20, 18, 4) == -1); // au-dessus : la page en bas, bornée à « .. »
+    CHECK(grid::window_start(61, 24, 36, 30, 4) == 10);
+    CHECK(grid::window_start(61, 24, 20, 56, 4) == 36); // bornée à la fin : la fenêtre reste pleine
+    // Fenêtre de la page seule (pas de place dans le tas) : déplacée à chaque rangée, comme avant
+    CHECK(grid::window_start(61, 4, 10, 12, 4) == 12);
+    CHECK(grid::window_start(61, 4, 10, 8, 4) == 8);
+}
+
+TEST_CASE("od3d grid: reading the folder again, counted along the list") {
+    // Lectures du dossier sur la clé en parcourant la liste à la molette, aller et retour : LazyDirView en fait une par
+    // déplacement de sa fenêtre, d'au plus window - 1 entrées (move_window_by)
+    const auto reads = [](int files, int window) {
+        const int total = files + 1; // « .. », caché à la racine
+        int start = -1, count = 0;
+        const auto show = [&](int first) {
+            const int s = grid::window_start(total, window, start, first, 4);
+            count += (std::abs(s - start) + window - 2) / (window - 1);
+            start = s;
+        };
+        grid::View v { 0, 0 };
+        show(0); // ouverture
+        for (const int dir : { 1, -1 }) {
+            while (const auto next = grid::step(files, 2, 2, v, dir)) {
+                v = *next;
+                show(v.first);
+            }
+        }
+        return count;
+    };
+    CHECK(reads(20, 4) == 17); // avant (8.0.2.33) : une lecture à l'ouverture et à chaque rangée (2 crans)
+    CHECK(reads(20, 24) == 0); // maintenant : aucune après l'ouverture
+    CHECK(reads(60, 4) == 57);
+    CHECK(reads(60, 24) == 4); // une toutes les 10 rangées environ
 }
 
 TEST_CASE("od3d layout: card content stays off the rounded corners") {

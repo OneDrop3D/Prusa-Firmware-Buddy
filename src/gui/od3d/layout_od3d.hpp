@@ -184,4 +184,15 @@ constexpr int fling_rows(int velocity_px_s) {
     return velocity_px_s < 0 ? rows : -rows;
 }
 
+/// Début de la fenêtre du dossier gardée en mémoire (LazyDirView : window entrées à partir de start, -1 = « .. » ;
+/// total entrées, « .. » compris) pour montrer les entrées [wanted, wanted + page). start si elles y sont : rien à relire
+/// sur la clé. Sinon la fenêtre se recale (une lecture du dossier), la page au bord d'où l'on vient : la suite dans le
+/// sens du défilement reste en mémoire.
+constexpr int window_start(int total, int window, int start, int wanted, int page) {
+    if (wanted >= start && wanted + page <= start + window) {
+        return start;
+    }
+    return std::clamp(wanted < start ? wanted + page - window : wanted, -1, std::max(total - window - 1, -1));
+}
+
 } // namespace od3d::grid

@@ -67,6 +67,15 @@ Peak find_peak(std::span<const float> values, float start_hz, float step_hz, flo
     return best;
 }
 
+Peak belt_peak(std::span<const float> values, float start_hz, float step_hz) {
+    const float end_hz = start_hz + float(values.size() ? values.size() - 1 : 0) * step_hz;
+    Peak p = find_peak(values, start_hz, step_hz, start_hz, end_hz, min_peak_relative);
+    if (p.found && (p.frequency < start_hz + edge_guard_hz || p.frequency > end_hz - edge_guard_hz)) {
+        p.found = false; // collé à un bord : la vraie résonance est peut-être au-delà
+    }
+    return p;
+}
+
 Zone zone(float frequency, const Targets &targets) {
     if (frequency < targets.result_min) {
         return Zone::low;
@@ -100,6 +109,28 @@ Advice advise(float freq_a, float freq_b, const Targets &t) {
     }
     eighths = std::clamp(eighths, -64, 64); // 8 tours au plus : au-delà, la mesure est sans doute fausse
     return { eighths == 0 ? Verdict::ok : Verdict::adjust, int8_t(eighths) };
+}
+
+float live_start(float center_hz, float lo_hz, float hi_hz, float step_hz) {
+    const float span_hz = float(live_points - 1) * step_hz;
+    const float start = std::round((center_hz - span_hz / 2.f - lo_hz) / step_hz) * step_hz + lo_hz;
+    return std::isfinite(start) ? std::clamp(start, lo_hz, std::max(lo_hz, hi_hz - span_hz)) : lo_hz;
+}
+
+float live_peak(std::span<const float> values, float start_hz, float step_hz) {
+    if (values.empty()) {
+        return NAN;
+    }
+    const size_t top = size_t(std::max_element(values.begin(), values.end()) - values.begin());
+    if (top == 0 || top + 1 == values.size()) {
+        return start_hz + float(top) * step_hz; // au bord : la fenêtre suivante s'y recentre
+    }
+    return start_hz + (float(top) + parabolic_offset(values[top - 1], values[top], values[top + 1])) * step_hz;
+}
+
+uint8_t live_streak(uint8_t streak, float freq_a, float freq_b, const Targets &targets) {
+    const bool ok = zone(freq_a, targets) == Zone::ok && zone(freq_b, targets) == Zone::ok;
+    return ok ? uint8_t(std::min(streak + 1, 255)) : 0;
 }
 
 void format_turns(int eighths, char *out, size_t size) {

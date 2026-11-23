@@ -112,8 +112,8 @@ namespace {
             }
             return r == TestResult::passed;
         }
-        case Test::belts:
-            return belts::status() == belts::Status::done;
+        case Test::belts: // un pic non concluant (hors de la plage balayée, trop peu marqué) : échec, jamais un conseil
+            return belts::status() == belts::Status::done && belts::last().peaks[0].found && belts::last().peaks[1].found;
         case Test::speed_map:
             return speed_map::status() == speed_map::Status::done;
         case Test::damping:
@@ -445,6 +445,17 @@ Result result(Test test) {
 
 uint32_t postponed() {
     return postponed_mask.load();
+}
+
+void recapture(Test test) {
+    const size_t i = size_t(test) % max_tests;
+    if (running || results[i].load() != Result::ok || (entry(test).needs & filament)) {
+        return;
+    }
+    capture(Step { test }, after_numbers[i], true);
+    Values kept;
+    std::copy_n(after_numbers[i].begin(), kept.v.size(), kept.v.begin());
+    config_store().od3d_calib_values.set(i, kept); // le « avant » de la fois suivante
 }
 
 bool mmu_in_use() {

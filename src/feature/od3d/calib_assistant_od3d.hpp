@@ -55,6 +55,10 @@ Progress progress();
 /// Résultat du test dans la dernière série qui l'a contenu depuis le démarrage (none : pas encore)
 Result result(Test test);
 
+/// Interface, hors série : les chiffres « après » d'un test réussi relevés à nouveau et gardés (courroies réglées en
+/// direct après leur mesure : le bilan et la fois suivante voient les fréquences finales)
+void recapture(Test test);
+
 /// Tests de la dernière série reportés parce que le MMU ne répondait pas (bits de Test) : comptés « passés »
 uint32_t postponed();
 

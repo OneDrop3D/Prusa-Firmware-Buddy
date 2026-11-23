@@ -50,6 +50,9 @@ protected:
     void unconditionalDraw() override;
 };
 
+/// Ouvre l'écran des courroies et lance le réglage en direct (assistant de calibration, courroies hors de la plage)
+void open_belts_live();
+
 class ScreenBelts final : public Screen {
 public:
     ScreenBelts();
@@ -61,6 +64,7 @@ private:
     void update(); ///< état de la mesure, jauges, courbe, texte, bouton
     void show_info();
     void start();
+    void start_live(); ///< M1992 L : réglage en direct
 
     // Ordre de construction = ordre de la molette (seul le bouton est actif, avec le retour et les onglets)
     Header header;
@@ -77,6 +81,8 @@ private:
     std::array<char, 12> turns {}; ///< « 1 3/8 »
 
     bool pending = false; ///< M1992 envoyé, pas encore commencé
+    bool live_requested = false; ///< la mesure envoyée est le réglage en direct (« Terminé » au lieu d'« Annuler »)
+    uint8_t shown_in_range = 0xff;
     uint16_t runs_at_request = 0;
     uint16_t shown_revision = 0xffff;
     bool shown_running = false;

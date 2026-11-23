@@ -12488,8 +12488,8 @@ msgid "Accelerometer calibration"
 msgstr "Calibration de l'accéléromètre"
 
 #: src/feature/od3d/live_od3d.hpp
-msgid "Belt %c: shaking at %d Hz"
-msgstr "Courroie %c : vibration à %d Hz"
+msgid "Belt %c ringing at %d Hz: the motor hum is normal"
+msgstr "Courroie %c vibrée à %d Hz : bourdonnement normal"
 
 #: src/feature/od3d/live_od3d.hpp
 msgid "Measured: belt %c at %d.%d Hz"
@@ -12594,3 +12594,43 @@ msgstr "Prise d'origine sans l'accéléromètre, patientez..."
 #: src/gui/od3d/accelerometer_guide_od3d.cpp
 msgid "Start homes the printer first: accelerometer not on the nozzle yet (remove it if it is)."
 msgstr "Démarrer prend d'abord l'origine : accéléromètre pas encore sur la buse (retirez-le s'il y est)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Moving to the measuring position..."
+msgstr "Déplacement à la position de mesure..."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
+msgstr "Les deux courroies dans la plage (%d/%d de suite) : ne touchez plus les vis, Fini arrête."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
+msgstr "Les deux vis : %s de %s tour. Remesurées toutes les ~10 s, Fini arrête."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt %c rings, the motor hums: normal. %d%%"
+msgstr "Courroie %c en vibration, le moteur bourdonne : normal. %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belts out of range. Adjust them live? Both belts are measured again every ~10 s while you turn both screws (Prusa guide: prusa.io/core-belt-calibration-tensioning)."
+msgstr "Courroies hors de la plage. Les régler en direct ? Les deux courroies sont remesurées toutes les ~10 s pendant que vous tournez les deux vis (guide Prusa : prusa.io/core-belt-calibration-tensioning)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, accelerometer still on, then Continue."
+msgstr "Courroies hors de la plage : A %s Hz, B %s Hz (cible %d-%d Hz). Réglez-les en direct, accéléromètre fixé, puis Continuer."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Adjust live"
+msgstr "Régler en direct"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Inconclusive (belt %c): peak out of range, belt maybe too tight or too loose."
+msgstr "Non concluant (courroie %c) : pic hors plage, courroie peut-être trop tendue ou trop lâche."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "inconclusive"
+msgstr "non concluant"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belts: inconclusive, peak out of range (too tight or too loose?)."
+msgstr "Courroies : non concluant, pic hors plage (trop tendues ou trop lâches ?)."

@@ -99,6 +99,7 @@ namespace {
         checking,
         rehome, ///< origine perdue en attendant : retirer l'accéléromètre, la refaire
         accel_run, ///< série des tests à l'accéléromètre
+        belts_adjust, ///< courroies hors de la plage : réglage en direct proposé, accéléromètre encore fixé (retour du 23/11)
         detach, ///< « Retirez l'accéléromètre » (et remettez la chaussette) : rien ne chauffe avant « C'est fait »
         bed, ///< « Plateau vide et propre ? »
         cell_run, ///< MPC et mesures par bobine
@@ -117,6 +118,7 @@ namespace {
         uint32_t started = 0; ///< tests envoyés à Marlin (leur résultat compte)
         uint16_t runs_at_start = 0;
         uint16_t checks_at_request = 0;
+        bool belts_offered = false; ///< réglage en direct des courroies déjà proposé dans cette session
         uint8_t skip_index = 0xff; ///< étape passée (« Passer »), redemandé tant qu'elle n'a pas commencé
         uint16_t skip_runs = 0; ///< série de cette étape
     };
@@ -318,13 +320,36 @@ namespace {
 
     /// Lance la série des tests restants à l'accéléromètre (accel) ou des autres
     void run_part(bool accel) {
-        const uint32_t part = flow.mask & (accel ? accel_tests() : ~accel_tests());
+        uint32_t part = flow.mask & (accel ? accel_tests() : ~accel_tests()) & ~flow.started;
+        if (part & test_bit(Test::belts)) {
+            part = test_bit(Test::belts); // seules d'abord : hors de la plage, réglées avant les tests qui en dépendent
+        }
         flow.started |= part;
         flow.runs_at_start = assistant::progress().runs;
         char gcode[24];
         snprintf(gcode, sizeof(gcode), "M1989 R%lu", static_cast<unsigned long>(part));
         marlin_client::gcode(gcode);
         flow.stage = accel ? Stage::accel_run : Stage::cell_run;
+    }
+
+    /// Les courroies viennent d'être mesurées hors de la plage de Prusa (conseil : tourner les vis), pas encore proposé
+    bool belts_out_of_range() {
+        const belts::Measurement &m = belts::last();
+        return !flow.belts_offered && (flow.started & test_bit(Test::belts)) && assistant::result(Test::belts) == Result::ok && m.peaks[0].found
+            && m.peaks[1].found && belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets()).verdict == belts::Verdict::adjust;
+    }
+
+    /// Fin d'une série à l'accéléromètre : réglage en direct des courroies proposé, puis les autres tests à
+    /// l'accéléromètre, puis « Retirez l'accéléromètre »
+    void after_accel_part() {
+        if (!flow.cancelled && belts_out_of_range()) {
+            flow.belts_offered = true;
+            flow.stage = Stage::belts_adjust;
+        } else if (!flow.cancelled && (flow.mask & accel_tests() & ~flow.started)) {
+            run_part(true);
+        } else {
+            flow.stage = Stage::detach; // aussi après « Annuler » : l'accéléromètre est encore sur la buse
+        }
     }
 
     /// Après l'accéléromètre (fait, passé ou absent) : plateau, puis le reste ; sinon le bilan
@@ -348,6 +373,7 @@ namespace {
         flow.session = session | mask;
         flow.mask = mask;
         flow.skip_index = 0xff;
+        flow.belts_offered = false;
         flow.started = 0;
         flow.cancelled = flow.check_failed = false;
         if (!(mask & accel_tests())) {
@@ -379,6 +405,7 @@ namespace {
         case Stage::attach:
         case Stage::checking:
         case Stage::rehome:
+        case Stage::belts_adjust:
             // Chaussette retirée, accéléromètre peut-être fixé : les remettre en ordre avant toute chauffe
             marlin_client::gcode("M107");
             flow.stage = Stage::detach;
@@ -793,6 +820,11 @@ namespace {
             next(N_("nozzle at 250\xC2\xB0""C"));
             w.add(" %+.1f um", a[2] / 10.0);
         }
+        // Courroies : pic hors de la plage balayée ou trop peu marqué, jamais un conseil (retour du 23/11)
+        if ((flow.started & test_bit(Test::belts)) && assistant::result(Test::belts) == Result::failed && belts::status() == belts::Status::done) {
+            w.add("\n");
+            w.text(N_("Belts: inconclusive, peak out of range (too tight or too loose?)."));
+        }
         // MMU muet pendant la série (flash par l'USB avant...) : ses tests sont reportés, pas en échec
         if (const int later = std::popcount(assistant::postponed() & flow.started); later > 0) {
             char line[96];
@@ -1074,7 +1106,7 @@ void ScreenCalibAssistant::update() {
     // Origine prise avant de demander de fixer l'accéléromètre (M1989 H) : les moteurs restent alimentés jusqu'à la
     // fin de ses tests, sinon elle se perdrait et serait refaite accéléromètre fixé (retour du 23/11)
     const bool hold = flow.stage == Stage::cooling || flow.stage == Stage::sock_off || flow.stage == Stage::attach || flow.stage == Stage::checking
-        || flow.stage == Stage::accel_run;
+        || flow.stage == Stage::accel_run || flow.stage == Stage::belts_adjust;
     if (hold != motors_held) {
         motors_held = hold;
         sleep::hold_motors(hold);
@@ -1105,7 +1137,7 @@ void ScreenCalibAssistant::update() {
         break;
     case Stage::accel_run:
         if (run_finished()) {
-            flow.stage = Stage::detach; // aussi après « Annuler » : l'accéléromètre est encore sur la buse
+            after_accel_part();
         }
         break;
     case Stage::cell_run:
@@ -1206,6 +1238,16 @@ void ScreenCalibAssistant::show() {
             text = string_view_utf8::MakeRAM(running);
         }
         break;
+    case Stage::belts_adjust: {
+        const belts::Measurement &m = belts::last();
+        const belts::Targets t = belts::targets();
+        char a[8], b[8];
+        snprintf(a, sizeof(a), "%.1f", double(m.peaks[0].frequency));
+        snprintf(b, sizeof(b), "%.1f", double(m.peaks[1].frequency));
+        text = _("Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, accelerometer still on, then Continue.")
+                   .formatted(info_params, a, b, int(t.result_min), int(t.result_max));
+        break;
+    }
     case Stage::detach:
         // La buse est encore froide : le bon moment ; rien ne chauffe avant « C'est fait »
         text = has_sock() ? _("Remove the accelerometer from the nozzle, then put the silicone sock back on it. The nozzle heats only after that.")
@@ -1261,6 +1303,9 @@ void ScreenCalibAssistant::show() {
     case Stage::accel_run:
     case Stage::cell_run:
         s = { nullptr, N_("Skip this test"), N_("Cancel") };
+        break;
+    case Stage::belts_adjust:
+        s = { N_("Adjust live"), N_("Continue"), N_("Cancel") };
         break;
     case Stage::detach:
         s = { N_("It's done") };
@@ -1366,6 +1411,16 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     case Stage::rehome:
         if (tag == tag_a) {
             enter_cooling();
+        } else {
+            cancel();
+        }
+        break;
+    case Stage::belts_adjust:
+        if (tag == tag_a) {
+            open_belts_live(); // l'écran des courroies, en direct ; « Continuer » ici quand c'est réglé
+        } else if (tag == tag_b) {
+            assistant::recapture(Test::belts); // le bilan et la prochaine fois : les fréquences après réglage
+            after_accel_part();
         } else {
             cancel();
         }

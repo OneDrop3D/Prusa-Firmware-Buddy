@@ -2,6 +2,7 @@
 #include "tip_od3d.hpp"
 
 #include <array>
+#include <cmath>
 
 #include <config_store/store_instance.hpp>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
@@ -19,6 +20,7 @@ namespace {
 
     // Fil de Marlin seulement (step)
     std::array<Stats, slots> live;
+    std::array<float, slots> last; ///< mesure d'avant, en mémoire vive seulement (NaN : aucune depuis le démarrage)
     bool started = false;
     bool dirty = false; ///< mesures pas encore écrites
     uint16_t changes_seen = 0; ///< MMU2::ToolChangeCounter au tour d'avant
@@ -44,13 +46,16 @@ void step() {
     if (!started) {
         for (uint8_t i = 0; i < slots; ++i) {
             live[i] = config_store().od3d_tip_stats.get(i);
+            last[i] = NAN;
         }
         started = true;
     } else if (changes != changes_seen) {
         // Un seul changement depuis le tour d'avant : le recul mesuré est celui de la pointe de tool_seen. Hors impression
         // (M1704, T à la main), Prusa décharge d'abord : rien n'est mesuré.
         if (printing && uint16_t(changes - changes_seen) == 1 && tool_seen < slots) {
-            live[tool_seen] = add(live[tool_seen], mmu.UnloadEPosOnFSOff());
+            const float mm = mmu.UnloadEPosOnFSOff();
+            live[tool_seen] = add(live[tool_seen], mm, last[tool_seen]);
+            last[tool_seen] = valid(mm) ? mm : last[tool_seen];
             dirty = true;
         }
     }

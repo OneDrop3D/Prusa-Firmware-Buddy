@@ -1,6 +1,7 @@
 /// @file
 #include "speed_map_od3d.hpp"
 #include "accelerometer_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -9,6 +10,7 @@
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
+#include <i18n.h>
 #include <Marlin/src/gcode/calibrate/M958.hpp> // maybe_calibrate_and_get_accelerometer_sample_period
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/Marlin.h>
@@ -54,11 +56,10 @@ namespace {
         std::array<float, axis_count> bound; ///< mm de part et d'autre du centre
     };
 
-    /// Prise d'origine si besoin, hauteur sûre, centre du plateau borné par les butées logicielles
+    /// Hauteur sûre, centre du plateau borné par les butées logicielles ; not_homed sans origine
     Status prepare(Geometry &g) {
-        if (axes_need_homing()) {
-            GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
-        }
+        // Jamais d'origine ici (retour du 23/11 : le plateau montait palper, accéléromètre fixé) : l'écran ou
+        // l'assistant la prend avant de demander de le fixer (M1989 H) ; perdue depuis : refusé, sans bouger
         if (must_stop()) {
             return Status::stopped;
         }
@@ -203,6 +204,7 @@ namespace {
 
         for (uint8_t a = 0; a < axis_count; ++a) {
             axis_now = a;
+            live::set(N_("Axis %c: vibrations measured at each speed"), a == 0 ? 'X' : 'Y');
             const float max_speed = planner.settings.max_feedrate_mm_s[a == 0 ? X_AXIS : Y_AXIS];
             if (const Status s = measure_axis(a, g, sample_period, max_speed, accelerometer); s != Status::done) {
                 return s;

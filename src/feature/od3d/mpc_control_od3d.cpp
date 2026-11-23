@@ -1,5 +1,6 @@
 /// @file
 #include "mpc_control_od3d.hpp"
+#include "live_od3d.hpp"
 #include "lookahead_od3d.hpp"
 
 #include <algorithm>
@@ -10,6 +11,7 @@
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
+#include <i18n.h>
 #include <inc/MarlinConfig.h>
 #include <Marlin.h>
 #include <module/planner.h>
@@ -419,6 +421,24 @@ void run_autotune(float tune_temp) {
 
         tune_phase = autotune.phase();
         tune_progress = autotune.progress();
+        const int nozzle = int(std::lround(hotend.nozzle_temp().value_or(0.f)));
+        switch (autotune.phase()) {
+        case Phase::cooling:
+        case Phase::spin_down:
+            live::set(N_("Fan cooling to find the room temperature: %d\xC2\xB0""C"), nozzle);
+            break;
+        case Phase::heating:
+            live::set(N_("Full-power heating to %d\xC2\xB0""C: %d\xC2\xB0""C"), int(config.tune_temp), nozzle);
+            break;
+        case Phase::hold:
+            live::set(N_("Holding %d\xC2\xB0""C, fan off: heat losses"), int(config.tune_temp));
+            break;
+        case Phase::hold_fan:
+            live::set(N_("Holding %d\xC2\xB0""C, fan at 100%%: fan losses"), int(config.tune_temp));
+            break;
+        default:
+            break;
+        }
     }
 
     tune_error = autotune.error();

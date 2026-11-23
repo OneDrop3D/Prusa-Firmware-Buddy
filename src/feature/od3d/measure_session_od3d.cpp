@@ -1,6 +1,7 @@
 /// @file
 #include "measure_session_od3d.hpp"
 #include "flow_limit_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,6 +16,7 @@
 #include <feature/pressure_advance/pressure_advance_config.hpp>
 #include <feature/prusa/e-stall_detector.h>
 #include <gcode/gcode.h>
+#include <i18n.h>
 #include <marlin_stubs/skippable_gcode.hpp>
 #include <module/motion.h>
 #include <module/planner.h>
@@ -229,6 +231,7 @@ Result Session::heat_bed(int16_t bed, int16_t nozzle_probe) {
             return Result::heating;
         }
         const bool inside = std::fabs(thermalManager.degBed() - float(target)) <= 2.f;
+        live::set(N_("Bed heating to %d\xC2\xB0""C: %d\xC2\xB0""C"), target, int(std::lround(thermalManager.degBed())));
         const uint32_t now = ticks_ms();
         if (!inside) {
             inside_since.reset();
@@ -251,6 +254,7 @@ Result Session::home(int16_t nozzle_probe) {
         return r;
     }
     if (axes_need_homing()) {
+        live::set(N_("Homing"));
         GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
     }
     if (interrupted()) {
@@ -269,6 +273,7 @@ Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
     // comme Prusa le fait de la zone déclarée par M555), puis près de la purge, interpolation, extrapolation, maillage
     // activé
     GcodeSuite::process_subcommands_now_P("M84 E");
+    live::set(N_("Nozzle cleaning on the front strip"));
     GcodeSuite::process_subcommands_now_P("G29 P9 X208 Y-2.5 W32 H4");
     if (interrupted()) {
         return Result::stopped;
@@ -281,6 +286,7 @@ Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
     // Peut reprendre le maillage gardé d'une impression (F44, « Réutiliser le maillage ») : 3 points de contrôle seulement
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "G29 P1 X%.1f Y%.1f W%.1f H%.1f", double(probe.x0), double(probe.y0), double(probe.width()), double(probe.height()));
+    live::set(N_("Probing the bed under the test lines"));
     GcodeSuite::process_subcommands_now(cmd);
     if (interrupted()) {
         return Result::stopped;
@@ -318,7 +324,8 @@ Result Session::heat(int16_t temperature, float tolerance, uint32_t hold_ms, uin
         if (extrude ? target < EXTRUDE_MINTEMP : target < temperature - 20) {
             return Result::heating;
         }
-        const bool inside = std::fabs(h.nozzle_temp().value_or(0.f) - float(target)) <= tolerance;
+        const float current = h.nozzle_temp().value_or(0.f);
+        const bool inside = std::fabs(current - float(target)) <= tolerance;
         const uint32_t now = ticks_ms();
         if (!inside) {
             inside_since.reset();
@@ -326,6 +333,11 @@ Result Session::heat(int16_t temperature, float tolerance, uint32_t hold_ms, uin
             inside_since = now;
         } else if (now - *inside_since >= hold_ms) {
             break;
+        }
+        if (inside && hold_ms >= 5000) { // attente de stabilité : le compte à rebours
+            live::set(N_("Nozzle at %d\xC2\xB0""C, steady in %d s"), target, int((hold_ms - (now - inside_since.value_or(now)) + 999) / 1000));
+        } else {
+            live::set(current > float(target) ? N_("Nozzle cooling to %d\xC2\xB0""C: %d\xC2\xB0""C") : N_("Nozzle heating to %d\xC2\xB0""C: %d\xC2\xB0""C"), target, int(std::lround(current)));
         }
         if (now - start > timeout_ms) {
             return Result::heating;
@@ -348,6 +360,7 @@ Result Session::go_to_purge(float x, float y, float dir) {
 }
 
 bool Session::purge(float x, float dir) {
+    live::set(N_("Purge line"));
     deretract();
     // Depuis X249 : G0 E5 X235 Z0.2 F500, X225 E4 F500, X215 E4 F650, X205 E4 F800, puis essuyage X202 Z0.05 et
     // X199 Z0.2 à F8000 ; ici, les mêmes tronçons depuis x dans le sens dir

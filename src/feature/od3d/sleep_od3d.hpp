@@ -30,6 +30,11 @@ void publish(bool takeover, bool lights_off, bool fans_off);
 /// Coupures à faire par le fil de Marlin (abandonnées s'il est occupé)
 void request(Due due);
 
+/// Un écran attend l'utilisateur avec l'accéléromètre à fixer ou fixé (retour du 23/11) : aucune coupure des moteurs
+/// par inactivité, ni de Prusa ni de la veille, sinon l'origine se perdrait et serait refaite accéléromètre fixé.
+/// Compté : chaque true est suivi d'un false (quitter l'écran, fin de l'étape) ; à zéro, comportement normal.
+void hold_motors(bool hold);
+
 // ---- Lu par les lumières (interface) et les ventilateurs (Marlin) ----
 
 bool lights_off();

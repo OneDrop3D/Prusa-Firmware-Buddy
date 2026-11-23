@@ -139,3 +139,13 @@ TEST_CASE("nozzle_expansion: back to Prusa's model without a measurement") {
     CHECK(comp::nozzle_key(true, true) != comp::nozzle_key(true, false));
     CHECK(comp::nozzle_key(true, true) < comp::nozzle_keys);
 }
+
+TEST_CASE("nozzle expansion: cleaning at each new high temperature only") {
+    // 170, 215, 260 en montant : la buse suinte en chauffant ; 215 et 170 en redescendant : déjà nettoyée plus chaude
+    CHECK(new_high(0));
+    CHECK(new_high(1));
+    CHECK(new_high(2));
+    CHECK_FALSE(new_high(3));
+    CHECK_FALSE(new_high(4));
+    CHECK_FALSE(new_high(stages)); // hors des paliers
+}

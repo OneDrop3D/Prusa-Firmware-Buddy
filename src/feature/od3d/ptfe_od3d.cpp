@@ -1,5 +1,6 @@
 /// @file
 #include "ptfe_od3d.hpp"
+#include "live_od3d.hpp"
 #include "ptfe_math_od3d.hpp"
 
 #include <atomic>
@@ -7,6 +8,7 @@
 #include <feature/filament_sensor/filament_sensors_handler.hpp>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <feature/prusa/MMU2/registers.h>
+#include <i18n.h>
 #include <marlin_server.hpp>
 
 namespace od3d::ptfe {
@@ -89,6 +91,7 @@ Result measure(uint8_t slot) {
     finish(Result::running);
     tracker = {};
     armed = true;
+    live::set(N_("MMU pushes slot %d to the head sensor and back"), slot + 1);
     MMU2::mmu2.loading_test(slot); // Prusa : charge jusqu'aux engrenages puis décharge vers le MMU, erreurs comprises
     armed = false;
 

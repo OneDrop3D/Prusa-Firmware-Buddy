@@ -2,9 +2,10 @@
 /// OneDrop3D (M2003) : dilatation réelle de la buse mesurée par la cellule de charge, gardée par buse réglée dans Prusa
 /// (« OD3D Nozzle Expansion », lue par feature/nozzle_thermal_compensation à la place du modèle de Prusa).
 ///
-/// Buse vide (refusé si le capteur de l'extrudeur voit du filament), plateau à 60 °C stabilisé, origine et nettoyage de
-/// la buse à 170 °C, puis à chaque palier de temperatures (170, 215, 260, 215, 170) : buse à la consigne et stable,
-/// 3 palpages du centre du plateau, sans correction. nozzle_expansion_math_od3d.hpp en tire la pente ; acceptée, elle
+/// Buse vide (refusé si le capteur de l'extrudeur voit du filament), plateau à 60 °C (stabilisé pendant l'origine et
+/// le 1er palier), origine, puis à chaque palier de temperatures (170, 215, 260, 215, 170) : nettoyage de la buse à
+/// chaque température jamais atteinte (new_high()), buse à la consigne et stable, 3 palpages du centre du plateau,
+/// sans correction. nozzle_expansion_math_od3d.hpp en tire la pente ; acceptée, elle
 /// remplace celle de Prusa pour cette buse, et le maillage gardé (F44), palpé avec l'ancienne, est oublié.
 ///
 /// Les paliers restent en mémoire jusqu'au redémarrage ; l'interface les lit pendant la mesure (points et droite).
@@ -18,8 +19,12 @@
 namespace od3d::nozzle_expansion {
 
 inline constexpr int16_t bed_temperature = 60; ///< une seule consigne du début à la fin
-inline constexpr uint32_t bed_soak_ms = 120'000; ///< plateau à sa consigne depuis 2 min avant de palper
-inline constexpr uint32_t settle_ms = 90'000; ///< buse à ±1 °C de chaque palier depuis 90 s avant de palper
+inline constexpr uint32_t bed_soak_ms = 120'000; ///< plateau à sa consigne depuis 2 min avant le 1er palpage
+/// Buse à ±1,5 °C de chaque palier depuis 30 s avant de palper (90 s jusqu'à la 8.0.2.33, retour du 23/11 : trop
+/// long). La buse (21 mm de laiton dans le bloc de chauffe, celle que corrige Prusa) suit la sonde du bloc en
+/// quelques secondes ; ce qui chauffe lentement (radiateur, cadre) n'était pas stable en 90 s non plus : l'aller-retour
+/// annule sa dérive régulière, et l'écart à la droite (10 µm au plus) refuse une dérive qui ne l'est pas.
+inline constexpr uint32_t settle_ms = 30'000;
 inline constexpr float hover_z = 5.f; ///< buse au-dessus du point pendant les chauffes [mm]
 
 enum class Status : uint8_t {

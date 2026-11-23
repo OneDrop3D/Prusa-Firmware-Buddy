@@ -6,6 +6,7 @@
 /// M9200) ; « Valeur Prusa » remet sa valeur d'origine (0,1). Rien n'est changé sans l'un de ces deux boutons.
 #pragma once
 
+#include "accelerometer_guide_od3d.hpp"
 #include "atelier_od3d.hpp"
 
 #include <array>
@@ -81,6 +82,8 @@ private:
     uint8_t shown_progress = 0xff;
     bool shown_calibrating = false;
     bool warned_accelerometer = true; ///< ACC-1 : guide déjà montré, ou rien demandé depuis cet écran
+    const char *shown_homing = nullptr; ///< accelerometer_homing_text() affiché
+    AccelerometerMotorHold motor_hold; ///< moteurs tenus tant que l'écran est ouvert (jamais d'origine accéléromètre fixé)
 };
 
 } // namespace od3d

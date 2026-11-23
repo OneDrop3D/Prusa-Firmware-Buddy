@@ -1,6 +1,7 @@
 /// @file
 #include "belt_tension_od3d.hpp"
 #include "accelerometer_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <cstdint>
 
 #include <common/marlin_server.hpp>
+#include <i18n.h>
 #include <option/has_indx.h> // utilisé par manual_belt_tuning_config.hpp
 #include <feature/manual_belt_tuning/manual_belt_tuning_config.hpp>
 #include <feature/motordriver_util.h>
@@ -31,11 +33,11 @@ namespace {
     std::atomic<uint8_t> progress = 0;
     std::atomic<uint16_t> runs = 0;
     std::atomic<uint16_t> revisions = 0;
+    std::atomic<bool> live_on = false; ///< M1992 L
+    std::atomic<uint8_t> live_ok = 0; ///< réglage en direct : tours de suite dans la plage
 
     Measurement measurement; ///< ~420 octets en mémoire statique, lue par l'interface
 
-    /// Fenêtre de recherche du pic : la plage de Prusa élargie de 10 Hz de chaque côté
-    constexpr float window_margin_hz = 10.f;
 
     /// Excitation : comme le réglage manuel des courroies de Prusa (M961), 50 périodes par fréquence comme M1959
     constexpr uint32_t excitation_cycles = 50;
@@ -49,12 +51,10 @@ namespace {
         return stop_requested.load() || planner.draining() || !marlin_server::printer_idle();
     }
 
-    /// Prise d'origine si besoin, hauteur sûre, position de mesure de Prusa (M961) bornée par les butées logicielles
+    /// Hauteur sûre, position de mesure de Prusa (M961) bornée par les butées logicielles ; false sans origine
     bool prepare() {
-        if (axes_need_homing()) {
-            // Comme l'assistant input shaper de Prusa (M1959)
-            GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
-        }
+        // Jamais d'origine ici (retour du 23/11 : le plateau montait palper, accéléromètre fixé) : l'écran ou
+        // l'assistant la prend avant de demander de le fixer (M1989 H) ; perdue depuis : refusé, sans bouger
         if (must_stop() || axes_need_homing()) {
             return false;
         }
@@ -74,8 +74,9 @@ namespace {
         progress = uint8_t(std::clamp(done * 100.f / float(belt_count * sweep_points), 0.f, 100.f));
     }
 
-    /// Balaye une courroie ; Status::done si tout est mesuré
-    Status sweep(Belt belt, vibrate_measure::MeasureParams &args, const vibrate_measure::MicrostepRestorer &restorer) {
+    /// Balaye une courroie (count points du spectre depuis from ; par défaut tout) ; Status::done si tout est mesuré.
+    /// Fenêtre étroite du réglage en direct : le pic est celui de la fenêtre (live_peak()).
+    Status sweep(Belt belt, vibrate_measure::MeasureParams &args, const vibrate_measure::MicrostepRestorer &restorer, size_t from = 0, size_t count = sweep_points) {
         using namespace vibrate_measure;
         const uint8_t index = uint8_t(belt);
         // Un seul moteur : A = pilote X, B = pilote Y (l'enchaînement de setup_steppers() de Prusa mettrait les deux)
@@ -89,6 +90,7 @@ namespace {
                 return std::unexpected(Error::aborted);
             }
             if (params.phase == ProgressHookParams::Phase::calibrating) {
+                live::set(N_("Accelerometer calibration"));
                 current_stage = Stage::calibrating;
                 progress = uint8_t(std::clamp(params.progress * 100.f, 0.f, 100.f));
             }
@@ -96,27 +98,71 @@ namespace {
             return {};
         };
 
-        for (size_t i = 0; i < sweep_points; ++i) {
+        const size_t end = std::min(from + count, sweep_points);
+        const bool full = count == sweep_points;
+        // Balayage complet : un point sur deux d'abord, puis les points sautés autour du pic (fine)
+        const auto measure = [&](size_t i) -> Status {
             if (must_stop()) {
                 return Status::stopped;
             }
             const float frequency = sweep_start_hz + float(i) * sweep_step_hz;
-            // Accélération de Prusa pour cette fréquence (7 à 10,5 m/s² entre 60 et 130 Hz : quelques dizaines de µm)
-            args.excitation_acceleration = std::fabs(manual_belt_tuning::calc_accel(frequency) * 0.001f);
+            // Le bruit des moteurs est l'excitation elle-même (retour du 23/11 : « un drôle de bruit au début ») : à
+            // 70 Hz, 7,5 m/s² font ±39 µm, deux fois l'amplitude de 120 Hz (calculé d'après calc_accel de Prusa)
+            live::set(N_("Belt %c ringing at %d Hz: the motor hum is normal"), belt == Belt::a ? 'A' : 'B', int(std::lround(frequency)));
+            // Accélération de Prusa pour cette fréquence (7 à 10,5 m/s² entre 60 et 130 Hz : quelques dizaines de µm),
+            // celle de 130 Hz au-delà (M961 ne va pas plus haut)
+            args.excitation_acceleration = std::fabs(manual_belt_tuning::calc_accel(std::min(frequency, float(manual_belt_tuning::freq_max))) * 0.001f);
             const auto result = measure_repeat(args, frequency, progress_hook);
             args.calibrate_accelerometer = false;
             if (!result.has_value()) {
                 return result.error() == Error::aborted ? Status::stopped : Status::failed;
             }
             current_stage = belt == Belt::a ? Stage::belt_a : Stage::belt_b;
-            measurement.spectra[index][i] = result->gain_square();
-            measurement.points[index] = uint8_t(i + 1);
-            set_progress(index, float(i + 1));
+            auto &spectrum = measurement.spectra[index];
+            spectrum[i] = result->gain_square();
+            if (full && i % coarse_stride == 0 && i > 0 && measurement.points[index] <= i) {
+                spectrum[i - 1] = (spectrum[i - 2] + spectrum[i]) / 2.f; // 1er passage : le point sauté, en attendant
+            }
+            measurement.points[index] = std::max(measurement.points[index], uint8_t(i + 1));
+            if (full && i % coarse_stride == 0) {
+                set_progress(index, float(i + 1));
+            }
             ++revisions;
+            return Status::done;
+        };
+        if (full) {
+            for (size_t i = 0; i < sweep_points; i += coarse_stride) {
+                if (const Status s = measure(i); s != Status::done) {
+                    return s;
+                }
+            }
+            if (const Peak coarse = belt_peak(measurement.spectra[index], sweep_start_hz, sweep_step_hz); coarse.found) {
+                for (size_t i = 1; i < sweep_points; i += coarse_stride) {
+                    if (std::fabs(sweep_start_hz + float(i) * sweep_step_hz - coarse.frequency) <= fine_half_hz) {
+                        if (const Status s = measure(i); s != Status::done) {
+                            return s;
+                        }
+                    }
+                }
+            }
+        } else {
+            for (size_t i = from; i < end; ++i) {
+                if (const Status s = measure(i); s != Status::done) {
+                    return s;
+                }
+            }
         }
-        const Targets t = targets();
-        measurement.peaks[index] = find_peak(measurement.spectra[index], sweep_start_hz, sweep_step_hz,
-            t.result_min - window_margin_hz, t.result_max + window_margin_hz);
+        if (!full) { // réglage en direct : le sommet de la fenêtre, interpolé ou au bord
+            measurement.peaks[index] = Peak { .found = true, .frequency = live_peak(std::span(measurement.spectra[index]).subspan(from, end - from), sweep_start_hz + float(from) * sweep_step_hz, sweep_step_hz) };
+            ++revisions;
+            return Status::done;
+        }
+        // Sur toute la plage : au bord ou trop peu marqué, non concluant (jamais de conseil de serrer sur du bruit)
+        measurement.peaks[index] = belt_peak(measurement.spectra[index], sweep_start_hz, sweep_step_hz);
+        if (const Peak &p = measurement.peaks[index]; p.found) {
+            const int tenths = int(std::lround(p.frequency * 10.f));
+            live::set_value(N_("Measured: belt %c at %d.%d Hz"), belt == Belt::a ? 'A' : 'B', tenths / 10, tenths % 10);
+        }
         ++revisions;
         return Status::done;
     }
@@ -136,6 +182,7 @@ namespace {
         }
 
         current_stage = Stage::preparing;
+        live::set(N_("Moving to the measuring position"));
         if (!prepare()) {
             return must_stop() ? Status::stopped : Status::not_homed;
         }
@@ -151,22 +198,43 @@ namespace {
             .excitation_acceleration = std::fabs(manual_belt_tuning::calc_accel(sweep_start_hz) * 0.001f),
             .excitation_cycles = excitation_cycles,
             .klipper_mode = harmonic == 1, // la 2e harmonique n'existe qu'en mode « Prusa »
-            .calibrate_accelerometer = true, // une fois, au premier point de la courroie A (~15 s)
+            .calibrate_accelerometer = !live_on, // une fois, au premier point de la courroie A (~15 s) ; en direct : déjà fait
             .axis_flag = StepEventFlag::STEP_EVENT_FLAG_STEP_X,
             .measured_harmonic = harmonic,
         };
 
-        for (const Belt belt : { Belt::a, Belt::b }) {
-            if (const Status s = sweep(belt, args, microstep_restorer); s != Status::done) {
-                return s;
+        if (!live_on) {
+            for (const Belt belt : { Belt::a, Belt::b }) {
+                if (const Status s = sweep(belt, args, microstep_restorer); s != Status::done) {
+                    return s;
+                }
+            }
+            return Status::done;
+        }
+        // Réglage en direct (M1992 L) : les deux courroies remesurées en boucle autour de leur dernier pic pendant
+        // qu'on tourne les vis, jusqu'à « Terminé » ou deux tours de suite dans la plage
+        const Targets t = targets();
+        live_ok = 0;
+        for (;;) {
+            for (const Belt belt : { Belt::a, Belt::b }) {
+                const Peak &p = measurement.peaks[uint8_t(belt)];
+                const float centre = p.frequency > 0.f ? p.frequency : (belt == Belt::a ? t.higher_optimal : t.lower_optimal);
+                const float start = live_start(centre, sweep_start_hz, sweep_end_hz, sweep_step_hz);
+                const size_t from = size_t(std::lround((start - sweep_start_hz) / sweep_step_hz));
+                if (const Status s = sweep(belt, args, microstep_restorer, from, live_points); s != Status::done) {
+                    return s == Status::stopped && stop_requested ? Status::done : s; // « Terminé » : les dernières valeurs
+                }
+            }
+            live_ok = live_streak(live_ok, measurement.peaks[0].frequency, measurement.peaks[1].frequency, t);
+            if (live_done(live_ok)) {
+                return Status::done;
             }
         }
-        return Status::done;
     }
 
 } // namespace
 
-void run(uint8_t harmonic) {
+void run(uint8_t harmonic, bool live) {
     ScopeGuard count_run = [] { ++runs; }; // après last_status : l'interface lit l'état une fois runs changé
     if (running.exchange(true)) {
         return; // déjà en cours (ne devrait pas arriver : Marlin traite un G-code à la fois)
@@ -174,12 +242,16 @@ void run(uint8_t harmonic) {
     // Un arrêt demandé avant le début (écran fermé, M1992 encore en file) vaut pour cette mesure ; effacé à la fin
     ScopeGuard not_running = [] {
         stop_requested = false;
+        live_on = false;
         running = false;
     };
 
-    static constexpr Measurement fresh {}; // copiée : pas de temporaire sur la pile de Marlin pendant la mesure
-    measurement = fresh;
-    measurement.harmonic = harmonic == 2 ? 2 : 1;
+    live_on = live && measurement.harmonic == 1; // en direct : on repart des pics de la dernière mesure
+    if (!live_on) {
+        static constexpr Measurement fresh {}; // copiée : pas de temporaire sur la pile de Marlin pendant la mesure
+        measurement = fresh;
+        measurement.harmonic = harmonic == 2 ? 2 : 1;
+    }
     progress = 0;
     current_stage = Stage::preparing;
     last_status = Status::running;
@@ -192,6 +264,14 @@ void run(uint8_t harmonic) {
 
 void request_stop() {
     stop_requested = true;
+}
+
+bool live() {
+    return live_on.load();
+}
+
+uint8_t live_in_range() {
+    return live_ok.load();
 }
 
 bool is_running() {

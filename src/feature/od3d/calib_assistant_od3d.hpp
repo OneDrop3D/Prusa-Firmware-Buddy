@@ -55,8 +55,28 @@ Progress progress();
 /// Résultat du test dans la dernière série qui l'a contenu depuis le démarrage (none : pas encore)
 Result result(Test test);
 
+/// Interface, hors série : les chiffres « après » d'un test réussi relevés à nouveau et gardés (courroies réglées en
+/// direct après leur mesure : le bilan et la fois suivante voient les fréquences finales)
+void recapture(Test test);
+
+/// Tests de la dernière série reportés parce que le MMU ne répondait pas (bits de Test) : comptés « passés »
+uint32_t postponed();
+
+/// Pour l'écran du flash du MMU par l'USB avant (F42) : vrai si l'étape en cours de la série pilote le MMU, charge ou
+/// décharge par lui. Ne pas lancer M709 S2 tant que c'est vrai ; le reste du temps, la série continue sans le MMU
+/// (ses étapes qui en ont besoin passent à la fin, ou sont reportées si M709 S2 dure encore)
+bool mmu_in_use();
+
 /// « Annuler » (interface) : l'étape en cours est arrêtée, les suivantes ne sont pas lancées
 void request_cancel();
+
+/// L'étape en cours peut être passée sans risque (toutes, sauf le tube PTFE qui ne s'arrête pas en route)
+bool can_skip();
+
+/// « Passer » (interface, ou arrêt depuis l'écran de la mesure) : l'étape en cours s'arrête si elle tourne, comptée
+/// « passée » (pas un échec) ; la série continue. index : l'étape vue par l'interface (Progress::index), rien si la
+/// série est déjà à la suivante. À redemander tant que l'étape n'a pas commencé (chargement)
+void request_skip(uint8_t index);
 
 /// Chiffres du bilan de la dernière série (no_value : pas de valeur), relevés avant l'étape et après son succès :
 /// - input_shaper (écrits par M1959 A) : [0..3] type et fréquence ×10 de X puis Y ; après : [4], [5] baisse estimée des

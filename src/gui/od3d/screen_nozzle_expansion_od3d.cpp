@@ -51,7 +51,7 @@ const char *nozzle_expansion_result_text(nozzle_expansion::Status status) {
     case Status::slope:
         return N_("Rejected: implausible slope. Nothing changed.");
     }
-    return N_("Empty nozzle, clear bed. Bed center probed at 170, 215, 260\xC2\xB0""C and back, about 15 min.");
+    return N_("Empty nozzle, clear bed. Center probed 170-260\xC2\xB0""C and back, cleaned on the way up, ~10 min.");
 }
 
 namespace {

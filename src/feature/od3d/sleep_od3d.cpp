@@ -20,6 +20,7 @@ namespace {
     std::atomic<bool> fans_flag = false;
     std::atomic<bool> motors_request = false;
     std::atomic<bool> heaters_request = false;
+    std::atomic<int8_t> motor_holds = 0;
 
 } // namespace
 
@@ -41,6 +42,10 @@ void publish(bool takeover, bool lights_off, bool fans_off) {
     fans_flag = fans_off;
 }
 
+void hold_motors(bool hold) {
+    motor_holds += hold ? 1 : -1;
+}
+
 void request(Due due) {
     if (due.motors) {
         motors_request = true;
@@ -59,11 +64,12 @@ bool fans_off() {
 }
 
 void step() {
-    if (takeover_flag) {
-        buddy::stepper_timeout().reset(); // la veille décide seule de couper les moteurs
+    const bool held = motor_holds > 0;
+    if (takeover_flag || held) {
+        buddy::stepper_timeout().reset(); // la veille décide seule de couper les moteurs ; tenus : jamais
     }
 
-    const bool motors = motors_request.exchange(false);
+    const bool motors = motors_request.exchange(false) && !held;
     const bool heaters = heaters_request.exchange(false);
     if ((!motors && !heaters) || marlin_server::is_printing() || marlin_server::is_processing()) {
         return; // occupé (pause comprise) : l'interface se réveille de toute façon

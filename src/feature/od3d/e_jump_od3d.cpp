@@ -1,6 +1,7 @@
 /// @file
 #include "e_jump_od3d.hpp"
 #include "filament_memory_od3d.hpp"
+#include "live_od3d.hpp"
 #include "flow_limit_od3d.hpp"
 #include "measure_session_od3d.hpp"
 #include "pa_od3d.hpp"
@@ -14,6 +15,7 @@
 #include <feature/pressure_advance/pressure_advance_config.hpp>
 #include <feature/prusa/e-stall_detector.h>
 #include <filament.hpp>
+#include <i18n.h>
 #include <loadcell.hpp>
 #include <mapi/motion.hpp>
 #include <mapi/parking.hpp>
@@ -187,6 +189,7 @@ namespace {
         for (size_t i = 0; i < n; ++i) {
             st_step = uint8_t(i + 1);
             st_jump = jump_to_e1(jumps[i]);
+            live::set(N_("Extruder speed jump %d/%d: %d mm/s"), int(i + 1), int(n), int(std::lround(jumps[i])));
             const Pulse p = pulse(jumps[i], session.smooth_time());
             auto s = planner.user_settings; // remis par la session
             s.retract_acceleration = p.accel; // accélération des mouvements de E seul

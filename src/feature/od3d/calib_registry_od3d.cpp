@@ -65,8 +65,14 @@ uint32_t needs_mask(uint8_t needs) {
     return mask;
 }
 
+uint32_t proposed(const Context &ctx, std::span<const Record> records, bool only_outdated) {
+    const size_t pa = size_t(Test::pa);
+    const bool pa_never = pa >= records.size() || records[pa].version == 0;
+    return select(ctx, records, only_outdated) & automatic_mask() & ~(pa_never ? test_bit(Test::pa) : 0u);
+}
+
 bool should_propose(const Context &ctx, std::span<const Record> records, uint32_t dismissed) {
-    return (select(ctx, records, true) & automatic_mask()) && dismissed != signature();
+    return proposed(ctx, records, true) && dismissed != signature();
 }
 
 uint32_t signature() {
@@ -113,6 +119,14 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
         }
     }
     return n;
+}
+
+void defer(std::span<Step> steps, size_t i) {
+    if (i >= steps.size() || steps[i].deferred) {
+        return;
+    }
+    steps[i].deferred = true;
+    std::rotate(steps.begin() + i, steps.begin() + i + 1, steps.end());
 }
 
 std::optional<int16_t> drop_percent(float remaining, float reference) {

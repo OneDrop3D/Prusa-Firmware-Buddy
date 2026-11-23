@@ -79,6 +79,32 @@ TEST_CASE("déjà dans la buse : l'emplacement de Prusa seulement si les capteur
     CHECK_FALSE(confirmed_slot(0xff, true, true)); // Prusa ne sait rien
 }
 
+TEST_CASE("buse : jamais de filament supposé (PA imprimé dans le vide, retour du 23/11)") {
+    // MMU actif : Prusa, FINDA et la tête d'accord
+    NozzleView v { .mmu_configured = true, .mmu_active = true, .prusa_slot = 2, .finda = true, .extruder = Sensor::has };
+    CHECK(nozzle_slot(v) == uint8_t(2));
+    v.extruder = Sensor::none;
+    CHECK_FALSE(nozzle_slot(v));
+    v.extruder = Sensor::unknown; // tête sans réponse : pas confirmé
+    CHECK_FALSE(nozzle_slot(v));
+
+    // La cause : MMU activé mais muet (à flasher, M709 S2), Prusa rend l'outil 0 ; la tête même pleine ne dit pas lequel
+    v = { .mmu_configured = true, .mmu_active = false, .prusa_slot = 0, .finda = false, .extruder = Sensor::none };
+    CHECK_FALSE(nozzle_slot(v));
+    v.extruder = Sensor::has;
+    CHECK_FALSE(nozzle_slot(v));
+
+    // Sans MMU : l'outil unique, sauf si la tête voit sûrement qu'il est vide ; capteur coupé : comme Prusa
+    v = { .mmu_configured = false, .mmu_active = false, .prusa_slot = 0, .finda = false, .extruder = Sensor::none };
+    CHECK_FALSE(nozzle_slot(v));
+    v.extruder = Sensor::has;
+    CHECK(nozzle_slot(v) == uint8_t(0));
+    v.extruder = Sensor::unknown;
+    CHECK(nozzle_slot(v) == uint8_t(0));
+    v.prusa_slot = no_slot;
+    CHECK_FALSE(nozzle_slot(v));
+}
+
 TEST_CASE("ni rechargement ni purge : même emplacement, même matière") {
     CHECK(skip_reload(2, uint8_t(2), true));
     CHECK_FALSE(skip_reload(2, uint8_t(2), false)); // autre matière demandée : Prusa recharge

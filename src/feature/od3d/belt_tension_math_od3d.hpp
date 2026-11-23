@@ -32,6 +32,14 @@ float parabolic_offset(float left, float centre, float right);
 /// séparent d'un point plus haut (ou du bord). Le pic est « trouvé » si proéminence / hauteur >= min_relative.
 Peak find_peak(std::span<const float> values, float start_hz, float step_hz, float window_min_hz, float window_max_hz, float min_relative = 0.1f);
 
+/// Pic d'une courroie sur toute la plage balayée (retour du 23/11 : une courroie à 136 Hz, trop tendue, était lue à
+/// 80,4 Hz, du bruit au bord bas de la fenêtre de la cible, et le conseil était de serrer). Cherché partout, pas dans
+/// la fenêtre de la cible ; non trouvé (mesure non concluante, aucun conseil) s'il est à moins de edge_guard_hz d'un
+/// bord de la plage ou s'il se détache de moins de min_peak_relative (proéminence / hauteur)
+inline constexpr float edge_guard_hz = 3.f;
+inline constexpr float min_peak_relative = 0.25f;
+Peak belt_peak(std::span<const float> values, float start_hz, float step_hz);
+
 /// Cibles de Prusa (manual_belt_tuning_config.hpp ; CORE One : 95,5 et 92 Hz, plage 89 à 98 Hz, écart 8 Hz,
 /// 15 et 12 Hz par tour de vis)
 struct Targets {
@@ -69,6 +77,29 @@ float revs_from_freq(float df1, float df2, float k1, float k2);
 /// Verdict et conseil d'après les fréquences des deux courroies (l'ordre A/B ne compte pas : comme Prusa, la plus haute
 /// est comparée à la cible haute et la plus basse à la cible basse)
 Advice advise(float freq_a, float freq_b, const Targets &targets);
+
+// ---- Réglage en direct (retour du 23/11 : « faciliter la tension des courroies […] et le faire en cours de route ») ----
+// Après une mesure complète hors de la plage, les deux courroies sont remesurées en boucle sur une fenêtre étroite
+// autour de leur dernier pic, pendant qu'on tourne les vis ; le conseil (advise(), celui de Prusa : les deux vis) suit.
+
+inline constexpr uint8_t live_points = 7; ///< fenêtre de 6 Hz au pas du balayage (1 Hz) : ±3 Hz autour du dernier pic
+inline constexpr uint8_t live_ok_rounds = 2; ///< arrêt seul : les deux courroies dans la plage sur 2 tours de suite
+
+/// Première fréquence de la fenêtre étroite centrée sur center_hz (arrondie au pas step_hz), toute entière dans
+/// [lo_hz, hi_hz] (la plage du balayage complet)
+float live_start(float center_hz, float lo_hz, float hi_hz, float step_hz);
+
+/// Fréquence d'une mesure étroite : le sommet interpolé s'il est à l'intérieur de la fenêtre ; au bord, ce bord (le
+/// pic est sorti de la fenêtre en tournant la vis : la suivante s'y recentre et le rattrape)
+float live_peak(std::span<const float> values, float start_hz, float step_hz);
+
+/// Tours de suite où les deux courroies sont dans la plage de Prusa, après un nouveau tour mesuré
+uint8_t live_streak(uint8_t streak, float freq_a, float freq_b, const Targets &targets);
+
+/// Arrêt automatique du réglage en direct
+constexpr bool live_done(uint8_t streak) {
+    return streak >= live_ok_rounds;
+}
 
 /// Nombre de tours lisible, valeur absolue : « 3/8 », « 1 », « 1 3/8 » ; ASCII seulement
 void format_turns(int eighths, char *out, size_t size);

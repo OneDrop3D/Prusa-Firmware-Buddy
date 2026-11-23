@@ -18,7 +18,7 @@
  *    M1997
  *
  * L'accéléromètre doit être fixé sur la buse et branché : il est vérifié avant tout mouvement, sinon rien ne bouge.
- * Refusé pendant une impression et si la buse dépasse 50 °C. Prise d'origine si nécessaire, centre du plateau à
+ * Refusé pendant une impression, si la buse dépasse 50 °C ou sans origine (jamais prise accéléromètre fixé). Centre du plateau à
  * mi-hauteur (comme M1959), puis X et Y sont excités de 30 à 90 Hz par pas de 0,5 Hz (excitation de M1959). ζ et Q
  * sont tirés de la largeur du pic à −3 dB ; rien n'est écrit dans la configuration de l'input shaper. S'arrête depuis
  * l'écran.

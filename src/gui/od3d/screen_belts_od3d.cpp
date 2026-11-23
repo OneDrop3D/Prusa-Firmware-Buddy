@@ -16,6 +16,7 @@
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
+#include <ScreenHandler.hpp>
 #include <span>
 #include <window_msgbox.hpp>
 
@@ -43,6 +44,14 @@ namespace {
     constexpr Color curve_colors[belts::belt_count] = { style::accent, curve_b };
 
     constexpr uint8_t tag_action = 0;
+
+    bool live_on_open = false; ///< open_belts_live() : le réglage en direct part à l'ouverture
+
+    /// Conseil de Prusa (les deux vis, serrer / desserrer) d'après les pics de la dernière mesure
+    belts::Advice current_advice() {
+        const belts::Measurement &m = belts::last();
+        return belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets());
+    }
 
     /// Bornes de la jauge : la plage de Prusa élargie (CORE One : 80 à 108 Hz)
     float gauge_lo(const belts::Targets &t) {
@@ -90,7 +99,7 @@ void BeltGauge::unconditionalDraw() {
     string_view_utf8 state = string_view_utf8::MakeNULLSTR();
     Color value_color = style::text_faint;
     if (has && !found) {
-        state = _("weak peak");
+        state = _("inconclusive");
         value_color = style::text_muted;
     } else if (has) {
         switch (belts::zone(frequency, t)) {
@@ -239,25 +248,41 @@ void ScreenBelts::show_info() {
     } else if (shown_running) {
         switch (shown_stage) {
         case Stage::preparing:
-            text = _("Homing and moving to the measuring position...");
+            text = _("Moving to the measuring position...");
             break;
         case Stage::calibrating:
             text = _("Calibrating accelerometer... %d%%").formatted(info_params, int(shown_progress));
             break;
         case Stage::belt_a:
         case Stage::belt_b:
-            text = _("Measuring belt %c... %d%%").formatted(info_params, shown_stage == Stage::belt_a ? 'A' : 'B', int(shown_progress));
+            if (live_requested) {
+                // Réglage en direct : le conseil suit chaque tour ; il change de sens dès qu'on dépasse la cible
+                const belts::Advice advice = current_advice();
+                if (advice.verdict == belts::Verdict::misaligned) {
+                    text = _("A and B differ by more than %d Hz: check the gantry alignment.").formatted(info_params, int(belts::targets().diff_limit));
+                } else if (advice.verdict == belts::Verdict::ok) {
+                    text = _("Both belts in range (%d/%d in a row): leave the screws, Done stops.").formatted(info_params, int(belts::live_in_range()), int(belts::live_ok_rounds));
+                } else {
+                    (advice.turn_eighths > 0 ? _("tighten") : _("loosen")).copyToRAM(word.data(), word.size());
+                    belts::format_turns(advice.turn_eighths, turns.data(), turns.size());
+                    text = _("Both screws: %s %s turn. Measured again every ~10 s, Done stops.").formatted(info_params, word.data(), turns.data());
+                }
+                break;
+            }
+            // Retour du 23/11 (« un drôle de bruit au début ») : c'est l'excitation, plus forte aux basses fréquences
+            text = _("Belt %c rings, the motor hums: normal. %d%%").formatted(info_params, shown_stage == Stage::belt_a ? 'A' : 'B', int(shown_progress));
             break;
         }
     } else {
         switch (shown_status) {
         case Status::idle:
         case Status::running:
-            text = _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
             break;
         case Status::done: {
             if (!m.peaks[0].found || !m.peaks[1].found) {
-                text = _("No clear peak on belt %c: attach the accelerometer firmly and try again.").formatted(info_params, m.peaks[0].found ? 'B' : 'A');
+                // Jamais de conseil sur une mesure non concluante (retour du 23/11 : 136 Hz lus 80 Hz, « serrer »)
+                text = _("Inconclusive (belt %c): peak out of range, belt maybe too tight or too loose.").formatted(info_params, m.peaks[0].found ? 'B' : 'A');
                 break;
             }
             const belts::Targets t = belts::targets();
@@ -293,8 +318,8 @@ void ScreenBelts::show_info() {
         case Status::failed:
             text = _("Measurement failed.");
             break;
-        case Status::not_homed:
-            text = _("Homing failed.");
+        case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
             break;
         }
     }
@@ -314,6 +339,9 @@ void ScreenBelts::update() {
 
     if (revision != shown_revision) {
         shown_revision = revision;
+        if (live_requested && now_running) {
+            shown_progress = 0xff; // le conseil suit chaque pic : texte redessiné plus bas
+        }
         const belts::Measurement &m = belts::last();
         // Fréquence seulement quand la courroie est balayée et son pic calculé, sinon « -- »
         const auto frequency = [&](uint8_t b) {
@@ -324,18 +352,38 @@ void ScreenBelts::update() {
         curve.Invalidate();
     }
 
-    if (now_running != shown_running || pending != shown_pending || s != shown_status || stage != shown_stage || progress != shown_progress) {
+    const char *homing = now_running || pending ? nullptr : accelerometer_homing_text();
+    const uint8_t in_range = belts::live_in_range();
+    if (now_running != shown_running || pending != shown_pending || s != shown_status || stage != shown_stage || progress != shown_progress || homing != shown_homing
+        || in_range != shown_in_range) {
+        shown_in_range = in_range;
         const bool was_busy = shown_running || shown_pending;
         shown_running = now_running;
         shown_pending = pending;
         shown_status = s;
         shown_stage = stage;
+        shown_homing = homing;
         shown_progress = progress;
-        show_info();
         const bool busy = now_running || pending;
-        if (busy != was_busy) {
-            action.set(busy ? Button::Look::outline : Button::Look::primary, busy ? _("Cancel") : _("Start"), busy ? &img::cancel_16x16 : &img::print_16x16);
+        const bool full_done = was_busy && !busy && !live_requested && s == belts::Status::done;
+        if (!busy) {
+            live_requested = false;
         }
+        show_info();
+        if (busy != was_busy) {
+            action.set(busy ? Button::Look::outline : Button::Look::primary, busy ? (live_requested ? _("Done") : _("Cancel")) : _("Start"), busy ? &img::cancel_16x16 : &img::print_16x16);
+        }
+        // Hors de la plage après une mesure complète : le réglage en direct est proposé (retour du 23/11)
+        const belts::Measurement &m = belts::last();
+        if (full_done && !HasDialog() && m.peaks[0].found && m.peaks[1].found && current_advice().verdict == belts::Verdict::adjust && !calibration_series_running()
+            && MsgBoxQuestion(_("Belts out of range. Adjust them live? Both belts are measured again every ~10 s while you turn both screws (Prusa guide: prusa.io/core-belt-calibration-tensioning)."), Responses_YesNo)
+                == Response::Yes) {
+            start_live();
+        }
+    }
+    if (live_on_open && !HasDialog()) {
+        live_on_open = false;
+        start_live();
     }
     action.enable(now_running || pending || !marlin_client::is_printing());
 
@@ -358,6 +406,9 @@ void ScreenBelts::start() {
         MsgBoxWarning(_("Let the nozzle cool below 50°C, then start again."), Responses_Ok);
         return;
     }
+    if (!accelerometer_homed_or_home()) {
+        return; // origine d'abord, accéléromètre pas encore fixé : l'écran demande ensuite de le fixer
+    }
     // ACC-1 : M1992 vérifie l'accéléromètre avant tout mouvement ; s'il ne répond pas, update() guide l'utilisateur
     const uint16_t before = belts::run_count();
     if (marlin_client::gcode_try("M1992") == marlin_client::GcodeTryResult::Submitted) {
@@ -365,6 +416,24 @@ void ScreenBelts::start() {
         pending = true;
         warned_accelerometer = false;
     }
+}
+
+void ScreenBelts::start_live() {
+    if (marlin_client::is_printing() || belts::is_running() || !accelerometer_homed_or_home()) {
+        return; // sans origine : l'écran la fait prendre d'abord, accéléromètre retiré
+    }
+    const uint16_t before = belts::run_count();
+    if (marlin_client::gcode_try("M1992 L") == marlin_client::GcodeTryResult::Submitted) {
+        runs_at_request = before;
+        pending = true;
+        live_requested = true;
+        warned_accelerometer = false;
+    }
+}
+
+void open_belts_live() {
+    live_on_open = true;
+    Screens::Access()->Open(ScreenFactory::Screen<ScreenBelts>);
 }
 
 void ScreenBelts::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -377,7 +446,7 @@ void ScreenBelts::windowEvent(window_t *sender, GUI_event_t event, void *param) 
         const uint8_t tag = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(param));
         if (tag == tag_action) {
             if (belts::is_running() || pending) {
-                if (confirm_stop_measure()) { // pendant une série de l'assistant : il passe à la suivante
+                if (live_requested || confirm_stop_measure()) { // série de l'assistant : il passe à la suivante
                     belts::request_stop();
                 }
             } else {

@@ -16,8 +16,9 @@
 
 namespace od3d::filament_memory {
 
-/// Emplacement dans la buse : celui de Prusa, seulement si FINDA et le capteur de l'extrudeur voient du filament
-/// (sans MMU actif : l'outil de Prusa, comme VirtualToolIndex::currently_selected)
+/// Emplacement dans la buse (nozzle_slot() de filament_memory_math_od3d.hpp) : celui de Prusa, seulement si FINDA et
+/// le capteur de l'extrudeur voient du filament ; aucun si le MMU activé ne répond pas ; sans MMU, l'outil unique sauf
+/// si la tête voit qu'il n'y a rien
 std::optional<uint8_t> loaded_slot();
 
 /// Boucle de Marlin (marlin_server, idle) : décision au démarrage du MMU, puis mémoire tenue à jour

@@ -78,7 +78,7 @@ inline constexpr std::array entries {
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
     Entry { Test::mpc, 0, 12, 1, true },
     Entry { Test::mmu_ptfe, mmu | one_spool, 3, 1, true },
-    Entry { Test::nozzle_expansion, empty_bed, 15, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
+    Entry { Test::nozzle_expansion, empty_bed, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
     Entry { Test::pa, filament | empty_bed, 7, 1, true },
     Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
     Entry { Test::min_temp, filament | empty_bed, 6, 1, true },
@@ -139,6 +139,12 @@ struct Context {
 /// La calibration a un sens sur cette imprimante (sans accéléromètre, ses tests ne sont pas proposés)
 bool applicable(const Entry &e, const Context &ctx);
 
+/// Le test passe par le MMU sur cette imprimante (retour du 23/11 : calibrer pendant le flash du MMU) : il le pilote
+/// (Need::mmu), ou il charge ses bobines par lui (Need::filament avec un MMU activé). Les autres tournent MMU muet.
+constexpr bool uses_mmu(const Entry &e, const Context &ctx) {
+    return (e.needs & mmu) || ((e.needs & filament) && ctx.mmu);
+}
+
 /// Jamais menée à bien dans cette version
 constexpr bool outdated(const Entry &e, const Record &r) {
     return r.version < e.version;
@@ -152,8 +158,13 @@ uint32_t select(const Context &ctx, std::span<const Record> records, bool only_o
 uint32_t automatic_mask();
 uint32_t needs_mask(uint8_t needs);
 
-/// Proposer l'assistant au démarrage : un test automatique à faire, et ce registre n'a pas été écarté par « Ne plus
-/// demander » (dismissed = signature() enregistrée à ce moment)
+/// Tests automatiques cochés d'office dans la proposition (retour du 23/11 : « pouvoir passer certaines calibrations
+/// comme le PA ») : ceux de select(), sauf le PA jamais mesuré (1re calibration : il se mesure au début de la
+/// 1re impression de chaque bobine). Chacun se coche ou se décoche ensuite à l'écran.
+uint32_t proposed(const Context &ctx, std::span<const Record> records, bool only_outdated);
+
+/// Proposer l'assistant au démarrage : un test coché d'office (proposed()), et ce registre n'a pas été écarté par
+/// « Ne plus demander » (dismissed = signature() enregistrée à ce moment)
 bool should_propose(const Context &ctx, std::span<const Record> records, uint32_t dismissed);
 
 /// Empreinte des versions du registre : elle change dès qu'une version change
@@ -166,7 +177,13 @@ uint16_t minutes(uint32_t mask, const Context &ctx);
 struct Step {
     Test test;
     uint8_t slot = 0; ///< emplacement, pour Need::filament
+    bool deferred = false; ///< déjà remise à la fin de la série (MMU indisponible) : la fois suivante, reportée
 };
+
+/// L'étape i attend le MMU (indisponible : flash, M709 S2, pas encore connecté) : remise à la fin de la série, les
+/// autres gardent leur ordre, marquée deferred. Si elle l'était déjà, rien ne bouge : l'assistant la reporte (passée,
+/// à refaire) au lieu d'un échec.
+void defer(std::span<Step> steps, size_t i);
 
 /// Étapes des tests automatiques de mask, dans l'ordre de `entries`, les tests par emplacement groupés par bobine (un
 /// chargement par bobine) ; nombre d'étapes écrites (out trop court : coupé)

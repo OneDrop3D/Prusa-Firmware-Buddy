@@ -12434,3 +12434,219 @@ msgstr "Quelle bobine ?"
 #: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Spool preloaded in the MMU"
 msgstr "Bobine préchargée dans le MMU"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%d calibrations are new or changed in this firmware (about %d min). Touch a test to add or skip it; the tests then run by themselves."
+msgstr "%d calibrations sont nouvelles ou modifiées dans ce firmware (environ %d min). Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Full calibration: %d tests, about %d min. Touch a test to add or skip it; the tests then run by themselves."
+msgstr "Calibration complète : %d tests, environ %d min. Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nothing to calibrate. Touch a test to add it."
+msgstr "Rien à calibrer. Touchez un test pour l'ajouter."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Skip this test"
+msgstr "Passer ce test"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Skipped: still to do next time."
+msgstr "Passé : reste à faire la prochaine fois."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers."
+msgstr "Terminé : %d OK, %d en échec, %d passés. Touchez un test pour ses chiffres."
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Bed heating to %d°C: %d°C"
+msgstr "Chauffe du plateau à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle cleaning on the front strip"
+msgstr "Nettoyage de la buse sur la bande avant"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Probing the bed under the test lines"
+msgstr "Palpage du plateau sous les lignes de test"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle at %d°C, steady in %d s"
+msgstr "Buse à %d °C, stable dans %d s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle cooling to %d°C: %d°C"
+msgstr "Refroidissement de la buse à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle heating to %d°C: %d°C"
+msgstr "Chauffe de la buse à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Purge line"
+msgstr "Ligne de purge"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Bed at %d°C, letting it settle"
+msgstr "Plateau à %d °C, le temps qu'il se stabilise"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Probe %d/%d of the bed center at %d°C"
+msgstr "Palpage %d/%d du centre du plateau à %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: %+d um at %d°C vs %d°C"
+msgstr "Mesuré : %+d um à %d °C par rapport à %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Accelerometer calibration"
+msgstr "Calibration de l'accéléromètre"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Belt %c ringing at %d Hz: the motor hum is normal"
+msgstr "Courroie %c vibrée à %d Hz : bourdonnement normal"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: belt %c at %d.%d Hz"
+msgstr "Mesuré : courroie %c à %d,%d Hz"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Moving to the measuring position"
+msgstr "Déplacement à la position de mesure"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: vibrations measured at each speed"
+msgstr "Axe %c : vibrations mesurées à chaque vitesse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: sweep around the resonance"
+msgstr "Axe %c : balayage autour de la résonance"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Fan cooling to find the room temperature: %d°C"
+msgstr "Refroidissement au ventilateur (ambiante) : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Full-power heating to %d°C: %d°C"
+msgstr "Chauffe à fond jusqu'à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Holding %d°C, fan off: heat losses"
+msgstr "%d °C maintenus, ventilateur arrêté : pertes"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Holding %d°C, fan at 100%%: fan losses"
+msgstr "%d °C maintenus, ventilateur à 100 %% : pertes"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Test line %d/%d, K = 0.%03d"
+msgstr "Ligne de test %d/%d, K = 0,%03d"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Loading slot %d into the nozzle"
+msgstr "Chargement de l'emplacement %d dans la buse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Line %d/%d at %d mm3/s, force measured"
+msgstr "Ligne %d/%d à %d mm3/s, force mesurée"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Line %d/%d at %d°C, force measured"
+msgstr "Ligne %d/%d à %d °C, force mesurée"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Extruder speed jump %d/%d: %d mm/s"
+msgstr "Saut de vitesse de l'extrudeur %d/%d : %d mm/s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "MMU load and unload %d/%d at %d mm/s"
+msgstr "Chargement + déchargement MMU %d/%d à %d mm/s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "MMU pushes slot %d to the head sensor and back"
+msgstr "Emplacement %d poussé au capteur de la tête, puis ramené"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Part fan off, then 100%%: spin-up timed"
+msgstr "Ventilateur coupé puis à 100 %% : montée chronométrée"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: rise time %d ms"
+msgstr "Mesuré : temps de montée %d ms"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Unloading: this test needs an empty nozzle"
+msgstr "Déchargement : ce test veut une buse vide"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Step %d/%d:"
+msgstr "Étape %d/%d :"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "slot %d"
+msgstr "emplacement %d"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "You may leave this screen: the pill shows the progress."
+msgstr "Vous pouvez quitter cet écran : la pastille montre l'avancement."
+
+#: src/feature/od3d/nozzle_expansion_od3d.cpp
+msgid "Nozzle cleaning at %d°C on the front strip"
+msgstr "Nettoyage de la buse à %d °C sur la bande avant"
+
+#: src/feature/od3d/nozzle_expansion_od3d.cpp
+msgid "Empty nozzle, clear bed. Center probed 170-260°C and back, cleaned on the way up, ~10 min."
+msgstr "Buse vide, plateau dégagé. Centre palpé 170-260°C aller-retour, nettoyée en montant, 10 min env."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MMU not answering: %d tests postponed, still to do."
+msgstr "MMU muet : %d tests reportés, restent à faire."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Homing without the accelerometer, please wait..."
+msgstr "Prise d'origine sans l'accéléromètre, patientez..."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Start homes the printer first: accelerometer not on the nozzle yet (remove it if it is)."
+msgstr "Démarrer prend d'abord l'origine : accéléromètre pas encore sur la buse (retirez-le s'il y est)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Moving to the measuring position..."
+msgstr "Déplacement à la position de mesure..."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
+msgstr "Les deux courroies dans la plage (%d/%d de suite) : ne touchez plus les vis, Fini arrête."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
+msgstr "Les deux vis : %s de %s tour. Remesurées toutes les ~10 s, Fini arrête."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt %c rings, the motor hums: normal. %d%%"
+msgstr "Courroie %c en vibration, le moteur bourdonne : normal. %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belts out of range. Adjust them live? Both belts are measured again every ~10 s while you turn both screws (Prusa guide: prusa.io/core-belt-calibration-tensioning)."
+msgstr "Courroies hors de la plage. Les régler en direct ? Les deux courroies sont remesurées toutes les ~10 s pendant que vous tournez les deux vis (guide Prusa : prusa.io/core-belt-calibration-tensioning)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, accelerometer still on, then Continue."
+msgstr "Courroies hors de la plage : A %s Hz, B %s Hz (cible %d-%d Hz). Réglez-les en direct, accéléromètre fixé, puis Continuer."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Adjust live"
+msgstr "Régler en direct"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Inconclusive (belt %c): peak out of range, belt maybe too tight or too loose."
+msgstr "Non concluant (courroie %c) : pic hors plage, courroie peut-être trop tendue ou trop lâche."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "inconclusive"
+msgstr "non concluant"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belts: inconclusive, peak out of range (too tight or too loose?)."
+msgstr "Courroies : non concluant, pic hors plage (trop tendues ou trop lâches ?)."

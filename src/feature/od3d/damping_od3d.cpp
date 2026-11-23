@@ -1,6 +1,7 @@
 /// @file
 #include "damping_od3d.hpp"
 #include "accelerometer_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -9,6 +10,7 @@
 
 #include <common/marlin_server.hpp>
 #include <feature/phase_stepping/phase_stepping.hpp>
+#include <i18n.h>
 #include <Marlin/src/gcode/calibrate/M958.hpp>
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/Marlin.h>
@@ -45,12 +47,11 @@ namespace {
         return stop_requested.load() || planner.draining() || !marlin_server::printer_idle();
     }
 
-    /// Prise d'origine si besoin, puis la position de M1959 (centre du plateau, mi-hauteur), sans descendre sous ce
-    /// qui a été imprimé ; bornée par les butées logicielles
+    /// La position de M1959 (centre du plateau, mi-hauteur), sans descendre sous ce qui a été imprimé ; bornée par les
+    /// butées logicielles ; false sans origine
     bool prepare() {
-        if (axes_need_homing()) {
-            GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
-        }
+        // Jamais d'origine ici (retour du 23/11 : le plateau montait palper, accéléromètre fixé) : l'écran ou
+        // l'assistant la prend avant de demander de le fixer (M1989 H) ; perdue depuis : refusé, sans bouger
         if (must_stop() || axes_need_homing()) {
             return false;
         }
@@ -138,6 +139,7 @@ namespace {
         };
         for (uint8_t a = 0; a < axis_count; ++a) {
             axis_now = a;
+            live::set(N_("Axis %c: sweep around the resonance"), a == 0 ? 'X' : 'Y');
             if (const Status s = sweep(a, args, microstep_restorer); s != Status::done) {
                 return s;
             }

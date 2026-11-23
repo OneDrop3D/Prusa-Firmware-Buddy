@@ -30,6 +30,17 @@ inline constexpr std::array<int16_t, 5> temperatures { 170, 215, 260, 215, 170 }
 inline constexpr size_t stages = temperatures.size();
 inline constexpr uint8_t taps = 3; ///< palpages par palier, au même point
 
+/// Le palier i est à une température jamais atteinte avant dans la mesure (170, 215, 260 °C) : la buse y suinte en
+/// chauffant, elle est nettoyée avant d'être palpée (retour du 23/11)
+constexpr bool new_high(size_t i) {
+    for (size_t k = 0; k < i && i < stages; ++k) {
+        if (temperatures[k] >= temperatures[i]) {
+            return false;
+        }
+    }
+    return i < stages;
+}
+
 inline constexpr float max_spread_mm = 0.020f; ///< écart max − min des palpages d'un palier
 inline constexpr float max_residual_mm = 0.010f; ///< écart d'un palier à la droite
 inline constexpr float min_slope_mm_per_c = 0.00005f; ///< 0,05 µm/°C ; Prusa : 0,41

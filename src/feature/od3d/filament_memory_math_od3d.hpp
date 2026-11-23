@@ -67,6 +67,36 @@ constexpr std::optional<uint8_t> confirmed_slot(uint8_t prusa_slot, bool finda, 
     return prusa_slot < slots && finda && extruder ? std::optional<uint8_t>(prusa_slot) : std::nullopt;
 }
 
+/// Capteur de filament de la tête : unknown s'il est coupé, pas calibré ou en panne
+enum class Sensor : uint8_t {
+    unknown,
+    has,
+    none,
+};
+
+/// Ce que l'imprimante sait du filament dans la buse
+struct NozzleView {
+    bool mmu_configured = false; ///< MMU activé dans les réglages
+    bool mmu_active = false; ///< il répond (MMU2::xState::Active)
+    uint8_t prusa_slot = no_slot; ///< outil de Prusa (VirtualToolIndex::currently_selected), no_slot : aucun
+    bool finda = false;
+    Sensor extruder = Sensor::unknown;
+};
+
+/// Emplacement dans la buse, jamais supposé (retour du 23/11 : PA imprimé sans filament). MMU actif : celui de Prusa
+/// si FINDA et la tête voient du filament. MMU activé qui ne répond pas (à flasher, M709 S2, erreur de communication) :
+/// aucun, Prusa rend alors l'outil 0 sans rien savoir. Sans MMU : l'outil unique, sauf si la tête voit sûrement
+/// qu'il n'y a rien (capteur coupé : comme Prusa, on le croit chargé)
+constexpr std::optional<uint8_t> nozzle_slot(const NozzleView &v) {
+    if (v.mmu_active) {
+        return confirmed_slot(v.prusa_slot, v.finda, v.extruder == Sensor::has);
+    }
+    if (v.mmu_configured || v.prusa_slot >= slots || v.extruder == Sensor::none) {
+        return std::nullopt;
+    }
+    return v.prusa_slot;
+}
+
 /// Ni rechargement ni purge : l'emplacement demandé est déjà dans la buse, avec la même matière
 constexpr bool skip_reload(uint8_t requested, std::optional<uint8_t> loaded, bool same_material) {
     return loaded == requested && same_material;

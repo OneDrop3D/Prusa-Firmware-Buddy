@@ -1,5 +1,5 @@
 target_sources(
-  firmware PRIVATE calib_registry_od3d.cpp fan_response_od3d.cpp lookahead_math_od3d.cpp lookahead_od3d.cpp mpc_control_od3d.cpp mpc_od3d.cpp music_od3d.cpp
+  firmware PRIVATE calib_registry_od3d.cpp fan_response_od3d.cpp live_od3d.cpp lookahead_math_od3d.cpp lookahead_od3d.cpp mpc_control_od3d.cpp mpc_od3d.cpp music_od3d.cpp
                    music_player_od3d.cpp pairing_od3d.cpp skew_od3d.cpp sleep_math_od3d.cpp sleep_od3d.cpp
   )
 # F44 : maillage du plateau gardé et repris (G29 P1)

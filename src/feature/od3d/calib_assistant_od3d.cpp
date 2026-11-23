@@ -8,8 +8,10 @@
 #include "lookahead_od3d.hpp"
 #include "e_jump_od3d.hpp"
 #include "filament_memory_od3d.hpp"
+#include "live_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mmu_speed_od3d.hpp"
+#include "mmu_usb_od3d.hpp"
 #include "mpc_od3d.hpp"
 #include "nozzle_expansion_od3d.hpp"
 #include "pa_od3d.hpp"
@@ -28,7 +30,9 @@
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+#include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <filament.hpp>
+#include <i18n.h>
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/gcode/queue.h>
 #include <Marlin/src/module/motion.h>
@@ -50,9 +54,12 @@ namespace {
     std::atomic<uint8_t> current = 0;
     std::atomic<bool> running = false;
     std::atomic<bool> cancel_requested = false;
+    std::atomic<uint8_t> skip_index = 0xff; ///< étape passée par l'utilisateur (0xff : aucune)
     std::atomic<uint16_t> runs = 0;
     std::array<std::atomic<Result>, max_tests> results {};
     uint32_t run_mask = 0;
+    std::atomic<uint32_t> postponed_mask = 0; ///< tests reportés, le MMU indisponible jusqu'à la fin de la série
+    Context run_ctx; ///< l'imprimante au début de la série
 
     std::array<Numbers, max_tests> before_numbers;
     std::array<Numbers, max_tests> after_numbers;
@@ -105,8 +112,8 @@ namespace {
             }
             return r == TestResult::passed;
         }
-        case Test::belts:
-            return belts::status() == belts::Status::done;
+        case Test::belts: // un pic non concluant (hors de la plage balayée, trop peu marqué) : échec, jamais un conseil
+            return belts::status() == belts::Status::done && belts::last().peaks[0].found && belts::last().peaks[1].found;
         case Test::speed_map:
             return speed_map::status() == speed_map::Status::done;
         case Test::damping:
@@ -282,6 +289,7 @@ namespace {
     /// Met en file l'étape i et son repère ; false si elle ne peut pas partir
     bool enqueue(uint8_t i) {
         const Step &s = steps[i];
+        live::clear(); // rien de l'étape d'avant à l'écran
         if (s.test == Test::mmu_ptfe) {
             ptfe::forget(); // le bilan lit le résultat de cette mesure, jamais celui d'une mesure d'avant
         } else if (s.test == Test::mmu_speed) {
@@ -312,6 +320,7 @@ namespace {
                 || !marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(load_sequence) })) {
                 return false;
             }
+            live::set(needs_unload ? N_("Unloading: this test needs an empty nozzle") : N_("Loading slot %d into the nozzle"), s.slot + 1);
         }
         if (!marlin_server::enqueue_gcode_try(gcode) || !marlin_server::enqueue_gcode_try(marker)) {
             return false;
@@ -325,9 +334,19 @@ namespace {
         return true;
     }
 
+    /// L'étape a besoin du MMU maintenant : elle le pilote, charge par lui, ou doit vider la buse par lui
+    bool needs_mmu(const Step &s) {
+        return uses_mmu(entry(s.test), run_ctx) || (run_ctx.mmu && s.test == Test::nozzle_expansion && nozzle_expansion::filament_loaded());
+    }
+
+    /// Le MMU répond (pas en M709 S2 pour son flash par l'USB, pas en train de se connecter ou en erreur de liaison)
+    bool mmu_available() {
+        return MMU2::mmu2.Enabled() && !mmu_usb::active();
+    }
+
     /// Lance l'étape i, ou la suivante qui peut partir ; sinon fin de la série
     void start(uint8_t i) {
-        for (; i < step_count; ++i) {
+        while (i < step_count) {
             current = i;
             if (cancel_requested || marlin_server::is_printing()) {
                 for (; i < step_count; ++i) {
@@ -335,15 +354,29 @@ namespace {
                 }
                 break;
             }
+            // MMU indisponible (flash par l'USB avant...) : l'étape passe à la fin, les autres tournent ; toujours
+            // indisponible à son tour : reportée (passée, reste à faire), jamais un échec
+            if (needs_mmu(steps[i]) && !mmu_available()) {
+                if (!steps[i].deferred) {
+                    defer(std::span<Step>(steps.data(), size_t(step_count)), i);
+                    continue; // l'étape i est maintenant la suivante
+                }
+                add_result(steps[i].test, Result::skipped);
+                postponed_mask = postponed_mask | test_bit(steps[i].test);
+                ++i;
+                continue;
+            }
             // Buse froide exigée (accéléromètre sur la buse) : refusée sans rien bouger
             if ((entry(steps[i].test).needs & cold_nozzle) && !cold()) {
                 add_result(steps[i].test, Result::failed);
+                ++i;
                 continue;
             }
             if (enqueue(i)) {
                 return;
             }
             add_result(steps[i].test, Result::failed);
+            ++i;
         }
         finish();
     }
@@ -410,65 +443,103 @@ Result result(Test test) {
     return results[size_t(test)].load();
 }
 
+uint32_t postponed() {
+    return postponed_mask.load();
+}
+
+void recapture(Test test) {
+    const size_t i = size_t(test) % max_tests;
+    if (running || results[i].load() != Result::ok || (entry(test).needs & filament)) {
+        return;
+    }
+    capture(Step { test }, after_numbers[i], true);
+    Values kept;
+    std::copy_n(after_numbers[i].begin(), kept.v.size(), kept.v.begin());
+    config_store().od3d_calib_values.set(i, kept); // le « avant » de la fois suivante
+}
+
+bool mmu_in_use() {
+    return running && needs_mmu(steps[current % max_steps]);
+}
+
+namespace {
+    /// Arrête la mesure de l'étape en cours si elle tourne
+    void stop_current() {
+        // Seulement la mesure qui tourne : un arrêt demandé avant son début vaudrait aussi pour sa prochaine mesure à la main
+        switch (steps[current % max_steps].test) {
+        case Test::belts:
+            if (belts::is_running()) {
+                belts::request_stop();
+            }
+            break;
+        case Test::speed_map:
+            if (speed_map::is_running()) {
+                speed_map::request_stop();
+            }
+            break;
+        case Test::damping:
+            if (damping::is_running()) {
+                damping::request_stop();
+            }
+            break;
+        case Test::nozzle_expansion:
+            if (nozzle_expansion::is_running()) {
+                nozzle_expansion::request_stop();
+            }
+            break;
+        case Test::mpc:
+            if (mpc::tune_status().running) {
+                mpc::request_cancel();
+            }
+            break;
+        case Test::pa:
+            if (pa::is_running()) {
+                pa::request_stop();
+            }
+            break;
+        case Test::max_flow:
+        case Test::min_temp:
+            if (calib::is_running()) {
+                calib::request_stop();
+            }
+            break;
+        case Test::fan_response:
+            if (fan_response::is_running()) {
+                fan_response::request_stop();
+            }
+            break;
+        case Test::e_jump:
+            if (e_jump::is_running()) {
+                e_jump::request_stop();
+            }
+            break;
+        case Test::mmu_speed:
+            mmu_speed::request_stop(); // entre deux cycles
+            break;
+        default:
+            break; // assistants de Prusa (input shaper, phase stepping) : leur écran a son « Annuler »
+        }
+    }
+} // namespace
+
 void request_cancel() {
     if (!running) {
         return;
     }
     cancel_requested = true;
-    // Seulement la mesure qui tourne : un arrêt demandé avant son début vaudrait aussi pour sa prochaine mesure à la main
-    switch (steps[current % max_steps].test) {
-    case Test::belts:
-        if (belts::is_running()) {
-            belts::request_stop();
-        }
-        break;
-    case Test::speed_map:
-        if (speed_map::is_running()) {
-            speed_map::request_stop();
-        }
-        break;
-    case Test::damping:
-        if (damping::is_running()) {
-            damping::request_stop();
-        }
-        break;
-    case Test::nozzle_expansion:
-        if (nozzle_expansion::is_running()) {
-            nozzle_expansion::request_stop();
-        }
-        break;
-    case Test::mpc:
-        if (mpc::tune_status().running) {
-            mpc::request_cancel();
-        }
-        break;
-    case Test::pa:
-        if (pa::is_running()) {
-            pa::request_stop();
-        }
-        break;
-    case Test::max_flow:
-    case Test::min_temp:
-        if (calib::is_running()) {
-            calib::request_stop();
-        }
-        break;
-    case Test::fan_response:
-        if (fan_response::is_running()) {
-            fan_response::request_stop();
-        }
-        break;
-    case Test::e_jump:
-        if (e_jump::is_running()) {
-            e_jump::request_stop();
-        }
-        break;
-    case Test::mmu_speed:
-        mmu_speed::request_stop(); // entre deux cycles
-        break;
-    default:
-        break; // assistants de Prusa (input shaper, phase stepping) : leur écran a son « Annuler »
+    stop_current();
+}
+
+bool can_skip() {
+    return running && steps[current % max_steps].test != Test::mmu_ptfe; // le tube PTFE ne s'arrête pas en route
+}
+
+void request_skip(uint8_t index) {
+    if (!can_skip() || index != current) {
+        return; // l'étape a déjà changé : la suivante n'est pas passée
     }
+    skip_index = index;
+    stop_current(); // rien s'il n'a pas encore commencé (chargement) : l'interface redemande à chaque tour
 }
 
 const Numbers &numbers_before(Test test) {
@@ -530,6 +601,8 @@ void run(uint32_t mask) {
         return;
     }
     const Context ctx = context();
+    run_ctx = ctx;
+    postponed_mask = 0;
     step_count = uint8_t(build_steps(mask & automatic_mask(), ctx, steps));
     run_mask = 0;
     for (uint8_t i = 0; i < step_count; ++i) {
@@ -543,6 +616,7 @@ void run(uint32_t mask) {
         }
     }
     cancel_requested = false;
+    skip_index = 0xff;
     running = true;
     start(0);
 }
@@ -556,7 +630,7 @@ void step_end(uint8_t index) {
     if (ok) {
         capture(s, after_numbers[size_t(s.test)], true);
     }
-    add_result(s.test, ok ? Result::ok : (cancel_requested ? Result::skipped : Result::failed));
+    add_result(s.test, ok ? Result::ok : (cancel_requested || skip_index == index ? Result::skipped : Result::failed));
     start(uint8_t(index + 1));
 }
 

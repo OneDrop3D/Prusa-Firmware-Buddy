@@ -1,6 +1,7 @@
 /// @file
 #include "belt_tension_od3d.hpp"
 #include "accelerometer_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <cstdint>
 
 #include <common/marlin_server.hpp>
+#include <i18n.h>
 #include <option/has_indx.h> // utilisé par manual_belt_tuning_config.hpp
 #include <feature/manual_belt_tuning/manual_belt_tuning_config.hpp>
 #include <feature/motordriver_util.h>
@@ -89,6 +91,7 @@ namespace {
                 return std::unexpected(Error::aborted);
             }
             if (params.phase == ProgressHookParams::Phase::calibrating) {
+                live::set(N_("Accelerometer calibration"));
                 current_stage = Stage::calibrating;
                 progress = uint8_t(std::clamp(params.progress * 100.f, 0.f, 100.f));
             }
@@ -109,6 +112,7 @@ namespace {
                 return result.error() == Error::aborted ? Status::stopped : Status::failed;
             }
             current_stage = belt == Belt::a ? Stage::belt_a : Stage::belt_b;
+            live::set(N_("Belt %c: shaking at %d Hz"), belt == Belt::a ? 'A' : 'B', int(std::lround(frequency)));
             measurement.spectra[index][i] = result->gain_square();
             measurement.points[index] = uint8_t(i + 1);
             set_progress(index, float(i + 1));
@@ -117,6 +121,10 @@ namespace {
         const Targets t = targets();
         measurement.peaks[index] = find_peak(measurement.spectra[index], sweep_start_hz, sweep_step_hz,
             t.result_min - window_margin_hz, t.result_max + window_margin_hz);
+        if (const Peak &p = measurement.peaks[index]; p.found) {
+            const int tenths = int(std::lround(p.frequency * 10.f));
+            live::set_value(N_("Measured: belt %c at %d.%d Hz"), belt == Belt::a ? 'A' : 'B', tenths / 10, tenths % 10);
+        }
         ++revisions;
         return Status::done;
     }
@@ -136,6 +144,7 @@ namespace {
         }
 
         current_stage = Stage::preparing;
+        live::set(N_("Homing and moving to the measuring position"));
         if (!prepare()) {
             return must_stop() ? Status::stopped : Status::not_homed;
         }

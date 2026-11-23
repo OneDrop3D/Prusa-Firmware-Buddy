@@ -1,6 +1,7 @@
 /// @file
 #include "spool_calib_od3d.hpp"
 #include "filament_memory_od3d.hpp"
+#include "live_od3d.hpp"
 #include "flow_limit_od3d.hpp"
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
@@ -16,6 +17,7 @@
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
 #include <filament.hpp>
+#include <i18n.h>
 #include <loadcell.hpp>
 #include <Marlin.h>
 #include <feature/pressure_advance/pressure_advance_config.hpp>
@@ -390,6 +392,7 @@ void measure_flow(const FlowRequest &rq) {
     for (size_t i = 0; i < n; ++i) {
         st_step = uint8_t(i + 1);
         st_value = int16_t(std::lround(flows[i] * 10.f));
+        live::set(N_("Line %d/%d at %d mm3/s, force measured"), int(i + 1), int(n), int(std::lround(flows[i])));
         StepPoint p;
         const StepResult r = run_step(session, layout, uint8_t(i), flows[i], rq.step_s, flows[i], p, csv);
         if (r != StepResult::ok) {
@@ -502,6 +505,7 @@ void measure_temperature(const TempRequest &rq) {
     for (size_t i = 0; i < n; ++i) {
         st_step = uint8_t(i + 1);
         st_value = temps[i];
+        live::set(N_("Line %d/%d at %d\xC2\xB0""C, force measured"), int(i + 1), int(n), int(temps[i]));
         if (i > 0) {
             // Palier suivant : la buse, levée au-dessus des lignes, descend et se stabilise à ±1 °C
             st_phase = Phase::settling;

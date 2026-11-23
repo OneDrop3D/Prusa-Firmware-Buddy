@@ -3,6 +3,7 @@
 /// imprimé (voir pa_math_od3d.hpp).
 #include "pa_od3d.hpp"
 #include "e_jump_od3d.hpp"
+#include "live_od3d.hpp"
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
 #include "spool_calib_od3d.hpp"
@@ -475,6 +476,7 @@ namespace {
         const auto run_line = [&](float k) -> bool {
             st_step = uint8_t(n + 1);
             st_k = k_to_e4(k);
+            live::set(N_("Test line %d/%d, K = 0.%03d"), int(n + 1), int(lines.count), int(std::clamp<long>(std::lround(k * 1000.f), 0, 999)));
             BlockResult r;
             if (!measure_line(session, k, smooth_time, rq.params, lines, uint8_t(n), &wave, r, csv)) {
                 return false;
@@ -708,6 +710,7 @@ void calibrate(const Request &rq, bool load_tried) {
         }
         before_load.emplace(Hotend::for_tool(PhysicalToolIndex::from_raw(0)).nozzle_target_temp(), thermalManager.degTargetBed());
         st_phase = Phase::loading;
+        live::set(N_("Loading slot %d into the nozzle"), rq.slot + 1);
         followup = true; // « en cours » pour l'interface jusqu'à la suite
         return;
     }

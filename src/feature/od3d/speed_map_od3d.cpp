@@ -1,6 +1,7 @@
 /// @file
 #include "speed_map_od3d.hpp"
 #include "accelerometer_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -9,6 +10,7 @@
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
+#include <i18n.h>
 #include <Marlin/src/gcode/calibrate/M958.hpp> // maybe_calibrate_and_get_accelerometer_sample_period
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/Marlin.h>
@@ -203,6 +205,7 @@ namespace {
 
         for (uint8_t a = 0; a < axis_count; ++a) {
             axis_now = a;
+            live::set(N_("Axis %c: vibrations measured at each speed"), a == 0 ? 'X' : 'Y');
             const float max_speed = planner.settings.max_feedrate_mm_s[a == 0 ? X_AXIS : Y_AXIS];
             if (const Status s = measure_axis(a, g, sample_period, max_speed, accelerometer); s != Status::done) {
                 return s;

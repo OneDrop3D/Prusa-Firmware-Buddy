@@ -1,11 +1,14 @@
 /// @file
 #include "fan_response_od3d.hpp"
+#include "live_od3d.hpp"
 #include "lookahead_od3d.hpp"
 
 #include <atomic>
+#include <cmath>
 #include <span>
 
 #include <common/marlin_server.hpp>
+#include <i18n.h>
 #include <Marlin/src/Marlin.h>
 #include <Marlin/src/module/planner.h>
 #include <Marlin/src/module/temperature.h>
@@ -68,6 +71,7 @@ namespace {
             Temperature::set_print_fan_speed(saved);
         };
         Temperature::set_print_fan_speed(0);
+        live::set(N_("Part fan off, then 100%%: spin-up timed"));
         if (!wait(spin_down_ms, 0)) {
             return Status::stopped;
         }
@@ -88,6 +92,7 @@ namespace {
             return Status::no_signal;
         }
         last.lead_ds = lookahead::fan_lead_for(last.rise.rise_s);
+        live::set_value(N_("Measured: rise time %d ms"), int(std::lround(last.rise.rise_s * 1000.f)));
         lookahead::set_fan_lead_ds(last.lead_ds);
         return Status::done;
     }

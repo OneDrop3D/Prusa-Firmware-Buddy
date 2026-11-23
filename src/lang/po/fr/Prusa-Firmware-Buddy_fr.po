@@ -12442,3 +12442,135 @@ msgstr "Passé : reste à faire la prochaine fois."
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers."
 msgstr "Terminé : %d OK, %d en échec, %d passés. Touchez un test pour ses chiffres."
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Bed heating to %d°C: %d°C"
+msgstr "Chauffe du plateau à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle cleaning on the front strip"
+msgstr "Nettoyage de la buse sur la bande avant"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Probing the bed under the test lines"
+msgstr "Palpage du plateau sous les lignes de test"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle at %d°C, steady in %d s"
+msgstr "Buse à %d °C, stable dans %d s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle cooling to %d°C: %d°C"
+msgstr "Refroidissement de la buse à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle heating to %d°C: %d°C"
+msgstr "Chauffe de la buse à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Purge line"
+msgstr "Ligne de purge"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Bed at %d°C, letting it settle"
+msgstr "Plateau à %d °C, le temps qu'il se stabilise"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Probe %d/%d of the bed center at %d°C"
+msgstr "Palpage %d/%d du centre du plateau à %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: %+d um at %d°C vs %d°C"
+msgstr "Mesuré : %+d um à %d °C par rapport à %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Accelerometer calibration"
+msgstr "Calibration de l'accéléromètre"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Belt %c: shaking at %d Hz"
+msgstr "Courroie %c : vibration à %d Hz"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: belt %c at %d.%d Hz"
+msgstr "Mesuré : courroie %c à %d,%d Hz"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Homing and moving to the measuring position"
+msgstr "Origine et déplacement à la position de mesure"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: vibrations measured at each speed"
+msgstr "Axe %c : vibrations mesurées à chaque vitesse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: sweep around the resonance"
+msgstr "Axe %c : balayage autour de la résonance"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Fan cooling to find the room temperature: %d°C"
+msgstr "Refroidissement au ventilateur (ambiante) : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Full-power heating to %d°C: %d°C"
+msgstr "Chauffe à fond jusqu'à %d °C : %d °C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Holding %d°C, fan off: heat losses"
+msgstr "%d °C maintenus, ventilateur arrêté : pertes"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Holding %d°C, fan at 100%%: fan losses"
+msgstr "%d °C maintenus, ventilateur à 100 %% : pertes"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Test line %d/%d, K = 0.%03d"
+msgstr "Ligne de test %d/%d, K = 0,%03d"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Loading slot %d into the nozzle"
+msgstr "Chargement de l'emplacement %d dans la buse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Line %d/%d at %d mm3/s, force measured"
+msgstr "Ligne %d/%d à %d mm3/s, force mesurée"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Line %d/%d at %d°C, force measured"
+msgstr "Ligne %d/%d à %d °C, force mesurée"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Extruder speed jump %d/%d: %d mm/s"
+msgstr "Saut de vitesse de l'extrudeur %d/%d : %d mm/s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "MMU load and unload %d/%d at %d mm/s"
+msgstr "Chargement + déchargement MMU %d/%d à %d mm/s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "MMU pushes slot %d to the head sensor and back"
+msgstr "Emplacement %d poussé au capteur de la tête, puis ramené"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Part fan off, then 100%%: spin-up timed"
+msgstr "Ventilateur coupé puis à 100 %% : montée chronométrée"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: rise time %d ms"
+msgstr "Mesuré : temps de montée %d ms"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Unloading: this test needs an empty nozzle"
+msgstr "Déchargement : ce test veut une buse vide"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Step %d/%d:"
+msgstr "Étape %d/%d :"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "slot %d"
+msgstr "emplacement %d"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "You may leave this screen: the pill shows the progress."
+msgstr "Vous pouvez quitter cet écran : la pastille montre l'avancement."

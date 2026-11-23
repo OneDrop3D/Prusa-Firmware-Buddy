@@ -1,6 +1,7 @@
 /// @file
 #include "damping_od3d.hpp"
 #include "accelerometer_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -9,6 +10,7 @@
 
 #include <common/marlin_server.hpp>
 #include <feature/phase_stepping/phase_stepping.hpp>
+#include <i18n.h>
 #include <Marlin/src/gcode/calibrate/M958.hpp>
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/Marlin.h>
@@ -138,6 +140,7 @@ namespace {
         };
         for (uint8_t a = 0; a < axis_count; ++a) {
             axis_now = a;
+            live::set(N_("Axis %c: sweep around the resonance"), a == 0 ? 'X' : 'Y');
             if (const Status s = sweep(a, args, microstep_restorer); s != Status::done) {
                 return s;
             }

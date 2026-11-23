@@ -27,7 +27,16 @@
 #include <config_store/store_instance.hpp>
 #include <feature/od3d/belt_tension_od3d.hpp>
 #include <feature/od3d/calib_assistant_od3d.hpp>
+#include <feature/od3d/damping_od3d.hpp>
+#include <feature/od3d/e_jump_od3d.hpp>
+#include <feature/od3d/fan_response_od3d.hpp>
+#include <feature/od3d/live_od3d.hpp>
+#include <feature/od3d/mmu_speed_od3d.hpp>
+#include <feature/od3d/mpc_control_od3d.hpp>
 #include <feature/od3d/nozzle_expansion_od3d.hpp>
+#include <feature/od3d/pa_od3d.hpp>
+#include <feature/od3d/speed_map_od3d.hpp>
+#include <feature/od3d/spool_calib_od3d.hpp>
 #include <filament.hpp>
 #include <Marlin/src/feature/input_shaper/input_shaper_config.hpp>
 #include <option/has_hotend_type_support.h>
@@ -272,6 +281,35 @@ namespace {
         }
     }
 
+    /// L'écran d'une mesure de la série, avec ses courbes en direct ; vide : pas d'écran à nous (l'assistant la montre)
+    ScreenFactory::Creator step_screen(const calib_registry::Step &s) {
+        switch (s.test) {
+        case Test::belts:
+            return ScreenFactory::Screen<ScreenBelts>;
+        case Test::speed_map:
+            return ScreenFactory::Screen<ScreenSpeedMap>;
+        case Test::damping:
+            return ScreenFactory::Screen<ScreenDamping>;
+        case Test::nozzle_expansion:
+            return ScreenFactory::Screen<ScreenNozzleExpansion>;
+        case Test::mpc:
+            return mpc_calibration_screen();
+        case Test::pa:
+            return ScreenFactory::ScreenWithArg<ScreenPa>(s.slot);
+        case Test::max_flow:
+        case Test::min_temp:
+            return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(s.slot);
+        case Test::fan_response:
+            return ScreenFactory::Screen<ScreenFanResponse>;
+        case Test::e_jump:
+            return ScreenFactory::ScreenWithArg<ScreenEJump>(s.slot);
+        case Test::mmu_speed:
+            return ScreenFactory::Screen<ScreenMmuSpeed>;
+        default:
+            return {};
+        }
+    }
+
     void enter_cooling() {
         marlin_client::gcode("M1989 H"); // chauffe coupée, ventilateur, origine (sans l'accéléromètre), buse au centre
         flow.stage = Stage::cooling;
@@ -385,7 +423,7 @@ namespace {
                 return { style::warning, Button::Look::card, summary };
             case Result::none:
                 if (p.running && p.step.test == e.test) {
-                    return { style::accent, Button::Look::secondary };
+                    return { style::accent, Button::Look::secondary, step_screen(p.step).func != nullptr }; // ses courbes
                 }
                 break;
             }
@@ -791,6 +829,89 @@ namespace {
         }
     }
 
+    /// Avancement de la mesure de l'étape (les mêmes chiffres que son écran et la pastille), s'il est connu
+    std::optional<uint8_t> step_percent(const calib_registry::Step &s) {
+        const auto ratio = [](unsigned step, unsigned steps) -> std::optional<uint8_t> {
+            return steps ? std::optional<uint8_t>(uint8_t(std::min(100u, step * 100u / steps))) : std::nullopt;
+        };
+        switch (s.test) {
+        case Test::belts:
+            return belts::is_running() ? std::optional<uint8_t>(belts::progress_percent()) : std::nullopt;
+        case Test::speed_map:
+            return speed_map::is_running() ? std::optional<uint8_t>(speed_map::progress_percent()) : std::nullopt;
+        case Test::damping:
+            return damping::is_running() ? std::optional<uint8_t>(damping::progress_percent()) : std::nullopt;
+        case Test::nozzle_expansion:
+            return nozzle_expansion::is_running() ? std::optional<uint8_t>(nozzle_expansion::progress_percent()) : std::nullopt;
+        case Test::fan_response:
+            return fan_response::is_running() ? std::optional<uint8_t>(fan_response::progress_percent()) : std::nullopt;
+        case Test::mpc:
+            if (const mpc::TuneStatus st = mpc::tune_status(); st.running) {
+                return st.progress;
+            }
+            return std::nullopt;
+        case Test::pa:
+            if (const pa::Status st = pa::status(); pa::is_running() && st.phase == pa::Phase::measuring) {
+                return ratio(st.step, st.steps);
+            }
+            return std::nullopt;
+        case Test::max_flow:
+        case Test::min_temp:
+            if (const calib::Status st = calib::status(); calib::is_running() && st.phase == calib::Phase::measuring) {
+                return ratio(st.step, st.steps);
+            }
+            return std::nullopt;
+        case Test::e_jump:
+            if (const e_jump::Status st = e_jump::status(); e_jump::is_running() && st.phase == e_jump::Phase::measuring) {
+                return ratio(st.step, st.steps);
+            }
+            return std::nullopt;
+        case Test::mmu_speed:
+            return mmu_speed::is_running() ? ratio(mmu_speed::last().step, mmu_speed::cycles) : std::nullopt;
+        default:
+            return std::nullopt;
+        }
+    }
+
+    /// Une phrase publiée par la mesure, traduite, avec ses nombres
+    void add_line(Writer &w, const live::Line &l) {
+        char format[96];
+        _(l.msgid).copyToRAM(format, sizeof(format));
+        w.add(format, int(l.a), int(l.b), int(l.c));
+    }
+
+    /// Pendant la série (retour du 23/11 : « voir plus en détail ce que l'imprimante fait ») : l'étape et son
+    /// avancement, ce que fait l'imprimante en clair, puis la valeur mesurée dès qu'elle existe
+    void build_running(const assistant::Progress &p, Writer &w) {
+        char format[48];
+        _("Step %d/%d:").copyToRAM(format, sizeof(format));
+        w.add(format, p.index + 1, int(p.count));
+        w.add(" ");
+        w.text(name_of(p.step.test));
+        if (calib_registry::entry(p.step.test).needs & (calib_registry::filament | calib_registry::one_spool)) {
+            _("slot %d").copyToRAM(format, sizeof(format));
+            w.add(", ");
+            w.add(format, p.step.slot + 1);
+        }
+        if (const auto percent = step_percent(p.step)) {
+            w.add(" - %d%%", int(*percent));
+        }
+        w.add("\n");
+        char wizard[32];
+        prusa_live(wizard, sizeof(wizard)); // input shaper, phase stepping : l'assistant de Prusa
+        if (wizard[0]) {
+            w.add("%s", wizard);
+        } else if (const live::Line l = live::now(); l.msgid) {
+            add_line(w, l);
+        } else {
+            w.text(N_("You may leave this screen: the pill shows the progress."));
+        }
+        if (const live::Line v = live::value(); v.msgid) {
+            w.add("\n");
+            add_line(w, v);
+        }
+    }
+
     /// Le détail d'un test du bilan ; vrai pour le refaire
     bool show_details(Test test) {
         static char text[360]; // la boîte le lit tant qu'elle est ouverte
@@ -836,67 +957,24 @@ bool calibration_series_running() {
 }
 
 namespace {
-    /// L'écran d'une mesure de la série, avec ses courbes en direct ; vide : pas d'écran à nous (l'assistant la montre)
-    ScreenFactory::Creator step_screen(const calib_registry::Step &s) {
-        switch (s.test) {
-        case Test::belts:
-            return ScreenFactory::Screen<ScreenBelts>;
-        case Test::speed_map:
-            return ScreenFactory::Screen<ScreenSpeedMap>;
-        case Test::damping:
-            return ScreenFactory::Screen<ScreenDamping>;
-        case Test::nozzle_expansion:
-            return ScreenFactory::Screen<ScreenNozzleExpansion>;
-        case Test::mpc:
-            return mpc_calibration_screen();
-        case Test::pa:
-            return ScreenFactory::ScreenWithArg<ScreenPa>(s.slot);
-        case Test::max_flow:
-        case Test::min_temp:
-            return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(s.slot);
-        case Test::fan_response:
-            return ScreenFactory::Screen<ScreenFanResponse>;
-        case Test::e_jump:
-            return ScreenFactory::ScreenWithArg<ScreenEJump>(s.slot);
-        case Test::mmu_speed:
-            return ScreenFactory::Screen<ScreenMmuSpeed>;
-        default:
-            return {};
-        }
-    }
+    ScreenFactory::Creator curves_opened; ///< écran de la mesure ouvert depuis la tuile de l'étape en cours
 } // namespace
 
 void calibration_follow() {
-    static uint32_t followed_step = 0; ///< (séries << 8 | étape) + 1 de l'étape déjà vue ; 0 : aucune
-    static ScreenFactory::Creator opened; ///< écran de mesure ouvert par l'assistant
-    Screens &screens = *Screens::Access();
-    const bool on_opened = opened.func && screens.IsScreenOpened(opened);
+    // L'assistant montre lui-même chaque étape en clair (retour du 23/11) ; l'écran d'une mesure, ouvert depuis sa
+    // tuile pour ses courbes, revient à l'assistant quand l'étape change ou que la série finit
+    static uint32_t followed_step = 0; ///< (séries << 8 | étape) + 1 de l'étape en cours ; 0 : pas de série
     const assistant::Progress p = assistant::progress();
-    if (!p.running) {
-        if (on_opened) {
-            screens.close_screen(); // fin de la série : l'assistant demande la suite
-        }
-        opened = {};
-        followed_step = 0;
-        return;
-    }
-    const uint32_t step = (uint32_t(p.runs) << 8 | p.index) + 1;
+    const uint32_t step = p.running ? (uint32_t(p.runs) << 8 | p.index) + 1 : 0;
     if (step == followed_step) {
         return;
     }
     followed_step = step;
-    if (!on_opened && !screens.IsScreenOpened<ScreenCalibAssistant>()) {
-        opened = {}; // l'utilisateur est ailleurs : la pastille montre la série
-        return;
+    Screens &screens = *Screens::Access();
+    if (curves_opened.func && screens.IsScreenOpened(curves_opened)) {
+        screens.close_screen();
     }
-    const ScreenFactory::Creator next = step_screen(p.step);
-    if (on_opened) {
-        screens.close_screen(); // avec Open() : remplace l'écran de l'étape d'avant
-    }
-    opened = next;
-    if (next.func) {
-        screens.Open(next);
-    }
+    curves_opened = {};
 }
 
 bool confirm_stop_measure() {
@@ -1030,9 +1108,15 @@ void ScreenCalibAssistant::update() {
     // Redessiné seulement si ce qui est affiché change
     const auto wizard = running_stage ? prusa_wizard() : std::nullopt;
     const bool cooling = flow.stage == Stage::cooling; // la température n'est affichée que là
+    // Pendant la série : ce que publie la mesure (phrase, valeur) et son avancement
+    const live::Line now = running_stage ? live::now() : live::Line {};
+    const live::Line value = running_stage ? live::value() : live::Line {};
+    const uint32_t percent = running_stage && p.running ? step_percent(p.step).value_or(0xff) : 0u;
     uint32_t key = 2166136261u;
     for (const uint32_t v : { uint32_t(flow.stage), uint32_t(flow.cancelled), uint32_t(flow.check_failed), uint32_t(cooling ? uint16_t(nozzle()) : 0), uint32_t(cooling && cold()),
              uint32_t(cooling && marlin_vars().is_processing.get()), uint32_t(p.running), uint32_t(p.index), uint32_t(p.runs), flow.mask, flow.started, uint32_t(skipping),
+             uint32_t(reinterpret_cast<uintptr_t>(now.msgid)), uint32_t(now.a), uint32_t(now.b), uint32_t(now.c), uint32_t(reinterpret_cast<uintptr_t>(value.msgid)),
+             uint32_t(value.a), uint32_t(value.b), uint32_t(value.c), percent,
              wizard ? uint32_t(wizard->phase) | uint32_t(wizard->data[0]) << 8 | uint32_t(wizard->data[2]) << 16 | uint32_t(wizard->data[3]) << 24 : 0u }) {
         key = (key ^ v) * 16777619u;
     }
@@ -1056,7 +1140,6 @@ void ScreenCalibAssistant::show() {
 
     // Texte
     string_view_utf8 text;
-    char name[24] = "";
     switch (flow.stage) {
     case Stage::idle:
     case Stage::propose: {
@@ -1095,13 +1178,10 @@ void ScreenCalibAssistant::show() {
         } else if (!p.running) {
             text = _("Starting...");
         } else {
-            _(name_of(p.step.test)).copyToRAM(name, sizeof(name));
-            char live[32];
-            prusa_live(live, sizeof(live));
-            text = live[0] ? _("Step %d/%d: %s, %s. You may leave this screen: the pill shows the progress.").formatted(info_params, p.index + 1, int(p.count), name, live)
-                : (calib_registry::entry(p.step.test).needs & calib_registry::filament)
-                ? _("Step %d/%d: %s, slot %d. You may leave this screen: the pill shows the progress.").formatted(info_params, p.index + 1, int(p.count), name, p.step.slot + 1)
-                : _("Step %d/%d: %s. You may leave this screen: the pill shows the progress.").formatted(info_params, p.index + 1, int(p.count), name);
+            static char running[220]; // la fenêtre de texte le lit jusqu'au prochain show()
+            Writer w(running);
+            build_running(p, w);
+            text = string_view_utf8::MakeRAM(running);
         }
         break;
     case Stage::detach:
@@ -1200,6 +1280,11 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
             flow.mask ^= test_bit(e.test); // cocher ou décocher (passer avant le lancement)
         } else if (flow.stage == Stage::summary && show_details(e.test)) {
             start_session(test_bit(e.test), test_bit(e.test), false); // refaire ce test seul
+        } else if (const assistant::Progress p = assistant::progress(); p.running && p.step.test == e.test) {
+            curves_opened = step_screen(p.step); // l'écran de la mesure en cours, avec ses courbes
+            if (curves_opened.func) {
+                Screens::Access()->Open(curves_opened);
+            }
         }
         return;
     }

@@ -8,6 +8,7 @@
 #include "lookahead_od3d.hpp"
 #include "e_jump_od3d.hpp"
 #include "filament_memory_od3d.hpp"
+#include "live_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mmu_speed_od3d.hpp"
 #include "mpc_od3d.hpp"
@@ -29,6 +30,7 @@
 #include <config_store/store_instance.hpp>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
 #include <filament.hpp>
+#include <i18n.h>
 #include <Marlin/src/gcode/gcode.h>
 #include <Marlin/src/gcode/queue.h>
 #include <Marlin/src/module/motion.h>
@@ -283,6 +285,7 @@ namespace {
     /// Met en file l'étape i et son repère ; false si elle ne peut pas partir
     bool enqueue(uint8_t i) {
         const Step &s = steps[i];
+        live::clear(); // rien de l'étape d'avant à l'écran
         if (s.test == Test::mmu_ptfe) {
             ptfe::forget(); // le bilan lit le résultat de cette mesure, jamais celui d'une mesure d'avant
         } else if (s.test == Test::mmu_speed) {
@@ -313,6 +316,7 @@ namespace {
                 || !marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(load_sequence) })) {
                 return false;
             }
+            live::set(needs_unload ? N_("Unloading: this test needs an empty nozzle") : N_("Loading slot %d into the nozzle"), s.slot + 1);
         }
         if (!marlin_server::enqueue_gcode_try(gcode) || !marlin_server::enqueue_gcode_try(marker)) {
             return false;

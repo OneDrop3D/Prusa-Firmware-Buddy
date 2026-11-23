@@ -1,5 +1,6 @@
 /// @file
 #include "nozzle_expansion_od3d.hpp"
+#include "live_od3d.hpp"
 #include "measure_session_od3d.hpp"
 #include "mesh_memory_od3d.hpp"
 
@@ -12,6 +13,7 @@
 #include <feature/filament_sensor/filament_sensors_handler.hpp>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
 #include <gcode/gcode.h>
+#include <i18n.h>
 #include <module/motion.h>
 #include <module/planner.h>
 #include <module/probe.h>
@@ -62,6 +64,7 @@ namespace {
         if (const session::Result r = s.heat_bed(bed_temperature, temperatures[0]); r != session::Result::ok) {
             return from(r);
         }
+        live::set(N_("Bed at %d\xC2\xB0""C, letting it settle"), bed_temperature);
         if (!session::wait_ms(bed_soak_ms)) {
             return Status::stopped;
         }
@@ -70,6 +73,7 @@ namespace {
         }
         // Comme le G-code de départ de la CORE One avant de palper : un reste de plastique au bout de la buse, mou à
         // 260 °C, fausserait le contact
+        live::set(N_("Nozzle cleaning on the front strip"));
         GcodeSuite::process_subcommands_now_P("G29 P9 X208 Y-2.5 W32 H4");
         if (session::must_stop()) {
             return Status::stopped;
@@ -92,6 +96,7 @@ namespace {
             ++revisions;
             std::array<float, taps> z;
             for (uint8_t k = 0; k < taps; ++k) {
+                live::set(N_("Probe %d/%d of the bed center at %d\xC2\xB0""C"), k + 1, taps, temperatures[i]);
                 // Sans correction : ni la dilatation de Prusa, ni décalage d'outil
                 z[k] = probe_at_point(point, PROBE_PT_RAISE, 0, true, 1, ApplyToolCorrections::no);
                 if (session::must_stop()) {
@@ -105,6 +110,10 @@ namespace {
             }
             measurement.stage[i] = stage_of(z);
             measurement.done = uint8_t(i + 1);
+            if (i > 0) { // la buse plus longue qu'à 170 °C : le Z du contact monte d'autant
+                live::set_value(N_("Measured: %+d um at %d\xC2\xB0""C vs %d\xC2\xB0""C"),
+                    int(std::lround((measurement.stage[i].z_mm - measurement.stage[0].z_mm) * 1000.f)), temperatures[i], temperatures[0]);
+            }
             ++revisions;
         }
 

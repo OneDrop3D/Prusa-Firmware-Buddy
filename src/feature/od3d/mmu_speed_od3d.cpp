@@ -1,5 +1,6 @@
 /// @file
 #include "mmu_speed_od3d.hpp"
+#include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <feature/filament_sensor/filament_sensors_handler.hpp>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <feature/prusa/MMU2/registers.h>
+#include <i18n.h>
 #include <Marlin/src/module/planner.h>
 #include <marlin_server.hpp>
 #include <timing.h>
@@ -156,6 +158,7 @@ Result measure(uint8_t slot) {
     while (n < levels.size() && !must_stop()) {
         measurement.step = n;
         publish();
+        live::set(N_("MMU load and unload %d/%d at %d mm/s"), int(n + 1), int(levels.size()), int(levels[n]));
         if (!set_speed(levels[n])) {
             done[n++] = Cycle { .error = true };
             break;

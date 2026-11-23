@@ -9,6 +9,7 @@
 #include "e_jump_od3d.hpp"
 #include "filament_memory_od3d.hpp"
 #include "live_od3d.hpp"
+#include "measure_session_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mmu_speed_od3d.hpp"
 #include "mmu_usb_od3d.hpp"
@@ -25,6 +26,7 @@
 #include <cstdio>
 #include <ctime>
 #include <optional>
+#include <tuple>
 
 #include <common/marlin_server.hpp>
 #include <common/marlin_vars.hpp>
@@ -54,6 +56,7 @@ namespace {
     std::atomic<uint8_t> current = 0;
     std::atomic<bool> running = false;
     std::atomic<bool> cancel_requested = false;
+    std::atomic<bool> bed_full = false; ///< série en pause : plus de place sur le plateau, l'utilisateur le nettoie (M1989 C)
     std::atomic<uint8_t> skip_index = 0xff; ///< étape passée par l'utilisateur (0xff : aucune)
     std::atomic<uint16_t> runs = 0;
     std::array<std::atomic<Result>, max_tests> results {};
@@ -70,9 +73,9 @@ namespace {
     /// Résultat de Prusa avant son étape (input shaper, phase stepping) : remis si l'étape est annulée
     TestResult prusa_before = TestResult::unknown;
 
-    /// Chargement de la bobine avant F5 / F6, ou déchargement avant le tube PTFE (mis en file d'injection, lu après
-    /// le retour de M1989)
-    char load_sequence[96];
+    /// Chargement de la bobine avant le PA, F5, F6, M2000, ou déchargement avant le tube PTFE (mis en file d'injection,
+    /// lu après le retour de M1989)
+    char load_sequence[128];
 
     bool cold() {
         return nozzle_cold(Temperature::degHotend(0), Temperature::degTargetHotend(0));
@@ -282,6 +285,13 @@ namespace {
                 }
             }
         }
+        session::series_end();
+        // Chauffe gardée d'un test au suivant pendant la série (measure_session_od3d.hpp) : coupée à la fin
+        if (!marlin_server::is_printing()) {
+            Temperature::disable_hotend();
+            thermalManager.setTargetBed(0);
+        }
+        bed_full = false;
         running = false;
         ++runs;
     }
@@ -303,21 +313,34 @@ namespace {
         if (BUFSIZE - GCodeQueue::length < 2) {
             return false; // la file a été remplie d'ailleurs : l'étape échoue plutôt que de perdre le repère
         }
-        // F5, F6, M2000 : bobine pas dans la buse (pas de PA juste avant) : « Charger dans la buse » de Prusa d'abord, comme
-        // M1994 en un clic (origine si besoin, position de chargement levée), par la file d'injection qui passe avant
-        // Tube PTFE, vitesse de la poulie : le test de chargement de Prusa veut l'extrudeur et le sélecteur vides :
-        // déchargement d'abord ; de même pour la dilatation de la buse (M2003), si le capteur de l'extrudeur voit du filament
+        // PA, F5, F6, M2000 : bobine pas dans la buse : « Charger dans la buse » de Prusa d'abord (origine si besoin), par
+        // la file d'injection qui passe avant ; pour un test qui imprime, au-dessus de la ligne de purge réservée sur le
+        // plateau (calib_registry::load_gcode). Tube PTFE, vitesse de la poulie : le test de chargement de Prusa veut
+        // l'extrudeur et le sélecteur vides : déchargement d'abord ; de même pour la dilatation de la buse (M2003), si le
+        // capteur de l'extrudeur voit du filament
         const auto loaded = VirtualToolIndex::currently_selected_opt();
-        const bool needs_load = (s.test == Test::max_flow || s.test == Test::min_temp || s.test == Test::e_jump) && filament_memory::loaded_slot() != s.slot; // F43
+        const bool prints = s.test == Test::pa || s.test == Test::max_flow || s.test == Test::min_temp;
+        const bool needs_load = (prints || s.test == Test::e_jump) && filament_memory::loaded_slot() != s.slot; // F43
         const bool needs_unload = ((s.test == Test::mmu_ptfe || s.test == Test::mmu_speed) && loaded) || (s.test == Test::nozzle_expansion && nozzle_expansion::filament_loaded()); // M2003 : buse vide
         if (needs_load || needs_unload) {
             char filament[16];
             StringBuilder sb(filament);
-            FilamentType::for_tool(VirtualToolIndex::from_raw(s.slot)).build_encoded_gcode_param(sb);
-            const int n = needs_unload ? snprintf(load_sequence, sizeof(load_sequence), "G28 O I\nG27 W2\nM702 W2")
-                                       : snprintf(load_sequence, sizeof(load_sequence), "G28 O I\nG27 W2\nM701 S\"%s\" W2 P%u", sb.str(), unsigned(s.slot));
-            if (n <= 0 || size_t(n) >= sizeof(load_sequence)
-                || !marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(load_sequence) })) {
+            const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(s.slot));
+            type.build_encoded_gcode_param(sb);
+            std::optional<Spot> spot;
+            if (needs_load && prints) {
+                const auto purge = session::purge_start(); // réservée jusqu'à la purge du test
+                if (!purge) {
+                    return false; // plateau plein (session::series_full())
+                }
+                spot = Spot { purge->x, purge->y, session::purge_z };
+            }
+            const auto loaded_type = loaded ? FilamentType::for_tool(*loaded) : FilamentType::none;
+            const int16_t nozzle = load_temperature(loaded_type ? std::optional<int16_t>(loaded_type.parameters().nozzle_temperature) : std::nullopt,
+                type.parameters().nozzle_temperature);
+            const bool ok = needs_unload ? snprintf(load_sequence, sizeof(load_sequence), "G28 O I\nG27 W2\nM702 W2") > 0
+                                         : load_gcode(s.slot, sb.str(), nozzle, spot, load_sequence);
+            if (!ok || !marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(load_sequence) })) {
                 return false;
             }
             live::set(needs_unload ? N_("Unloading: this test needs an empty nozzle") : N_("Loading slot %d into the nozzle"), s.slot + 1);
@@ -375,6 +398,10 @@ namespace {
             if (enqueue(i)) {
                 return;
             }
+            if (session::series_full() && !cancel_requested) {
+                bed_full = true; // pas de place pour la purge de son chargement : M1989 C la relance, plateau nettoyé
+                return;
+            }
             add_result(steps[i].test, Result::failed);
             ++i;
         }
@@ -390,12 +417,24 @@ Context context() {
     ctx.accelerometer = accelerometer();
     ctx.mmu = config_store().mmu2_enabled.get();
     ctx.flow_limit = calib::flow_limit_enabled();
+    std::array<int16_t, VirtualToolIndex::count> bed {}, nozzle {};
     for (uint8_t i = 0; i < VirtualToolIndex::count; ++i) {
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(i);
-        if (tool.is_enabled() && FilamentType::for_tool(tool)) {
+        const FilamentType type = FilamentType::for_tool(tool);
+        if (tool.is_enabled() && type) {
             ctx.spools |= uint8_t(1u << i);
         }
+        const FilamentTypeParameters p = type.parameters();
+        bed[i] = p.heatbed_temperature;
+        nozzle[i] = p.nozzle_temperature;
+        // Déjà mesuré pour la bobine en place (effacé au changement de bobine) : pas refait sans le demander
+        const uint8_t bit = uint8_t(1u << i);
+        ctx.measured[size_t(Test::pa)] |= pa::record(i).has_k() ? bit : 0;
+        ctx.measured[size_t(Test::max_flow)] |= calib::record(i).has_flow() ? bit : 0;
+        ctx.measured[size_t(Test::min_temp)] |= calib::record(i).has_min_temperature() ? bit : 0;
+        ctx.measured[size_t(Test::e_jump)] |= e_jump::record(i).has_jump() ? bit : 0;
     }
+    ctx.order = spool_order(bed, nozzle, filament_memory::loaded_slot());
     return ctx;
 }
 
@@ -436,7 +475,7 @@ void record_done(Test test) {
 
 Progress progress() {
     const uint8_t i = current;
-    return Progress { .running = running, .index = i, .count = step_count, .step = steps[i % max_steps], .runs = runs };
+    return Progress { .running = running, .index = i, .count = step_count, .step = steps[i % max_steps], .runs = runs, .bed_full = bed_full };
 }
 
 Result result(Test test) {
@@ -596,14 +635,14 @@ void check() {
     ++checks;
 }
 
-void run(uint32_t mask) {
+void run(uint32_t mask, uint32_t redo) {
     if (running) {
         return;
     }
     const Context ctx = context();
     run_ctx = ctx;
     postponed_mask = 0;
-    step_count = uint8_t(build_steps(mask & automatic_mask(), ctx, steps));
+    step_count = uint8_t(build_steps(mask & automatic_mask(), ctx, steps, redo));
     run_mask = 0;
     for (uint8_t i = 0; i < step_count; ++i) {
         run_mask |= test_bit(steps[i].test);
@@ -617,6 +656,8 @@ void run(uint32_t mask) {
     }
     cancel_requested = false;
     skip_index = 0xff;
+    bed_full = false;
+    session::series_begin(); // plateau vide et propre confirmé avant (Need::empty_bed)
     running = true;
     start(0);
 }
@@ -627,11 +668,42 @@ void step_end(uint8_t index) {
     }
     const Step &s = steps[index];
     const bool ok = succeeded(s);
+    // Pas de place sur le plateau pour son motif : l'utilisateur nettoie, M1989 C relance cette étape
+    if (!ok && session::series_full() && !cancel_requested && skip_index != index) {
+        bed_full = true;
+        return;
+    }
     if (ok) {
         capture(s, after_numbers[size_t(s.test)], true);
     }
     add_result(s.test, ok ? Result::ok : (cancel_requested || skip_index == index ? Result::skipped : Result::failed));
     start(uint8_t(index + 1));
+}
+
+void clean_done() {
+    if (!running || !bed_full) {
+        return;
+    }
+    bed_full = false;
+    session::series_begin(); // plateau nettoyé : place partout, palpé de nouveau (la plaque a été retirée)
+    start(current);
+}
+
+void level_bed(uint8_t slot) {
+    const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+    if (!running || !session::in_series() || session::mesh_ready() || marlin_server::is_printing() || !type) {
+        return;
+    }
+    // Comme le G-code de départ de la CORE One : plateau à la température de la matière, buse à sa température de
+    // palpage, puis origine, nettoyage et palpage (le plateau entier : rien n'y est encore imprimé)
+    const FilamentTypeParameters m = type.parameters();
+    const int16_t probe = std::min<int16_t>(m.nozzle_preheat_temperature, m.nozzle_temperature);
+    const int16_t bed = std::clamp<int16_t>(m.heatbed_temperature, 0, session::max_bed_temperature);
+    session::Session s(cancel_requested);
+    thermalManager.setTargetBed(bed); // le plateau chauffe pendant l'origine (comme M140 avant G28 au départ de la CORE One)
+    if (s.home(probe) == session::Result::ok && s.heat_bed(bed, probe) == session::Result::ok) {
+        std::ignore = s.level(session::printable_zone(), probe); // échec : le test palpera lui-même
+    }
 }
 
 } // namespace od3d::calib_assistant

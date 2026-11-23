@@ -8,6 +8,7 @@
 #include "marlin_server.hpp"
 #include <common/marlin_vars.hpp>
 #include "pause_stubbed.hpp"
+#include <feature/od3d/measure_session_od3d.hpp> // OneDrop3D
 #include <atomic>
 #include <functional> // std::invoke
 #include <cmath>
@@ -104,6 +105,13 @@ void filament_gcodes::M701_load(const M701LoadArgs &args) {
 
     mapi::ParkingPosition park_position = mapi::get_parking_position(do_purge_only ? mapi::ParkPosition::purge : mapi::ParkPosition::load);
     park_position.z = mapi::ParkingPosition::AtLeast { .above_print = Z_NOZZLE_PARK_RISE, .absolute = args.z_min_pos };
+    // OneDrop3D : chargement de l'assistant de calibration au-dessus du départ de la ligne de purge réservée sur le
+    // plateau : ce qui sort de la buse est posé par la purge au lieu de tomber dans le vide (od3d/measure_session_od3d.hpp)
+    if (const auto spot = od3d::session::load_spot(); spot && !do_purge_only) {
+        park_position.x = spot->x;
+        park_position.y = spot->y;
+        park_position.z = od3d::session::purge_z; // absolu : l'origine est faite (G28 O I avant, calib_registry::load_gcode)
+    }
 
     settings.SetParkPoint(park_position);
     const xyze_pos_t current_position_tmp = current_position;

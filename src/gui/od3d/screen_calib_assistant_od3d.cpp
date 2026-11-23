@@ -103,6 +103,7 @@ namespace {
         detach, ///< « Retirez l'accéléromètre » (et remettez la chaussette) : rien ne chauffe avant « C'est fait »
         bed, ///< « Plateau vide et propre ? »
         cell_run, ///< MPC et mesures par bobine
+        bed_full, ///< série en pause : plus de place sur le plateau, à nettoyer (M1989 C)
         summary,
     };
 
@@ -132,9 +133,24 @@ namespace {
         return calib_registry::needs_mask(calib_registry::empty_bed) & calib_registry::automatic_mask();
     }
 
-    uint32_t tests_to_offer(bool only_outdated) {
+    /// Les deux séries lancées séparément (retour du 23/11) : « Accéléromètre », à froid, et « Chauffe »
+    uint32_t cold_tests() {
+        return calib_registry::series_tests(false);
+    }
+    uint32_t heat_tests() {
+        return calib_registry::series_tests(true);
+    }
+
+    uint32_t tests_to_offer() {
         const auto records = assistant::records();
-        return calib_registry::proposed(assistant::context(), records, only_outdated);
+        return calib_registry::proposed(assistant::context(), records);
+    }
+
+    /// Tests par bobine à refaire sur toutes les bobines : cochés à la main alors que tout était fait, ou version
+    /// augmentée ; les autres ne mesurent que les bobines sans valeur
+    uint32_t redo_tests() {
+        const auto records = assistant::records();
+        return (flow.mask & ~flow.offered) | calib_registry::redo_mask(records);
     }
 
     const char *name_of(Test test) {
@@ -318,16 +334,17 @@ namespace {
         flow.stage = Stage::cooling;
     }
 
-    /// Lance la série des tests restants à l'accéléromètre (accel) ou des autres
+    /// Lance les tests restants de la série à froid, accéléromètre fixé (accel : la réponse du ventilateur y passe aussi,
+    /// avant « Retirez l'accéléromètre »), ou tous les autres
     void run_part(bool accel) {
-        uint32_t part = flow.mask & (accel ? accel_tests() : ~accel_tests()) & ~flow.started;
+        uint32_t part = flow.mask & (accel ? cold_tests() : ~accel_tests()) & ~flow.started;
         if (part & test_bit(Test::belts)) {
             part = test_bit(Test::belts); // seules d'abord : hors de la plage, réglées avant les tests qui en dépendent
         }
         flow.started |= part;
         flow.runs_at_start = assistant::progress().runs;
-        char gcode[24];
-        snprintf(gcode, sizeof(gcode), "M1989 R%lu", static_cast<unsigned long>(part));
+        char gcode[40];
+        snprintf(gcode, sizeof(gcode), "M1989 R%lu S%lu", static_cast<unsigned long>(part), static_cast<unsigned long>(part & redo_tests()));
         marlin_client::gcode(gcode);
         flow.stage = accel ? Stage::accel_run : Stage::cell_run;
     }
@@ -345,7 +362,7 @@ namespace {
         if (!flow.cancelled && belts_out_of_range()) {
             flow.belts_offered = true;
             flow.stage = Stage::belts_adjust;
-        } else if (!flow.cancelled && (flow.mask & accel_tests() & ~flow.started)) {
+        } else if (!flow.cancelled && (flow.mask & cold_tests() & ~flow.started)) {
             run_part(true);
         } else {
             flow.stage = Stage::detach; // aussi après « Annuler » : l'accéléromètre est encore sur la buse
@@ -354,7 +371,7 @@ namespace {
 
     /// Après l'accéléromètre (fait, passé ou absent) : plateau, puis le reste ; sinon le bilan
     void next_after_accel() {
-        const uint32_t rest = flow.mask & ~accel_tests();
+        const uint32_t rest = flow.mask & ~accel_tests() & ~flow.started;
         if (flow.cancelled || !rest) {
             flow.stage = Stage::summary;
         } else if (rest & bed_tests()) {
@@ -397,6 +414,11 @@ namespace {
             assistant::request_cancel(); // la série finit l'étape en cours sans lancer la suivante
             abort_prusa_wizard();
             break;
+        case Stage::bed_full:
+            assistant::request_cancel();
+            marlin_client::gcode("M1989 C"); // la série en pause passe les étapes restantes et finit
+            flow.stage = Stage::cell_run;
+            break;
         case Stage::cooling:
         case Stage::sock_off:
             marlin_client::gcode("M107");
@@ -434,8 +456,9 @@ namespace {
         if (!e.automatic) { // à faire à la main : jaune ; fait : vert
             return { calib_registry::outdated(e, record) ? style::warning : dot_ok, Button::Look::card, open_stage };
         }
-        if (flow.stage == Stage::propose) { // coché : orange ; décoché : gris ; le toucher coche ou décoche
-            return { (flow.mask & b) ? style::accent : style::text_muted, Button::Look::card, true };
+        if (flow.stage == Stage::propose) { // coché : orange ; décoché : vert si déjà fait, gris sinon ; le toucher coche ou décoche
+            const bool done = (e.needs & calib_registry::filament) ? !calib_registry::spools_to_measure(e.test, ctx, false) : !calib_registry::outdated(e, record);
+            return { (flow.mask & b) ? style::accent : (done ? dot_ok : style::text_muted), Button::Look::card, true };
         }
         if (!(flow.session & b)) { // à faire : orange ; à jour : gris
             return { calib_registry::outdated(e, record) ? style::accent : style::text_muted };
@@ -532,11 +555,13 @@ namespace {
     void build_details(Test test, Writer &w) {
         const calib_registry::Numbers &a = assistant::numbers_after(test);
         const calib_registry::Numbers &b = assistant::numbers_before(test);
-        if (!(flow.started & test_bit(test)) || assistant::result(test) == Result::skipped) {
+        // Test par bobine : les chiffres des bobines réussies, même si une autre a échoué ou a été passée ; « -- » pour celle-là
+        const bool shown = calib_registry::numbers_shown(calib_registry::entry(test), assistant::result(test), a);
+        if (!(flow.started & test_bit(test)) || (assistant::result(test) == Result::skipped && !shown)) {
             w.text(N_("Skipped: still to do next time."));
             return;
         }
-        if (assistant::result(test) != Result::ok || !any(a, 0, a.size())) {
+        if (!shown) {
             w.text(N_("No numbers: the test did not finish."));
             return;
         }
@@ -717,7 +742,7 @@ namespace {
         case Test::min_temp:
             w.label(test == Test::pa ? N_("K per spool (before):") : (test == Test::max_flow ? N_("Max flow per spool, mm3/s (before):") : N_("Min temperature per spool, \xC2\xB0""C (material):")));
             for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-                if (a[slot] == none && b[slot] == none) {
+                if (a[slot] == none && b[slot] == none && !(assistant::context().spools & (1u << slot))) {
                     continue;
                 }
                 w.add("\n %d: ", slot + 1);
@@ -983,7 +1008,7 @@ bool calibration_prompt_at_boot() {
     if (!calib_registry::should_propose(ctx, records, assistant::dismissed())) {
         return false;
     }
-    const uint32_t mask = calib_registry::proposed(ctx, records, true);
+    const uint32_t mask = calib_registry::proposed(ctx, records);
     flow = Flow { .stage = Stage::propose, .boot = true, .mask = mask, .offered = mask };
     return true;
 }
@@ -1082,7 +1107,7 @@ ScreenCalibAssistant::ScreenCalibAssistant()
     , tabs(this, section_tab()) {
     ClrMenuTimeoutClose(); // l'assistant attend l'utilisateur ou une longue série
     if (flow.stage == Stage::idle) {
-        const uint32_t mask = tests_to_offer(false); // depuis le menu : toutes, sauf le PA jamais mesuré
+        const uint32_t mask = tests_to_offer(); // depuis le menu : ce qui n'est pas encore fait
         flow = Flow { .stage = Stage::propose, .mask = mask, .offered = mask };
     }
     info.set_font(Font::small);
@@ -1143,6 +1168,13 @@ void ScreenCalibAssistant::update() {
     case Stage::cell_run:
         if (run_finished()) {
             flow.stage = Stage::summary;
+        } else if (!flow.cancelled && assistant::progress().bed_full) {
+            flow.stage = Stage::bed_full;
+        }
+        break;
+    case Stage::bed_full:
+        if (!assistant::progress().bed_full) {
+            flow.stage = Stage::cell_run; // M1989 C lu par Marlin : l'étape repart
         }
         break;
     default:
@@ -1198,10 +1230,29 @@ void ScreenCalibAssistant::show() {
     case Stage::idle:
     case Stage::propose: {
         const int count = std::popcount(flow.mask);
-        const int minutes = calib_registry::minutes(flow.mask, ctx);
-        text = !count ? _("Nothing to calibrate. Touch a test to add it.")
-            : flow.boot ? _("%d calibrations are new or changed in this firmware (about %d min). Touch a test to add or skip it; the tests then run by themselves.").formatted(info_params, count, minutes)
-                        : _("Full calibration: %d tests, about %d min. Touch a test to add or skip it; the tests then run by themselves.").formatted(info_params, count, minutes);
+        const int minutes = calib_registry::minutes(flow.mask, ctx, redo_tests());
+        const uint32_t cold = flow.mask & cold_tests(), heat = flow.mask & heat_tests();
+        const string_view_utf8 head = !count ? _("Nothing to calibrate. Touch a test to add it.")
+            : flow.boot                      ? _("%d calibrations are new or changed in this firmware (about %d min). Touch a test to add or skip it; the tests then run by themselves.").formatted(info_params, count, minutes)
+                                             : _("Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it.")
+                                         .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
+        // Bobines dont le PA est déjà mesuré (vert, pas refait) : leur K (retour du 23/11)
+        static char propose[300]; // la fenêtre de texte le lit jusqu'au prochain show()
+        char first[200];
+        head.copyToRAM(first, sizeof(first));
+        Writer w(propose);
+        w.add("%s", first);
+        bool listed = false;
+        for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
+            if (const auto k = pa::k_for_slot(slot); k && (ctx.spools & (1u << slot))) {
+                if (!listed) {
+                    w.label(N_("PA already measured, kept:"));
+                }
+                w.add(listed ? ", %d: %.3f" : "%d: %.3f", slot + 1, double(*k));
+                listed = true;
+            }
+        }
+        text = string_view_utf8::MakeRAM(propose);
         break;
     }
     case Stage::ask_accel:
@@ -1254,7 +1305,10 @@ void ScreenCalibAssistant::show() {
                           : _("Remove the accelerometer from the nozzle.");
         break;
     case Stage::bed:
-        text = _("Is the bed empty and clean? Test lines will be printed at the front of the bed.");
+        text = _("Is the bed empty and clean? Each test prints in its own place on the bed.");
+        break;
+    case Stage::bed_full:
+        text = _("The bed is full of test prints. Remove them and put the clean sheet back, then Continue.");
         break;
     case Stage::summary: {
         static char summary[360]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse
@@ -1273,13 +1327,15 @@ void ScreenCalibAssistant::show() {
         const char *b = nullptr;
         const char *c = nullptr;
         bool a_enabled = true;
+        bool b_enabled = true;
     };
     Buttons s;
     switch (flow.stage) {
     case Stage::idle:
     case Stage::propose:
+        // Deux séries lancées chacune par son bouton, avec ses tests cochés
         s = flow.boot ? Buttons { N_("Calibrate now"), N_("Later"), N_("Don't ask again"), flow.mask != 0 }
-                      : Buttons { N_("Start"), N_("Close"), nullptr, flow.mask != 0 };
+                      : Buttons { N_("Accelerometer"), N_("Heating"), N_("Close"), (flow.mask & cold_tests()) != 0, (flow.mask & heat_tests()) != 0 };
         break;
     case Stage::ask_accel:
         s = { N_("Yes"), N_("No"), N_("Cancel") };
@@ -1298,6 +1354,7 @@ void ScreenCalibAssistant::show() {
         break;
     case Stage::rehome:
     case Stage::bed:
+    case Stage::bed_full:
         s = { N_("Continue"), nullptr, N_("Cancel") };
         break;
     case Stage::accel_run:
@@ -1329,12 +1386,12 @@ void ScreenCalibAssistant::show() {
     }
     button_a.enable(s.a && s.a_enabled);
     const bool run = flow.stage == Stage::accel_run || flow.stage == Stage::cell_run;
-    button_b.enable(!run || (!flow.cancelled && p.running && assistant::can_skip() && flow.skip_index != p.index));
+    button_b.enable(run ? (!flow.cancelled && p.running && assistant::can_skip() && flow.skip_index != p.index) : (s.b && s.b_enabled));
     button_c.enable(!(flow.cancelled && run));
     // La molette part du bouton utile de l'étape ; « Continuer » le reprend dès qu'il devient possible
     if (const uint8_t want = uint8_t(buttons_stage ^ (s.a && s.a_enabled ? 0x40 : 0)); focus_stage != want) {
         focus_stage = want;
-        (s.a && s.a_enabled ? button_a : (s.c ? button_c : button_b)).SetFocus();
+        (s.a && s.a_enabled ? button_a : (!run && s.b && s.b_enabled && flow.stage == Stage::propose ? button_b : (s.c ? button_c : button_b))).SetFocus();
     }
 }
 
@@ -1358,10 +1415,13 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     switch (flow.stage) {
     case Stage::idle:
     case Stage::propose:
-        if (tag == tag_a) {
-            start_session(flow.offered, flow.mask, true);
+        if (flow.boot && tag == tag_a) {
+            flow.boot = false; // « Calibrer maintenant » : le choix de la série
+        } else if (!flow.boot && (tag == tag_a || tag == tag_b)) {
+            const uint32_t series = tag == tag_a ? cold_tests() : heat_tests();
+            start_session(flow.offered & series, flow.mask & series, true);
         } else if (tag == tag_b || tag == tag_c) {
-            if (tag == tag_c) {
+            if (flow.boot && tag == tag_c) {
                 assistant::dismiss(); // jusqu'à la prochaine version qui change une calibration
             }
             flow.stage = Stage::idle;
@@ -1431,6 +1491,13 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     case Stage::bed:
         if (tag == tag_a) {
             run_part(false);
+        } else {
+            cancel();
+        }
+        break;
+    case Stage::bed_full:
+        if (tag == tag_a) {
+            marlin_client::gcode("M1989 C"); // plateau nettoyé : l'étape en attente repart (update() revient à la série)
         } else {
             cancel();
         }

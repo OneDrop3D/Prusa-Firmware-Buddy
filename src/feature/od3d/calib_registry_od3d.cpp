@@ -65,14 +65,54 @@ uint32_t needs_mask(uint8_t needs) {
     return mask;
 }
 
-uint32_t proposed(const Context &ctx, std::span<const Record> records, bool only_outdated) {
-    const size_t pa = size_t(Test::pa);
-    const bool pa_never = pa >= records.size() || records[pa].version == 0;
-    return select(ctx, records, only_outdated) & automatic_mask() & ~(pa_never ? test_bit(Test::pa) : 0u);
+uint32_t redo_mask(std::span<const Record> records) {
+    uint32_t mask = 0;
+    for (const Entry &e : entries) {
+        const size_t i = size_t(e.test);
+        const uint8_t done = i < records.size() ? records[i].version : 0;
+        mask |= (e.needs & filament) && done > 0 && done < e.version ? test_bit(e.test) : 0u;
+    }
+    return mask;
+}
+
+uint32_t series_tests(bool heat) {
+    return automatic_mask() & (heat ? needs_mask(heated) : ~needs_mask(heated));
+}
+
+uint32_t proposed(const Context &ctx, std::span<const Record> records) {
+    const uint32_t redo = redo_mask(records);
+    uint32_t mask = 0;
+    for (const Entry &e : entries) {
+        const size_t i = size_t(e.test);
+        const Record r = i < records.size() ? records[i] : Record {};
+        if (!e.automatic || !applicable(e, ctx)) {
+            continue;
+        }
+        const bool wanted = (e.needs & filament) ? spools_to_measure(e.test, ctx, redo & test_bit(e.test)) != 0 : outdated(e, r);
+        mask |= wanted ? test_bit(e.test) : 0u;
+    }
+    return mask;
 }
 
 bool should_propose(const Context &ctx, std::span<const Record> records, uint32_t dismissed) {
-    return proposed(ctx, records, true) && dismissed != signature();
+    return proposed(ctx, records) && dismissed != signature();
+}
+
+std::array<uint8_t, 8> spool_order(std::span<const int16_t> bed, std::span<const int16_t> nozzle, std::optional<uint8_t> loaded) {
+    std::array<uint8_t, 8> order { 0, 1, 2, 3, 4, 5, 6, 7 };
+    const auto key = [&](uint8_t slot) -> int32_t {
+        if (slot >= bed.size() || slot >= nozzle.size()) {
+            return INT32_MAX; // emplacement inexistant : à la fin
+        }
+        return (int32_t(bed[slot]) * 1024 + int32_t(nozzle[slot])) * 2 + (loaded == slot ? 0 : 1);
+    };
+    std::stable_sort(order.begin(), order.end(), [&](uint8_t a, uint8_t b) { return key(a) < key(b); });
+    return order;
+}
+
+bool numbers_shown(const Entry &e, Result result, std::span<const int16_t> after) {
+    const bool any = std::any_of(after.begin(), after.end(), [](int16_t v) { return v != no_value; });
+    return any && (result == Result::ok || (e.needs & filament));
 }
 
 uint32_t signature() {
@@ -85,17 +125,17 @@ uint32_t signature() {
     return h;
 }
 
-uint16_t minutes(uint32_t mask, const Context &ctx) {
+uint16_t minutes(uint32_t mask, const Context &ctx, uint32_t redo) {
     unsigned total = 0;
     for (const Entry &e : entries) {
         if (e.automatic && (mask & test_bit(e.test))) {
-            total += unsigned(e.minutes) * unsigned((e.needs & filament) ? spool_count(ctx.spools) : 1);
+            total += unsigned(e.minutes) * unsigned((e.needs & filament) ? spool_count(spools_to_measure(e.test, ctx, redo & test_bit(e.test))) : 1);
         }
     }
     return uint16_t(total);
 }
 
-size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
+size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out, uint32_t redo) {
     size_t n = 0;
     const auto add = [&](Test test, uint8_t slot) {
         if (n < out.size()) {
@@ -108,14 +148,20 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
             add(e.test, (e.needs & one_spool) ? first_spool : 0);
         }
     }
-    for (uint8_t slot = 0; slot < 8; ++slot) {
-        if (!(ctx.spools & (1u << slot))) {
+    for (const uint8_t slot : ctx.order) {
+        if (slot >= 8 || !(ctx.spools & (1u << slot))) {
             continue;
         }
+        const auto wanted = [&](const Entry &e) {
+            return e.automatic && (mask & test_bit(e.test)) && (e.needs & filament) && (spools_to_measure(e.test, ctx, redo & test_bit(e.test)) & (1u << slot));
+        };
         for (const Entry &e : entries) {
-            if (e.automatic && (mask & test_bit(e.test)) && (e.needs & filament)) {
+            if (wanted(e) && e.test != Test::min_temp) {
                 add(e.test, slot);
             }
+        }
+        if (wanted(entry(Test::min_temp))) {
+            add(Test::min_temp, slot); // finit sous la température de la matière : en dernier
         }
     }
     return n;
@@ -141,7 +187,15 @@ float ringing_cycles(float zeta) {
 }
 
 bool pa_gcode(uint8_t slot, std::span<char> out) {
-    return write(out, "M1994 P%u", unsigned(slot));
+    return write(out, "M1994 P%u V1", unsigned(slot)); // V1 : motif compact (~1 min au lieu de ~4), même avec « Grand motif PA »
+}
+
+bool load_gcode(uint8_t slot, const char *filament, int16_t nozzle, std::optional<Spot> spot, std::span<char> out) {
+    if (spot) {
+        return write(out, "M1989 L%u\nG28 O I\nM104 S%d\nG27 X%.1f Y%.1f Z%.1f P1\nM701 S\"%s\" W2 P%u", unsigned(slot), int(nozzle), double(spot->x), double(spot->y),
+            double(spot->z), filament, unsigned(slot));
+    }
+    return write(out, "G28 O I\nM104 S%d\nG27 W2\nM701 S\"%s\" W2 P%u", int(nozzle), filament, unsigned(slot));
 }
 
 bool step_gcode(const Step &step, std::span<char> out) {

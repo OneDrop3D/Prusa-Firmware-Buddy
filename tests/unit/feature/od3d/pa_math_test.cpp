@@ -10,11 +10,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace od3d;
@@ -873,4 +875,122 @@ TEST_CASE("motif : lignes alternées, chaque ligne part de la fin de la précéd
             }
         }
     }
+}
+
+namespace {
+
+/// Plateau de la CORE One (250 × 220, 10 mm de marge), comme session::series_begin() : origine Z (240, 10) et centre
+/// du plateau interdits à 8 mm près, 4 mm entre deux motifs
+constexpr pattern::Rect shelf_zone { 10.f, 10.f, 240.f, 210.f };
+constexpr float shelf_gap = 4.f;
+const std::array<pattern::Rect, 2> shelf_keep_out {
+    pattern::Rect { 232.f, 2.f, 248.f, 18.f },
+    pattern::Rect { 117.f, 102.f, 133.f, 118.f },
+};
+
+/// Tout est dans la zone, hors des zones interdites, et à shelf_gap au moins des autres
+void check_layout(const std::vector<pattern::Rect> &placed) {
+    for (size_t i = 0; i < placed.size(); ++i) {
+        INFO("rectangle " << i);
+        CHECK(shelf_zone.contains(placed[i]));
+        for (const pattern::Rect &k : shelf_keep_out) {
+            CHECK_FALSE(pattern::overlaps(placed[i], k));
+        }
+        for (size_t j = 0; j < i; ++j) {
+            INFO("et " << j);
+            CHECK_FALSE(pattern::overlaps(placed[i].grown(shelf_gap / 2.f - 1e-3f, shelf_gap / 2.f - 1e-3f), placed[j].grown(shelf_gap / 2.f - 1e-3f, shelf_gap / 2.f - 1e-3f)));
+        }
+    }
+}
+
+} // namespace
+
+TEST_CASE("série : chaque motif a sa place sur le plateau, sans chevauchement", "[od3d][pattern]") {
+    pattern::Shelf shelf(shelf_zone, shelf_keep_out, shelf_gap);
+    // Rangée : de gauche à droite, à l'avant
+    const auto a = shelf.place(52.f, 6.f);
+    REQUIRE(a);
+    CHECK(a->x0 == shelf_zone.x0);
+    CHECK(a->y0 == shelf_zone.y0);
+    const auto b = shelf.place(90.f, 18.f);
+    REQUIRE(b);
+    CHECK_THAT(b->x0, WithinAbs(a->x1 + shelf_gap, 1e-4));
+    CHECK(b->y0 == shelf_zone.y0);
+    // Trop large pour le reste de la rangée (et l'origine Z à droite) : rangée suivante, derrière la plus haute
+    const auto c = shelf.place(120.f, 10.f);
+    REQUIRE(c);
+    CHECK(c->x0 == shelf_zone.x0);
+    CHECK_THAT(c->y0, WithinAbs(b->y1 + shelf_gap, 1e-4));
+    // Trop grand pour le plateau : refusé sans rien changer
+    CHECK_FALSE(shelf.place(500.f, 5.f));
+    CHECK_FALSE(shelf.place(10.f, 500.f));
+    CHECK_FALSE(shelf.place(0.f, 5.f));
+    const auto d = shelf.place(20.f, 5.f);
+    REQUIRE(d);
+    CHECK_THAT(d->x0, WithinAbs(c->x1 + shelf_gap, 1e-4));
+    check_layout({ *a, *b, *c, *d });
+}
+
+TEST_CASE("série : zones interdites (origine Z, centre du plateau) évitées", "[od3d][pattern]") {
+    pattern::Shelf shelf(shelf_zone, shelf_keep_out, shelf_gap);
+    std::vector<pattern::Rect> placed;
+    // Des carrés jusqu'à ce que le plateau soit plein : jamais sur un point palpé
+    while (const auto r = shelf.place(30.f, 30.f)) {
+        placed.push_back(*r);
+        REQUIRE(placed.size() < 100);
+    }
+    CHECK(placed.size() >= 20); // 230 × 200 mm : 6 rangées de 5 à 6 carrés, moins les zones interdites
+    check_layout(placed);
+    // Plein pour ces carrés : un plus petit peut encore tenir au bout d'une rangée ; un nouvel objet repart de zéro
+    pattern::Shelf clean(shelf_zone, shelf_keep_out, shelf_gap);
+    const auto first = clean.place(30.f, 30.f);
+    REQUIRE(first);
+    CHECK(first->x0 == shelf_zone.x0);
+    CHECK(first->y0 == shelf_zone.y0);
+}
+
+TEST_CASE("série : motifs de l'assistant par bobine, une demande de nettoyage quand le plateau est plein", "[od3d][pattern]") {
+    // Par bobine : purge (52 × 6), PA compact, purge, [débit F5 (~181 × 46), purge,] température F6 (~84 × 40)
+    pa::Request rq;
+    pa::make_compact(rq);
+    pattern::Lines pa_lines;
+    pa_lines.pitch = rq.pitch;
+    pa_lines.length = pa::line_length(rq.params);
+    pa_lines.count = pa::compact_cap;
+    pa_lines.bead = rq.params.bead;
+    const pattern::Rect pa_area = pa_lines.area();
+    const std::pair<float, float> purge { 52.f, 6.f }, pa { pa_area.width(), pa_area.height() }, flow { 180.6f, 45.6f }, temp { 83.9f, 39.6f };
+    for (const bool flow_limit : { false, true }) {
+        std::vector<std::pair<float, float>> per_spool { purge, pa, purge };
+        if (flow_limit) {
+            per_spool.insert(per_spool.end(), { flow, purge });
+        }
+        per_spool.push_back(temp);
+        pattern::Shelf shelf(shelf_zone, shelf_keep_out, shelf_gap);
+        std::vector<pattern::Rect> placed;
+        size_t spools = 0;
+        bool full = false;
+        while (!full && spools < 5) {
+            for (const auto &[w, h] : per_spool) {
+                const auto r = shelf.place(w, h);
+                if (!r) {
+                    full = true;
+                    break;
+                }
+                placed.push_back(*r);
+            }
+            spools += full ? 0 : 1;
+        }
+        INFO((flow_limit ? "avec F5" : "sans F5") << ", bobines complètes sur une plaque : " << spools);
+        CHECK(spools >= (flow_limit ? 1u : 3u));
+        CHECK(full); // 5 bobines ne tiennent pas : l'assistant demande de nettoyer, puis repart de zéro
+        check_layout(placed);
+    }
+}
+
+TEST_CASE("série : rétraction par matière (constante prudente)", "[od3d][pattern]") {
+    CHECK(pattern::retract_mm(false) > 0.5f);
+    CHECK(pattern::retract_mm(false) <= 1.f); // PrusaSlicer pour la CORE One : 0,7 à 0,8 mm
+    CHECK(pattern::retract_mm(true) == 0.f); // flexibles : pas de rétraction
+    CHECK(pattern::retract_speed > 0.f);
 }

@@ -116,6 +116,7 @@ namespace {
                 f.stage = Stage::step;
                 f.step = uint8_t(p.index + 1);
                 f.steps = p.count;
+                f.tone = p.bed_full ? Tone::waiting : Tone::normal; // plateau plein : l'assistant attend qu'on le nettoie
             }
             return f;
         }

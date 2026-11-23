@@ -467,11 +467,13 @@ void ScreenPa::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             measure();
             break;
         case tag_second:
-            if (pa::is_running() || pending) {
-                if (confirm_stop_measure()) { // pendant une série de l'assistant : il passe à la suivante
+            // Le clic fait ce que dit le libellé affiché : « Annuler » devenu « Effacer » sous le doigt (et le focus) à la
+            // fin d'une mesure n'efface rien, et l'effacement se confirme (retour du 23/11 : un K mesuré perdu)
+            if (second_cancels) {
+                if ((pa::is_running() || pending) && confirm_stop_measure()) { // série de l'assistant : il passe à la suivante
                     pa::request_stop();
                 }
-            } else {
+            } else if (MsgBoxQuestion(_("Forget the measured values of this spool?"), Responses_YesNo, 1) == Response::Yes) {
                 pa::clear(slot);
                 card.Invalidate();
             }

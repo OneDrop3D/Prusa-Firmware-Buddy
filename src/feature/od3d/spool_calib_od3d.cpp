@@ -259,8 +259,26 @@ namespace {
             fail(Error::no_room);
             return false;
         }
+        // Série de l'assistant : le motif et sa purge ont chacun leur place sur le plateau ; maillage de la série
+        // repris : la buse va directement à la température de la mesure (pas de descente pour palper)
+        if (session::in_series()) {
+            const pattern::Rect a = lines.area();
+            const auto spot = session::claim(a.width(), a.height());
+            if (!spot) {
+                fail(Error::no_room);
+                return false;
+            }
+            layout.center += spot->x0 - a.x0;
+            lines.x0 += spot->x0 - a.x0;
+            lines.y0 += spot->y0 - a.y0;
+        }
+        const auto purge = session::purge_start();
+        if (!purge) {
+            fail(Error::no_room);
+            return false;
+        }
         const int16_t bed = std::clamp<int16_t>(place.bed_temperature > 0 ? place.bed_temperature : material.heatbed_temperature, 0, session::max_bed_temperature);
-        const int16_t probe = std::min<int16_t>(material.nozzle_preheat_temperature, temperature);
+        const int16_t probe = session::mesh_ready() ? temperature : std::min<int16_t>(material.nozzle_preheat_temperature, temperature);
         st_phase = Phase::bed;
         if (const session::Result r = session.heat_bed(bed, probe); r != session::Result::ok) {
             fail(error_of(r));
@@ -272,7 +290,7 @@ namespace {
             return false;
         }
         st_phase = Phase::heating;
-        if (const session::Result r = session.go_to_purge(); r != session::Result::ok) {
+        if (const session::Result r = session.go_to_purge(purge->x, purge->y, purge->dir); r != session::Result::ok) {
             fail(error_of(r));
             return false;
         }
@@ -281,7 +299,7 @@ namespace {
             return false;
         }
         st_phase = Phase::priming;
-        if (!session.purge()) {
+        if (!session.purge(purge->x, purge->dir)) {
             fail(Error::stopped);
             return false;
         }

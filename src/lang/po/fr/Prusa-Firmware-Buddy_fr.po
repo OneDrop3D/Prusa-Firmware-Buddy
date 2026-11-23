@@ -11654,8 +11654,12 @@ msgid "Step %d/%d: %s. You may leave this screen: the pill shows the progress."
 msgstr "Étape %d/%d : %s. Vous pouvez quitter cet écran : la pastille montre l'avancement."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Is the bed empty and clean? Test lines will be printed at the front of the bed."
-msgstr "Plateau vide et propre ? Des lignes de test vont être imprimées à l'avant du plateau."
+msgid "Is the bed empty and clean? Each test prints in its own place on the bed."
+msgstr "Plateau vide et propre ? Chaque test imprime à sa propre place sur le plateau."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "The bed is full of test prints. Remove them and put the clean sheet back, then Continue."
+msgstr "Le plateau est plein de motifs de test. Retirez-les et remettez la plaque propre, puis Continuer."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Calibrate now"
@@ -12440,8 +12444,20 @@ msgid "%d calibrations are new or changed in this firmware (about %d min). Touch
 msgstr "%d calibrations sont nouvelles ou modifiées dans ce firmware (environ %d min). Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Full calibration: %d tests, about %d min. Touch a test to add or skip it; the tests then run by themselves."
-msgstr "Calibration complète : %d tests, environ %d min. Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
+msgid "Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it."
+msgstr "Série Accéléromètre, à froid : %d tests, environ %d min. Série Chauffe : %d tests, environ %d min. Touchez un test pour l'ajouter ou le passer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accelerometer"
+msgstr "Accéléromètre"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "PA already measured, kept:"
+msgstr "PA déjà mesuré, gardé :"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Forget the measured values of this spool?"
+msgstr "Oublier les valeurs mesurées de cette bobine ?"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Nothing to calibrate. Touch a test to add it."

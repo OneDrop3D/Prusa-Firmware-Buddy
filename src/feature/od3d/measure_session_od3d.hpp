@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <optional>
 
 namespace od3d::session {
 
@@ -66,6 +67,47 @@ bool wait_queue(uint8_t depth = queue_depth);
 /// Zone où un motif peut être imprimé : le plateau moins edge_margin, dans la course
 pattern::Rect printable_zone();
 
+// ---- Série de l'assistant de calibration (M1989 R) ----
+// Retours du 23/11 : chaque bobine imprimait au même endroit, le plateau était palpé à chaque test, la purge du
+// chargement tombait dans le vide, la buse redescendait entre deux matières. Pendant une série, en mémoire vive
+// seulement (config_store plein) :
+// - chaque motif et chaque ligne de purge a sa place sur le plateau (pattern::Shelf), sans chevauchement ;
+// - le plateau est palpé une seule fois, en entier, avant le premier motif ; les tests suivants reprennent ce maillage
+//   (origine refaite seulement si elle est perdue). shortcut: maillage gardé quelle que soit la température du plateau
+//   de chaque matière (palpé à celle de la première) ; re-palper si les mesures l'exigent ;
+// - la fin d'un test laisse le plateau chauffer, et la buse aussi tant qu'une bobine y est : le test suivant va
+//   directement à sa température. La série coupe tout à sa fin.
+
+/// Début de série ou plateau nettoyé (« Plateau plein » de l'assistant) : place libre partout, rien de palpé
+void series_begin();
+/// Fin de série : retour au fonctionnement d'avant
+void series_end();
+bool in_series();
+
+/// Plateau plein : une place demandée depuis series_begin() n'a pas été trouvée
+bool series_full();
+
+/// Série : place pour un motif de w × h (series_full() si elle manque) ; hors série : nullopt
+std::optional<pattern::Rect> claim(float w, float h);
+
+/// Départ de la ligne de purge (Session::purge, le long de X dans le sens dir)
+struct PurgeStart {
+    float x;
+    float y;
+    float dir;
+};
+
+/// Hors série : le bord avant de Prusa. Série : la place réservée sur le plateau, gardée jusqu'à ce que la purge soit
+/// faite (le chargement qui précède le test se fait au-dessus de son départ, load_spot()) ; nullopt : plateau plein
+std::optional<PurgeStart> purge_start();
+
+/// M701 (chargement de Prusa) pendant la série : la ligne de purge réservée, au-dessus de laquelle charger à purge_z
+std::optional<PurgeStart> load_spot();
+
+/// Série : le maillage du plateau entier est en mémoire et l'origine est là ; le test va directement à sa température
+/// d'impression (pas de palpage, donc pas de descente à la température de palpage)
+bool mesh_ready();
+
 class Session {
 public:
     /// stop_requested : drapeau d'arrêt de la mesure (posé par l'interface) ; in_print : au départ d'une impression
@@ -86,6 +128,7 @@ public:
 
     /// home(), puis nettoyage de la buse, nivellement local de area et de la zone de purge, maillage activé (G-code de
     /// départ de la CORE One ; plateau chaud d'abord). Un arrêt demandé pendant le palpage prend effet après.
+    /// Série : le plateau entier la première fois (rien n'y est encore imprimé), ensuite le maillage repris.
     Result level(const pattern::Rect &area, int16_t nozzle_probe);
 
     /// Buse à la consigne, puis attente : à ±tolerance, et y rester hold_ms ; échec après timeout_ms ou si la
@@ -98,7 +141,8 @@ public:
     Result go_to_purge(float x = purge_x, float y = purge_y, float dir = -1.f);
 
     /// Ligne de purge du G-code de départ de la CORE One depuis le départ x (à l'Y actuel), le long de X dans le sens
-    /// dir (-1 : vers la gauche, comme Prusa au bord avant) ; false s'il faut s'arrêter
+    /// dir (-1 : vers la gauche, comme Prusa au bord avant) ; false s'il faut s'arrêter. Série : sa place est libérée
+    /// de la réservation (la suivante en prendra une autre)
     bool purge(float x = purge_x, float dir = -1.f);
 
     /// Déplacement au-dessus du motif : rétraction, levée de hop au-dessus de z, (x, y), puis descente à z si lower
@@ -111,7 +155,8 @@ public:
     /// sans attendre la fin (attente d'une place) ; remet d'abord le filament rétracté. false s'il faut s'arrêter
     bool print_to(float x, float y, float e_per_mm, float speed);
 
-    /// Rétraction contre le suintement (une seule fois tant que le filament n'est pas remis)
+    /// Rétraction contre le suintement (une seule fois tant que le filament n'est pas remis), de
+    /// pattern::retract_mm() selon la matière dans la buse
     void retract();
     /// Remet le filament rétracté (rien sinon)
     void deretract();

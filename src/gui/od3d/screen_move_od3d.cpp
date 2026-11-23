@@ -106,7 +106,7 @@ namespace {
         return Rect16(c.x - dot_d / 2, c.y - dot_d / 2, dot_d, dot_d);
     }
 
-    constexpr Color map_back = Color::from_raw(0x22252A);
+    constexpr Color map_back = style::thumb_back; ///< #22252A de la maquette : même ton que le fond des vignettes
     constexpr Color map_grid = Color::from_raw(0x2C3036);
     constexpr Color crosshair_color = Color::from_raw(0x824223); ///< #F8651B à 45 % sur le fond de la carte
     constexpr Color hint_color = Color::from_raw(0x7D8188);

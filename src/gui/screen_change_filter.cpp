@@ -33,7 +33,7 @@ constexpr const char *txt_help = N_("To learn how to change XL enclosure filter,
 }; // namespace
 
 ScreenChangeFilter::ScreenChangeFilter()
-    : header(this)
+    : header(this, string_view_utf8::MakeNULLSTR(), false, true)
     , description(this, descr_rect, is_multiline::yes)
     , help(this, help_rect, is_multiline::yes)
     , qr(this, qr_rect, Align_t::RightTop(), qr_link)

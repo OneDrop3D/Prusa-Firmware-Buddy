@@ -180,9 +180,9 @@ ScreenDamping::ScreenDamping()
     , curves_back(this, curves_back_rect)
     , curves(this, curves_rect)
     , info(this, info_rect, is_multiline::yes)
-    , action(this, button_body(0), tag_action, Button::Look::primary, _("Start"), &img::print_16x16, style::screen, 10)
-    , apply_button(this, button_body(1), tag_apply, Button::Look::secondary, _("Apply"), &img::ok_16x16, style::screen, 10)
-    , prusa_button(this, button_body(2), tag_prusa, Button::Look::outline, _("Prusa value"), &img::arrow_left_16x16, style::screen, 10)
+    , action(this, button_body(0), tag_action, Button::Look::primary, _("Start"), &img::print_16x16, style::screen)
+    , apply_button(this, button_body(1), tag_apply, Button::Look::secondary, _("Apply"), &img::ok_16x16, style::screen)
+    , prusa_button(this, button_body(2), tag_prusa, Button::Look::outline, _("Prusa value"), &img::arrow_left_16x16, style::screen)
     , tabs(this, section_tab()) {
     ClrMenuTimeoutClose(); // l'écran reste ouvert pendant la mesure
     info.set_font(Font::small);

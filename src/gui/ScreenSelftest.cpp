@@ -63,7 +63,7 @@ ScreenSelftest::fnc ScreenSelftest::Get(SelftestParts part) {
 
 ScreenSelftest::ScreenSelftest()
     : screen_t()
-    , header(this, _(en_selftest))
+    , header(this, _(en_selftest), false, true)
     , part_current(SelftestParts::_none)
     , part_previous(SelftestParts::_none) {
     ScreenSelftest::ClrMenuTimeoutClose(); // don't close on menu timeout

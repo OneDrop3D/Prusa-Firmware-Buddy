@@ -3,6 +3,7 @@
 #include "time_helper.hpp"
 #include "gui.hpp"
 #include <ctime>
+#include <gui/od3d/style_od3d.hpp>
 
 // @@TODO Beware - keep this big enough as long as the SetFormat is being abused to print
 // long utf8 text messages in selftest_cool.cpp (and probably in other places too)
@@ -15,8 +16,8 @@ void window_numb_t::unconditionalDraw() {
     Color clr_text = GetTextColor();
     // TODO remove this if statement (its body too)
     if (!(flags.color_scheme_background || flags.color_scheme_foreground)) {
-        clr_back = (IsFocused()) ? GetTextColor() : GetBackColor();
-        clr_text = (IsFocused()) ? GetBackColor() : GetTextColor();
+        // OneDrop3D (interface G) : focus = fond un ton plus clair, plus de couleurs inversées
+        clr_back = IsFocused() ? od3d::style::focused(GetBackColor()) : GetBackColor();
         if (IsShadowed()) {
             clr_text = COLOR_GRAY;
         }

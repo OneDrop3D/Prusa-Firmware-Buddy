@@ -88,7 +88,9 @@ std::optional<int> WindowMenuVirtualBase::buffer_slot_index(int buffer_slot, int
     const auto result = scroll_offset + (buffer_slot + item_buffer_size - (scroll_offset % item_buffer_size)) % item_buffer_size;
     debug_assert(result % item_buffer_size == buffer_slot);
 
-    if (result >= scroll_offset + max_items_on_screen_count()) {
+    // OneDrop3D (interface G) : une ligne de plus que l'écran quand le tampon a la place, la demi-ligne des listes G
+    // (od3d/menu_od3d.cpp) ; Prusa ne dessine que les lignes de l'écran
+    if (result > scroll_offset + max_items_on_screen_count()) {
         return std::nullopt;
     }
 

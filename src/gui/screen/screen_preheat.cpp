@@ -318,11 +318,14 @@ void WindowMenuPreheat::screenEvent(window_t *sender, GUI_event_t event, void *p
 // * Frames
 using Phase = PhasesPreheat;
 
+/// OneDrop3D (interface G) : pas d'onglets ici, 6 lignes entières puis la demi-ligne des listes G
+constexpr Rect16 preheat_list_rect { od3d::list_rect.Left(), od3d::list_rect.Top(), od3d::list_rect.Width(), 6 * 40 + od3d::list_peek };
+
 struct FrameFilamentSelection {
-    od3d::MenuList<WindowMenuPreheat> menu; ///< OneDrop3D (interface G) : liste G, 6 lignes sous l'en-tête G
+    od3d::MenuList<WindowMenuPreheat> menu; ///< OneDrop3D (interface G) : liste G, 6 lignes et demie sous l'en-tête G
 
     FrameFilamentSelection(window_frame_t *parent)
-        : menu(parent, Rect16(od3d::list_rect.Left(), od3d::list_rect.Top(), od3d::list_rect.Width(), 6 * 40)) {
+        : menu(parent, preheat_list_rect) {
         parent->CaptureNormalWindow(menu);
     }
 
@@ -401,7 +404,7 @@ using Frames
 namespace {
 // OneDrop3D (interface G) : en-tête G de 40 px, puis la liste et sa ligne « Retour » (pas d'onglets : la machine à états attend une réponse)
 constexpr Rect16 preheat_inner_rect = Rect16::fromLTRB(0, od3d::style::header_line.Top() + 1, GuiDefaults::ScreenWidth, GuiDefaults::ScreenHeight);
-static_assert(od3d::style::inside(preheat_inner_rect, Rect16(od3d::list_rect.Left(), od3d::list_rect.Top(), od3d::list_rect.Width(), 6 * 40)));
+static_assert(od3d::style::inside(preheat_inner_rect, preheat_list_rect));
 
 void abort_preheat() {
     marlin_client::FSM_response(PhasesPreheat::user_temp_selection, Response::Abort);

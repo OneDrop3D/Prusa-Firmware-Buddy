@@ -38,7 +38,7 @@ namespace {
     static_assert(info_rect.Top() > panel_rect(1).Bottom() && style::inside(style::content, info_rect));
     static_assert(style::inside(style::content, style::with_ring(action_body)) && style::with_ring(action_body).Left() > info_rect.Right());
 
-    constexpr Color bar_normal = Color::from_raw(0x6B6F75);
+    constexpr Color bar_normal = style::text_faint;
     constexpr uint8_t tag_action = 0;
 
     /// Échelle commune aux deux axes : on compare X et Y

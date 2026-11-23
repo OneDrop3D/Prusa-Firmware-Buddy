@@ -6,13 +6,14 @@
 #include "screen.hpp"
 #include "window_text.hpp"
 #include "window_header.hpp"
+#include <gui/od3d/menu_od3d.hpp>
 #include "status_footer.hpp"
 #include "radio_button.hpp"
 #include <guiconfig/guiconfig.h>
 #include <gui/qr.hpp>
 
 class ScreenHelpFWUpdate : public screen_t {
-    window_header_t header;
+    od3d::MenuHeader header; ///< OneDrop3D (interface G) : en-tête G compact (31 px, sans retour) au lieu de celui de Prusa
     window_text_t description;
 #if HAS_MINI_DISPLAY()
     window_text_t description2;

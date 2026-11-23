@@ -33,6 +33,9 @@ TEST_CASE("titre : capitales Prusa → casse de la maquette") {
     CHECK(titled("MMU") == "MMU");
     CHECK(titled("SYSTÈME") == "Système");
     CHECK(titled("INFOS VERSION") == "Infos version");
+    CHECK(titled("DÉPLACEMENT DE L'AXE Z") == "Déplacement de l'axe Z");
+    CHECK(titled("CALIBRATION XY") == "Calibration XY");
+    CHECK(titled("AXE X") == "Axe X");
 }
 
 TEST_CASE("titre : déjà en casse mixte, inchangé") {

@@ -4,6 +4,7 @@
 
 #include "screen.hpp"
 #include "window_header.hpp"
+#include <gui/od3d/menu_od3d.hpp>
 #include <common/fsm_base_types.hpp>
 #include "static_alocation_ptr.hpp"
 #include <selftest_frame.hpp>
@@ -40,7 +41,7 @@ private:
     static constexpr const char *en_selftest = N_("SELFTEST");
     static constexpr const char *en_firstlay = N_("FIRST LAYER CALIBRATION");
 
-    window_header_t header;
+    od3d::MenuHeader header; ///< OneDrop3D (interface G) : en-tête G compact (31 px, sans retour) au lieu de celui de Prusa
     static ScreenSelftest *ths;
 
     SelftestParts part_current;

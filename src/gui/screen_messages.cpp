@@ -9,7 +9,7 @@
 
 screen_messages_data_t::screen_messages_data_t()
     : screen_t()
-    , header(this)
+    , header(this, string_view_utf8::MakeNULLSTR(), false, true)
     , footer(this)
     , term(this, GuiDefaults::RectScreenBody.TopLeft(), &term_buff) { // Rect16(10, 28, 11 * 20, 18 * 16))
     header.SetText(_("MESSAGES"));

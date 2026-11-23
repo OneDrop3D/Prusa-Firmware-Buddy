@@ -264,7 +264,7 @@ WinsGCodeInterrupt::WinsGCodeInterrupt(ScreenCrashRecovery &screen)
 
 ScreenCrashRecovery::ScreenCrashRecovery()
     : screen_t()
-    , header(this)
+    , header(this, string_view_utf8::MakeNULLSTR(), false, true)
     , footer(this)
     , window { std::nullopt } {
 

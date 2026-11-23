@@ -50,7 +50,7 @@ static constexpr const char *txt_header = N_("How to update firmware?");
 
 ScreenHelpFWUpdate::ScreenHelpFWUpdate()
     : screen_t()
-    , header(this)
+    , header(this, string_view_utf8::MakeNULLSTR(), false, true)
     , description(this, descr_rect, is_multiline::yes)
 #if HAS_MINI_DISPLAY()
     , description2(this, descr_rect2, is_multiline::yes)

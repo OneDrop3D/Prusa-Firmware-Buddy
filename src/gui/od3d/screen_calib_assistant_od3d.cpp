@@ -1094,9 +1094,9 @@ ScreenCalibAssistant::ScreenCalibAssistant()
     , header(this, _("Calibration"), true, leave)
     , info(this, info_rect, is_multiline::yes)
     , tiles(make_tiles(this, std::make_index_sequence<entries.size()>()))
-    , button_a(this, button_body(0), tag_a, Button::Look::primary, string_view_utf8::MakeNULLSTR(), nullptr, style::screen, 10)
-    , button_b(this, button_body(1), tag_b, Button::Look::secondary, string_view_utf8::MakeNULLSTR(), nullptr, style::screen, 10)
-    , button_c(this, button_body(2), tag_c, Button::Look::outline, string_view_utf8::MakeNULLSTR(), nullptr, style::screen, 10)
+    , button_a(this, button_body(0), tag_a, Button::Look::primary, string_view_utf8::MakeNULLSTR(), nullptr, style::screen)
+    , button_b(this, button_body(1), tag_b, Button::Look::secondary, string_view_utf8::MakeNULLSTR(), nullptr, style::screen)
+    , button_c(this, button_body(2), tag_c, Button::Look::outline, string_view_utf8::MakeNULLSTR(), nullptr, style::screen)
     , tabs(this, section_tab()) {
     ClrMenuTimeoutClose(); // l'assistant attend l'utilisateur ou une longue série
     if (flow.stage == Stage::idle) {

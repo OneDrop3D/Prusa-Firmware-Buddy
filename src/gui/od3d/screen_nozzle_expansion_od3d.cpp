@@ -247,8 +247,8 @@ ScreenNozzleExpansion::ScreenNozzleExpansion()
     , chart_back(this, chart_back_rect)
     , chart(this, chart_rect)
     , info(this, info_rect, is_multiline::yes)
-    , action(this, button_body(0), tag_action, Button::Look::primary, _("Start"), &img::print_16x16, style::screen, 10)
-    , prusa_button(this, button_body(1), tag_prusa, Button::Look::outline, _("Prusa model"), &img::arrow_left_16x16, style::screen, 10)
+    , action(this, button_body(0), tag_action, Button::Look::primary, _("Start"), &img::print_16x16, style::screen)
+    , prusa_button(this, button_body(1), tag_prusa, Button::Look::outline, _("Prusa model"), &img::arrow_left_16x16, style::screen)
     , tabs(this, section_tab()) {
     ClrMenuTimeoutClose(); // l'écran reste ouvert pendant la mesure
     info.set_font(Font::small);

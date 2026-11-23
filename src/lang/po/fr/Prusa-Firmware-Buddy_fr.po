@@ -12274,7 +12274,7 @@ msgstr "Accél."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Filament accel."
-msgstr "Accél. filament"
+msgstr "Accél. fil."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Max filament accel. per spool, mm/s2 (before):"

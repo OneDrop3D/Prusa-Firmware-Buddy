@@ -351,7 +351,7 @@ namespace {
     /// Les courroies viennent d'être mesurées hors de la plage de Prusa (conseil : tourner les vis), pas encore proposé
     bool belts_out_of_range() {
         const belts::Measurement &m = belts::last();
-        return !flow.belts_offered && (flow.started & test_bit(Test::belts)) && assistant::result(Test::belts) == Result::ok && m.peaks[0].found
+        return belts::advice_validated && !flow.belts_offered && (flow.started & test_bit(Test::belts)) && assistant::result(Test::belts) == Result::ok && m.peaks[0].found
             && m.peaks[1].found && belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets()).verdict == belts::Verdict::adjust;
     }
 
@@ -619,12 +619,17 @@ namespace {
             if (a[0] != none && a[1] != none) {
                 w.add(", A-B %.1f Hz", std::abs(a[0] - a[1]) / 10.0);
             }
-            const belts::Targets t = belts::targets();
-            w.label(N_("Target:"));
-            w.add("%.0f-%.0f Hz", double(t.result_min), double(t.result_max));
             if (any(b, 0, 2)) {
                 w.label(N_("Before:"));
                 pair(b, "AB", 10, " Hz");
+            }
+            if (belts::advice_validated) {
+                const belts::Targets t = belts::targets();
+                w.label(N_("Target:"));
+                w.add("%.0f-%.0f Hz", double(t.result_min), double(t.result_max));
+            } else {
+                w.add("\n");
+                w.text(N_("Measurement being validated: adjust with the Prusa app or the Prusa wizard (M961)."));
             }
             break;
         }

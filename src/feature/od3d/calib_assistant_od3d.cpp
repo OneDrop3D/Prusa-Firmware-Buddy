@@ -115,8 +115,8 @@ namespace {
             }
             return r == TestResult::passed;
         }
-        case Test::belts: // un pic non concluant (hors de la plage balayée, trop peu marqué) : échec, jamais un conseil
-            return belts::status() == belts::Status::done && belts::last().peaks[0].found && belts::last().peaks[1].found;
+        case Test::belts: // tant que la mesure n'est pas validée, jamais en échec à cause d'un pic non concluant
+            return belts::assistant_passed(belts::status() == belts::Status::done, belts::last().peaks[0].found, belts::last().peaks[1].found);
         case Test::speed_map:
             return speed_map::status() == speed_map::Status::done;
         case Test::damping:

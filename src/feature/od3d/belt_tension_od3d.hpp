@@ -14,6 +14,7 @@
 /// une résonance de la tête, qui ne dépend pas de la tension, et non la corde de la courroie que Prusa regarde au
 /// stroboscope ; masse de la courroie (~2 g) contre tête (~0,7 kg). Diagnostic : le spectre brut par axe va dans
 /// /usb/OD3D_BELTS.CSV à chaque mesure ; M1992 P (excitation de M961) et M1992 R (mesure après l'arrêt des moteurs).
+/// En attendant, verdict et conseil sont masqués (advice_validated) : l'écran ne montre que les fréquences.
 ///
 /// Les résultats restent en mémoire jusqu'au redémarrage ; l'interface les lit pendant la mesure (courbe en direct).
 #pragma once

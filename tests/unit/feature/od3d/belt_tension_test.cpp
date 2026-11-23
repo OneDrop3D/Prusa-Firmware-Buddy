@@ -301,3 +301,11 @@ TEST_CASE("courroies : la fenêtre du réglage en direct suit une courroie qui d
         CHECK_THAT(centre, WithinAbs(f, 0.6f));
     }
 }
+
+TEST_CASE("courroies : tant que la mesure n'est pas validée, l'assistant ne la met jamais en échec") {
+    // 23/11 : 78 Hz lus, 98 Hz à l'appli de Prusa ; plus de conseil ni d'état, seulement les fréquences
+    CHECK(assistant_passed(true, true, true));
+    CHECK(assistant_passed(true, false, true)); // pic non concluant : pas un échec
+    CHECK(assistant_passed(true, false, false));
+    CHECK_FALSE(assistant_passed(false, true, true)); // mesure pas finie (arrêtée, accéléromètre muet)
+}

@@ -12674,3 +12674,7 @@ msgstr "MMU ancien"
 #: src/gui/od3d/screen_mmu_od3d.cpp
 msgid "The MMU firmware does not know the assist (no register 0x25): Prusa firmware or an older OneDrop3D one. Flash a OneDrop3D MMU firmware that has it."
 msgstr "Le firmware du MMU ne connaît pas l'assistance (pas de registre 0x25) : firmware Prusa ou OneDrop3D plus ancien. Flashez un firmware OneDrop3D du MMU qui l'a."
+
+#: src/gui/od3d/screen_belts_od3d.cpp src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Measurement being validated: adjust with the Prusa app or the Prusa wizard (M961)."
+msgstr "Mesure en cours de validation : réglez avec l'appli Prusa ou l'assistant Prusa (M961)."

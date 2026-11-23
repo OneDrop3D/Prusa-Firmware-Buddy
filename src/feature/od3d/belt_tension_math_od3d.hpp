@@ -78,6 +78,17 @@ float revs_from_freq(float df1, float df2, float k1, float k2);
 /// est comparée à la cible haute et la plus basse à la cible basse)
 Advice advise(float freq_a, float freq_b, const Targets &targets);
 
+/// shortcut: verdict et conseil masqués (écran, réglage en direct, bilan de l'assistant) tant que M1992 n'est pas validé :
+/// 78 Hz lus ici contre 98 Hz à l'appli de Prusa (23/11), sans doute la tête et non la courroie ; à remettre à true
+/// quand la mesure concorde avec l'appli de Prusa. Seules les fréquences sont montrées.
+inline constexpr bool advice_validated = false;
+
+/// Test des courroies de l'assistant réussi : mesure finie ; un pic non concluant n'est un échec que si la mesure est
+/// validée (advice_validated)
+constexpr bool assistant_passed(bool done, bool found_a, bool found_b) {
+    return done && (!advice_validated || (found_a && found_b));
+}
+
 // ---- Réglage en direct (retour du 23/11 : « faciliter la tension des courroies […] et le faire en cours de route ») ----
 // Après une mesure complète hors de la plage, les deux courroies sont remesurées en boucle sur une fenêtre étroite
 // autour de leur dernier pic, pendant qu'on tourne les vis ; le conseil (advise(), celui de Prusa : les deux vis) suit.

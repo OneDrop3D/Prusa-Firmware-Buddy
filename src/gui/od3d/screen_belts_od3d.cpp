@@ -46,7 +46,6 @@ namespace {
     constexpr uint8_t tag_action = 0;
 
     bool live_on_open = false; ///< open_belts_live() : le réglage en direct part à l'ouverture
-
     /// Conseil de Prusa (les deux vis, serrer / desserrer) d'après les pics de la dernière mesure
     belts::Advice current_advice() {
         const belts::Measurement &m = belts::last();
@@ -101,7 +100,7 @@ void BeltGauge::unconditionalDraw() {
     if (has && !found) {
         state = _("inconclusive");
         value_color = style::text_muted;
-    } else if (has) {
+    } else if (has && belts::advice_validated) {
         switch (belts::zone(frequency, t)) {
         case belts::Zone::low:
             state = _("too low");
@@ -128,7 +127,7 @@ void BeltGauge::unconditionalDraw() {
     draw_text(Rect16(r.Left() + 12, r.Top() + 25, r.Width() - 24, height(Font::big)), string_view_utf8::MakeRAM(value), Font::big,
         has ? style::text_strong : style::text_faint, style::surface);
 
-    // Barre : plage de Prusa en vert, repère blanc de 3 px sur la fréquence mesurée
+    // Barre : plage de Prusa en vert (mesure validée seulement), repère blanc de 3 px sur la fréquence mesurée
     const Rect16 bar(r.Left() + 12, r.Top() + 54, r.Width() - 24, 12);
     const int16_t w = bar.Width();
     const float lo = gauge_lo(t), hi = gauge_hi(t);
@@ -140,7 +139,7 @@ void BeltGauge::unconditionalDraw() {
         if (std::abs(x - mark) <= 1) {
             return mark_color;
         }
-        return (x >= band0 && x <= band1) ? band_green : style::secondary;
+        return (belts::advice_validated && x >= band0 && x <= band1) ? band_green : style::secondary;
     });
 }
 
@@ -211,7 +210,7 @@ void SpectrumCurve::unconditionalDraw() {
         if (up == 0) {
             return style::line;
         }
-        return (x >= band0 && x <= band1) ? band_tint : style::surface;
+        return (belts::advice_validated && x >= band0 && x <= band1) ? band_tint : style::surface;
     });
 }
 
@@ -280,6 +279,10 @@ void ScreenBelts::show_info() {
             text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
             break;
         case Status::done: {
+            if (!belts::advice_validated) { // seulement les fréquences (jauges) ; le réglage chez Prusa
+                text = _("Measurement being validated: adjust with the Prusa app or the Prusa wizard (M961).");
+                break;
+            }
             if (!m.peaks[0].found || !m.peaks[1].found) {
                 // Jamais de conseil sur une mesure non concluante (retour du 23/11 : 136 Hz lus 80 Hz, « serrer »)
                 text = _("Inconclusive (belt %c): peak out of range, belt maybe too tight or too loose.").formatted(info_params, m.peaks[0].found ? 'B' : 'A');
@@ -375,7 +378,7 @@ void ScreenBelts::update() {
         }
         // Hors de la plage après une mesure complète : le réglage en direct est proposé (retour du 23/11)
         const belts::Measurement &m = belts::last();
-        if (full_done && !HasDialog() && m.peaks[0].found && m.peaks[1].found && current_advice().verdict == belts::Verdict::adjust && !calibration_series_running()
+        if (belts::advice_validated && full_done && !HasDialog() && m.peaks[0].found && m.peaks[1].found && current_advice().verdict == belts::Verdict::adjust && !calibration_series_running()
             && MsgBoxQuestion(_("Belts out of range. Adjust them live? Both belts are measured again every ~10 s while you turn both screws (Prusa guide: prusa.io/core-belt-calibration-tensioning)."), Responses_YesNo)
                 == Response::Yes) {
             start_live();

@@ -1,121 +1,139 @@
 /// @file
-/// Givrage (frost_od3d.hpp) : l'afficheur ILI9488
+/// Voile et ouverture des fenêtres (frost_od3d.hpp) : l'afficheur
 #include "frost_od3d.hpp"
-#include "style_od3d.hpp"
+#include "spool_draw.hpp"
+#include "thumbnail_od3d.hpp"
 
+#include <array>
 #include <display.hpp>
-#include <guitypes.hpp>
-#include <ili9488.hpp>
+#include <Jogwheel.hpp>
 #include <screen.hpp>
 #include <ScreenHandler.hpp>
+#include <timing.h>
 
 namespace od3d::frost {
 
 namespace {
 
-    Area area_of(const Rect16 &r) {
-        return Area { r.Left(), r.Top(), r.Width(), r.Height() };
-    }
+    class Display final : public Painter {
+    public:
+        Display(PaintPart paint, void *ctx)
+            : paint(paint)
+            , ctx(ctx) {}
 
-    uint8_t *read(Area a) {
-        return ili9488_read_rect(a.x, a.y, a.w, a.h);
-    }
+        void part(size_t i) override {
+            paint(ctx, i);
+        }
+        void body(Rect16 r) override {
+            display::fill_rect(r, style::surface);
+        }
+        void corner(Rect16 sq, uint8_t bit, Rect16 piece) override {
+            const bool left = bit & (MIC_TOP_LEFT | MIC_BOT_LEFT), top = bit & (MIC_TOP_LEFT | MIC_TOP_RIGHT);
+            draw_pixels(piece, [&](int x, int y) {
+                const int cx = piece.Left() + x - sq.Left(), cy = piece.Top() + y - sq.Top(); // (0, 0) : coin extérieur
+                return spool::mix_quarters(style::surface, style::veil, spool::corner_beyond_quarters(left ? cx : radius - 1 - cx, top ? cy : radius - 1 - cy, radius));
+            });
+        }
+        void veil(Rect16 r) override {
+            display::fill_rect(r, style::veil);
+        }
+        bool stop() override {
+            return jogwheel.GetEncoder() != knob;
+        }
 
-    void write(Area a, const uint8_t *) {
-        display::draw_from_buffer(point_ui16(a.x, a.y), a.w, a.h); // depuis le tampon de l'afficheur, que read a rendu
-    }
-
-    /// Ce que montre l'écran autour du dialogue depuis le dernier givrage
-    struct State {
-        bool frosted = false;
-        bool corners = false; ///< les coins de hole ont été faits par le givrage (draw_body ne les repeint pas)
-        Rect16 hole;
-        uint8_t r = 0;
-        uint8_t mask = 0; ///< MIC_*
-        Color body;
+    private:
+        PaintPart paint;
+        void *ctx;
+        int32_t knob = jogwheel.GetEncoder();
     };
-    State state;
 
-    /// Carré du coin bit (MIC_*) de rect, de côté r
-    Rect16 corner_square(const Rect16 &rect, uint8_t bit, uint8_t r) {
-        const bool left = bit & (MIC_TOP_LEFT | MIC_BOT_LEFT), top = bit & (MIC_TOP_LEFT | MIC_TOP_RIGHT);
-        const int16_t x = rect.Left() + (left ? 0 : rect.Width() - r), y = rect.Top() + (top ? 0 : rect.Height() - r);
-        return Rect16(x, y, r, r);
-    }
+    Rect16 closed_origin;
+    uint32_t closed_ms = 0;
 
-    /// Le coin bit de rect est un de ceux que le givrage a faits (même place, même rayon, même corps)
-    bool frosted_corner(const Rect16 &rect, uint8_t bit, uint8_t r, Color body) {
-        if (!state.corners || r != state.r || body != state.body) {
-            return false;
+    /// Membres protégés d'un écran : ses fenêtres, et ce qu'il a déjà à repeindre (comme chrome::hand_over)
+    struct FrameAccess : window_frame_t {
+        static window_t *first(const window_frame_t &f) {
+            return (f.*(&FrameAccess::getFirstNormal))();
         }
-        for (const uint8_t b : { uint8_t(MIC_TOP_LEFT), uint8_t(MIC_TOP_RIGHT), uint8_t(MIC_BOT_LEFT), uint8_t(MIC_BOT_RIGHT) }) {
-            if ((state.mask & b) && corner_square(state.hole, b, r) == corner_square(rect, bit, r)) {
-                return true;
-            }
+        static Rect16 pending(const window_frame_t &f) {
+            return (f.*(&FrameAccess::getInvalidationRect))();
         }
-        return false;
-    }
+    };
 
 } // namespace
 
-// Le voile uni (coins sans givrage, fiche tirée) est la couleur que prend le fond uni givré (composantes lues dans raw :
-// une constante ne lit pas r, g, b de son union)
-constexpr bool veil_is_frosted_screen() {
-    for (const int shift : { 0, 8, 16 }) {
-        if (shade((style::screen.raw >> shift) & 0xFC) != ((style::veil.raw >> shift) & 0xFC)) {
-            return false;
+Rect16 origin() {
+    const window_t *w = window_t::GetFocusedWindow();
+    return w ? w->GetRect() : Rect16();
+}
+
+void open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, PaintPart paint, void *ctx, bool veil) {
+    Display painter(paint, ctx);
+    plan(rect, corners, from, parts, painter, veil);
+}
+
+void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, bool veil) {
+    struct Parts {
+        std::array<window_t *, max_parts> wins;
+        std::array<Rect16, max_parts> rects;
+        size_t n = 0;
+    } parts;
+    for (window_t *w = first; w && parts.n < max_parts; w = w->GetNext()) {
+        if (w->IsVisible() && !w->GetRect().IsEmpty()) {
+            parts.wins[parts.n] = w;
+            parts.rects[parts.n++] = w->GetRect();
         }
     }
-    return true;
-}
-static_assert(veil_is_frosted_screen());
-
-void run(const Rect16 &area, const Rect16 &hole, uint8_t r, uint8_t corners, Color body) {
-    Corners c { .r = r, .mask = 0, .body = { uint8_t(body.b & 0xFC), uint8_t(body.g & 0xFC), uint8_t(body.r & 0xFC) } }; // ordre de l'afficheur
-    c.mask = uint8_t((corners & MIC_TOP_LEFT ? Corners::top_left : 0) | (corners & MIC_TOP_RIGHT ? Corners::top_right : 0)
-        | (corners & MIC_BOT_LEFT ? Corners::bottom_left : 0) | (corners & MIC_BOT_RIGHT ? Corners::bottom_right : 0));
-    run(area_of(area), area_of(hole), ili9488_buffer_size() / 3, read, write, r ? c : Corners {});
-    state = { .frosted = true, .corners = r && corners, .hole = hole, .r = r, .mask = corners, .body = body };
-}
-
-bool frosted() {
-    return state.frosted;
-}
-
-void draw_body(const Rect16 &rect, Color body, uint8_t r, uint8_t corners) {
-    // Coins faits par le givrage : le corps sans eux (bande du haut entre les coins, le milieu, bande du bas)
-    const auto skip = [&](uint8_t bit) { return (corners & bit) && frosted_corner(rect, bit, r, body); };
-    const bool tl = skip(MIC_TOP_LEFT), tr = skip(MIC_TOP_RIGHT), bl = skip(MIC_BOT_LEFT), br = skip(MIC_BOT_RIGHT);
-    const uint8_t rest = corners & ~((tl ? MIC_TOP_LEFT : 0) | (tr ? MIC_TOP_RIGHT : 0) | (bl ? MIC_BOT_LEFT : 0) | (br ? MIC_BOT_RIGHT : 0));
-    if (!(tl || tr || bl || br) || rest) {
-        // Rien de givré (ou pas tous ses coins) : les coins du voile uni, la couleur du fond givré sur un fond uni
-        display::draw_rounded_rect(rect, style::veil, body, r, corners);
-        return;
-    }
-    const int16_t top_h = (tl || tr) ? r : 0, bottom_h = (bl || br) ? r : 0;
-    const auto band = [&](int16_t y, int16_t h, bool left, bool right) {
-        if (h > 0) {
-            display::fill_rect(Rect16(rect.Left() + (left ? r : 0), y, rect.Width() - (left ? r : 0) - (right ? r : 0), h), body);
-        }
+    const PaintPart paint = [](void *ctx, size_t i) {
+        window_t *w = static_cast<Parts *>(ctx)->wins[i];
+        w->Invalidate();
+        w->Draw();
     };
-    band(rect.Top(), top_h, tl, tr);
-    band(rect.Top() + top_h, rect.Height() - top_h - bottom_h, false, false);
-    band(rect.Top() + rect.Height() - bottom_h, bottom_h, bl, br);
-}
-
-void forget_corners() {
-    state.corners = false;
-}
-
-void forget() {
-    state = {};
+    open(rect, corners, from, std::span<const Rect16>(parts.rects.data(), parts.n), paint, &parts, veil);
+    for (window_t *w = first; w; w = w->GetNext()) {
+        w->Draw(); // au-delà de max_parts (jamais avec nos fenêtres) ; les autres sont déjà peints
+    }
 }
 
 void close() {
-    forget();
-    if (screen_t *screen = Screens::Access()->Get()) {
-        screen->Invalidate();
+    screen_t *screen = Screens::Access()->Get();
+    if (!screen) {
+        return;
     }
+    closed_origin = origin(); // l'élément ciblé de nouveau (IDialog rend son état à l'écran)
+    closed_ms = ticks_ms();
+
+    // Comme draw_whole() (widgets_od3d.hpp), sur la place de la fenêtre seulement : les éléments de l'écran qui y sont, de
+    // haut en bas, chacun avec la bande du fond où il commence ; pas d'aplat sur toute la place avant eux
+    constexpr Rect16 zone = style::below_header;
+    std::array<window_t *, style::max_gap_rects> wins;
+    std::array<Rect16, style::max_gap_rects> rects;
+    size_t n = 0;
+    bool whole = screen->IsInvalid() || Screens::Access()->is_change_pending();
+    for (window_t *w = FrameAccess::first(*screen); w && !whole; w = w->GetNext()) {
+        if (w->IsDialog() || (n == wins.size() && w->GetRect().HasIntersection(zone))) {
+            whole = true; // un autre dialogue est encore ouvert, ou trop d'éléments
+        } else if (w->IsVisible() && w->GetRect().HasIntersection(zone)) {
+            wins[n] = w;
+            rects[n++] = w->GetRect();
+        }
+    }
+    if (const Rect16 pending = FrameAccess::pending(*screen); whole || !(pending.IsEmpty() || style::inside(zone, pending))) {
+        screen->Invalidate(); // tout l'écran, d'une passe (draw_whole), au prochain dessin
+        return;
+    }
+    const auto draw_one = [&](size_t i) {
+        wins[i]->Invalidate();
+        wins[i]->Draw();
+    };
+    style::paint_top_down(zone, std::span<const Rect16>(rects.data(), n), draw_one, [&](Rect16 r) { display::fill_rect(r, screen->GetBackColor()); });
+    screen->Validate(zone); // la place de la fenêtre est repeinte ; l'en-tête garde ce qu'il a à repeindre
+}
+
+Rect16 take_closed_origin() {
+    const Rect16 r = ticks_diff(ticks_ms(), closed_ms) < 3000 ? closed_origin : Rect16();
+    closed_origin = Rect16();
+    return r;
 }
 
 } // namespace od3d::frost

@@ -17,6 +17,7 @@
 #include <IDialog.hpp>
 #include <img_resources.hpp>
 #include <knob_event.hpp>
+#include <optional>
 #include <option/has_touch.h>
 #include <ScreenHandler.hpp>
 #include <utility>
@@ -90,8 +91,11 @@ namespace {
     static_assert(style::with_ring(secondary_body(0)).Bottom() < style::with_ring(chip_body(0)).Top());
 
     /// Poignée (« tige ») de la fiche dont le haut est en y
+    constexpr Rect16 handle_rect(int16_t y) {
+        return Rect16(222, y + 6, 36, 4);
+    }
     void draw_handle(int16_t y) {
-        display::draw_rounded_rect(Rect16(222, y + 6, 36, 4), style::surface, Color::from_raw(0x5B5B5B), 2, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(handle_rect(y), style::surface, Color::from_raw(0x5B5B5B), 2, MIC_ALL_CORNERS);
     }
 
     /// Haut de la fiche : poignée, bobine, « Emplacement n · matière », état ; rien d'actif
@@ -104,24 +108,30 @@ namespace {
     protected:
         void unconditionalDraw() override {
             const Rect16 r = GetRect();
-            // Son coin arrondi (en haut à droite) : il se redessine seul après un glissement de la fiche ; givré s'il n'a
-            // pas bougé
-            frost::draw_body(r, style::surface, band_radius, MIC_TOP_RIGHT);
-            draw_handle(top);
-
             const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
             const FilamentType type = FilamentType::for_tool(tool);
             const Slot slot = Slot::read(index);
             constexpr uint8_t d = 40;
             const point_i16_t at { int16_t(r.Left() + 6), top + 13 };
+            const int16_t x = at.x + d + 10;
+            const uint16_t w = r.Left() + r.Width() - 16 - x; // marge de droite, comme les boutons
+            const Rect16 name_rect(x, top + 14, w, height(Font::normal));
+            const Rect16 status_rect(x, top + 36, w, height(Font::small));
+
+            // D'une passe : le corps autour de ce qui suit, puis chaque morceau (chacun repeint sa place). Son coin
+            // arrondi (en haut à droite, celui de la fiche) est lissé sur le voile.
+            const Rect16 corner(r.Left() + r.Width() - band_radius, r.Top(), band_radius, band_radius);
+            const Rect16 spool_rect = slot.loaded ? Rect16(at.x - 2, at.y - 2, d + 4, d + 4) : Rect16(at.x, at.y, d, d);
+            const Rect16 parts[] = { corner, handle_rect(top), spool_rect, name_rect, status_rect };
+            style::for_each_gap(r, parts, [](Rect16 gap) { display::fill_rect(gap, style::surface); });
+            display::draw_rounded_rect(corner, style::veil, style::surface, band_radius, MIC_TOP_RIGHT);
+            draw_handle(top);
             draw_spool(at, slot.look, d, style::surface, slot.loaded ? std::optional(style::accent) : std::nullopt);
 
             char name[24];
             atelier::spool_name(name, type);
             StringViewUtf8Parameters<32> params;
-            const int16_t x = at.x + d + 10;
-            const uint16_t w = r.Left() + r.Width() - 16 - x; // marge de droite, comme les boutons
-            draw_text(Rect16(x, top + 14, w, height(Font::normal)), _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
+            draw_text(name_rect, _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
 
             // État, l'alerte de la pointe (F10, en jaune ; détail dans Atelier › Infos du MMU), la température de la
             // matière, puis le reste (F13 ou étiquette OpenPrintTag)
@@ -143,7 +153,7 @@ namespace {
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · ~%d g", int(usage->remaining_g));
             }
-            draw_text(Rect16(x, top + 36, w, height(Font::small)), string_view_utf8::MakeRAM(status), Font::small, tip_drift ? style::warning : style::text_muted, style::surface);
+            draw_text(status_rect, string_view_utf8::MakeRAM(status), Font::small, tip_drift ? style::warning : style::text_muted, style::surface);
         }
 
     private:
@@ -153,7 +163,6 @@ namespace {
     class SpoolSheet : public IDialog {
     public:
         explicit SpoolSheet(uint8_t index);
-        ~SpoolSheet();
 
         Choice choice = Choice::none;
 
@@ -162,12 +171,14 @@ namespace {
         }
 
     protected:
-        void unconditionalDraw() override;
+        /// À repeindre en entier : la fiche s'ouvre depuis la bobine touchée sur le voile (frost_od3d.hpp), chaque
+        /// élément peint une fois ; sinon les éléments changés
+        void draw() override;
         void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
     private:
 #if HAS_TOUCH()
-        /// Fiche tirée vers le bas par sa poignée, toucher du fond givré : suivis à chaque tour de l'interface
+        /// Fiche tirée vers le bas par sa poignée, toucher du voile : suivis à chaque tour de l'interface
         void follow_finger();
         /// Fiche peinte à offset sous sa place : voile au-dessus, bord arrondi et poignée ; ce que le bord a effacé
         /// dans la fiche se redessine quand elle est revenue (restore)
@@ -176,11 +187,11 @@ namespace {
 
         enum class Contact : uint8_t {
             none,
-            veil, ///< posé sur le fond givré (ou l'en-tête) : ferme la fiche au lever
+            veil, ///< posé sur le voile (ou l'en-tête) : ferme la fiche au lever
             grab, ///< posé sur la poignée ou le haut de la fiche
             other,
         };
-        Touchscreen_Base::LenientClickGuard lenient; ///< un toucher qui bouge de 3 px reste un toucher (fond givré, boutons)
+        Touchscreen_Base::LenientClickGuard lenient; ///< un toucher qui bouge de 3 px reste un toucher (voile, boutons)
         Contact contact = Contact::none;
         bool pulling = false; ///< la fiche suit le doigt : aucun toucher ni balayage n'agit dedans
         bool springing = false; ///< lâchée avant le tiers : elle remonte
@@ -189,7 +200,7 @@ namespace {
         int16_t wiped = top; ///< bas de ce que le bord a effacé dans la fiche
         uint32_t painted_ms = 0;
 #endif
-        bool frosted = false; ///< le fond au-dessus de la fiche a été givré (1er dessin)
+        Rect16 from = frost::origin(); ///< la bobine touchée, d'où s'ouvre la fiche (sa place une fois ouverte)
         StringViewUtf8Parameters<8> usage_params; ///< « Reste 350 g », avant le bouton qui garde le texte formaté
         std::array<char, 12> pa_text {}; ///< « PA 0.035 » ou « PA ? » (F4), avant le bouton qui le montre
         Head head;
@@ -207,7 +218,7 @@ namespace {
     };
 
     SpoolSheet::SpoolSheet(uint8_t index)
-        : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est givré) ; l'en-tête reste vivant
+        : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est voilé) ; l'en-tête reste vivant
         , head(this, index)
         , main(this, main_body, tag_main, Button::Look::primary, {}, nullptr, style::surface, style::radius_big)
         , calibrate(this, calibrate_body, tag_calibrate, Button::Look::secondary, _("Calibrate PA"), nullptr, style::surface, style::radius_big)
@@ -286,18 +297,13 @@ namespace {
         }
     }
 
-    SpoolSheet::~SpoolSheet() {
-        frost::close();
-    }
-
-    void SpoolSheet::unconditionalDraw() {
-        // Au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri d'une traite avant la fiche (retour du 22/11 :
-        // « le flou arrive après, alors qu'il devait être en même temps »), ses coins compris ; regivré si l'écran a été
-        // repeint dessous ; puis seulement la bande
-        if (!std::exchange(frosted, true) || !frost::frosted()) {
-            frost::run(style::below_header, band, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT, style::surface); // ses coins aussi
+    void SpoolSheet::draw() {
+        if (!IsVisible() || !IsInvalid()) {
+            IDialog::draw();
+            return;
         }
-        frost::draw_body(band, style::surface, band_radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        static_assert(band_radius == frost::radius);
+        frost::draw(getFirstNormal(), band, MIC_TOP_LEFT | MIC_TOP_RIGHT, std::exchange(from, band));
 #if HAS_TOUCH()
         drawn = 0; // repeinte à sa place : si elle est tirée, le voile se repeint au-dessus d'elle
 #endif
@@ -320,7 +326,7 @@ namespace {
                 gui_reset_loop_timer(); // le doigt est suivi à chaque tour de l'interface, pas toutes les 100 ms
             }
         } else if (contact != Contact::none) {
-            // Doigt levé : sur le fond givré, ou la fiche tirée jusqu'au tiers, c'est « Fermer » ; sinon elle remonte
+            // Doigt levé : sur le voile, ou la fiche tirée jusqu'au tiers, c'est « Fermer » ; sinon elle remonte
             const bool closing = contact == Contact::veil || (pulling && gesture::pull::closes(offset, band.Height()));
             springing = pulling && !closing;
             contact = Contact::none;
@@ -350,10 +356,9 @@ namespace {
     }
 
     void SpoolSheet::paint(int16_t to) {
-        // Rien que le bord : la fiche entière se redessinerait à chaque image (~60 ms). Le voile uni (la couleur du fond
-        // givré) couvre ce que la fiche découvre ; en remontant, le fond de la fiche recouvre le voile.
+        // Rien que le bord : la fiche entière se redessinerait à chaque image (~60 ms). Le voile couvre ce que la fiche
+        // découvre ; en remontant, le fond de la fiche recouvre le voile.
         const int16_t was = top + drawn, now = top + to;
-        frost::forget_corners(); // le bord bouge : ses coins sont ceux du voile uni
         if (now > was) {
             display::fill_rect(Rect16::fromLTRB(0, was, style::screen_w, now), style::veil);
         }
@@ -455,25 +460,26 @@ void open_sheet(uint8_t index) {
         Screens::Access()->gui_loop_until_dialog_closed();
         gui::knob::RegisterLongPressScreenAction(old_long_press);
         choice = sheet.choice;
-    } // la fiche disparaît avant l'action : l'écran de progression se pose sur l'écran d'origine
+    } // la fiche disparaît avant l'action
 
+    std::optional<Op> op;
     switch (choice) {
     case Choice::none:
         break;
     case Choice::load:
-        atelier::run(Op::load, index);
+        op = Op::load;
         break;
     case Choice::unload:
-        atelier::run(Op::unload, index);
+        op = Op::unload;
         break;
     case Choice::preload:
-        atelier::run(Op::preload, index);
+        op = Op::preload;
         break;
     case Choice::eject:
-        atelier::run(Op::eject, index);
+        op = Op::eject;
         break;
     case Choice::cut:
-        atelier::run(Op::cut, index);
+        op = Op::cut;
         break;
     case Choice::insert:
         open_change_spool(index, SpoolChange::insert);
@@ -493,6 +499,12 @@ void open_sheet(uint8_t index) {
     case Choice::calibrate:
         open_pa(index, true); // l'écran du PA propose la mesure, puis montre ses étapes et « Annuler »
         break;
+    }
+    // Après un écran ouvert : rien n'est repeint dessous, il se dessine à sa place. Avant l'opération : un message de
+    // Prusa (imprimante occupée) se pose sur l'écran repeint, et le chargement s'ouvre depuis la bobine.
+    frost::close();
+    if (op) {
+        atelier::run(*op, index);
     }
 }
 

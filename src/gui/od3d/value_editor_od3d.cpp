@@ -42,6 +42,10 @@ namespace {
     constexpr Rect16 view_rect = { 30, 156, 420, 94 }; ///< valeur et barre ; les disques − et + n'y sont pas repeints
     constexpr uint8_t knob_d = 18;
 
+    /// Ce que la feuille peint elle-même, dans l'ordre de paint_part : le corps est peint autour, une fois
+    constexpr Rect16 parts[] = { label_rect, minus_rect, plus_rect, value_rect, bar_zone, cancel_rect, ok_rect };
+    constexpr uint8_t sheet_corners = MIC_TOP_LEFT | MIC_TOP_RIGHT;
+
     static_assert(style::inside(sheet_rect, view_rect) && style::inside(view_rect, value_rect) && style::inside(view_rect, bar_zone));
     static_assert(cancel_rect.Top() > drag_zone.Bottom() && ok_rect.Top() > drag_zone.Bottom(), "un toucher sur les boutons ne règle pas la barre");
     static_assert(style::inside(sheet_rect, cancel_rect) && style::inside(sheet_rect, ok_rect) && cancel_rect.Right() < ok_rect.Left());
@@ -63,53 +67,80 @@ namespace {
 // pas prendre plus de pile que le clavier numérique de Prusa qu'il remplace (UI-15)
 static_assert(sizeof(ValueEditor) <= sizeof(DialogNumericInput));
 
-std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit) {
-    ValueEditor editor(label, value, config, apply, unit);
-    Screens::Access()->gui_loop_until_dialog_closed();
+std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit, Rect16 from) {
+    std::optional<float> chosen;
+    {
+        ValueEditor editor(label, value, config, apply, unit, from.IsEmpty() ? frost::origin() : from); // avant que la feuille ne prenne la molette
+        Screens::Access()->gui_loop_until_dialog_closed();
+        if (editor.accepted) {
+            chosen = editor.value;
+        } else if (apply && editor.value != value) {
+            apply(value); // annulé : on revient à la valeur de départ
+        }
+    } // la feuille est détruite : l'écran dessous peut repeindre sa place
     frost::close();
-    if (editor.accepted) {
-        return editor.value;
-    }
-    if (apply && editor.value != value) {
-        apply(value); // annulé : on revient à la valeur de départ
-    }
-    return std::nullopt;
+    return chosen;
 }
 
-ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit)
-    : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est givré) ; l'en-tête reste vivant
+ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit, Rect16 from)
+    : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est voilé) ; l'en-tête reste vivant
     , label(label)
     , config(config)
     , value(config.clamp(value))
     , apply(apply)
     , unit(unit)
+    , from(from)
     , view(*this) {
     SetBackColor(style::surface);
 }
 
-void ValueEditor::unconditionalDraw() {
-    // Au-dessus, l'écran d'origine sous l'en-tête, flouté et assombri d'une traite avant la feuille (retour du 22/11 :
-    // « le flou arrive après »), ses coins compris (ils gardent l'écran givré, pas un carré de voile uni) ; regivré si
-    // l'écran a été repeint dessous (sortie de veille...)
-    if (!std::exchange(frosted, true) || !frost::frosted()) {
-        frost::run(style::below_header, sheet_rect, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT, style::surface);
+void ValueEditor::draw() {
+    if (!IsVisible() || !IsInvalid()) {
+        IDialog::draw(); // la valeur seule (ValueView)
+        return;
     }
-    frost::draw_body(sheet_rect, style::surface, style::radius, MIC_TOP_LEFT | MIC_TOP_RIGHT);
-    // Le nom seul : les libellés des listes G ont souvent une 2e ligne d'explication (« Pas\nBaisse à chaque palier »)
-    std::array<char, label_rect.Width() / width(Font::small) + 1> name;
-    label.copyToRAM(name.data(), name.size());
-    if (char *nl = strchr(name.data(), '\n')) {
-        *nl = '\0';
+    // La feuille grandit depuis l'élément touché, le voile ensuite au-dessus (frost_od3d.hpp) ; à sa place ensuite
+    view.forget();
+    frost::open(sheet_rect, sheet_corners, std::exchange(from, sheet_rect), parts, [](void *editor, size_t i) { static_cast<ValueEditor *>(editor)->paint_part(i); }, this);
+}
+
+void ValueEditor::paint_part(size_t i) {
+    switch (i) {
+    case 0: {
+        // Le nom seul : les libellés des listes G ont souvent une 2e ligne d'explication (« Pas\nBaisse à chaque palier »)
+        std::array<char, label_rect.Width() / width(Font::small) + 1> name;
+        label.copyToRAM(name.data(), name.size());
+        if (char *nl = strchr(name.data(), '\n')) {
+            *nl = '\0';
+        }
+        draw_text(label_rect, string_view_utf8::MakeRAM(name.data()), Font::small, style::text_muted, style::surface, Align_t::Center());
+        break;
     }
-    draw_text(label_rect, string_view_utf8::MakeRAM(name.data()), Font::small, style::text_muted, style::surface, Align_t::Center());
-    draw_round_button(minus_rect, "-");
-    draw_round_button(plus_rect, "+");
-    draw_rounded_frame(cancel_rect, style::surface, style::line, style::surface, style::radius, 1);
-    const string_view_utf8 cancel = _("Cancel");
-    draw_centered(cancel_rect, cancel, Font::small, cancel.computeNumUtf8Chars() * width(Font::small), style::text_soft, style::surface);
-    display::draw_rounded_rect(ok_rect, style::surface, style::accent, style::radius, MIC_ALL_CORNERS);
-    const string_view_utf8 ok = _("OK");
-    draw_centered(ok_rect, ok, Font::small, ok.computeNumUtf8Chars() * width(Font::small), style::on_accent, style::accent);
+    case 1:
+        draw_round_button(minus_rect, "-");
+        break;
+    case 2:
+        draw_round_button(plus_rect, "+");
+        break;
+    case 3:
+        view.draw_value();
+        break;
+    case 4:
+        view.draw_bar();
+        break;
+    case 5: {
+        draw_rounded_frame(cancel_rect, style::surface, style::line, style::surface, style::radius, 1);
+        const string_view_utf8 cancel = _("Cancel");
+        draw_centered(cancel_rect, cancel, Font::small, cancel.computeNumUtf8Chars() * width(Font::small), style::text_soft, style::surface);
+        break;
+    }
+    case 6: {
+        display::draw_rounded_rect(ok_rect, style::surface, style::accent, style::radius, MIC_ALL_CORNERS);
+        const string_view_utf8 ok = _("OK");
+        draw_centered(ok_rect, ok, Font::small, ok.computeNumUtf8Chars() * width(Font::small), style::on_accent, style::accent);
+        break;
+    }
+    }
 }
 
 void ValueEditor::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -160,8 +191,8 @@ void ValueEditor::follow_finger() {
     if (!at || !drag_zone.Contain(touchscreen.held_start())) {
         return;
     }
-    const int16_t from = touchscreen.held_start().x;
-    if (!dragged && std::abs(at->x - from) < 4) {
+    const int16_t start_x = touchscreen.held_start().x;
+    if (!dragged && std::abs(at->x - start_x) < 4) {
         return; // pas encore un glissement : un toucher reste un toucher
     }
     dragged = true;
@@ -221,6 +252,16 @@ ValueEditor::ValueView::ValueView(ValueEditor &editor)
     , editor(editor) {}
 
 void ValueEditor::ValueView::unconditionalDraw() {
+    draw_value();
+    draw_bar();
+}
+
+void ValueEditor::ValueView::forget() {
+    drawn = {};
+    drawn_filled = -1;
+}
+
+void ValueEditor::ValueView::draw_value() {
     const Color bg = style::surface;
 
     // Valeur : chiffres en « large » (il n'a que des chiffres), unité ou texte spécial en « big » ; chaque morceau
@@ -236,13 +277,29 @@ void ValueEditor::ValueView::unconditionalDraw() {
     }
     const string_view_utf8 unit = special ? _(editor.config.special_value_str) : (editor.unit ? string_view_utf8::MakeCPUFLASH(editor.unit) : editor.config.unit_str());
     // Chiffres en « large » ; plus de 10 caractères (valeurs brutes de capteurs) n'y tiennent pas : « big »
-    const Font digits_font = strlen(digits) * width(Font::large) + 3 * width(Font::big) <= value_rect.Width() ? Font::large : Font::big;
-    const uint16_t digits_w = strlen(digits) * (digits_font == Font::large ? width(Font::large) : width(Font::big));
+    const size_t len = strlen(digits);
+    const Font digits_font = len * width(Font::large) + 3 * width(Font::big) <= value_rect.Width() ? Font::large : Font::big;
+    const uint16_t char_w = digits_font == Font::large ? width(Font::large) : width(Font::big);
+    const uint16_t digits_w = len * char_w;
     const uint16_t gap = digits_w && !unit.isNULLSTR() ? 8 : 0;
     const uint16_t unit_w = std::min<int>(unit.computeNumUtf8Chars() * width(Font::big), value_rect.Width() - digits_w - gap);
     const int16_t x = value_rect.Left() + (value_rect.Width() - digits_w - gap - unit_w) / 2;
     const int16_t top = value_rect.Top();
     const uint16_t h = value_rect.Height();
+
+    // Autant de chiffres qu'avant : même police, même place, l'unité ne bouge pas. Seuls les chiffres changés, chacun
+    // dans sa case (police à chasse fixe) : un cran de 1 °C repeint ~5 Ko au lieu de ~51 Ko
+    if (len && strlen(drawn.data()) == len) {
+        for (size_t i = 0; i < len; ++i) {
+            if (digits[i] != drawn[i]) {
+                const char one[2] = { digits[i], '\0' };
+                draw_text(Rect16(int16_t(x + int(i) * char_w), top, char_w, h), string_view_utf8::MakeRAM(one), digits_font, style::text_strong, bg);
+            }
+        }
+        strlcpy(drawn.data(), digits, drawn.size());
+        return;
+    }
+    strlcpy(drawn.data(), digits, drawn.size());
 
     display::fill_rect(Rect16(value_rect.Left(), top, x - value_rect.Left(), h), bg);
     if (digits_w) {
@@ -257,13 +314,28 @@ void ValueEditor::ValueView::unconditionalDraw() {
     display::fill_rect(Rect16(unit_x, unit_y + height(Font::big), unit_w, top + h - unit_y - height(Font::big)), bg);
     const int16_t end = unit_x + unit_w;
     display::fill_rect(Rect16(end, top, value_rect.Left() + value_rect.Width() - end, h), bg);
+}
+
+void ValueEditor::ValueView::draw_bar() {
+    const Color bg = style::surface;
 
     // Barre : piste, remplissage orange, disque blanc ; une image d'une passe (la zone s'effaçait à chaque pas)
     const int filled = static_cast<int>(std::lround(editor.fraction() * bar_rect.Width()));
     const int bar_x = bar_rect.Left() - bar_zone.Left(), bar_y = bar_rect.Top() - bar_zone.Top();
     const int bar_w = bar_rect.Width(), bar_h = bar_rect.Height();
     const int knob_x = bar_x + filled - knob_d / 2, knob_y = bar_y + bar_h / 2 - knob_d / 2;
-    draw_pixels(bar_zone, [&](int px, int py) {
+    // À chaque pas, seulement les colonnes où le disque et le bout du remplissage ont bougé (~1,5 Ko au lieu de 27,7)
+    int x0 = 0, x1 = bar_zone.Width();
+    if (drawn_filled >= 0) {
+        x0 = std::max(bar_x + std::min<int>(drawn_filled, filled) - knob_d / 2 - 1, 0);
+        x1 = std::min(bar_x + std::max<int>(drawn_filled, filled) + knob_d / 2 + 1, int(bar_zone.Width()));
+    }
+    drawn_filled = filled;
+    if (x1 <= x0) {
+        return;
+    }
+    draw_pixels(Rect16(bar_zone.Left() + x0, bar_zone.Top(), x1 - x0, bar_zone.Height()), [&](int px, int py) {
+        px += x0;
         const int kx = 2 * (px - knob_x) + 1 - knob_d, ky = 2 * (py - knob_y) + 1 - knob_d;
         if (kx * kx + ky * ky < knob_d * knob_d) {
             return style::text_strong;

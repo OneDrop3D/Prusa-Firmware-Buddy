@@ -13,7 +13,9 @@ namespace od3d::mmu_assist {
 
 namespace {
 
-    Link link; ///< fil de Marlin seulement (ProtocolLogic)
+    // Fil de Marlin seulement (ProtocolLogic)
+    Link link;
+    Speed speed;
     std::atomic<Support> support_seen = Support::unknown;
     std::atomic<uint16_t> applied_seen = 0;
 
@@ -45,7 +47,7 @@ Exchange next_exchange(uint16_t &value) {
         return Exchange::none; // la plupart des appels : rien à lire ni à calculer
     }
     const bool run = link.support() == Support::yes && enabled() && marlin_vars().print_state == marlin_server::State::Printing;
-    if (!link.next(now, pulley_value(run, run ? lookahead::planner_e_speed_ahead(max_e_speed) : 0.0f))) {
+    if (!link.next(now, speed.next(now, run, run ? lookahead::planner_e_speed_ahead(max_e_speed) : 0.0f))) {
         return Exchange::none;
     }
     if (link.detecting()) {
@@ -63,6 +65,7 @@ void read_back(uint16_t raw) {
 
 void restart() {
     link = Link {};
+    speed = Speed {};
     support_seen = Support::unknown;
     applied_seen = 0;
 }

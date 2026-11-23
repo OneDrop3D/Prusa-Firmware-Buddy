@@ -48,6 +48,23 @@ TEST_CASE("mmu_assist: cut outside a running print, below the minimal flow, on n
     CHECK(pulley_value(true, min_e_speed) > 0);
 }
 
+TEST_CASE("mmu_assist: short gaps in the flow keep the idler pressed, long ones and pauses cut") {
+    Speed speed;
+    CHECK(speed.next(0, true, 0.0f) == 0); // début d'impression, chauffe : rien
+    CHECK(speed.next(500, true, 4.0f) == 428);
+    // recul et déplacement : la poulie ralentit, le galet reste serré
+    CHECK(speed.next(1000, true, 0.0f) == creep_value);
+    CHECK(speed.next(500 + hold_ms - 1, true, 0.0f) == creep_value);
+    CHECK(speed.next(1500 + hold_ms, true, 4.0f) == 428);
+    // débit nul plus long que hold_ms : coupée, et le reste
+    CHECK(speed.next(1500 + 2 * hold_ms, true, 0.0f) == 0);
+    CHECK(speed.next(2000 + 2 * hold_ms, true, 0.0f) == 0);
+    // pause ou fin : coupée tout de suite, sans maintien ensuite
+    CHECK(speed.next(10000, true, 2.0f) == 214);
+    CHECK(speed.next(10500, false, 2.0f) == 0);
+    CHECK(speed.next(11000, true, 0.0f) == 0);
+}
+
 TEST_CASE("mmu_assist: mean flow of the next blocks, retractions and E-only moves count 0") {
     // 0,25 s à 4 mm/s puis 0,25 s de déplacement : 2 mm/s en moyenne
     CHECK(std::abs(mean_ahead({ move(0.25f, 1.0f), move(0.25f, 0.0f) }) - 2.0f) < 1e-4f);

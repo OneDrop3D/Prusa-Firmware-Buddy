@@ -8,9 +8,14 @@
 /// Pas de synchronisation pas à pas : une vitesse moyenne, au plus toutes les period_ms.
 /// - Vitesse du filament : moyenne des ~500 ms à venir dans la file du planificateur (lookahead::planner_e_speed_ahead :
 ///   reculs, retours et mouvements du seul extrudeur comptent 0).
-/// - Coupée (0) hors impression en cours (pause, fin, erreur du MMU qui met en pause), assistance non choisie, ou
-///   débit sous min_e_speed (reculs, déplacements, attente de chauffe). Pendant un changement d'outil, le MMU est
-///   occupé : rien n'est envoyé, et le MMU arrête lui-même l'assistance à la commande.
+/// - Coupée (0 : poulie arrêtée, courant et galet comme chez Prusa) hors impression en cours (pause, fin, erreur du MMU
+///   qui met en pause) ou assistance non choisie. Pendant un changement d'outil, le MMU est occupé : rien n'est envoyé,
+///   et le MMU arrête lui-même l'assistance à la commande.
+/// - Débit sous min_e_speed pendant l'impression (reculs, déplacements) : la poulie ralentit à creep_value et le galet
+///   reste serré tant que ça dure moins de hold_ms (pas d'aller-retour du galet à chaque déplacement) ; au-delà
+///   (attente de chauffe, longue pause du G-code), coupée. Un recul dure quelques dizaines de ms : un registre lu au
+///   plus deux fois par seconde ne peut pas le suivre ; à force limitée, la poulie qui pousse doucement pendant ce
+///   temps ne fait que comprimer un peu le filament dans le tube.
 /// - Chaque écriture est relue : sans le bit 15, le MMU ne connaît pas le registre (Prusa ou ancien OneDrop3D lisent
 ///   0) ; vitesse relue 0 alors qu'on en demande une : refusée (filament pas jusqu'à la buse…), renvoyée ensuite.
 #pragma once
@@ -33,6 +38,11 @@ inline constexpr uint16_t present_bit = 0x8000;
 /// Au plus un échange par période [ms] ; le MMU garde un ordre 4 s puis s'arrête seul
 inline constexpr uint32_t period_ms = 500;
 
+/// Débit nul plus court que ça pendant l'impression : galet gardé serré, poulie à creep_value [ms]
+inline constexpr uint32_t hold_ms = 3000;
+/// Vitesse de la poulie pendant ce temps [0,01 mm/s] : la plus lente du MMU (32 pas/s, calc_timer)
+inline constexpr uint16_t creep_value = 40;
+
 /// Valeur à écrire pour une vitesse moyenne du filament [mm/s] : vitesse de la poulie [0,01 mm/s], 0 = coupée
 constexpr uint16_t pulley_value(bool run, float e_speed) {
     if (!run || !(e_speed >= min_e_speed)) { // NaN compris
@@ -40,6 +50,28 @@ constexpr uint16_t pulley_value(bool run, float e_speed) {
     }
     return uint16_t(std::min(e_speed * ratio * 100.0f + 0.5f, float(max_value)));
 }
+
+/// Vitesse voulue d'une période à l'autre, avec le maintien des débits nuls courts
+class Speed {
+public:
+    /// run : impression en cours et assistance choisie ; e_speed : vitesse moyenne du filament à venir [mm/s]
+    constexpr uint16_t next(uint32_t now_ms, bool run, float e_speed) {
+        if (const uint16_t v = pulley_value(run, e_speed)) {
+            flowing_ = true;
+            flow_ms_ = now_ms;
+            return v;
+        }
+        if (run && flowing_ && now_ms - flow_ms_ < hold_ms) {
+            return creep_value;
+        }
+        flowing_ = false;
+        return 0;
+    }
+
+private:
+    uint32_t flow_ms_ = 0;
+    bool flowing_ = false;
+};
 
 enum class Support : uint8_t {
     unknown, ///< pas encore relu (MMU qui démarre)

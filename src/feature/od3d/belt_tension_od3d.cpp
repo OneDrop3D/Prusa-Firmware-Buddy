@@ -1,12 +1,14 @@
 /// @file
 #include "belt_tension_od3d.hpp"
 #include "accelerometer_od3d.hpp"
+#include "force_probe_od3d.hpp"
 #include "live_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 
 #include <common/marlin_server.hpp>
 #include <i18n.h>
@@ -36,7 +38,44 @@ namespace {
     std::atomic<bool> live_on = false; ///< M1992 L
     std::atomic<uint8_t> live_ok = 0; ///< réglage en direct : tours de suite dans la plage
 
-    Measurement measurement; ///< ~420 octets en mémoire statique, lue par l'interface
+    Measurement measurement; ///< ~770 octets en mémoire statique, lue par l'interface
+
+    /// Spectre brut (diagnostic du 23/11 : 78 Hz mesurés, 98 Hz à l'appli de Prusa), ajouté à chaque mesure
+    constexpr const char *csv_path = "/usb/OD3D_BELTS.CSV";
+
+    /// Gain par axe (X, Y, Z) des points de la courroie en cours, NAN si pas mesuré. Écrit sur la clé à la fin de son
+    /// balayage, jamais entre deux points : une pause des moteurs fausserait le point suivant (M958.cpp, measure())
+    std::array<std::array<float, 3>, sweep_points> axis_gains;
+
+    void write_csv_header(bool live) {
+        if (FILE *f = fopen(csv_path, "a")) {
+            force_probe::csv_printf(f, "# OneDrop3D belts (F14) M1992 I%u%s%s%s at X%.1f Y%.1f: %s%s\n", unsigned(measurement.harmonic),
+                live ? " L" : "", measurement.prusa_excitation ? " P" : "", measurement.ringing ? " R" : "",
+                double(current_position.x), double(current_position.y),
+                measurement.prusa_excitation ? "both motors, front-back (as Prusa M961)" : "one motor per belt (diagonal)",
+                measurement.ringing ? ", measured after the motors stop" : ", measured while exciting");
+            force_probe::csv_printf(f, "belt,freq_hz,gain_x,gain_y,gain_z,gain2\n");
+            fclose(f);
+        }
+    }
+
+    void write_csv_rows(Belt belt) {
+        FILE *f = fopen(csv_path, "a");
+        if (!f) {
+            return; // pas de clé
+        }
+        const auto &spectrum = measurement.spectra[uint8_t(belt)];
+        for (size_t i = 0; i < sweep_points; ++i) {
+            const auto &g = axis_gains[i];
+            if (!std::isnan(g[0])) {
+                force_probe::csv_printf(f, "%c,%.1f,%.5f,%.5f,%.5f,%.6f\n", belt == Belt::a ? 'A' : 'B', double(sweep_start_hz + float(i) * sweep_step_hz),
+                    double(g[0]), double(g[1]), double(g[2]), double(spectrum[i]));
+            }
+        }
+        const Peak &p = measurement.peaks[uint8_t(belt)];
+        force_probe::csv_printf(f, "# peak %c: %.2f Hz, found %d, prominence %.2f\n", belt == Belt::a ? 'A' : 'B', double(p.frequency), int(p.found), double(p.relative_prominence));
+        fclose(f);
+    }
 
 
     /// Excitation : comme le réglage manuel des courroies de Prusa (M961), 50 périodes par fréquence comme M1959
@@ -79,11 +118,18 @@ namespace {
     Status sweep(Belt belt, vibrate_measure::MeasureParams &args, const vibrate_measure::MicrostepRestorer &restorer, size_t from = 0, size_t count = sweep_points) {
         using namespace vibrate_measure;
         const uint8_t index = uint8_t(belt);
-        // Un seul moteur : A = pilote X, B = pilote Y (l'enchaînement de setup_steppers() de Prusa mettrait les deux)
-        args.axis_flag = belt == Belt::a ? StepEventFlag::STEP_EVENT_FLAG_STEP_X : StepEventFlag::STEP_EVENT_FLAG_STEP_Y;
+        // Un seul moteur : A = pilote X, B = pilote Y (l'enchaînement de setup_steppers() de Prusa mettrait les deux).
+        // M1992 P : l'excitation de l'assistant de Prusa (M961), les deux moteurs, la tête d'avant en arrière
+        args.axis_flag = measurement.prusa_excitation
+            ? StepEventFlag_t(STEP_EVENT_FLAG_STEP_X | STEP_EVENT_FLAG_STEP_Y | STEP_EVENT_FLAG_Y_DIR)
+            : StepEventFlag_t(belt == Belt::a ? STEP_EVENT_FLAG_STEP_X : STEP_EVENT_FLAG_STEP_Y);
         if (!args.setup(restorer)) {
             return Status::failed;
         }
+        for (auto &g : axis_gains) {
+            g[0] = NAN;
+        }
+        ScopeGuard csv = [belt] { write_csv_rows(belt); }; // aussi après un arrêt : les points déjà mesurés
 
         const auto progress_hook = [&](const ProgressHookParams &params) -> Result<void> {
             if (must_stop()) {
@@ -120,6 +166,7 @@ namespace {
             current_stage = belt == Belt::a ? Stage::belt_a : Stage::belt_b;
             auto &spectrum = measurement.spectra[index];
             spectrum[i] = result->gain_square();
+            axis_gains[i] = { result->gain[0], result->gain[1], result->gain[2] };
             if (full && i % coarse_stride == 0 && i > 0 && measurement.points[index] <= i) {
                 spectrum[i - 1] = (spectrum[i - 2] + spectrum[i]) / 2.f; // 1er passage : le point sauté, en attendant
             }
@@ -186,6 +233,7 @@ namespace {
         if (!prepare()) {
             return must_stop() ? Status::stopped : Status::not_homed;
         }
+        write_csv_header(live_on);
 
         // Le phase stepping doit être coupé avant de lire les micro-pas (M958, M961) ; il revient après eux
         phase_stepping::EnsureDisabled phase_stepping_disabler;
@@ -202,6 +250,11 @@ namespace {
             .axis_flag = StepEventFlag::STEP_EVENT_FLAG_STEP_X,
             .measured_harmonic = harmonic,
         };
+        if (measurement.ringing) {
+            // M1992 R : la courroie, peu amortie, sonne encore quand la tête (amortie) s'est tue
+            args.wait_cycles = 10;
+            args.measurement_cycles = 20;
+        }
 
         if (!live_on) {
             for (const Belt belt : { Belt::a, Belt::b }) {
@@ -234,7 +287,7 @@ namespace {
 
 } // namespace
 
-void run(uint8_t harmonic, bool live) {
+void run(uint8_t harmonic, bool live, bool prusa_excitation, bool ringing) {
     ScopeGuard count_run = [] { ++runs; }; // après last_status : l'interface lit l'état une fois runs changé
     if (running.exchange(true)) {
         return; // déjà en cours (ne devrait pas arriver : Marlin traite un G-code à la fois)
@@ -251,6 +304,8 @@ void run(uint8_t harmonic, bool live) {
         static constexpr Measurement fresh {}; // copiée : pas de temporaire sur la pile de Marlin pendant la mesure
         measurement = fresh;
         measurement.harmonic = harmonic == 2 ? 2 : 1;
+        measurement.prusa_excitation = prusa_excitation;
+        measurement.ringing = ringing;
     }
     progress = 0;
     current_stage = Stage::preparing;

@@ -10,6 +10,7 @@
 #include <common/marlin_vars.hpp>
 #include <cstdio>
 #include <display.hpp>
+#include <feature/od3d/mmu_assist_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <feature/prusa/MMU2/mmu2_state.h>
@@ -18,6 +19,7 @@
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <iterator>
+#include <window_msgbox.hpp>
 
 namespace od3d {
 
@@ -205,11 +207,17 @@ Shortcut::Shortcut(window_t *parent, Rect16 body, uint8_t tag, const img::Resour
     , tile(tile)
     , subtitle(subtitle) {}
 
+void Shortcut::set_subtitle(const string_view_utf8 &text, bool greyed) {
+    subtitle = text;
+    this->greyed = greyed;
+    Invalidate();
+}
+
 void Shortcut::unconditionalDraw() {
     const Colors c = colors();
     const Rect16 b = body();
     draw_frame(b, c);
-    const bool enabled = IsEnabled();
+    const bool enabled = IsEnabled() && !greyed;
     const Rect16 t(b.Left() + 8, b.Top() + 8, 24, 24);
     display::draw_rounded_rect(t, c.fill, tile, style::radius_small, MIC_ALL_CORNERS);
     draw_icon({ int16_t(t.Left() + 4), int16_t(t.Top() + 4) }, *icon, tile, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
@@ -229,13 +237,13 @@ ScreenMMU::ScreenMMU(std::index_sequence<I...>)
     , header(this, atelier::mmu_enabled() ? string_view_utf8::MakeCPUFLASH("MMU") : _("Workshop"), true)
     , spools { ShelfSpool(this, I, atelier::visible_tools())... }
     , preload_all(this, shortcut_body(0), tag_preload_all, img::cycle_16x16, style::tile_motion, _("Preload"), _("All slots"))
-    , assist(this, shortcut_body(1), tag_assist, img::speed_16x16, style::tile_motion, _("MMU assist"), _("soon"))
+    , assist(this, shortcut_body(1), tag_assist, img::speed_16x16, style::tile_motion, _("MMU assist"), _("off"))
     , motors(this, shortcut_body(2), tag_motors, img::move_16x16, style::tile_motion, _("Motors"), _("Open >"))
     , pressure_advance(this, shortcut_body(3), tag_pressure_advance, img::user_filament_16x16, style::tile_filament, _("Press. adv."), _("Open >"))
     , settings(this, shortcut_body(4), tag_settings, img::settings_16x16, style::tile, _("Settings"), _("Open >"))
     , info(this, shortcut_body(5), tag_info, img::info_16x16, style::tile, _("MMU info"), _("Open >"))
-    , tabs(this, TabBar::Tab::workshop) {
-    assist.set_enabled(false); // F11 (accompagnement) n'existe pas encore
+    , tabs(this, TabBar::Tab::workshop)
+    , assist_on(mmu_assist::enabled()) {
     pressure_advance.set_enabled(pa_slot().has_value()); // F4 : l'écran du PA (« Mesurer » charge la bobine)
     update();
 
@@ -265,7 +273,24 @@ void ScreenMMU::update() {
     }
     preload_all.enable(atelier::mmu_active() && atelier::can_run() && !atelier::filament_in_nozzle());
     pressure_advance.enable(pa_slot().has_value());
+    update_assist();
     keep_focus(*this);
+}
+
+void ScreenMMU::update_assist() {
+    // Le MMU dit à la relecture de son registre 0x25 s'il connaît l'assistance (firmware OneDrop3D du MMU)
+    const mmu_assist::Support support = atelier::mmu_active() ? mmu_assist::support() : mmu_assist::Support::unknown;
+    const uint8_t shown = uint8_t(support) << 1 | uint8_t(assist_on);
+    if (shown == assist_shown) {
+        return;
+    }
+    assist_shown = shown;
+    assist.enable(support != mmu_assist::Support::unknown); // MMU absent ou pas encore relu
+    if (support == mmu_assist::Support::no) {
+        assist.set_subtitle(_("MMU too old"), true);
+    } else {
+        assist.set_subtitle(assist_on ? _("on") : _("off"), false);
+    }
 }
 
 void ScreenMMU::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -289,6 +314,16 @@ void ScreenMMU::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         switch (tag) {
         case tag_preload_all:
             atelier::run(Op::preload_all, 0);
+            break;
+        case tag_assist:
+            if (mmu_assist::support() == mmu_assist::Support::no) {
+                MsgBoxInfo(_("The MMU firmware does not know the assist (no register 0x25): Prusa firmware or an older OneDrop3D one. Flash a OneDrop3D MMU firmware that has it."), Responses_Ok);
+            } else {
+                // Pendant une impression aussi : le MMU suit au plus tard 0,5 s après
+                assist_on = !assist_on;
+                mmu_assist::set_enabled(assist_on);
+                update_assist();
+            }
             break;
         case tag_motors:
             open_screen<ScreenMMUMotors>();

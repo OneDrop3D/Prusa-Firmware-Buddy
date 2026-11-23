@@ -594,6 +594,18 @@ StepStatus ProtocolLogic::IdleWait() {
             SendQuery();
             return Processing;
         }
+        // OneDrop3D (F11) : assistance du MMU, écrite puis relue entre deux interrogations
+        uint16_t value = 0;
+        switch (od3d::mmu_assist::next_exchange(value)) {
+        case od3d::mmu_assist::Exchange::read:
+            SendReadRegister((uint8_t)Register::OD3D_Assist, ScopeState::AssistReadSent);
+            return Processing;
+        case od3d::mmu_assist::Exchange::write:
+            SendWriteRegister((uint8_t)Register::OD3D_Assist, value, ScopeState::AssistWriteSent);
+            return Processing;
+        case od3d::mmu_assist::Exchange::none:
+            break;
+        }
     }
     return Finished;
 }
@@ -677,6 +689,13 @@ StepStatus ProtocolLogic::IdleStep() {
             // @@TODO do something? Retry if not accepted?
         }
         return Finished;
+    case ScopeState::AssistWriteSent:
+        // OneDrop3D (F11) : le pont de l'extension répond « accepté » même quand le MMU refuse : on relit toujours
+        SendReadRegister((uint8_t)Register::OD3D_Assist, ScopeState::AssistReadSent);
+        return Processing;
+    case ScopeState::AssistReadSent:
+        od3d::mmu_assist::read_back(rsp.paramValue);
+        return Finished;
     default:
         return ProtocolError;
     }
@@ -728,6 +747,7 @@ ProtocolLogic::ProtocolLogic(
 }
 
 void ProtocolLogic::Start() {
+    od3d::mmu_assist::restart(); // OneDrop3D (F11)
     state = State::InitSequence;
     currentScope = Scope::StartSeq;
     protocol.ResetResponseDecoder(); // important - finished delayed restart relies on this

@@ -24,6 +24,7 @@
 #include <filament.hpp>
 #include <i18n.h>
 #include <i_window_menu_item.hpp>
+#include <ili9488.hpp>
 #include <img_resources.hpp>
 #include <common/marlin_vars.hpp>
 #include <netdev.h>
@@ -133,13 +134,16 @@ void draw_computed(Rect16 rect, PixelFn pixel, const void *ctx) {
     if (clip.IsEmpty()) {
         return;
     }
-    const int rows = display::buffer_pixel_size() / clip.Width(); // 4 lignes de l'écran au moins
-    display::BorrowBuffer buffer;
-    for (int y = clip.Top(); y <= clip.Bottom(); y += rows) {
-        const Rect16 part(clip.Left(), y, clip.Width(), std::min<int>(rows, clip.Bottom() + 1 - y));
-        store_pixels(buffer, rect, part, pixel, ctx);
-        display::draw_from_buffer(point_ui16(part.Left(), part.Top()), part.Width(), part.Height());
-    }
+    // Lot UI-0 : la bande suivante est calculée pendant que la précédente part par DMA, en une seule fenêtre
+    struct Job {
+        Rect16 rect;
+        PixelFn pixel;
+        const void *ctx;
+    } const job { rect, pixel, ctx };
+    ili9488_draw_bands(clip, [](const void *p, uint8_t *out, Rect16 band) {
+        const Job &j = *static_cast<const Job *>(p);
+        store_pixels(out, j.rect, band, j.pixel, j.ctx);
+    }, &job);
 }
 
 void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, std::optional<Color> ring) {

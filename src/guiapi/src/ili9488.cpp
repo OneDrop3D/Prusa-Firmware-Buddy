@@ -4,6 +4,7 @@
 #include <device/board.h>
 #include <device/hal.h>
 #include <device/peripherals.hpp>
+#include <algorithm>
 #include <span>
 #include <utils/byte_utils.hpp>
 #include <string.h>
@@ -598,6 +599,55 @@ void ili9488_draw_from_buffer(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
     ili9488_cmd_caset(x, x + w - 1);
     ili9488_cmd_raset(y, y + h - 1);
     ili9488_cmd_ramwr(ili9488_buff, 3 * w * h);
+    ili9488_set_cs();
+}
+
+void ili9488_draw_bands(Rect16 rect, ili9488_band_fn fill, const void *ctx) {
+    debug_assert(!ili9488_buff_borrowed && "Buffer lent to someone");
+    debug_assert_correct_task();
+
+    // BFW-6328 Some displays possibly problematic with higher baudrate, reduce 40 -> 20 MHz
+    // Pris pour toute la fonction : aucune garde ne doit changer le diviseur pendant un envoi DMA
+    SPIBaudRatePrescalerGuard _g(spi_handle_lcd, SPI_BAUDRATEPRESCALER_4, reduce_display_baudrate);
+
+    constexpr size_t half = sizeof(ili9488_buff) / 2; // 2 880 o, deux lignes de l'écran
+    // Bandes d'un huitième de l'image, 4 lignes au moins : la dernière, envoyée sans calcul en face, reste courte
+    const int rows = std::max(1, std::min(int(half / 3) / rect.Width(), std::max(4, rect.Height() / 8)));
+    const bool dma = (ili9488_flg & ILI9488_FLG_DMA) && !(ili9488_flg & ILI9488_FLG_SAFE);
+    bool sending = false;
+    const auto wait = [&] {
+        if (sending) {
+            const uint32_t wait_start = od3d::perf::cycles();
+            osSignalWait(ILI9488_SIG_SPI_TX, osWaitForever);
+            od3d::perf::counters.dma_cycles += od3d::perf::cycles() - wait_start;
+            sending = false;
+        }
+    };
+
+    // Une seule fenêtre : les bandes se suivent dans RAMWR (CS reste bas sur xBuddy, comme fill_rect)
+    ili9488_cmd_caset(rect.Left(), rect.Right());
+    ili9488_cmd_raset(rect.Top(), rect.Bottom());
+    ili9488_cmd_ramwr(0, 0);
+    ili9488_set_rs();
+
+    uint8_t *out = ili9488_buff;
+    for (int y = rect.Top(); y <= rect.Bottom(); y += rows) {
+        const Rect16 band(rect.Left(), y, rect.Width(), std::min(rows, rect.Bottom() + 1 - y));
+        fill(ctx, out, band); // pendant que l'autre moitié part
+        const uint16_t size = band.Width() * band.Height() * 3;
+        od3d::perf::counters.bytes += size;
+        wait();
+        if (dma) {
+            osSignalSet(ili9488_task_handle, ILI9488_SIG_SPI_TX); // vide un signal resté levé, comme ili9488_spi_wr_bytes
+            osSignalWait(ILI9488_SIG_SPI_TX, osWaitForever);
+            debug_assert(can_be_used_by_dma(out));
+            sending = HAL_SPI_Transmit_DMA(spi_handle_lcd, out, size) == HAL_OK; // refusé : pas d'attente sans fin
+        } else {
+            HAL_SPI_Transmit(spi_handle_lcd, out, size, HAL_MAX_DELAY); // mode sûr (écran rouge)
+        }
+        out = out == ili9488_buff ? ili9488_buff + half : ili9488_buff;
+    }
+    wait(); // rien ne reste en vol au retour : le tampon et le bus sont libres pour les autres
     ili9488_set_cs();
 }
 

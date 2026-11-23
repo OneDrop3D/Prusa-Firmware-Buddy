@@ -102,6 +102,7 @@
 #if ENABLED(OD3D_FAN_LEAD)
   #include <feature/od3d/lookahead_od3d.hpp> // OneDrop3D (F26)
 #endif
+#include <feature/od3d/accel_cap_od3d.hpp> // OneDrop3D (M2004)
 
 #include <option/has_phase_stepping.h>
 #if HAS_PHASE_STEPPING()
@@ -2555,7 +2556,8 @@ void Planner::set_max_acceleration(const uint8_t axis, float targetValue) {
   #endif
 
   auto new_settings = user_settings;
-  new_settings.max_acceleration_mm_per_s2[axis] = static_cast<uint32_t>(targetValue);
+  // OneDrop3D (M2004) : M201 X/Y (G-code de départ de PrusaSlicer compris) au plus le plafond accepté par l'utilisateur
+  new_settings.max_acceleration_mm_per_s2[axis] = static_cast<uint32_t>(od3d::accel_cap::apply(axis, targetValue));
   apply_settings(new_settings);
 }
 

@@ -48,6 +48,7 @@
   #include "endstops.h"
   #include "planner.h"
   #include "stepper.h"
+  #include <feature/od3d/accel_cap_od3d.hpp> // OneDrop3D (M2004)
 #endif
 
 #include "temperature.h"
@@ -180,7 +181,8 @@ void MarlinSettings::reset_motion(const bool no_limits) {
     auto s = planner.user_settings;
 
     LOOP_XYZE_N(i) {
-      s.max_acceleration_mm_per_s2[i] = pgm_read_dword(&_DMA[ALIM(i, _DMA)]);
+      // OneDrop3D (M2004) : valeur de Prusa au plus le plafond accepté (démarrage, M502, M9201)
+      s.max_acceleration_mm_per_s2[i] = static_cast<uint32_t>(od3d::accel_cap::apply(i, pgm_read_dword(&_DMA[ALIM(i, _DMA)])));
       s.axis_steps_per_mm[i]          = get_steps_per_unit(i);
       s.axis_msteps_per_mm[i]         = get_steps_per_unit(i) * PLANNER_STEPS_MULTIPLIER;
       s.max_feedrate_mm_s[i]          = pgm_read_float(&_DMF[ALIM(i, _DMF)]);

@@ -42,7 +42,7 @@ enum class Test : uint8_t {
     nozzle_expansion, ///< M2003 : dilatation de la buse palpée de 170 à 260 °C (buse vide)
     e_jump, ///< M2000 par emplacement : saut de vitesse de l'extrudeur, accélération max du filament
     mmu_speed, ///< N4, M2002 P : vitesse de la poulie du MMU (une bobine préchargée, rien dans l'extrudeur)
-    accel_limit, ///< M2004 : accélération max utile de X et Y (accéléromètre), M201 proposé à l'utilisateur
+    accel_limit, ///< M2004 : accélération max utile de X et Y (accéléromètre), proposée comme plafond de M201
     count,
 };
 

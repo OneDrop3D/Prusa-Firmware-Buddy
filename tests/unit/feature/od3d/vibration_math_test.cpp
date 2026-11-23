@@ -123,6 +123,14 @@ TEST_CASE("vibration: all in the noise or nothing measured is not conclusive") {
     CHECK(l.last_ok == 2);
 }
 
+TEST_CASE("vibration: M201 capped by the accepted limit") {
+    CHECK(capped(10000.f, 7000) == 7000.f); // départ de PrusaSlicer ou valeur de Prusa au démarrage : plafonnés
+    CHECK(capped(5000.f, 7000) == 5000.f); // plus bas : tel quel
+    CHECK(capped(7000.f, 7000) == 7000.f);
+    CHECK(capped(10000.f, 0) == 10000.f); // « Conserver » ou retiré : sans effet
+    CHECK(capped(10000.f, od3d::calib_registry::no_value) == 10000.f); // jamais mesuré
+}
+
 TEST_CASE("vibration: fan peak at the rotation speed") {
     // Tachymètre à 6 000 tr/min (100 Hz), rotation réelle à 101,3 Hz : dans la fenêtre du pic
     const Tone t = tone(magnitudes(101.3f, 0.05f, 100.f, 0.002f));

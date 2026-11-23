@@ -12784,5 +12784,17 @@ msgid "A fan vibrates much more than its reference: imbalance or wear? Touch Fan
 msgstr "Un ventilateur vibre bien plus que sa référence : balourd ou usure ? Touchez Ventilateurs."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Max useful accel.: X %d, Y %d mm/s2 (now X %d, Y %d). Apply it (M201)? Until restart; a print's own M201 replaces it."
-msgstr "Accél. max utile : X %d, Y %d mm/s2 (actuelle X %d, Y %d). L'appliquer (M201) ? Jusqu'au redémarrage ; le M201 d'une impression la remplace."
+msgid "Max useful accel. X %d, Y %d mm/s2. Cap M201 there, prints included and after restart? Keep: no cap."
+msgstr "Accél. max utile X %d, Y %d mm/s2. Y plafonner M201, impressions comprises et après redémarrage ? Conserver : sans plafond."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "M201 cap in force, prints included:"
+msgstr "Plafond de M201 en vigueur, impressions comprises :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "none"
+msgstr "aucun"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the acceleration cap? Prints get their own M201 again."
+msgstr "Retirer le plafond d'accélération ? Les impressions retrouvent leur propre M201."

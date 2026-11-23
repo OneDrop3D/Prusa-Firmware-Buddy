@@ -25,6 +25,7 @@
 #include <client_response.hpp>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
+#include <feature/od3d/accel_cap_od3d.hpp>
 #include <feature/od3d/belt_tension_od3d.hpp>
 #include <feature/od3d/calib_assistant_od3d.hpp>
 #include <feature/od3d/damping_od3d.hpp>
@@ -360,13 +361,26 @@ namespace {
             && m.peaks[1].found && belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets()).verdict == belts::Verdict::adjust;
     }
 
-    /// L'accélération max utile vient d'être mesurée, différente du M201 de la machine sur un axe au moins, pas encore
-    /// proposée
+    /// Un plafond de M201 est en vigueur (accel_cap_od3d.hpp)
+    bool accel_capped() {
+        const auto cap = accel_cap::get();
+        return cap[0] > 0 || cap[1] > 0;
+    }
+
+    /// L'accélération max utile vient d'être mesurée, différente sur un axe au moins du plafond en vigueur (sans
+    /// plafond : la limite de Prusa, le plus haut palier essayé), pas encore proposée
     bool accel_to_offer() {
         const auto &a = assistant::numbers_after(Test::accel_limit);
-        const auto &b = assistant::numbers_before(Test::accel_limit);
-        return !flow.accel_offered && (flow.started & test_bit(Test::accel_limit)) && assistant::result(Test::accel_limit) == Result::ok
-            && ((a[0] != calib_registry::no_value && a[0] != b[0]) || (a[1] != calib_registry::no_value && a[1] != b[1]));
+        if (flow.accel_offered || !(flow.started & test_bit(Test::accel_limit)) || assistant::result(Test::accel_limit) != Result::ok) {
+            return false;
+        }
+        const auto cap = accel_cap::get();
+        for (uint8_t i = 0; i < 2; ++i) {
+            if (a[i] != calib_registry::no_value && a[i] != (cap[i] > 0 ? cap[i] : int16_t(accel_limit::last().top[i]))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// Fin d'une série à l'accéléromètre : réglage en direct des courroies proposé, puis les autres tests à
@@ -477,8 +491,9 @@ namespace {
             const bool done = (e.needs & calib_registry::filament) ? !calib_registry::spools_to_measure(e.test, ctx, false) : !calib_registry::outdated(e, record);
             return { (flow.mask & b) ? style::accent : (done ? dot_ok : style::text_muted), Button::Look::card, true };
         }
-        if (!(flow.session & b)) { // à faire : orange ; à jour : gris
-            return { calib_registry::outdated(e, record) ? style::accent : style::text_muted };
+        if (!(flow.session & b)) { // à faire : orange ; à jour : gris ; bilan : plafond de M201 à voir et à retirer
+            return { calib_registry::outdated(e, record) ? style::accent : style::text_muted, Button::Look::card,
+                flow.stage == Stage::summary && e.test == Test::accel_limit && accel_capped() };
         }
         const bool summary = flow.stage == Stage::summary;
         if (flow.started & b) {
@@ -766,7 +781,7 @@ namespace {
             for (uint8_t i = 0; i < 2; ++i) {
                 w.add(i ? ", %c " : "%c ", "XY"[i]);
                 w.scaled(a[i], 1);
-                if (a[i] != none && a[i] == a[2 + i]) {
+                if (a[i] != none && a[i] == int16_t(accel_limit::last().top[i])) {
                     w.add("+");
                 }
             }
@@ -1070,8 +1085,24 @@ namespace {
         Writer w(text);
         build_details(test, w);
         const bool can_retry = assistant::result(test) != Result::ok;
-        const PhaseResponses responses = can_retry ? PhaseResponses { Response::Retry, Response::Ok, Response::_none, Response::_none } : Responses_Ok;
-        return MsgBoxInfo(string_view_utf8::MakeRAM(text), responses, can_retry ? 1 : 0) == Response::Retry;
+        // Accélération max utile : le plafond de M201 en vigueur, à retirer avec confirmation (comme « Effacer » du PA)
+        const bool cap = test == Test::accel_limit && accel_capped();
+        if (test == Test::accel_limit) {
+            const auto c = accel_cap::get();
+            w.label(N_("M201 cap in force, prints included:"));
+            if (cap) {
+                w.add("X %d, Y %d mm/s2", int(std::max<int16_t>(c[0], 0)), int(std::max<int16_t>(c[1], 0))); // 0 : cet axe sans plafond
+            } else {
+                w.text(N_("none"));
+            }
+        }
+        const PhaseResponses responses = can_retry ? PhaseResponses { Response::Retry, cap ? Response::Remove : Response::Ok, cap ? Response::Ok : Response::_none, Response::_none }
+                                                   : (cap ? PhaseResponses { Response::Remove, Response::Ok, Response::_none, Response::_none } : Responses_Ok);
+        const Response r = MsgBoxInfo(string_view_utf8::MakeRAM(text), responses, (can_retry ? 1 : 0) + (cap ? 1 : 0)); // « OK » par défaut
+        if (r == Response::Remove && MsgBoxQuestion(_("Remove the acceleration cap? Prints get their own M201 again."), Responses_YesNo, 1) == Response::Yes) {
+            accel_cap::set(0, 0);
+        }
+        return r == Response::Retry;
     }
 
     template <size_t... I>
@@ -1310,7 +1341,7 @@ void ScreenCalibAssistant::show() {
                                                  : _("Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it.")
                                                        .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
         // Bobines dont le PA est déjà mesuré (vert, pas refait) : leur K (retour du 23/11)
-        static char propose[300]; // la fenêtre de texte le lit jusqu'au prochain show()
+        static char propose[360]; // la fenêtre de texte le lit jusqu'au prochain show() ; + le plafond de M201
         char first[200];
         head.copyToRAM(first, sizeof(first));
         Writer w(propose);
@@ -1324,6 +1355,11 @@ void ScreenCalibAssistant::show() {
                 w.add(listed ? ", %d: %.3f" : "%d: %.3f", slot + 1, double(*k));
                 listed = true;
             }
+        }
+        if (accel_capped()) { // plafond de M201 accepté une fois (le retirer : bilan, tuile « Accél. max »)
+            const auto c = accel_cap::get();
+            w.label(N_("M201 cap in force, prints included:"));
+            w.add("X %d, Y %d mm/s2", int(std::max<int16_t>(c[0], 0)), int(std::max<int16_t>(c[1], 0)));
         }
         text = string_view_utf8::MakeRAM(propose);
         break;
@@ -1374,9 +1410,9 @@ void ScreenCalibAssistant::show() {
     }
     case Stage::accel_apply: {
         const auto &a = assistant::numbers_after(Test::accel_limit);
-        const auto &b = assistant::numbers_before(Test::accel_limit);
-        text = _("Max useful accel.: X %d, Y %d mm/s2 (now X %d, Y %d). Apply it (M201)? Until restart; a print's own M201 replaces it.")
-                   .formatted(info_params, int(a[0] == none ? b[0] : a[0]), int(a[1] == none ? b[1] : a[1]), int(b[0]), int(b[1]));
+        const auto &top = accel_limit::last().top; // axe non concluant : pas de plafond, la limite de Prusa
+        text = _("Max useful accel. X %d, Y %d mm/s2. Cap M201 there, prints included and after restart? Keep: no cap.")
+                   .formatted(info_params, int(a[0] == none ? top[0] : a[0]), int(a[1] == none ? top[1] : a[1]));
         break;
     }
     case Stage::detach:
@@ -1564,14 +1600,19 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
         break;
     case Stage::accel_apply:
         if (tag == tag_a || tag == tag_b) {
-            if (tag == tag_a) { // l'utilisateur l'accepte : M201 des axes concluants seulement
-                const auto &a = assistant::numbers_after(Test::accel_limit);
+            // « Appliquer » : plafond des axes concluants, gardé, et M201 tout de suite ; « Conserver » : sans plafond
+            const auto &a = assistant::numbers_after(Test::accel_limit);
+            const auto kept = [&](uint8_t i) {
+                return uint16_t(tag == tag_a && a[i] != none ? a[i] : 0);
+            };
+            accel_cap::set(kept(0), kept(1));
+            if (tag == tag_a) {
                 char gcode[32];
                 Writer g(gcode);
                 g.add("M201");
                 for (uint8_t i = 0; i < 2; ++i) {
-                    if (a[i] != none) {
-                        g.add(" %c%d", "XY"[i], int(a[i]));
+                    if (kept(i)) {
+                        g.add(" %c%d", "XY"[i], int(kept(i)));
                     }
                 }
                 marlin_client::gcode(gcode);

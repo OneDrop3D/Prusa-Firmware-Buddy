@@ -119,11 +119,11 @@ dependencies = {
         'url': 'https://prusa-buddy-firmware-dependencies.s3.eu-central-1.amazonaws.com/firmware-coreonel_ac_controller-0.0.8-ECD94653-E201-4B7C-A9D4-1439BF25D7E5.zip',
     },
     'firmware-mmu': {
-        # OneDrop3D : notre firmware du MMU (3.0.4+940), écrit par l'imprimante par le port USB avant ; empreinte
-        # vérifiée dans src/resources/CMakeLists.txt
-        'version': '3.0.4-od3d.940',
+        # OneDrop3D : notre firmware du MMU (3.0.4+941, double appui), écrit par l'imprimante par le port USB avant ;
+        # empreinte vérifiée dans src/resources/CMakeLists.txt
+        'version': '3.0.4-od3d.941',
         'files': [
-            'https://github.com/OneDrop3D/Prusa-Firmware-MMU/releases/download/od3d-3.0.4.940/MMU2S_MMU3_FW3.0.4+940.hex'
+            'https://github.com/OneDrop3D/Prusa-Firmware-MMU/releases/download/od3d-3.0.4.941/MMU2S_MMU3_FW3.0.4+941.hex'
         ],
     },
     'mini404': {

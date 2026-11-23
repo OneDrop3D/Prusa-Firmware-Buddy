@@ -31,6 +31,7 @@
 #include <feature/od3d/damping_od3d.hpp>
 #include <feature/od3d/fan_response_od3d.hpp>
 #include <feature/od3d/e_jump_od3d.hpp>
+#include <feature/od3d/mmu_flash_od3d.hpp>
 #include <feature/od3d/mmu_speed_od3d.hpp>
 #include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/od3d/mpc_control_od3d.hpp>
@@ -99,6 +100,15 @@ namespace {
             f.percent = std::min<uint8_t>(value, 100);
             return f;
         };
+        // L'écriture du firmware du MMU par le port avant passe avant l'assistant, qu'on peut lancer pendant ce temps : on
+        // suit son avancement, puis la pastille rappelle de « Terminer » (ou de réessayer) tant que le mode dure
+        if (const mmu_flash::Status s = mmu_flash::status(); s.phase != mmu_flash::Phase::idle && mmu_usb::active()) {
+            if (s.phase == mmu_flash::Phase::connecting || s.phase == mmu_flash::Phase::writing) {
+                return percent(Process::mmu_usb, s.percent);
+            }
+            f.process = Process::mmu_usb;
+            return f;
+        }
         // L'assistant de calibration d'abord : ses étapes (PA, courroies...) sont montrées comme les siennes
         if (calibration_assistant_active()) {
             f.process = Process::calibration;

@@ -6,6 +6,7 @@
 #include <config_store/store_instance.hpp>
 #include <cstdarg>
 #include <cstdio>
+#include <feature/od3d/calib_assistant_od3d.hpp>
 #include <feature/od3d/mmu_flash_od3d.hpp>
 #include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
@@ -46,6 +47,10 @@ namespace {
         }
         if (marlin_client::is_printing()) {
             MsgBoxWarning(_("Not while printing."), Responses_Ok);
+            return false;
+        }
+        if (calib_assistant::mmu_in_use()) { // la série reprend le MMU ensuite : les autres tests peuvent tourner pendant le flash
+            MsgBoxWarning(_("The calibration assistant is using the MMU. Try again after this test."), Responses_Ok);
             return false;
         }
         if (!config_store().mmu2_enabled.get()) {

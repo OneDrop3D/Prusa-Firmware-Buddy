@@ -12650,3 +12650,7 @@ msgstr "non concluant"
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Belts: inconclusive, peak out of range (too tight or too loose?)."
 msgstr "Courroies : non concluant, pic hors plage (trop tendues ou trop lâches ?)."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The calibration assistant is using the MMU. Try again after this test."
+msgstr "L'assistant de calibration utilise le MMU. Réessayez après ce test."

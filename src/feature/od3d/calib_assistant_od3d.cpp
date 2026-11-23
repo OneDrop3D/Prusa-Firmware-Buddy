@@ -462,7 +462,6 @@ void request_cancel() {
         if (e_jump::is_running()) {
             e_jump::request_stop();
         }
-        }
         break;
     case Test::mmu_speed:
         mmu_speed::request_stop(); // entre deux cycles

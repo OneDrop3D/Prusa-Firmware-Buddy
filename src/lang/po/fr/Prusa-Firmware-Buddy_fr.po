@@ -12692,3 +12692,123 @@ msgstr "Mesures de l'écran ajoutées à OD3D_UI.CSV sur la clé USB."
 #: src/gui/od3d/screen_mmu_od3d.cpp
 msgid "Park"
 msgstr "Repos"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Head still: accelerometer noise"
+msgstr "Tête immobile : bruit de l'accéléromètre"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: short moves at %d mm/s2, ringing after the stop"
+msgstr "Axe %c : déplacements courts à %d mm/s2, vibrations après l'arrêt"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: axis %c up to %d mm/s2"
+msgstr "Mesuré : axe %c jusqu'à %d mm/s2"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Print fan alone at %d%%: vibration at its speed"
+msgstr "Ventilateur pièce seul à %d %% : vibration à sa vitesse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Hotend fan alone at %d%%: vibration at its speed"
+msgstr "Ventilateur de la tête seul à %d %% : vibration à sa vitesse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Chamber fan 1 alone at %d%%: vibration at its speed"
+msgstr "Ventilateur 1 de la chambre seul à %d %% : vibration à sa vitesse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Chamber fan 2 alone at %d%%: vibration at its speed"
+msgstr "Ventilateur 2 de la chambre seul à %d %% : vibration à sa vitesse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "All fans off, waiting for them to stop"
+msgstr "Ventilateurs coupés, en attendant leur arrêt"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fans"
+msgstr "Ventilateurs"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max accel."
+msgstr "Accél. max"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max useful accel., mm/s2:"
+msgstr "Accél. max utile, mm/s2 :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "M201 before:"
+msgstr "M201 avant :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "+: no rise up to the top level. --: in the noise, nothing to change."
+msgstr "+ : pas de remontée jusqu'au dernier palier. -- : dans le bruit, rien à changer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "part"
+msgstr "pièce"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "hotend"
+msgstr "tête"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "chamber 1"
+msgstr "chambre 1"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "chamber 2"
+msgstr "chambre 2"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fan vibration at its speed:"
+msgstr "Vibration des ventilateurs à leur vitesse :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "not measured, no accelerometer"
+msgstr "non mesurée, pas d'accéléromètre"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "not measured"
+msgstr "non mesurée"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "not picked up from the nozzle"
+msgstr "non captée depuis la buse"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "now its reference"
+msgstr "devient sa référence"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "vs reference: imbalance or wear?"
+msgstr "face à la référence : balourd ou usure ?"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "vs reference"
+msgstr "face à la référence"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "max accel."
+msgstr "accél. max"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "A fan vibrates much more than its reference: imbalance or wear? Touch Fans."
+msgstr "Un ventilateur vibre bien plus que sa référence : balourd ou usure ? Touchez Ventilateurs."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max useful accel. X %d, Y %d mm/s2. Cap M201 there, prints included and after restart? Keep: no cap."
+msgstr "Accél. max utile X %d, Y %d mm/s2. Y plafonner M201, impressions comprises et après redémarrage ? Conserver : sans plafond."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "M201 cap in force, prints included:"
+msgstr "Plafond de M201 en vigueur, impressions comprises :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "none"
+msgstr "aucun"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the acceleration cap? Prints get their own M201 again."
+msgstr "Retirer le plafond d'accélération ? Les impressions retrouvent leur propre M201."

@@ -207,7 +207,9 @@ bool step_gcode(const Step &step, std::span<char> out) {
     case Test::mmu_ptfe:
         return write(out, "M1999 B1 P%u", unsigned(step.slot)); // emplacement brut du MMU
     case Test::fan_response:
-        return write(out, "M2001");
+        return write(out, "M2001 V"); // V : puis les vibrations des ventilateurs, si l'accéléromètre répond
+    case Test::accel_limit:
+        return write(out, "M2004");
     case Test::nozzle_expansion:
         return write(out, "M2003");
     case Test::e_jump:

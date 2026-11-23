@@ -55,6 +55,14 @@ Progress progress();
 /// Résultat du test dans la dernière série qui l'a contenu depuis le démarrage (none : pas encore)
 Result result(Test test);
 
+/// Tests de la dernière série reportés parce que le MMU ne répondait pas (bits de Test) : comptés « passés »
+uint32_t postponed();
+
+/// Pour l'écran du flash du MMU par l'USB avant (F42) : vrai si l'étape en cours de la série pilote le MMU, charge ou
+/// décharge par lui. Ne pas lancer M709 S2 tant que c'est vrai ; le reste du temps, la série continue sans le MMU
+/// (ses étapes qui en ont besoin passent à la fin, ou sont reportées si M709 S2 dure encore)
+bool mmu_in_use();
+
 /// « Annuler » (interface) : l'étape en cours est arrêtée, les suivantes ne sont pas lancées
 void request_cancel();
 

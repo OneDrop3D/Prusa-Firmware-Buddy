@@ -139,6 +139,12 @@ struct Context {
 /// La calibration a un sens sur cette imprimante (sans accéléromètre, ses tests ne sont pas proposés)
 bool applicable(const Entry &e, const Context &ctx);
 
+/// Le test passe par le MMU sur cette imprimante (retour du 23/11 : calibrer pendant le flash du MMU) : il le pilote
+/// (Need::mmu), ou il charge ses bobines par lui (Need::filament avec un MMU activé). Les autres tournent MMU muet.
+constexpr bool uses_mmu(const Entry &e, const Context &ctx) {
+    return (e.needs & mmu) || ((e.needs & filament) && ctx.mmu);
+}
+
 /// Jamais menée à bien dans cette version
 constexpr bool outdated(const Entry &e, const Record &r) {
     return r.version < e.version;
@@ -171,7 +177,13 @@ uint16_t minutes(uint32_t mask, const Context &ctx);
 struct Step {
     Test test;
     uint8_t slot = 0; ///< emplacement, pour Need::filament
+    bool deferred = false; ///< déjà remise à la fin de la série (MMU indisponible) : la fois suivante, reportée
 };
+
+/// L'étape i attend le MMU (indisponible : flash, M709 S2, pas encore connecté) : remise à la fin de la série, les
+/// autres gardent leur ordre, marquée deferred. Si elle l'était déjà, rien ne bouge : l'assistant la reporte (passée,
+/// à refaire) au lieu d'un échec.
+void defer(std::span<Step> steps, size_t i);
 
 /// Étapes des tests automatiques de mask, dans l'ordre de `entries`, les tests par emplacement groupés par bobine (un
 /// chargement par bobine) ; nombre d'étapes écrites (out trop court : coupé)

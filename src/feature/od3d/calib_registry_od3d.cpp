@@ -121,6 +121,14 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out) {
     return n;
 }
 
+void defer(std::span<Step> steps, size_t i) {
+    if (i >= steps.size() || steps[i].deferred) {
+        return;
+    }
+    steps[i].deferred = true;
+    std::rotate(steps.begin() + i, steps.begin() + i + 1, steps.end());
+}
+
 std::optional<int16_t> drop_percent(float remaining, float reference) {
     if (!(reference > 0.f) || !std::isfinite(remaining) || remaining < 0.f) {
         return std::nullopt;

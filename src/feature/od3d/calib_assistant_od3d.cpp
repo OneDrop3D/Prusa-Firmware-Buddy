@@ -11,6 +11,7 @@
 #include "live_od3d.hpp"
 #include "mpc_control_od3d.hpp"
 #include "mmu_speed_od3d.hpp"
+#include "mmu_usb_od3d.hpp"
 #include "mpc_od3d.hpp"
 #include "nozzle_expansion_od3d.hpp"
 #include "pa_od3d.hpp"
@@ -29,6 +30,7 @@
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+#include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <filament.hpp>
 #include <i18n.h>
 #include <Marlin/src/gcode/gcode.h>
@@ -56,6 +58,8 @@ namespace {
     std::atomic<uint16_t> runs = 0;
     std::array<std::atomic<Result>, max_tests> results {};
     uint32_t run_mask = 0;
+    std::atomic<uint32_t> postponed_mask = 0; ///< tests reportés, le MMU indisponible jusqu'à la fin de la série
+    Context run_ctx; ///< l'imprimante au début de la série
 
     std::array<Numbers, max_tests> before_numbers;
     std::array<Numbers, max_tests> after_numbers;
@@ -330,9 +334,19 @@ namespace {
         return true;
     }
 
+    /// L'étape a besoin du MMU maintenant : elle le pilote, charge par lui, ou doit vider la buse par lui
+    bool needs_mmu(const Step &s) {
+        return uses_mmu(entry(s.test), run_ctx) || (run_ctx.mmu && s.test == Test::nozzle_expansion && nozzle_expansion::filament_loaded());
+    }
+
+    /// Le MMU répond (pas en M709 S2 pour son flash par l'USB, pas en train de se connecter ou en erreur de liaison)
+    bool mmu_available() {
+        return MMU2::mmu2.Enabled() && !mmu_usb::active();
+    }
+
     /// Lance l'étape i, ou la suivante qui peut partir ; sinon fin de la série
     void start(uint8_t i) {
-        for (; i < step_count; ++i) {
+        while (i < step_count) {
             current = i;
             if (cancel_requested || marlin_server::is_printing()) {
                 for (; i < step_count; ++i) {
@@ -340,15 +354,29 @@ namespace {
                 }
                 break;
             }
+            // MMU indisponible (flash par l'USB avant...) : l'étape passe à la fin, les autres tournent ; toujours
+            // indisponible à son tour : reportée (passée, reste à faire), jamais un échec
+            if (needs_mmu(steps[i]) && !mmu_available()) {
+                if (!steps[i].deferred) {
+                    defer(std::span<Step>(steps.data(), size_t(step_count)), i);
+                    continue; // l'étape i est maintenant la suivante
+                }
+                add_result(steps[i].test, Result::skipped);
+                postponed_mask = postponed_mask | test_bit(steps[i].test);
+                ++i;
+                continue;
+            }
             // Buse froide exigée (accéléromètre sur la buse) : refusée sans rien bouger
             if ((entry(steps[i].test).needs & cold_nozzle) && !cold()) {
                 add_result(steps[i].test, Result::failed);
+                ++i;
                 continue;
             }
             if (enqueue(i)) {
                 return;
             }
             add_result(steps[i].test, Result::failed);
+            ++i;
         }
         finish();
     }
@@ -413,6 +441,14 @@ Progress progress() {
 
 Result result(Test test) {
     return results[size_t(test)].load();
+}
+
+uint32_t postponed() {
+    return postponed_mask.load();
+}
+
+bool mmu_in_use() {
+    return running && needs_mmu(steps[current % max_steps]);
 }
 
 namespace {
@@ -554,6 +590,8 @@ void run(uint32_t mask) {
         return;
     }
     const Context ctx = context();
+    run_ctx = ctx;
+    postponed_mask = 0;
     step_count = uint8_t(build_steps(mask & automatic_mask(), ctx, steps));
     run_mask = 0;
     for (uint8_t i = 0; i < step_count; ++i) {

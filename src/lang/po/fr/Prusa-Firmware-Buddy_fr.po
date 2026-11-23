@@ -12582,3 +12582,7 @@ msgstr "Nettoyage de la buse à %d °C sur la bande avant"
 #: src/feature/od3d/nozzle_expansion_od3d.cpp
 msgid "Empty nozzle, clear bed. Center probed 170-260°C and back, cleaned on the way up, ~10 min."
 msgstr "Buse vide, plateau dégagé. Centre palpé 170-260°C aller-retour, nettoyée en montant, 10 min env."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MMU not answering: %d tests postponed, still to do."
+msgstr "MMU muet : %d tests reportés, restent à faire."

@@ -792,6 +792,13 @@ namespace {
             next(N_("nozzle at 250\xC2\xB0""C"));
             w.add(" %+.1f um", a[2] / 10.0);
         }
+        // MMU muet pendant la série (flash par l'USB avant...) : ses tests sont reportés, pas en échec
+        if (const int later = std::popcount(assistant::postponed() & flow.started); later > 0) {
+            char line[96];
+            _("MMU not answering: %d tests postponed, still to do.").copyToRAM(line, sizeof(line));
+            w.add("\n");
+            w.add(line, later);
+        }
         // Dilatation de la buse : la raison d'un échec, comme le tube PTFE
         if ((flow.started & test_bit(Test::nozzle_expansion)) && assistant::result(Test::nozzle_expansion) == Result::failed) {
             w.label(N_("Expansion:"));

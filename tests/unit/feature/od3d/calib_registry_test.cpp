@@ -291,3 +291,32 @@ TEST_CASE("calib_registry: PA unchecked at the first calibration, other tests ch
     CHECK(proposed(full(), r, true) == 0);
     CHECK_FALSE(should_propose(full(), r, 0));
 }
+
+TEST_CASE("calib_registry: MMU tests wait for the MMU, the others run while it is flashed") {
+    const Context ctx = full();
+    CHECK(uses_mmu(entry(Test::mmu_ptfe), ctx));
+    CHECK(uses_mmu(entry(Test::mmu_speed), ctx));
+    CHECK(uses_mmu(entry(Test::pa), ctx)); // charge ses bobines par le MMU
+    CHECK(uses_mmu(entry(Test::e_jump), ctx));
+    CHECK_FALSE(uses_mmu(entry(Test::mpc), ctx));
+    CHECK_FALSE(uses_mmu(entry(Test::belts), ctx));
+    CHECK_FALSE(uses_mmu(entry(Test::nozzle_expansion), ctx)); // sauf buse à vider : vu par l'assistant
+    CHECK_FALSE(uses_mmu(entry(Test::fan_response), ctx));
+    Context single = ctx;
+    single.mmu = false;
+    CHECK_FALSE(uses_mmu(entry(Test::pa), single)); // sans MMU : la bobine unique
+
+    // Remise à la fin une seule fois, les autres dans leur ordre
+    std::array<Step, 4> s { Step { Test::mpc }, Step { Test::mmu_ptfe, 0 }, Step { Test::nozzle_expansion }, Step { Test::fan_response } };
+    defer(s, 1);
+    CHECK(s[0].test == Test::mpc);
+    CHECK(s[1].test == Test::nozzle_expansion);
+    CHECK(s[2].test == Test::fan_response);
+    CHECK(s[3].test == Test::mmu_ptfe);
+    CHECK(s[3].deferred);
+    CHECK_FALSE(s[1].deferred);
+    defer(s, 3); // déjà remise : reste à sa place, l'assistant la reporte
+    CHECK(s[3].test == Test::mmu_ptfe);
+    defer(s, 9); // hors de la série : rien
+    CHECK(s[0].test == Test::mpc);
+}

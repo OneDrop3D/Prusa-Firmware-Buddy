@@ -18,6 +18,7 @@
 #include <DialogConnectReg.hpp>
 #include <gui/standard_frame/frame_prompt.hpp>
 #include <gui/standard_frame/frame_qr_prompt.hpp>
+#include <gui/od3d/menu_od3d.hpp>
 
 #if HAS_NFC()
     #include <nfc.hpp>
@@ -26,6 +27,11 @@
 LOG_COMPONENT_REF(GUI);
 
 namespace network_wizard {
+
+/// OneDrop3D (interface G) : listes G sous l'en-tête compact, sans onglets : 6 lignes, la demi-ligne, et la ligne
+/// « Retour » comme dans tous les menus (dessinées avant par Prusa : autre hauteur, autre style)
+static constexpr Rect16 g_list_rect { od3d::list_rect.Left(), GuiDefaults::RectScreenNoHeader.Top() + 2, od3d::list_rect.Width(), 6 * 40 + od3d::list_peek };
+static_assert(od3d::style::inside(GuiDefaults::RectScreenNoHeader, g_list_rect));
 
 using Phase = PhaseNetworkSetup;
 
@@ -119,7 +125,7 @@ class FrameActionSelect {
 
 public:
     FrameActionSelect(window_t *parent)
-        : menu(parent, parent->GetRect(), &container) //
+        : menu(parent, g_list_rect, &container) //
     {
         static_cast<window_frame_t *>(parent)->CaptureNormalWindow(menu);
     }
@@ -144,7 +150,7 @@ private:
         >
         container;
 
-    window_menu_t menu;
+    od3d::MenuList<WindowMenu> menu;
 };
 static_assert(common_frames::is_update_callable<FrameActionSelect>);
 
@@ -284,13 +290,13 @@ class FrameWifiScan {
 
 public:
     FrameWifiScan(window_frame_t *parent)
-        : menu(parent, parent->GetRect()) {
+        : menu(parent, g_list_rect) {
 
         static_cast<window_frame_t *>(parent)->CaptureNormalWindow(menu);
     }
 
 private:
-    WindowExtendedMenu<WindowMenuWifiScan> menu;
+    od3d::MenuList<WindowMenuWifiScan> menu;
 };
 
 class FrameAskSwitchToWifi : public FramePrompt {

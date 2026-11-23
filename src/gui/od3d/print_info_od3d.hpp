@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 namespace od3d::print_info {
 
@@ -36,5 +37,17 @@ void format_hm(uint32_t seconds, char *buf, size_t size);
 /// Retrait du bord gauche (et du droit) d'un rectangle arrondi de hauteur h et de rayon r à la ligne y,
 /// même règle que display::draw_rounded_rect (dedans si dx² + dy² < r²)
 int corner_inset(int y, int h, int r);
+
+/// Frise de progression de l'écran Impression (w × h) : ce que montre le pixel (x, y) à percent %
+enum class StripPart : uint8_t {
+    outside, ///< fond de l'écran
+    track, ///< reste à imprimer
+    done, ///< imprimé (orange)
+    cursor, ///< curseur blanc de 3 px
+};
+StripPart strip_part(int x, int y, int w, int h, int percent);
+
+/// Colonnes [first, second) de la frise qui changent de from à to % : tout ce qui diffère est dedans
+std::pair<int, int> strip_changed(int w, int from, int to);
 
 } // namespace od3d::print_info

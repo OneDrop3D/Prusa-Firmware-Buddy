@@ -1,6 +1,7 @@
 // OneDrop3D : métadonnées des G-codes, durées et anneau de focus des écrans d'impression (interface G).
 #include <gui/od3d/print_info_od3d.hpp>
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <string>
 
@@ -54,4 +55,38 @@ TEST_CASE("anneau de focus : même règle que draw_rounded_rect") {
     CHECK(corner_inset(0, 100, 14) == 14 - 6); // 6 colonnes avec x² + 13² < 14²
     CHECK(corner_inset(13, 100, 14) == 0);
     CHECK(corner_inset(99, 100, 14) == corner_inset(0, 100, 14));
+}
+
+TEST_CASE("frise de l'écran Impression : un pas ne repeint que les colonnes qui changent") {
+    constexpr int w = 464, h = 20;
+    // Tout pixel hors des colonnes annoncées est le même avant et après
+    const auto bytes = [&](int from, int to) {
+        const auto cols = strip_changed(w, from, to);
+        REQUIRE(cols.first >= 0);
+        REQUIRE(cols.second <= w);
+        for (int x = 0; x < w; ++x) {
+            if (x >= cols.first && x < cols.second) {
+                continue;
+            }
+            for (int y = 0; y < h; ++y) {
+                INFO("de " << from << " à " << to << " %, x " << x << " y " << y);
+                REQUIRE(strip_part(x, y, w, h, from) == strip_part(x, y, w, h, to));
+            }
+        }
+        return (cols.second - cols.first) * h * 3; // octets envoyés à l'écran (RGB666)
+    };
+    int worst = 0;
+    for (int p = 0; p < 100; ++p) {
+        worst = std::max(worst, bytes(p, p + 1));
+    }
+    CHECK(worst < 1024); // ~0,8 Ko au lieu de 27,8 Ko pour la frise entière
+    bytes(0, 100);
+    bytes(100, 0); // réimpression : la frise revient au début
+    bytes(37, 52);
+
+    // Les parties : piste au début, orange à moitié, curseur au bout de l'orange
+    CHECK(strip_part(w / 2, 10, w, h, 0) == StripPart::track);
+    CHECK(strip_part(w / 4, 10, w, h, 50) == StripPart::done);
+    CHECK(strip_part(w / 2, 10, w, h, 50) == StripPart::cursor);
+    CHECK(strip_part(w / 2, 0, w, h, 0) == StripPart::outside); // au-dessus de la piste
 }

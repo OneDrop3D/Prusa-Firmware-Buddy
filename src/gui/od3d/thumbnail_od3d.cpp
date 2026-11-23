@@ -1,5 +1,6 @@
 /// @file
 #include "thumbnail_od3d.hpp"
+#include "spool_draw.hpp"
 
 #include <algorithm>
 
@@ -88,8 +89,8 @@ bool ScaledQoiReader::next() {
     auto &sum = sums[out_x];
     Color c = Color::from_rgb((sum[0] + n / 2) / n, (sum[1] + n / 2) / n, (sum[2] + n / 2) / n);
     sum = {};
-    if (outside_corner(out_x, out_y)) {
-        c = params.outside;
+    if (const uint8_t q = corner_quarters(out_x, out_y)) {
+        c = spool::mix_quarters(c, params.outside, q); // coin lissé, comme les cartes (il était en escalier)
     }
     pending[0] = std::byte(0xfe); // QOI_OP_RGB : le pixel en clair
     pending[1] = std::byte(c.r);
@@ -128,10 +129,11 @@ bool ScaledQoiReader::decode_band() {
 
         const qoi::Pixel p = decoder.pull_pixel();
         if (col < out_w) {
-            // Le fond (transparent) et l'objet (opaque) font presque toute l'image : sans Color::mix, même résultat
+            // Le fond (transparent) et l'objet (opaque) font presque toute l'image : sans Color::mix, même résultat.
+            // Une image déjà réduite (cache, relue à l'échelle 1) est opaque : son fond reste le fond, ni gris ni assombri.
             Color c = transparent;
-            if (p.a != 0) {
-                Color px = Color::from_rgb(p.r, p.g, p.b);
+            Color px = Color::from_rgb(p.r, p.g, p.b);
+            if (p.a != 0 && !(p.a == 255 && px == transparent)) {
                 if (grey) {
                     const uint8_t l = (p.r * 77 + p.g * 150 + p.b * 29) >> 9; // luminance, puis moitié
                     px = Color::from_rgb(l, l, l);
@@ -155,12 +157,12 @@ bool ScaledQoiReader::decode_band() {
     return true;
 }
 
-bool ScaledQoiReader::outside_corner(int x, int y) const {
-    // Même règle que display::draw_rounded_rect() : dedans si dx² + dy² < r²
+uint8_t ScaledQoiReader::corner_quarters(int x, int y) const {
+    // Même règle que display::draw_rounded_rect() : (0, 0) au coin extérieur du carré de coin
     const int r = params.radius;
-    const int dx = x < r ? r - 1 - x : (x >= out_w - r ? x - (out_w - r) : -1);
-    const int dy = y < r ? r - 1 - y : (y >= out_h - r ? y - (out_h - r) : -1);
-    return dx >= 0 && dy >= 0 && dx * dx + dy * dy >= r * r;
+    const int cx = x < r ? x : (x >= out_w - r ? out_w - 1 - x : -1);
+    const int cy = y < r ? y : (y >= out_h - r ? out_h - 1 - y : -1);
+    return cx >= 0 && cy >= 0 ? spool::corner_beyond_quarters(cx, cy, r) : 0;
 }
 
 // ---- Images gardées ----

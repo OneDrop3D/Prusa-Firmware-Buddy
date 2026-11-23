@@ -60,12 +60,18 @@ private:
     Face face;
 };
 
-/// Aperçu de l'impression : vignette grisée au-dessus de la hauteur imprimée, trait orange à la limite
+/// Aperçu de l'impression : vignette grisée au-dessus de la hauteur imprimée, trait orange à la limite. L'image vient de
+/// la mémoire (gardée par « Avant l'impression ») : la clé n'est jamais lue pendant l'impression. Sinon, elle est lue
+/// une fois, au début (impression lancée par le réseau), ou l'icône reste.
 class PrintThumb : public window_t {
 public:
     PrintThumb(ScreenPrinting &screen, Rect16 rect);
+    ~PrintThumb();
 
     void set_progress(uint8_t percent);
+
+    /// LOOP : la lecture unique du début, par bandes
+    void load_step();
 
 protected:
     void unconditionalDraw() override;
@@ -73,7 +79,9 @@ protected:
 private:
     ScreenPrinting &screen;
     uint16_t grey_rows;
-    int16_t line_y = 0; ///< trait orange dessiné (0 : aucun), effacé quand il descend
+    uint16_t drawn_rows; ///< lignes grises à l'écran ; no_image : la case et son icône
+    bool loading = false;
+    bool tried = false; ///< une lecture au plus par ouverture de l'écran
 };
 
 /// Colonne de droite, en deux fenêtres pour que chacune ne se redessine que si sa partie change :
@@ -106,9 +114,12 @@ protected:
 private:
     Data data;
     Part part;
+    uint8_t shown_percent = 0; ///< « 47 % » à l'écran : seuls les chiffres qui changent sont repeints (4,8 Ko par chiffre)
+    bool state_changed = false; ///< l'état (« fin 21:48 ») est à repeindre
 };
 
-/// Frise de progression : piste, partie imprimée en orange, curseur blanc
+/// Frise de progression : piste, partie imprimée en orange, curseur blanc. Un pas ne repeint que les colonnes qui
+/// changent (~0,8 Ko au lieu de 27,8 Ko).
 class PrintStrip : public window_t {
 public:
     PrintStrip(window_t *parent, Rect16 rect);
@@ -120,6 +131,7 @@ protected:
 
 private:
     uint8_t percent = 0;
+    uint8_t drawn = 0; ///< pourcentage à l'écran
 };
 
 class ScreenPrinting final : public Screen {

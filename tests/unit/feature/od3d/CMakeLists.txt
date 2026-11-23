@@ -238,3 +238,10 @@ add_executable(
   )
 target_include_directories(e_jump_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(e_jump_od3d_tests)
+add_executable(
+  vibration_math_od3d_tests
+  ${CMAKE_CURRENT_SOURCE_DIR}/vibration_math_test.cpp ${CMAKE_SOURCE_DIR}/src/feature/od3d/vibration_math_od3d.cpp
+  ${CMAKE_SOURCE_DIR}/src/feature/od3d/speed_map_math_od3d.cpp
+  )
+target_include_directories(vibration_math_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(vibration_math_od3d_tests)

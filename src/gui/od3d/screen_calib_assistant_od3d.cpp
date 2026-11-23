@@ -38,6 +38,7 @@
 #include <feature/od3d/sleep_od3d.hpp>
 #include <feature/od3d/speed_map_od3d.hpp>
 #include <feature/od3d/spool_calib_od3d.hpp>
+#include <feature/od3d/vibration_od3d.hpp>
 #include <filament.hpp>
 #include <Marlin/src/feature/input_shaper/input_shaper_config.hpp>
 #include <option/has_hotend_type_support.h>
@@ -100,6 +101,7 @@ namespace {
         rehome, ///< origine perdue en attendant : retirer l'accéléromètre, la refaire
         accel_run, ///< série des tests à l'accéléromètre
         belts_adjust, ///< courroies hors de la plage : réglage en direct proposé, accéléromètre encore fixé (retour du 23/11)
+        accel_apply, ///< accélération max utile mesurée : M201 proposé, appliqué seulement si l'utilisateur l'accepte
         detach, ///< « Retirez l'accéléromètre » (et remettez la chaussette) : rien ne chauffe avant « C'est fait »
         bed, ///< « Plateau vide et propre ? »
         cell_run, ///< MPC et mesures par bobine
@@ -119,6 +121,7 @@ namespace {
         uint16_t runs_at_start = 0;
         uint16_t checks_at_request = 0;
         bool belts_offered = false; ///< réglage en direct des courroies déjà proposé dans cette session
+        bool accel_offered = false; ///< M201 de l'accélération max utile déjà proposé dans cette session
         uint8_t skip_index = 0xff; ///< étape passée (« Passer »), redemandé tant qu'elle n'a pas commencé
         uint16_t skip_runs = 0; ///< série de cette étape
     };
@@ -177,13 +180,15 @@ namespace {
         case Test::mmu_ptfe:
             return N_("Front PTFE");
         case Test::fan_response:
-            return N_("Part fan");
+            return N_("Fans");
         case Test::nozzle_expansion:
             return N_("Expansion");
         case Test::e_jump:
             return N_("Filament accel.");
         case Test::mmu_speed:
             return N_("MMU speed");
+        case Test::accel_limit:
+            return N_("Max accel.");
         case Test::count:
             break;
         }
@@ -355,14 +360,25 @@ namespace {
             && m.peaks[1].found && belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets()).verdict == belts::Verdict::adjust;
     }
 
+    /// L'accélération max utile vient d'être mesurée, différente du M201 de la machine sur un axe au moins, pas encore
+    /// proposée
+    bool accel_to_offer() {
+        const auto &a = assistant::numbers_after(Test::accel_limit);
+        const auto &b = assistant::numbers_before(Test::accel_limit);
+        return !flow.accel_offered && (flow.started & test_bit(Test::accel_limit)) && assistant::result(Test::accel_limit) == Result::ok
+            && ((a[0] != calib_registry::no_value && a[0] != b[0]) || (a[1] != calib_registry::no_value && a[1] != b[1]));
+    }
+
     /// Fin d'une série à l'accéléromètre : réglage en direct des courroies proposé, puis les autres tests à
-    /// l'accéléromètre, puis « Retirez l'accéléromètre »
+    /// l'accéléromètre, puis M201 proposé, puis « Retirez l'accéléromètre »
     void after_accel_part() {
         if (!flow.cancelled && belts_out_of_range()) {
             flow.belts_offered = true;
             flow.stage = Stage::belts_adjust;
         } else if (!flow.cancelled && (flow.mask & cold_tests() & ~flow.started)) {
             run_part(true);
+        } else if (!flow.cancelled && accel_to_offer()) {
+            flow.stage = Stage::accel_apply;
         } else {
             flow.stage = Stage::detach; // aussi après « Annuler » : l'accéléromètre est encore sur la buse
         }
@@ -390,6 +406,7 @@ namespace {
         flow.mask = mask;
         flow.skip_index = 0xff;
         flow.belts_offered = false;
+        flow.accel_offered = false;
         flow.started = 0;
         flow.cancelled = flow.check_failed = false;
         if (!(mask & accel_tests())) {
@@ -427,6 +444,7 @@ namespace {
         case Stage::checking:
         case Stage::rehome:
         case Stage::belts_adjust:
+        case Stage::accel_apply:
             // Chaussette retirée, accéléromètre peut-être fixé : les remettre en ordre avant toute chauffe
             marlin_client::gcode("M107");
             flow.stage = Stage::detach;
@@ -548,6 +566,40 @@ namespace {
 
     bool any(const calib_registry::Numbers &n, size_t from, size_t to) {
         return std::any_of(n.begin() + from, n.begin() + to, [](int16_t v) { return v != none; });
+    }
+
+    /// Vibrations des ventilateurs (M2001 V) : par ventilateur, amplitude à sa fréquence de rotation et comparaison à
+    /// sa référence (une valeur seule ne dit rien)
+    void fan_vibration_details(Writer &w) {
+        static constexpr const char *names[fan_vibration::fan_count] = { N_("part"), N_("hotend"), N_("chamber 1"), N_("chamber 2") };
+        w.label(N_("Fan vibration at its speed:"));
+        if (fan_vibration::status() != fan_vibration::Status::done) {
+            w.text(fan_vibration::status() == fan_vibration::Status::no_accelerometer ? N_("not measured, no accelerometer") : N_("not measured"));
+            return;
+        }
+        for (uint8_t i = 0; i < fan_vibration::fan_count; ++i) {
+            const fan_vibration::FanResult &f = fan_vibration::last().fans[i];
+            if (!f.present) {
+                continue;
+            }
+            w.add("\n ");
+            w.text(names[i]);
+            w.add(": ");
+            switch (f.verdict) {
+            case vibration::Verdict::not_detected:
+                w.text(N_("not picked up from the nozzle"));
+                break;
+            case vibration::Verdict::reference:
+                w.add("%.3f m/s2, ", double(f.level.value));
+                w.text(N_("now its reference"));
+                break;
+            case vibration::Verdict::ok:
+            case vibration::Verdict::worse:
+                w.add("%.3f m/s2, x%.1f ", double(f.level.value), double(f.level.value / *f.reference));
+                w.text(f.verdict == vibration::Verdict::worse ? N_("vs reference: imbalance or wear?") : N_("vs reference"));
+                break;
+            }
+        }
     }
 
     /// Détail d'un test du bilan : ses chiffres, d'avant et d'après
@@ -695,7 +747,7 @@ namespace {
             };
             w.label(N_("Part fan rise time:"));
             w.scaled(a[0], 1000, " s");
-            w.add(" (%d RPM)", int(a[2]));
+            w.add(" (%d RPM)", int(std::lround(fan_response::result().rise.rpm)));
             w.label(N_("Fan lead applied:"));
             lead(a[1]);
             if (b[1] != none) {
@@ -706,6 +758,22 @@ namespace {
                     w.scaled(b[0], 1000, " s");
                 }
             }
+            fan_vibration_details(w);
+            break;
+        }
+        case Test::accel_limit: {
+            w.label(N_("Max useful accel., mm/s2:"));
+            for (uint8_t i = 0; i < 2; ++i) {
+                w.add(i ? ", %c " : "%c ", "XY"[i]);
+                w.scaled(a[i], 1);
+                if (a[i] != none && a[i] == a[2 + i]) {
+                    w.add("+");
+                }
+            }
+            w.label(N_("M201 before:"));
+            pair(b, "XY", 1, "");
+            w.add("\n");
+            w.text(N_("+: no rise up to the top level. --: in the noise, nothing to change."));
             break;
         }
         case Test::nozzle_expansion: {
@@ -845,6 +913,16 @@ namespace {
             w.text(N_("lead"));
             w.add(" %.1f s", a[1] / 10.0);
         }
+        if (const auto &a = assistant::numbers_after(Test::accel_limit); done(Test::accel_limit) && (a[0] != none || a[1] != none)) {
+            next(N_("max accel."));
+            w.add(" X %d, Y %d mm/s2", int(a[0] == none ? assistant::numbers_before(Test::accel_limit)[0] : a[0]),
+                int(a[1] == none ? assistant::numbers_before(Test::accel_limit)[1] : a[1]));
+        }
+        if (done(Test::fan_response)
+            && std::any_of(fan_vibration::last().fans.begin(), fan_vibration::last().fans.end(), [](const auto &f) { return f.verdict == vibration::Verdict::worse; })) {
+            w.add("\n");
+            w.text(N_("A fan vibrates much more than its reference: imbalance or wear? Touch Fans."));
+        }
         if (const auto &a = assistant::numbers_after(Test::nozzle_expansion); done(Test::nozzle_expansion) && a[2] != none) {
             next(N_("nozzle at 250\xC2\xB0""C"));
             w.add(" %+.1f um", a[2] / 10.0);
@@ -913,7 +991,12 @@ namespace {
         case Test::nozzle_expansion:
             return nozzle_expansion::is_running() ? std::optional<uint8_t>(nozzle_expansion::progress_percent()) : std::nullopt;
         case Test::fan_response:
+            if (fan_vibration::is_running()) {
+                return fan_vibration::progress_percent();
+            }
             return fan_response::is_running() ? std::optional<uint8_t>(fan_response::progress_percent()) : std::nullopt;
+        case Test::accel_limit:
+            return accel_limit::is_running() ? std::optional<uint8_t>(accel_limit::progress_percent()) : std::nullopt;
         case Test::mpc:
             if (const mpc::TuneStatus st = mpc::tune_status(); st.running) {
                 return st.progress;
@@ -983,7 +1066,7 @@ namespace {
 
     /// Le détail d'un test du bilan ; vrai pour le refaire
     bool show_details(Test test) {
-        static char text[360]; // la boîte le lit tant qu'elle est ouverte
+        static char text[448]; // la boîte le lit tant qu'elle est ouverte ; ventilateurs : une ligne chacun
         Writer w(text);
         build_details(test, w);
         const bool can_retry = assistant::result(test) != Result::ok;
@@ -1289,6 +1372,13 @@ void ScreenCalibAssistant::show() {
                    .formatted(info_params, a, b, int(t.result_min), int(t.result_max));
         break;
     }
+    case Stage::accel_apply: {
+        const auto &a = assistant::numbers_after(Test::accel_limit);
+        const auto &b = assistant::numbers_before(Test::accel_limit);
+        text = _("Max useful accel.: X %d, Y %d mm/s2 (now X %d, Y %d). Apply it (M201)? Until restart; a print's own M201 replaces it.")
+                   .formatted(info_params, int(a[0] == none ? b[0] : a[0]), int(a[1] == none ? b[1] : a[1]), int(b[0]), int(b[1]));
+        break;
+    }
     case Stage::detach:
         // La buse est encore froide : le bon moment ; rien ne chauffe avant « C'est fait »
         text = has_sock() ? _("Remove the accelerometer from the nozzle, then put the silicone sock back on it. The nozzle heats only after that.")
@@ -1301,7 +1391,7 @@ void ScreenCalibAssistant::show() {
         text = _("The bed is full of test prints. Remove them and put the clean sheet back, then Continue.");
         break;
     case Stage::summary: {
-        static char summary[360]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse
+        static char summary[448]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse, l'alerte des ventilateurs
         Writer w(summary);
         build_summary(w);
         text = string_view_utf8::MakeRAM(summary);
@@ -1352,6 +1442,9 @@ void ScreenCalibAssistant::show() {
         break;
     case Stage::belts_adjust:
         s = { N_("Adjust live"), N_("Continue"), N_("Cancel") };
+        break;
+    case Stage::accel_apply:
+        s = { N_("Apply"), N_("Keep"), N_("Cancel") };
         break;
     case Stage::detach:
         s = { N_("It's done") };
@@ -1464,6 +1557,26 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
             open_belts_live(); // l'écran des courroies, en direct ; « Continuer » ici quand c'est réglé
         } else if (tag == tag_b) {
             assistant::recapture(Test::belts); // le bilan et la prochaine fois : les fréquences après réglage
+            after_accel_part();
+        } else {
+            cancel();
+        }
+        break;
+    case Stage::accel_apply:
+        if (tag == tag_a || tag == tag_b) {
+            if (tag == tag_a) { // l'utilisateur l'accepte : M201 des axes concluants seulement
+                const auto &a = assistant::numbers_after(Test::accel_limit);
+                char gcode[32];
+                Writer g(gcode);
+                g.add("M201");
+                for (uint8_t i = 0; i < 2; ++i) {
+                    if (a[i] != none) {
+                        g.add(" %c%d", "XY"[i], int(a[i]));
+                    }
+                }
+                marlin_client::gcode(gcode);
+            }
+            flow.accel_offered = true;
             after_accel_part();
         } else {
             cancel();

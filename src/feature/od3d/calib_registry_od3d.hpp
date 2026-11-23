@@ -35,10 +35,14 @@ enum class Test : uint8_t {
     min_temp, ///< F6, M1996 par emplacement
     skew, ///< F15 : pièce imprimée à mesurer, à faire à la main
     mmu_ptfe, ///< F41, M1999 B1 : longueur du tube PTFE avant du MMU (une bobine préchargée, rien dans l'extrudeur)
-    fan_response, ///< N3, M2001 : temps de montée du ventilateur pièce, règle l'avance de F26 (sans besoin)
+    /// N3, M2001 V : temps de montée du ventilateur pièce, règle l'avance de F26 (sans besoin) ; version 2 : puis les
+    /// vibrations de chaque ventilateur si l'accéléromètre répond (vibration_od3d.hpp ; pas de place pour un Test de
+    /// plus : max_tests est atteint avec accel_limit)
+    fan_response,
     nozzle_expansion, ///< M2003 : dilatation de la buse palpée de 170 à 260 °C (buse vide)
     e_jump, ///< M2000 par emplacement : saut de vitesse de l'extrudeur, accélération max du filament
     mmu_speed, ///< N4, M2002 P : vitesse de la poulie du MMU (une bobine préchargée, rien dans l'extrudeur)
+    accel_limit, ///< M2004 : accélération max utile de X et Y (accéléromètre), M201 proposé à l'utilisateur
     count,
 };
 
@@ -74,8 +78,9 @@ struct Entry {
 /// puis par emplacement PA, débit, température minimale, accélération du filament (un seul chargement par bobine,
 /// chauffe gardée ; l'ordre par emplacement est celui de cette liste ; build_steps() fait d'abord tous les tests sans
 /// Need::filament). Deux séries lancées séparément (Need::heated, series_tests()) :
-/// - « Accéléromètre », à froid : courroies, phase stepping, input shaper, amortissement, vitesses critiques, et la
-///   réponse du ventilateur (à froid, sans accéléromètre : rien n'y chauffe, l'accéléromètre peut rester fixé) ;
+/// - « Accéléromètre », à froid : courroies, phase stepping, input shaper, amortissement, vitesses critiques,
+///   accélération max utile (après l'input shaper : mesurée avec le filtre en place), et les ventilateurs (temps de
+///   montée sans accéléromètre, vibrations avec lui s'il répond : rien n'y chauffe) ;
 /// - « Chauffe » : MPC, tube PTFE et vitesse de la poulie (à froid, mais l'extrudeur doit être vide : le déchargement à
 ///   chaud est partagé avec la dilatation de la buse), dilatation de la buse, puis les mesures par bobine.
 inline constexpr std::array entries {
@@ -84,6 +89,7 @@ inline constexpr std::array entries {
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 1, true },
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
+    Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 1, true }, // après l'input shaper : avec le filtre en place
     Entry { Test::mpc, heated, 12, 1, true },
     Entry { Test::mmu_ptfe, mmu | one_spool | heated, 3, 1, true },
     Entry { Test::nozzle_expansion, empty_bed | heated, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
@@ -91,7 +97,7 @@ inline constexpr std::array entries {
     Entry { Test::max_flow, filament | empty_bed | flow_limit | heated, 3, 1, true },
     Entry { Test::min_temp, filament | empty_bed | heated, 7, 1, true },
     Entry { Test::skew, empty_bed | heated, 0, 1, false },
-    Entry { Test::fan_response, 0, 1, 1, true }, // à froid, sans besoin : série « Accéléromètre »
+    Entry { Test::fan_response, 0, 2, 2, true }, // à froid, sans besoin : série « Accéléromètre » ; v2 : vibrations
     Entry { Test::e_jump, filament | heated, 1, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
     Entry { Test::mmu_speed, mmu | one_spool | heated, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
 };

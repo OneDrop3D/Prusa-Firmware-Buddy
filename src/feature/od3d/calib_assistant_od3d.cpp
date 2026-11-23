@@ -19,6 +19,7 @@
 #include "ptfe_od3d.hpp"
 #include "speed_map_od3d.hpp"
 #include "spool_calib_od3d.hpp"
+#include "vibration_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -129,8 +130,14 @@ namespace {
         }
         case Test::mmu_ptfe:
             return ptfe::status().result == ptfe::Result::saved;
-        case Test::fan_response:
-            return fan_response::status() == fan_response::Status::done;
+        case Test::fan_response: { // vibrations mesurées, ou refusées sans accéléromètre ni buse froide (accéléromètre passé :
+                                   // le temps de montée suffit, le bilan dit « non mesurée »)
+            const fan_vibration::Status v = fan_vibration::status();
+            return fan_response::status() == fan_response::Status::done
+                && (v == fan_vibration::Status::done || v == fan_vibration::Status::no_accelerometer || v == fan_vibration::Status::hot_nozzle);
+        }
+        case Test::accel_limit:
+            return accel_limit::status() == accel_limit::Status::done;
         case Test::nozzle_expansion:
             return nozzle_expansion::status() == nozzle_expansion::Status::saved;
         case Test::e_jump: {
@@ -175,7 +182,20 @@ namespace {
                 const fan_response::Result &r = fan_response::result();
                 n[0] = scaled(r.rise.rise_s, 1000.f);
                 n[1] = int16_t(r.lead_ds);
-                n[2] = scaled(r.rise.rpm, 1.f);
+                const auto refs = fan_vibration::stored_references(); // écrites par M2001 V : gardées telles quelles
+                n[2] = refs[0];
+                n[3] = refs[1];
+            }
+            break;
+        case Test::accel_limit:
+            for (uint8_t a = 0; a < accel_limit::axis_count; ++a) {
+                if (!after) { // M201 de la machine
+                    n[a] = int16_t(std::min<uint32_t>(planner.user_settings.max_acceleration_mm_per_s2[a], INT16_MAX));
+                } else {
+                    const auto p = accel_limit::proposal(a);
+                    n[a] = p ? int16_t(*p) : no_value;
+                    n[2 + a] = int16_t(accel_limit::last().top[a]);
+                }
             }
             break;
         case Test::belts:
@@ -537,6 +557,13 @@ namespace {
         case Test::fan_response:
             if (fan_response::is_running()) {
                 fan_response::request_stop();
+            } else if (fan_vibration::is_running()) {
+                fan_vibration::request_stop();
+            }
+            break;
+        case Test::accel_limit:
+            if (accel_limit::is_running()) {
+                accel_limit::request_stop();
             }
             break;
         case Test::e_jump:

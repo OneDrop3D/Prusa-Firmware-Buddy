@@ -4,6 +4,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <optional>
@@ -110,32 +111,37 @@ TEST_CASE("calib_registry: manual tests are never checked by default") {
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 5 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateur, vitesse de la poulie, puis 4 mesures pour
-    // chacune des 2 bobines
-    REQUIRE(n == 5 + 1 + 1 + 1 + 1 + 1 + 4 * 2);
+    // 6 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateurs, vitesse de la poulie, puis 4 mesures
+    // pour chacune des 2 bobines
+    REQUIRE(n == 6 + 1 + 1 + 1 + 1 + 1 + 4 * 2);
 
-    // Accéléromètre d'abord (une seule pose), courroies en premier
+    // Accéléromètre d'abord (une seule pose), courroies en premier ; l'accélération max utile après l'input shaper (elle
+    // mesure avec son filtre)
     CHECK(steps[0].test == Test::belts);
-    for (size_t i = 0; i < 5; ++i) {
+    for (size_t i = 0; i < 6; ++i) {
         CHECK((accel & test_bit(steps[i].test)));
     }
-    CHECK(steps[5].test == Test::mpc);
+    const auto at = [&](Test t) {
+        return std::find_if(steps.begin(), steps.begin() + n, [t](const Step &s) { return s.test == t; }) - steps.begin();
+    };
+    CHECK(at(Test::input_shaper) < at(Test::accel_limit));
+    CHECK(steps[6].test == Test::mpc);
     // Tube PTFE avant les chargements, une fois, avec la première bobine
-    CHECK(steps[6].test == Test::mmu_ptfe);
-    CHECK(steps[6].slot == 0);
-    // Dilatation de la buse (buse vide) avant les chargements, une fois ; puis la réponse du ventilateur (sans besoin)
-    CHECK(steps[7].test == Test::nozzle_expansion);
-    CHECK(steps[8].test == Test::fan_response);
+    CHECK(steps[7].test == Test::mmu_ptfe);
+    CHECK(steps[7].slot == 0);
+    // Dilatation de la buse (buse vide) avant les chargements, une fois ; puis les ventilateurs (sans besoin)
+    CHECK(steps[8].test == Test::nozzle_expansion);
+    CHECK(steps[9].test == Test::fan_response);
     // Vitesse de la poulie : après le tube PTFE (sa longueur fait l'avance rapide), avant les chargements
-    CHECK(steps[9].test == Test::mmu_speed);
-    CHECK(steps[9].slot == 0);
+    CHECK(steps[10].test == Test::mmu_speed);
+    CHECK(steps[10].slot == 0);
 
     // Puis par bobine : PA, débit, accélération du filament, température minimale en dernier (elle finit sous la
     // température de la matière : rien ne remonte après elle) ; un seul chargement par bobine
     const Test per_slot[] = { Test::pa, Test::max_flow, Test::e_jump, Test::min_temp };
     for (size_t k = 0; k < 8; ++k) {
-        CHECK(steps[10 + k].test == per_slot[k % 4]);
-        CHECK(steps[10 + k].slot == (k < 4 ? 0 : 2));
+        CHECK(steps[11 + k].test == per_slot[k % 4]);
+        CHECK(steps[11 + k].slot == (k < 4 ? 0 : 2));
     }
 
     // Jamais le test manuel
@@ -206,7 +212,8 @@ TEST_CASE("calib_registry: G-codes") {
     CHECK(gcode({ Test::damping }) == "M1997");
     CHECK(gcode({ Test::mpc }) == "M306 T");
     CHECK(gcode({ Test::mmu_ptfe, 1 }) == "M1999 B1 P1");
-    CHECK(gcode({ Test::fan_response }) == "M2001");
+    CHECK(gcode({ Test::fan_response }) == "M2001 V");
+    CHECK(gcode({ Test::accel_limit }) == "M2004");
     CHECK(gcode({ Test::nozzle_expansion }) == "M2003");
     CHECK(gcode({ Test::e_jump, 3 }) == "M2000 S3");
     CHECK(gcode({ Test::mmu_speed, 3 }) == "M2002 P3");

@@ -44,11 +44,13 @@ private:
 };
 
 /// Carte du dernier fichier : vignette, « Dernier fichier », nom. « Imprimer » est un élément à part,
-/// pour que le focus ne fasse pas relire la vignette sur la clé. La vignette est lue au LOOP qui suit le dessin de la
-/// carte : l'écran s'affiche d'abord, la clé est lue ensuite.
+/// pour que le focus ne redessine pas la vignette. Gardée en mémoire, la vignette est dessinée avec la carte, d'une
+/// passe ; sinon elle est lue sur la clé par bandes aux LOOP qui suivent le dessin de la carte (jamais pendant une
+/// impression : l'icône reste).
 class FileCard : public window_t {
 public:
     explicit FileCard(window_t *parent);
+    ~FileCard();
 
     /// @param latest chemin du dernier fichier, nullptr s'il n'y en a pas
     /// @return la carte a changé (elle se redessine)
@@ -60,13 +62,13 @@ public:
 
     void print() const;
 
+    /// LOOP : une bande de la vignette, une fois la carte affichée
+    void load_step();
+
 protected:
     void unconditionalDraw() override;
-    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
 private:
-    bool draw_thumbnail(Rect16 box);
-
     enum class State : uint8_t {
         no_usb,
         no_file,
@@ -79,7 +81,7 @@ private:
     static std::array<char, 64> name; ///< nom affiché, sans extension, coupé à la largeur de la carte
 
     bool thumb_drawn = false; ///< la vignette (ou son icône) est à l'écran
-    bool thumb_requested = false; ///< à dessiner au prochain dessin, sans repeindre la carte
+    bool loading = false; ///< vignette en cours de lecture sur la clé
     std::optional<ScaledQoiReader> scaler; ///< dans l'écran plutôt que sur la pile de l'interface (6 Ko)
 };
 
@@ -111,6 +113,7 @@ private:
     explicit ScreenHome(std::index_sequence<I...>);
 
     void refresh_file();
+    bool file_stale() const; ///< la clé a changé depuis sa dernière lecture (autre clé, fichier envoyé ou effacé)
     void update_spools();
 #if HAS_NFC()
     void update_nfc_state();
@@ -127,11 +130,13 @@ private:
     TabBar tabs;
 
     bool usb_inserted;
-    bool rescan = false; ///< relire la clé au 1er LOOP (l'écran a repris le dernier fichier connu)
     bool event_in_progress = false;
     MediaState_t media_event = MediaState_t::unknown;
     static bool usb_was_already_inserted; ///< une clé a déjà été vue depuis le démarrage
     static bool need_check_wifi_credentials;
+    // La clé à sa dernière lecture : le dossier n'est relu que s'ils changent
+    static uint16_t scanned_mount;
+    static uint32_t scanned_changes;
 
 #if HAS_NFC()
     std::optional<nfc::SharedEnabler> nfc_enable { std::in_place };

@@ -35,12 +35,35 @@ std::optional<print_info::FileInfo> cached_file_info(const char *path);
 /// Oublie les métadonnées lues (clé retirée ou changée)
 void forget_file_infos();
 
-/// Vignette 313 × 173 du G-code réduite selon params, centrée dans box. false s'il n'y a pas de vignette (box n'est
-/// pas touchée).
-bool draw_thumbnail(const char *path, Rect16 box, const ScaledQoiReader::Params &params, std::optional<ScaledQoiReader> &scaler);
+/// Une impression lit la clé : l'interface ne l'ouvre pas (ni vignette, ni métadonnées, ni dossier de l'accueil)
+bool print_uses_usb();
 
-/// La même, réduite d'un facteur entier sur le fond des vignettes ; grey_rows lignes du haut en gris
-bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<ScaledQoiReader> &scaler, uint16_t grey_rows = 0);
+/// Grandes vignettes (accueil, Avant l'impression, Impression) : la 313 × 173 du G-code réduite selon params, lue sur la
+/// clé par bandes (une seule à la fois : un seul écran existe) et gardée en mémoire. Un retour à l'accueil et l'écran
+/// Impression la redessinent sans relire la clé.
+namespace big_thumb {
+    /// L'image est gardée (params.grey_rows n'y change rien)
+    bool cached(const char *path, const ScaledQoiReader::Params &params);
+
+    /// Lignes [first, first + rows) de l'image gardée, posée en at (son coin haut gauche), grisées au-dessus de
+    /// params.grey_rows ; rows = 0 : toute l'image. false si elle n'est pas gardée.
+    bool draw_cached(const char *path, const ScaledQoiReader::Params &params, point_ui16_t at, std::optional<ScaledQoiReader> &scaler, uint16_t first = 0, uint16_t rows = 0);
+
+    /// Ouvre le G-code et commence la lecture, gardée si elle va au bout (params sans gris) ; false sans vignette
+    bool start(const char *path, const ScaledQoiReader::Params &params, std::optional<ScaledQoiReader> &scaler);
+
+    /// Bande suivante (8 lignes), dessinée en at si draw ; false quand l'image est finie ou que la source s'arrête
+    bool step(std::optional<ScaledQoiReader> &scaler, point_ui16_t at, bool draw = true);
+
+    /// Abandonne la lecture en cours (l'image n'est pas gardée)
+    void stop(std::optional<ScaledQoiReader> &scaler);
+
+    /// Assez de mémoire pour garder une image
+    bool can_keep();
+
+    /// La case box (fond des vignettes, coins arrondis selon corners) peinte autour de l'image img, sans passer dessous
+    void draw_box(Rect16 box, Rect16 img, uint8_t corners);
+} // namespace big_thumb
 
 class ScreenFiles;
 
@@ -203,16 +226,15 @@ private:
     static int first; ///< rang de la carte en haut à gauche (début de rangée)
 };
 
-/// Aperçu d'« Avant l'impression » : la case et son icône tout de suite, la vignette au LOOP suivant (lecture sur la clé)
+/// Aperçu d'« Avant l'impression » : la vignette gardée d'une passe, sinon la case et son icône, puis la vignette lue
+/// sur la clé par bandes aux LOOP suivants
 class PreviewThumb : public window_t {
 public:
     PreviewThumb(window_t *parent, Rect16 rect, const char *path);
+    ~PreviewThumb();
 
-    /// Demande le dessin de la vignette une fois la case affichée ; false s'il n'y a rien à faire
-    bool request_image();
-
-    /// La case n'est pas encore dessinée : la vignette sera demandée au LOOP suivant
-    bool waiting() const { return !image_drawn && !image_requested; }
+    /// LOOP : une bande de la vignette, une fois la case affichée
+    void load_step();
 
 protected:
     void unconditionalDraw() override;
@@ -221,7 +243,7 @@ private:
     const char *path;
     std::optional<ScaledQoiReader> scaler;
     bool image_drawn = false;
-    bool image_requested = false;
+    bool loading = false;
 };
 
 /// « Avant l'impression » : vignette, nom, « durée · grammes · mètres », une ligne par emplacement utilisé,

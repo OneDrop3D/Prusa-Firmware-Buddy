@@ -1,4 +1,5 @@
 // OneDrop3D : dessin d'une passe (images calculées, fond entre les éléments, couleur du focus, cache des vignettes).
+#include <gui/od3d/spool_draw.hpp>
 #include <gui/od3d/style_od3d.hpp>
 #include <gui/od3d/thumbnail_od3d.hpp>
 
@@ -350,6 +351,107 @@ TEST_CASE("cache des vignettes : les plus anciennes partent, une image incomplè
     record(2, 120);
     cache.clear();
     CHECK_FALSE(cache.find(2).has_value());
+}
+
+TEST_CASE("vignette réduite : coins lissés comme les cartes") {
+    // Image unie à l'échelle 1, rayon 8 : chaque pixel d'un coin est le mélange en quarts de draw_rounded_rect
+    constexpr int w = 30, h = 20, r = 8;
+    PixelQoiReader plain(w, h, [](const void *, int, int) { return Color::from_rgb(200, 100, 40); }, nullptr);
+    ScaledQoiReader rounded(plain, { .factor = 1, .back = COLOR_BLACK, .radius = r, .outside = COLOR_WHITE });
+    uint32_t ow, oh;
+    const auto pixels = decode(rounded, ow, oh);
+    REQUIRE(pixels.size() == size_t(w * h));
+    const Color inside = Color::from_rgb(200, 100, 40);
+    int smoothed = 0;
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const int cx = x < r ? x : (x >= w - r ? w - 1 - x : -1);
+            const int cy = y < r ? y : (y >= h - r ? h - 1 - y : -1);
+            const uint8_t q = cx >= 0 && cy >= 0 ? spool::corner_beyond_quarters(cx, cy, r) : 0;
+            const Color expected = spool::mix_quarters(inside, COLOR_WHITE, q);
+            const qoi::Pixel &p = pixels[y * w + x];
+            INFO("x " << x << " y " << y);
+            CHECK(Color::from_rgb(p.r, p.g, p.b) == expected);
+            smoothed += q > 0 && q < 4;
+        }
+    }
+    CHECK(smoothed >= 4 * 4); // des pixels mélangés dans chaque coin, plus d'escalier
+}
+
+TEST_CASE("cartes : les colonnes 10 et 11 d'un coin de rayon 12 sont pleines (texte des tuiles à 10 px du bord)") {
+    for (int y = 0; y < 12; ++y) {
+        CHECK(spool::corner_beyond_quarters(10, y, 12) == 0);
+        CHECK(spool::corner_beyond_quarters(11, y, 12) == 0);
+    }
+}
+
+TEST_CASE("image gardée relue à l'échelle 1 : quelques lignes, le haut grisé, le fond intact") {
+    // Comme l'écran Impression : la vignette 156 × 86 gardée en couleur, un pas repeint quelques lignes grisées ou non
+    std::vector<std::byte> pool(16 * 1024);
+    QoiCache cache(pool);
+    const Color back = Color::from_raw(0x22242A);
+    PixelQoiReader source(313, 173, [](const void *, int x, int y) { return x > 100 && x < 200 && y > 40 ? gradient(x % 29, y % 11) : COLOR_BLACK; }, nullptr);
+    // La source a un fond opaque noir ici : le fond « transparent » est celui des pixels transparents, ajouté à la main
+    ScaledQoiReader full(source, { .factor = 2, .back = back, .radius = 0, .outside = back });
+    REQUIRE(full.open());
+    cache.start(1, full.width(), full.height());
+    full.record = &cache;
+    uint32_t w, h;
+    const auto colour = decode(full, w, h);
+    cache.finish();
+    REQUIRE(w == 156);
+    REQUIRE(h == 86);
+
+    // Le fond d'une image gardée : un pixel exactement « transparent » (le fond mélangé à lui-même)
+    const Color transparent = Color::mix(back, back, 0);
+    std::vector<std::byte> pool2(16 * 1024);
+    QoiCache with_back(pool2);
+    with_back.start(2, 6, 4);
+    for (int i = 0; i < 24; ++i) {
+        with_back.push(i % 3 ? transparent : Color::from_rgb(180, 90, 30));
+    }
+    with_back.finish();
+
+    constexpr uint16_t grey_rows = 2, first = 1, rows = 2;
+    auto image = with_back.find(2);
+    REQUIRE(image);
+    ScaledQoiReader again(*image, { .factor = 1, .back = back, .radius = 0, .outside = back, .grey_rows = grey_rows });
+    REQUIRE(again.open());
+    REQUIRE(again.band(first));
+    std::array<std::byte, 64> skip;
+    while (!again.read(skip).empty()) {
+    }
+    REQUIRE(again.band(rows));
+    uint32_t bw, bh;
+    const auto part = decode(again, bw, bh);
+    CHECK(bw == 6);
+    CHECK(bh == rows);
+    REQUIRE(part.size() == 6 * rows);
+    for (int i = 0; i < 6 * rows; ++i) {
+        const int src = (first + i / 6) * 6 + i % 6;
+        const Color p = Color::from_rgb(part[i].r, part[i].g, part[i].b);
+        INFO("pixel " << i);
+        if (src % 3) {
+            CHECK(p == transparent); // ni gris ni assombri : pas de cadre autour de l'image
+        } else if (first + i / 6 < grey_rows) {
+            CHECK(p.r == p.g); // grisé
+            CHECK(p.g == p.b);
+        } else {
+            CHECK(p.r > p.b); // en couleur
+        }
+    }
+
+    // L'image gardée relue en entier à l'échelle 1, sans gris : les mêmes lignes que le premier dessin, à 1 près
+    auto stored = cache.find(1);
+    REQUIRE(stored);
+    ScaledQoiReader same(*stored, { .factor = 1, .back = back, .radius = 0, .outside = back });
+    const auto replay = decode(same, w, h);
+    REQUIRE(replay.size() == colour.size());
+    for (size_t i = 0; i < replay.size(); ++i) {
+        INFO("pixel " << i);
+        CHECK(int(colour[i].r) - int(replay[i].r) <= 1);
+        CHECK(int(colour[i].r) - int(replay[i].r) >= 0);
+    }
 }
 
 TEST_CASE("dessin d'une passe : de haut en bas, chaque élément avec le fond à sa hauteur, une seule fois") {

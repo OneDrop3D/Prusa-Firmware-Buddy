@@ -2,6 +2,7 @@
 #include "screen_files_od3d.hpp"
 #include "layout_od3d.hpp"
 #include "sleep_gui_od3d.hpp"
+#include "spool_draw.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -95,6 +96,10 @@ namespace {
     static_assert(style::inside(style::content, style::with_ring(map_body)));
     static_assert(style::with_ring(print_narrow_body).Right() < style::with_ring(mesh_body).Left() && style::with_ring(mesh_body).Right() < style::with_ring(map_body).Left());
     static_assert(thumb_w / preview_factor <= preview_box.Width() && thumb_h / preview_factor <= preview_box.Height());
+    constexpr ScaledQoiReader::Params preview_params { .factor = preview_factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back };
+    constexpr Rect16 preview_img = { int16_t(preview_box.Left() + (preview_box.Width() - thumb_w / preview_factor) / 2),
+        int16_t(preview_box.Top() + (preview_box.Height() - thumb_h / preview_factor) / 2), thumb_w / preview_factor, thumb_h / preview_factor };
+    static_assert(preview_img.Left() - preview_box.Left() >= style::radius_big, "les coins de la case tiennent à côté de l'image");
 
     constexpr const char *dot = " \xC2\xB7 "; ///< « · » : dans la police grâce au titre « Fichiers · clé USB » du .po
 
@@ -288,6 +293,45 @@ namespace {
 
 } // namespace
 
+namespace {
+
+    // Grandes vignettes : accueil 187 × 103, Avant l'impression et Impression 156 × 86, en QOI (4,7 et 3,5 Ko mesurés sur
+    // une vignette PrusaSlicer). Avant, chaque retour à l'accueil relisait la sienne sur la clé d'un bloc (0,1 à 0,2 s
+    // figé, estimé), et l'écran Impression ~86 fois par impression. Pris au tas à la première image et gardé ensuite
+    // (pas de fragmentation), avec la même marge que la grille : 12 Ko (les deux images), sinon 8, sinon rien.
+    QoiCache *big_cache = nullptr;
+
+    QoiCache *open_big_cache() {
+        for (const size_t bytes : { 12 * 1024, 8 * 1024 }) {
+            if (big_cache || xPortGetFreeHeapSize() < sizeof(QoiCache) + bytes + heap_margin) {
+                continue;
+            }
+            if (void *block = malloc_fallible(sizeof(QoiCache) + bytes)) {
+                big_cache = new (block) QoiCache(std::span(static_cast<std::byte *>(block) + sizeof(QoiCache), bytes));
+            }
+        }
+        return big_cache;
+    }
+
+    /// Une image par fichier et par taille (le gris n'est pas gardé)
+    uint32_t big_key(const char *path, const ScaledQoiReader::Params &params) {
+        const uint32_t key = InfoCache::key(path) ^ (uint32_t(params.factor) << 24 | uint32_t(params.num) << 16);
+        return key ? key : 1;
+    }
+
+    std::optional<QoiCache::Reader> find_big(const char *path, const ScaledQoiReader::Params &params) {
+        return big_cache ? big_cache->find(big_key(path, params)) : std::nullopt;
+    }
+
+    /// Lit la bande en cours sans l'envoyer à l'écran
+    void skip_band(ScaledQoiReader &scaler) {
+        std::array<std::byte, 64> skip;
+        while (!scaler.read(skip).empty()) {
+        }
+    }
+
+} // namespace
+
 std::optional<FileInfo> cached_file_info(const char *path) {
     if (const FileInfo *hit = info_cache.find(path)) {
         return *hit;
@@ -299,6 +343,9 @@ void forget_file_infos() {
     info_cache.keys = {};
     if (thumb_cache) {
         thumb_cache->clear();
+    }
+    if (big_cache && !print_uses_usb()) {
+        big_cache->clear(); // pendant une impression, l'image de l'écran Impression reste (la clé ne peut pas la relire)
     }
 }
 
@@ -317,6 +364,9 @@ FileInfo read_file_info(const char *path) {
     if (const FileInfo *hit = info_cache.find(path)) {
         return *hit;
     }
+    if (print_uses_usb()) {
+        return {}; // la clé est à l'impression
+    }
     const uint32_t start_ms = ticks_ms();
     AnyGcodeFormatReader gcode;
     if (!open_gcode(gcode, path)) {
@@ -327,29 +377,99 @@ FileInfo read_file_info(const char *path) {
     return info;
 }
 
-bool draw_thumbnail(const char *path, Rect16 box, const ScaledQoiReader::Params &params, std::optional<ScaledQoiReader> &scaler) {
-    const uint32_t start_ms = ticks_ms();
-    AnyGcodeFormatReader gcode;
-    if (!open_gcode(gcode, path)) {
-        return false;
-    }
-    AbstractByteReader *qoi = gcode->stream_thumbnail_start(thumb_w, thumb_h, IGcodeReader::ImgType::QOI);
-    if (!qoi) {
-        return false;
-    }
-    scaler.emplace(*qoi, params);
-    const bool readable = scaler->open();
-    if (readable) {
-        display::draw_img(point_ui16(box.Left() + (box.Width() - scaler->width()) / 2, box.Top() + (box.Height() - scaler->height()) / 2), *scaler);
-    }
-    scaler.reset();
-    metric_record_custom(&metric_od3d_files, " thumb=%ui", unsigned(ticks_diff(ticks_ms(), start_ms)));
-    return readable;
+bool print_uses_usb() {
+    return marlin_client::is_printing();
 }
 
-bool draw_thumbnail(const char *path, Rect16 box, uint8_t factor, std::optional<ScaledQoiReader> &scaler, uint16_t grey_rows) {
-    return draw_thumbnail(path, box, ScaledQoiReader::Params { .factor = factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back, .grey_rows = grey_rows }, scaler);
-}
+namespace big_thumb {
+
+    bool cached(const char *path, const ScaledQoiReader::Params &params) {
+        return find_big(path, params).has_value();
+    }
+
+    bool draw_cached(const char *path, const ScaledQoiReader::Params &params, point_ui16_t at, std::optional<ScaledQoiReader> &scaler, uint16_t first, uint16_t rows) {
+        auto image = find_big(path, params);
+        if (!image) {
+            return false;
+        }
+        if (!params.grey_rows && !first && !rows) {
+            display::draw_img(at, *image); // telle qu'elle a été dessinée la première fois
+            return true;
+        }
+        // Relue à l'échelle 1, grisée en haut ; les lignes avant first sont décodées en RAM, pas envoyées
+        scaler.emplace(*image, ScaledQoiReader::Params { .factor = 1, .back = params.back, .radius = 0, .outside = params.back, .grey_rows = params.grey_rows });
+        if (scaler->open()) {
+            if (first && scaler->band(first)) {
+                skip_band(*scaler);
+            }
+            if (scaler->band(rows ? rows : scaler->height())) {
+                display::draw_img(point_ui16(at.x, at.y + first), *scaler);
+            }
+        }
+        scaler.reset();
+        return true;
+    }
+
+    bool start(const char *path, const ScaledQoiReader::Params &params, std::optional<ScaledQoiReader> &scaler) {
+        stop(scaler);
+        band_gcode.emplace();
+        if (open_gcode(*band_gcode, path)) {
+            if (AbstractByteReader *qoi = (*band_gcode)->stream_thumbnail_start(thumb_w, thumb_h, IGcodeReader::ImgType::QOI)) {
+                scaler.emplace(*qoi, params);
+                if (scaler->open()) {
+                    if (QoiCache *cache = open_big_cache()) {
+                        cache->start(big_key(path, params), scaler->width(), scaler->height());
+                        scaler->record = cache; // gardée en dessinant
+                    }
+                    return true;
+                }
+            }
+        }
+        stop(scaler);
+        return false;
+    }
+
+    bool step(std::optional<ScaledQoiReader> &scaler, point_ui16_t at, bool draw) {
+        const uint16_t row = scaler->row();
+        if (scaler->band(band_rows)) {
+            if (draw) {
+                display::draw_img(point_ui16(at.x, at.y + row), *scaler);
+            } else {
+                skip_band(*scaler);
+            }
+        }
+        if (!scaler->done() && scaler->row() != row) {
+            return true;
+        }
+        if (scaler->record) {
+            scaler->record->finish(); // gardée si elle est complète
+        }
+        stop(scaler);
+        return false;
+    }
+
+    void stop(std::optional<ScaledQoiReader> &scaler) {
+        if (scaler && scaler->record) {
+            scaler->record->cancel(); // rien si elle vient d'être gardée
+        }
+        scaler.reset(); // avant le G-code : il lit sa vignette
+        band_gcode.reset();
+    }
+
+    bool can_keep() {
+        return open_big_cache();
+    }
+
+    void draw_box(Rect16 box, Rect16 img, uint8_t corners) {
+        // Bandes gauche et droite avec les coins arrondis (au moins radius_big de large), haut et bas : chaque pixel une
+        // fois, pas d'aplat sous l'image (une image qui revient ne clignote pas)
+        display::draw_rounded_rect(Rect16::fromLTRB(box.Left(), box.Top(), img.Left(), box.Bottom() + 1), style::screen, style::thumb_back, style::radius_big, corners & (MIC_TOP_LEFT | MIC_BOT_LEFT));
+        display::draw_rounded_rect(Rect16::fromLTRB(img.Right() + 1, box.Top(), box.Right() + 1, box.Bottom() + 1), style::screen, style::thumb_back, style::radius_big, corners & (MIC_TOP_RIGHT | MIC_BOT_RIGHT));
+        display::fill_rect(Rect16::fromLTRB(img.Left(), box.Top(), img.Right() + 1, img.Top()), style::thumb_back);
+        display::fill_rect(Rect16::fromLTRB(img.Left(), img.Bottom() + 1, img.Right() + 1, box.Bottom() + 1), style::thumb_back);
+    }
+
+} // namespace big_thumb
 
 // ---- Grille des fichiers ----
 
@@ -401,29 +521,47 @@ void FileTile::unconditionalDraw() {
     const Rect16 body(outer.Left() + style::ring, outer.Top() + style::ring, outer.Width() - 2 * style::ring, outer.Height() - 2 * style::ring);
     const Rect16 text_area(body.Left(), body.Top() + tile_thumb_h, body.Width(), body.Height() - tile_thumb_h);
     const Color bg = IsFocused() ? style::focused(style::surface) : style::surface;
-    display::draw_rounded_rect(text_area, style::screen, bg, style::radius_big, MIC_BOT_LEFT | MIC_BOT_RIGHT);
 
-    const int16_t x = body.Left() + 10;
-    const uint16_t w = body.Width() - 20;
+    // D'une passe, comme les lignes des menus (le nom et la ligne disparaissaient à chaque cran) : le fond seulement
+    // autour du nom, de la ligne, des bobines et des deux coins arrondis du bas, qui peignent chacun leur place
+    constexpr int16_t pad = 10; ///< le texte commence à 10 px : les colonnes 10 et 11 du coin (rayon 12) sont pleines
+    constexpr uint8_t d = 12, step = 16, r = style::radius_big;
+    const int16_t x = body.Left() + pad;
+    const uint16_t w = body.Width() - 2 * pad;
+    const uint8_t spools = kind == Kind::file ? std::popcount(info.used) : 0;
+    const int16_t spool_x = body.Left() + body.Width() - pad - (spools * step - (step - d)); ///< bobines alignées à droite
+    const Rect16 name_rect(x, body.Top() + 76, w, height(Font::small));
+    const Rect16 line(x, body.Top() + 92, (spools ? spool_x - 4 : x + w) - x, height(Font::small));
+    const Rect16 left_corner(text_area.Left(), text_area.Top() + text_area.Height() - r, pad, r);
+    const Rect16 right_corner(text_area.Left() + text_area.Width() - pad, left_corner.Top(), pad, r);
+    std::array<Rect16, 4 + print_info::max_tools> parts { name_rect, line, left_corner, right_corner };
+    size_t count = 4;
+    for (int16_t sx = spool_x; count < size_t(4 + spools); sx += step) {
+        parts[count++] = Rect16(sx, line.Top() + 2, d, d);
+    }
+    style::for_each_gap(text_area, std::span<const Rect16>(parts.data(), count), [&](Rect16 gap) {
+        display::fill_rect(gap, bg);
+    });
+    draw_pixels(left_corner, [&](int px, int py) { return spool::mix_quarters(bg, style::screen, spool::corner_beyond_quarters(px, r - 1 - py, r)); });
+    draw_pixels(right_corner, [&](int px, int py) { return spool::mix_quarters(bg, style::screen, spool::corner_beyond_quarters(pad - 1 - px, r - 1 - py, r)); });
+
     std::array<char, 32> name;
     display_name(screen.display_name(*this), kind == Kind::file, name, w / width(Font::small));
-    draw_text(Rect16(x, body.Top() + 76, w, height(Font::small)), string_view_utf8::MakeRAM(name.data()), Font::small, style::text_strong, bg);
+    draw_text(name_rect, string_view_utf8::MakeRAM(name.data()), Font::small, style::text_strong, bg);
 
-    const Rect16 line(x, body.Top() + 92, w, height(Font::small));
     switch (kind) {
     case Kind::file: {
         std::array<char, 32> text;
         summary(info, false, text);
         draw_text(line, string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, bg);
-        // Une bobine pleine par emplacement utilisé, alignées à droite
-        constexpr uint8_t d = 12, step = 16;
-        int16_t spool_x = body.Left() + body.Width() - 10 - (std::popcount(info.used) * step - (step - d));
+        // Une bobine pleine par emplacement utilisé
+        size_t i = 4;
         for (uint8_t t = 0; t < print_info::max_tools; ++t) {
             if (info.is_used(t)) {
                 spool::Look look = Slot::read(t).look;
                 look.fill_percent = 100;
-                draw_spool({ spool_x, int16_t(line.Top() + 2) }, look, d, bg);
-                spool_x += step;
+                draw_spool({ parts[i].Left(), parts[i].Top() }, look, d, bg);
+                ++i;
             }
         }
         break;
@@ -731,14 +869,10 @@ bool ScreenFiles::draw_cached(const FileTile &tile, Rect16 box) const {
     if (!image) {
         return false;
     }
-    // La case autour de l'image (bandes gauche et droite avec les coins arrondis, haut et bas), puis l'image : chaque
-    // pixel une fois, pas d'aplat sous l'image (une rangée qui revient ne clignote pas)
+    // La case autour de l'image, puis l'image : une rangée qui revient ne clignote pas
     const Rect16 img(box.Left() + (box.Width() - grid_img_w) / 2, box.Top() + (box.Height() - grid_img_h) / 2, grid_img_w, grid_img_h);
     static_assert(style::radius_big <= (tile_body(0).Width() - grid_img_w) / 2);
-    display::draw_rounded_rect(Rect16::fromLTRB(box.Left(), box.Top(), img.Left(), box.Bottom() + 1), style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT);
-    display::draw_rounded_rect(Rect16::fromLTRB(img.Right() + 1, box.Top(), box.Right() + 1, box.Bottom() + 1), style::screen, style::thumb_back, style::radius_big, MIC_TOP_RIGHT);
-    display::fill_rect(Rect16::fromLTRB(img.Left(), box.Top(), img.Right() + 1, img.Top()), style::thumb_back);
-    display::fill_rect(Rect16::fromLTRB(img.Left(), img.Bottom() + 1, img.Right() + 1, box.Bottom() + 1), style::thumb_back);
+    big_thumb::draw_box(box, img, MIC_TOP_LEFT | MIC_TOP_RIGHT);
     display::draw_img(point_ui16(img.Left(), img.Top()), *image);
     return true;
 }
@@ -852,8 +986,8 @@ void ScreenFiles::start_load(FileTile &tile) {
 void ScreenFiles::load_next() {
     const uint32_t now = ticks_ms();
     // La molette ou le doigt viennent de servir : la clé attend, l'écran répond d'abord. Écran en veille (F39) : rien
-    // n'est dessiné.
-    if (touching || dragging || fling || ticks_diff(now, last_input_ms) < input_pause_ms || sleep::screen_off()) {
+    // n'est dessiné. Pendant une impression, la clé est à elle : les vignettes déjà gardées seulement.
+    if (touching || dragging || fling || ticks_diff(now, last_input_ms) < input_pause_ms || sleep::screen_off() || print_uses_usb()) {
         return;
     }
     if (loading < 0) {
@@ -991,27 +1125,36 @@ PreviewThumb::PreviewThumb(window_t *parent, Rect16 rect, const char *path)
     : window_t(parent, rect)
     , path(path) {}
 
-bool PreviewThumb::request_image() {
-    if (image_drawn || image_requested || IsInvalid()) {
-        return false;
-    }
-    image_requested = true;
-    Invalidate();
-    ValidateBackground(); // la case reste, seule la vignette se dessine
-    return true;
+PreviewThumb::~PreviewThumb() {
+    big_thumb::stop(scaler);
 }
 
 void PreviewThumb::unconditionalDraw() {
     const Rect16 box = GetRect();
-    if (!HasValidBackground()) {
-        display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
-        draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, img::print_16x16, style::thumb_back);
-        image_drawn = false;
+    big_thumb::stop(scaler); // une lecture commencée reprend du début
+    loading = false;
+    // Gardée (retour à l'aperçu, ou vue sur l'accueil) : la case autour de l'image, d'une passe
+    image_drawn = big_thumb::cached(path, preview_params);
+    if (image_drawn) {
+        big_thumb::draw_box(box, preview_img, MIC_ALL_CORNERS);
+        big_thumb::draw_cached(path, preview_params, point_ui16(preview_img.Left(), preview_img.Top()), scaler);
+        return;
     }
-    if (image_requested) {
-        image_requested = false;
-        image_drawn = true;
-        draw_thumbnail(path, box, preview_factor, scaler);
+    display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
+    draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, img::print_16x16, style::thumb_back);
+}
+
+void PreviewThumb::load_step() {
+    if (image_drawn || print_uses_usb()) {
+        return; // pendant une impression, la case et son icône restent
+    }
+    if (!IsInvalid()) {
+        // Par bandes de 8 lignes, comme la grille : l'écran répond pendant la lecture (avant : figé d'un bloc)
+        loading = loading ? big_thumb::step(scaler, point_ui16(preview_img.Left(), preview_img.Top())) : big_thumb::start(path, preview_params, scaler);
+        image_drawn = !loading; // fini, ou pas de vignette (l'icône reste)
+    }
+    if (!image_drawn) {
+        gui_reset_loop_timer(); // la case à dessiner d'abord, ou la bande suivante : sans attendre 100 ms
     }
 }
 
@@ -1151,11 +1294,8 @@ void ScreenPreview::windowEvent(window_t *sender, GUI_event_t event, void *param
     if (event == GUI_event_t::LOOP || event == GUI_event_t::MEDIA) {
         update_buttons();
     }
-    if (event == GUI_event_t::LOOP) {
-        // Après le premier dessin de l'écran ; d'ici là, le LOOP suivant vient tout de suite (pas 100 ms plus tard)
-        if (!thumb.request_image() && thumb.waiting()) {
-            gui_reset_loop_timer();
-        }
+    if (event == GUI_event_t::LOOP && !GetFirstDialog() && !sleep::screen_off()) {
+        thumb.load_step(); // après le premier dessin de l'écran
     }
     Screen::windowEvent(sender, event, param);
 }

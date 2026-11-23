@@ -5,8 +5,11 @@
 #include "screen_files_od3d.hpp"
 #include "screen_mmu_od3d.hpp"
 #include "screen_printing_od3d.hpp"
+#include "sleep_gui_od3d.hpp"
+#include "spool_draw.hpp"
 #include "spool_sheet_od3d.hpp"
 
+#include <buddy/fatfs.h>
 #include <common/marlin_vars.hpp>
 #include <common/thumbnail_sizes.hpp>
 #include <cstring>
@@ -14,6 +17,7 @@
 #include <display.hpp>
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <gcode/gcode_reader_any.hpp>
+#include <gui.hpp>
 #include <gui_media_events.hpp>
 #include <i18n.h>
 #include <img_resources.hpp>
@@ -26,6 +30,7 @@
 #include <screen_home.hpp>
 #include <screen_menu_control.hpp>
 #include <tasks.hpp>
+#include <transfers/changed_path.hpp>
 #include <usb_host.h>
 
 #if HAS_POWER_PANIC()
@@ -67,6 +72,38 @@ namespace {
     static_assert(style::inside(style::content, style::with_ring(files_body)) && style::inside(style::content, style::with_ring(control_body)));
     static_assert(files_body.Right() + 1 + 8 == temps_body.Left() && temps_body.Right() + 1 + 8 == control_body.Left());
     static_assert(layout::small_h == height(Font::small) && layout::normal_h == height(Font::normal));
+    constexpr ScaledQoiReader::Params thumb_params { .factor = thumb_den, .back = style::thumb_back, .radius = style::radius_small, .outside = style::surface, .num = thumb_num };
+
+    /// Montage de la clé : FatFS numérote ses montages (0 : pas encore montée). Un autre numéro : une autre clé, ou la même
+    /// rebranchée.
+    uint16_t usb_mount() {
+        return USBHFatFS.fs_type ? USBHFatFS.id : 0;
+    }
+
+    /// Change à chaque fichier envoyé ou effacé par PrusaLink ou Connect
+    uint32_t usb_changes() {
+        return transfers::ChangedPath::instance.change_chain_hash("/usb");
+    }
+
+    /// La carte du fichier autour de sa vignette, d'une passe : bandes à gauche, en haut et en bas (coins lissés comme
+    /// display::draw_rounded_rect), puis la partie droite. La vignette ne passe plus sur un aplat (case vide, puis image).
+    void draw_card_around_thumb() {
+        const Rect16 card = file_rect;
+        const int r = style::radius_big;
+        const auto pixel = [&](int x, int y) { // relatif à la carte
+            const int cx = x < r ? x : (x >= card.Width() - r ? card.Width() - 1 - x : -1);
+            const int cy = y < r ? y : (y >= card.Height() - r ? card.Height() - 1 - y : -1);
+            return cx >= 0 && cy >= 0 ? spool::mix_quarters(style::surface, style::screen, spool::corner_beyond_quarters(cx, cy, r)) : style::surface;
+        };
+        const int16_t right = thumb_rect.Right() + 1;
+        for (const Rect16 band : { Rect16::fromLTRB(card.Left(), card.Top(), right, thumb_rect.Top()),
+                 Rect16::fromLTRB(card.Left(), thumb_rect.Top(), thumb_rect.Left(), thumb_rect.Bottom() + 1),
+                 Rect16::fromLTRB(card.Left(), thumb_rect.Bottom() + 1, right, card.Bottom() + 1) }) {
+            draw_pixels(band, [&](int x, int y) { return pixel(x + band.Left() - card.Left(), y + band.Top() - card.Top()); });
+        }
+        display::draw_rounded_rect(Rect16::fromLTRB(right, card.Top(), card.Right() + 1, card.Bottom() + 1), style::screen, style::surface, r, MIC_TOP_RIGHT | MIC_BOT_RIGHT);
+    }
+    static_assert(file_rect.Right() - thumb_rect.Right() >= style::radius_big);
 
     /// Cartes de bobine (1 à 8 outils) : dans la zone des éléments, sans se chevaucher ni toucher le bouton du MMU et la
     /// carte du fichier, et leur contenu hors des coins arrondis (retour du 22/11 : carte coupée en bas)
@@ -175,6 +212,10 @@ std::array<char, 64> FileCard::name {};
 FileCard::FileCard(window_t *parent)
     : window_t(parent, file_rect) {}
 
+FileCard::~FileCard() {
+    big_thumb::stop(scaler);
+}
+
 bool FileCard::set(bool usb, const char *latest) {
     const State s = !usb ? State::no_usb : (latest ? State::file : State::no_file);
     if (s == state && (!latest || strcmp(latest, path.data()) == 0)) {
@@ -204,47 +245,56 @@ void FileCard::print() const {
     }
 }
 
-bool FileCard::draw_thumbnail(Rect16 box) {
-    return state == State::file
-        && od3d::draw_thumbnail(path.data(), box, ScaledQoiReader::Params { .factor = thumb_den, .back = style::thumb_back, .radius = style::radius_small, .outside = style::surface, .num = thumb_num }, scaler);
-}
-
 void FileCard::unconditionalDraw() {
     const Rect16 card = GetRect();
-    if (!HasValidBackground()) {
-        // La carte, la case vide de la vignette (elle arrive au LOOP suivant) et les textes
+    big_thumb::stop(scaler); // une lecture commencée reprend du début
+    loading = false;
+    // Vignette gardée (retour à l'accueil) : la carte autour d'elle, puis l'image, sans lire la clé
+    thumb_drawn = state == State::file && big_thumb::cached(path.data(), thumb_params);
+    if (thumb_drawn) {
+        draw_card_around_thumb();
+        big_thumb::draw_cached(path.data(), thumb_params, point_ui16(thumb_rect.Left(), thumb_rect.Top()), scaler);
+    } else {
+        // La carte, la case vide de la vignette (elle arrive par bandes aux LOOP suivants) et les textes
         display::draw_rounded_rect(card, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
         display::draw_rounded_rect(thumb_rect, style::surface, style::thumb_back, style::radius_small, MIC_ALL_CORNERS);
         if (state != State::file) {
             draw_icon({ int16_t(thumb_rect.Left() + (thumb_rect.Width() - 16) / 2), int16_t(thumb_rect.Top() + (thumb_rect.Height() - 16) / 2) }, img::folder_full_16x16, style::thumb_back);
         }
         thumb_drawn = state != State::file;
-
-        const int16_t x = thumb_rect.Left() + thumb_rect.Width() + 12;
-        const uint16_t w = card.Left() + card.Width() - style::margin - x;
-        draw_text(Rect16(x, card.Top() + 6, w, height(Font::small)), _("Latest file"), Font::small, style::text_muted, style::surface);
-        const string_view_utf8 line = state == State::file
-            ? string_view_utf8::MakeRAM(name.data())
-            : (state == State::no_file ? _("No printable file") : _("Insert a USB drive"));
-        draw_text(Rect16(x, card.Top() + 24, w, height(Font::normal)), line, Font::normal, state == State::file ? style::text_strong : style::text_muted, style::surface);
     }
-    if (thumb_requested) {
-        thumb_requested = false;
-        thumb_drawn = true;
-        if (!draw_thumbnail(thumb_rect)) {
+
+    const int16_t x = thumb_rect.Left() + thumb_rect.Width() + 12;
+    const uint16_t w = card.Left() + card.Width() - style::margin - x;
+    draw_text(Rect16(x, card.Top() + 6, w, height(Font::small)), _("Latest file"), Font::small, style::text_muted, style::surface);
+    const string_view_utf8 line = state == State::file
+        ? string_view_utf8::MakeRAM(name.data())
+        : (state == State::no_file ? _("No printable file") : _("Insert a USB drive"));
+    draw_text(Rect16(x, card.Top() + 24, w, height(Font::normal)), line, Font::normal, state == State::file ? style::text_strong : style::text_muted, style::surface);
+}
+
+void FileCard::load_step() {
+    if (thumb_drawn || !IsVisible()) {
+        return;
+    }
+    if (!IsInvalid()) {
+        // Par bandes de 8 lignes, comme la grille : l'accueil répond pendant la lecture (avant : figé d'un bloc). Pendant
+        // une impression, la clé est à elle : l'icône.
+        const bool was_loading = loading;
+        if (print_uses_usb()) {
+            big_thumb::stop(scaler);
+            loading = false;
+        } else {
+            loading = loading ? big_thumb::step(scaler, point_ui16(thumb_rect.Left(), thumb_rect.Top())) : big_thumb::start(path.data(), thumb_params, scaler);
+        }
+        thumb_drawn = !loading;
+        if (thumb_drawn && (!was_loading || print_uses_usb())) {
             draw_icon({ int16_t(thumb_rect.Left() + (thumb_rect.Width() - 16) / 2), int16_t(thumb_rect.Top() + (thumb_rect.Height() - 16) / 2) }, img::folder_full_16x16, style::thumb_back);
         }
     }
-}
-
-void FileCard::windowEvent(window_t *sender, GUI_event_t event, void *param) {
-    // La vignette (lecture sur la clé, ~0,1 s) après le premier dessin : l'accueil s'affiche sans l'attendre
-    if (event == GUI_event_t::LOOP && !thumb_drawn && !thumb_requested && IsVisible() && !IsInvalid()) {
-        thumb_requested = true;
-        Invalidate();
-        ValidateBackground(); // la carte reste, seule la vignette se dessine
+    if (!thumb_drawn) {
+        gui_reset_loop_timer(); // la carte à dessiner d'abord, ou la bande suivante : sans attendre 100 ms
     }
-    window_t::windowEvent(sender, event, param);
 }
 
 PrintButton::PrintButton(window_t *parent, FileCard &file)
@@ -277,6 +327,8 @@ void PrintButton::windowEvent(window_t *sender, GUI_event_t event, void *param) 
 
 bool ScreenHome::usb_was_already_inserted = false;
 bool ScreenHome::need_check_wifi_credentials = true;
+uint16_t ScreenHome::scanned_mount = 0;
+uint32_t ScreenHome::scanned_changes = 0;
 
 ScreenHome::ScreenHome()
     : ScreenHome(std::make_index_sequence<VirtualToolIndex::count>()) {}
@@ -304,12 +356,10 @@ ScreenHome::ScreenHome(std::index_sequence<I...>)
     if (usb_inserted) {
         usb_was_already_inserted = true;
     }
-    if (usb_inserted && FileCard::known()) {
-        // Le dernier fichier connu tout de suite ; la clé est relue au 1er LOOP, une fois l'écran affiché
-        rescan = true;
-        print.set_visible(FileCard::has_file());
-        print.set_enabled(FileCard::has_file());
-    } else {
+    // Le dernier fichier connu tout de suite ; la clé n'est relue (au LOOP, l'écran affiché) que si elle a changé
+    print.set_visible(FileCard::has_file());
+    print.set_enabled(FileCard::has_file());
+    if (!usb_inserted || !FileCard::known()) {
         refresh_file();
     }
     update_spools();
@@ -325,9 +375,21 @@ ScreenHome::~ScreenHome() {
     GuiMediaEventsHandler::ConsumeOneClickPrinting();
 }
 
+bool ScreenHome::file_stale() const {
+    return usb_inserted && (!FileCard::known() || usb_mount() != scanned_mount || usb_changes() != scanned_changes);
+}
+
 void ScreenHome::refresh_file() {
+    if (usb_inserted && print_uses_usb()) {
+        return; // la clé est à l'impression : relue après (file_stale)
+    }
+    if (usb_inserted && usb_mount() != scanned_mount) {
+        forget_file_infos(); // peut-être une autre clé : métadonnées et vignettes gardées oubliées
+    }
     std::array<char, filename_defs::path_buffer_size> latest;
     const bool found = usb_inserted && screen_home_data_t::find_latest_gcode(latest.data(), latest.size());
+    scanned_mount = usb_mount(); // après la lecture : elle monte la clé
+    scanned_changes = usb_changes();
     if (file.set(usb_inserted, found ? latest.data() : nullptr)) {
         print.Invalidate(); // la carte s'est redessinée dessous
     }
@@ -390,9 +452,11 @@ void ScreenHome::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     }
 
     if (event == GUI_event_t::LOOP) {
-        if (rescan) {
-            rescan = false;
-            refresh_file();
+        if (file_stale()) {
+            refresh_file(); // autre clé, ou fichier envoyé ou effacé par le réseau ; sinon le dossier n'est pas relu
+        }
+        if (!GetFirstDialog() && !sleep::screen_off()) {
+            file.load_step();
         }
         update_spools();
 

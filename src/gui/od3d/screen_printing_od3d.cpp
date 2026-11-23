@@ -4,6 +4,7 @@
 #include "print_info_od3d.hpp"
 #include "screen_files_od3d.hpp"
 #include "screen_pa_od3d.hpp"
+#include "sleep_gui_od3d.hpp"
 #include "value_editor_od3d.hpp"
 
 #include <algorithm>
@@ -21,6 +22,7 @@
 #include <feature/print_status_message/print_status_message_mgr.hpp>
 #include <gui/event/gui_event.hpp>
 #include <gui/event/knob_event.hpp>
+#include <gui.hpp>
 #include <i18n.h>
 #include <IDialog.hpp>
 #include <img_resources.hpp>
@@ -62,6 +64,16 @@ namespace {
     constexpr uint16_t img_w = thumbnail_sizes::preview_thumbnail_width / thumb_factor;
     constexpr uint16_t img_h = thumbnail_sizes::preview_thumbnail_height / thumb_factor;
     static_assert(img_w <= thumb_rect.Width() && img_h <= thumb_rect.Height());
+    /// L'image dans sa case, centrée ; la même que celle d'« Avant l'impression » (gardée sous la même clé)
+    constexpr Rect16 img_rect = { int16_t(thumb_rect.Left() + (thumb_rect.Width() - img_w) / 2), int16_t(thumb_rect.Top() + (thumb_rect.Height() - img_h) / 2), img_w, img_h };
+    static_assert(img_rect.Left() - thumb_rect.Left() >= style::radius_big, "les coins de la case tiennent à côté de l'image");
+    constexpr uint16_t no_image = img_h + 1;
+    // Un pas d'1 % fait passer au plus une ligne à la couleur : la ligne et le trait sur toute la case, ~1,2 Ko ; avec la
+    // frise (< 1 Ko, testé dans print_info_test), un pas reste sous 3 Ko (les chiffres de « 47 % » à part : 4,8 Ko chacun)
+    static_assert(img_h <= 100 && 2 * thumb_rect.Width() * 3 + 1024 < 3 * 1024);
+    constexpr ScaledQoiReader::Params thumb_params(uint16_t grey_rows) {
+        return { .factor = thumb_factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back, .grey_rows = grey_rows };
+    }
     static_assert(style::inside(style::content, style::with_ring(button_body(4))));
     static_assert(thumb_rect.Right() < info_rect.Left() && info_rect.Bottom() < strip_rect.Top());
 
@@ -182,37 +194,101 @@ void PrintingButton::windowEvent(window_t *sender, GUI_event_t event, void *para
 PrintThumb::PrintThumb(ScreenPrinting &screen, Rect16 rect)
     : window_t(&screen, rect)
     , screen(screen)
-    , grey_rows(img_h) {}
+    , grey_rows(img_h)
+    , drawn_rows(no_image) {}
+
+PrintThumb::~PrintThumb() {
+    if (loading) {
+        big_thumb::stop(screen.scaler);
+    }
+}
 
 void PrintThumb::set_progress(uint8_t percent) {
     const uint16_t rows = img_h * (100 - std::min<int>(percent, 100)) / 100;
     if (rows != grey_rows) {
-        grey_rows = rows; // la vignette n'est relue sur la clé qu'à chaque ligne gagnée
-        // La vignette seule, sans repeindre sa case (elle clignotait à chaque ligne)
-        const bool background_valid = HasValidBackground();
-        Invalidate();
-        if (background_valid) {
-            ValidateBackground();
+        grey_rows = rows;
+        if (drawn_rows != no_image) {
+            // Les lignes passées à la couleur et le trait seulement, sans repeindre la case
+            const bool background_valid = HasValidBackground();
+            Invalidate();
+            if (background_valid) {
+                ValidateBackground();
+            }
         }
     }
 }
 
 void PrintThumb::unconditionalDraw() {
     const Rect16 box = GetRect();
-    if (!HasValidBackground()) {
-        display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
-    } else if (line_y) {
-        display::fill_rect(Rect16(box.Left(), line_y, box.Width(), 1), style::thumb_back); // le trait précédent, hors de l'image
-    }
-    line_y = 0;
-    if (!draw_thumbnail(GCodeInfo::getInstance().GetGcodeFilepath(), box, thumb_factor, screen.scaler, grey_rows)) {
-        draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, img::print_16x16, style::thumb_back);
+    const char *path = GCodeInfo::getInstance().GetGcodeFilepath();
+    const point_ui16_t at = point_ui16(img_rect.Left(), img_rect.Top());
+    const auto draw_line = [&](uint16_t rows, Color color) {
+        if (rows > 0 && rows < img_h) { // dans l'image : les marges seulement, l'image est repeinte à part
+            display::fill_rect(Rect16::fromLTRB(box.Left(), img_rect.Top() + rows, img_rect.Left(), img_rect.Top() + rows + 1), color);
+            display::fill_rect(Rect16::fromLTRB(img_rect.Right() + 1, img_rect.Top() + rows, box.Right() + 1, img_rect.Top() + rows + 1), color);
+        } else if (rows == img_h) {
+            display::fill_rect(Rect16(box.Left(), img_rect.Top() + rows, box.Width(), 1), color); // sous l'image
+        }
+    };
+
+    if (HasValidBackground() && drawn_rows != no_image && grey_rows <= drawn_rows && big_thumb::cached(path, thumb_params(0))) {
+        // Un pas (~1,2 Ko au lieu de ~40 Ko et d'une lecture de la clé) : les lignes passées du gris à la couleur, depuis
+        // la mémoire ; l'ancien trait effacé, le nouveau
+        if (grey_rows < drawn_rows) {
+            const uint16_t first = grey_rows ? grey_rows + 1 : 0; // la ligne grey_rows est sous le trait
+            const uint16_t end = std::min<uint16_t>(drawn_rows + 1, img_h);
+            if (first < end) {
+                big_thumb::draw_cached(path, thumb_params(grey_rows), at, screen.scaler, first, end - first);
+            }
+            draw_line(drawn_rows, style::thumb_back);
+            if (grey_rows > 0) {
+                display::fill_rect(Rect16(box.Left(), img_rect.Top() + grey_rows, box.Width(), 1), style::accent);
+            }
+            drawn_rows = grey_rows;
+        }
         return;
     }
-    if (grey_rows > 0) {
-        // Trait orange à la hauteur imprimée, sur toute la largeur de la case (§3.12)
-        line_y = box.Top() + (box.Height() - img_h) / 2 + grey_rows;
-        display::fill_rect(Rect16(box.Left(), line_y, box.Width(), 1), style::accent);
+
+    if (loading) {
+        big_thumb::stop(screen.scaler);
+        loading = false;
+    }
+    if (big_thumb::cached(path, thumb_params(0))) {
+        // La case autour de l'image, l'image grisée en haut, le trait orange à la hauteur imprimée (§3.12)
+        big_thumb::draw_box(box, img_rect, MIC_ALL_CORNERS);
+        big_thumb::draw_cached(path, thumb_params(grey_rows), at, screen.scaler, 0, img_h);
+        if (grey_rows > 0) {
+            display::fill_rect(Rect16(box.Left(), img_rect.Top() + grey_rows, box.Width(), 1), style::accent);
+        }
+        drawn_rows = grey_rows;
+        return;
+    }
+    display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_ALL_CORNERS);
+    draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, img::print_16x16, style::thumb_back);
+    drawn_rows = no_image;
+}
+
+void PrintThumb::load_step() {
+    if (loading) {
+        // Gardée sans être dessinée (le gris n'est pas gardé), puis dessinée d'une passe depuis la mémoire
+        loading = big_thumb::step(screen.scaler, {}, false);
+        if (loading) {
+            gui_reset_loop_timer();
+        } else {
+            Invalidate();
+        }
+        return;
+    }
+    // Pas encore gardée (impression lancée par le réseau) : une lecture, au tout début de l'impression seulement (rien
+    // d'imprimé), s'il y a la place de la garder ; sinon l'icône reste
+    const char *path = GCodeInfo::getInstance().GetGcodeFilepath();
+    if (tried || drawn_rows != no_image || IsInvalid() || !path[0] || grey_rows != img_h || !big_thumb::can_keep()) {
+        return;
+    }
+    tried = true;
+    loading = big_thumb::start(path, thumb_params(0), screen.scaler);
+    if (loading) {
+        gui_reset_loop_timer();
     }
 }
 
@@ -224,9 +300,14 @@ void PrintInfo::set(const Data &d) {
     const bool changed = part == Part::progress
         ? d.percent != data.percent || d.state != data.state
         : d.slot != data.slot || !(d.look == data.look) || d.material != data.material || d.bottom != data.bottom || d.bottom_strong != data.bottom_strong;
+    state_changed = state_changed || d.state != data.state;
     data = d;
     if (changed) {
+        const bool background_valid = HasValidBackground();
         Invalidate();
+        if (background_valid && part == Part::progress) {
+            ValidateBackground(); // un pas : ce qui a changé seulement
+        }
     }
 }
 
@@ -237,13 +318,31 @@ void PrintInfo::unconditionalDraw() {
     const uint16_t w = r.Width();
 
     if (part == Part::progress) {
-        // « 47 % » : chiffres et % de la police large, puis l'état à côté
-        char percent[8];
+        // « 47 % » : chiffres et % de la police large, puis l'état à côté. Un pas ne repeint que les chiffres qui changent
+        // (un chiffre : 4,8 Ko ; avant, « 47 % » et l'état à chaque pas : ~41 Ko), l'état seulement s'il change ou bouge.
+        char percent[8], shown[8];
         snprintf(percent, sizeof(percent), "%u %%", data.percent);
-        const uint16_t percent_w = strlen(percent) * width(Font::large);
-        render_text_align(Rect16(x, r.Top(), percent_w, r.Height()), string_view_utf8::MakeRAM(percent), Font::large, style::screen, style::text_strong, {}, text_flags(Align_t::LeftTop()));
-        render_text_align(Rect16(x + percent_w, r.Top(), w - percent_w, r.Height()), string_view_utf8::MakeRAM(data.state.data()), Font::small, style::screen, style::text_muted,
-            padding_ui8(8, 29, 0, 0), text_flags(Align_t::LeftTop()));
+        snprintf(shown, sizeof(shown), "%u %%", shown_percent);
+        const size_t len = strlen(percent);
+        const bool step = HasValidBackground() && !state_changed && strlen(shown) == len;
+        size_t from = 0, to = len; // caractères [from, to) à repeindre
+        while (step && from < to && shown[from] == percent[from]) {
+            ++from;
+        }
+        while (step && to > from && shown[to - 1] == percent[to - 1]) {
+            --to;
+        }
+        shown_percent = data.percent;
+        state_changed = false;
+        const uint16_t char_w = width(Font::large), percent_w = len * char_w;
+        if (from < to) {
+            percent[to] = '\0';
+            render_text_align(Rect16(x + from * char_w, r.Top(), (to - from) * char_w, r.Height()), string_view_utf8::MakeRAM(percent + from), Font::large, style::screen, style::text_strong, {}, text_flags(Align_t::LeftTop()));
+        }
+        if (!step) {
+            render_text_align(Rect16(x + percent_w, r.Top(), w - percent_w, r.Height()), string_view_utf8::MakeRAM(data.state.data()), Font::small, style::screen, style::text_muted,
+                padding_ui8(8, 29, 0, 0), text_flags(Align_t::LeftTop()));
+        }
         return;
     }
 
@@ -269,27 +368,36 @@ PrintStrip::PrintStrip(window_t *parent, Rect16 rect)
 void PrintStrip::set_progress(uint8_t p) {
     if (p != percent) {
         percent = p;
+        const bool background_valid = HasValidBackground();
         Invalidate();
+        if (background_valid) {
+            ValidateBackground(); // les colonnes qui changent seulement
+        }
     }
 }
 
 void PrintStrip::unconditionalDraw() {
-    // Piste arrondie, partie faite orange, curseur blanc de 3 px : une image d'une passe (la barre clignotait)
+    // Une image d'une passe (la barre clignotait) ; un pas : les colonnes gagnées et le curseur (print_info::strip_part)
     const Rect16 r = GetRect();
     const int w = r.Width(), h = r.Height();
-    constexpr int track_top = 4, track_h = 12, track_r = 6;
-    const int done = w * std::min<int>(percent, 100) / 100;
-    const int cursor = std::clamp(done - 1, 0, w - 3);
-    draw_pixels(r, [&](int x, int y) {
-        if (x >= cursor && x < cursor + 3) {
-            return (x != cursor + 1 && (y == 0 || y == h - 1)) ? style::screen : style::text_strong; // coins arrondis de 1 px
-        }
-        const int ty = y - track_top;
-        const int inset = ty >= 0 && ty < track_h ? print_info::corner_inset(ty, track_h, track_r) : w;
-        if (x < inset || x >= w - inset) {
+    const std::pair<int, int> cols = HasValidBackground() ? print_info::strip_changed(w, drawn, percent) : std::pair(0, w);
+    const int first = cols.first;
+    drawn = percent;
+    if (first >= cols.second) {
+        return;
+    }
+    draw_pixels(Rect16(r.Left() + first, r.Top(), cols.second - first, h), [&](int x, int y) {
+        switch (print_info::strip_part(x + first, y, w, h, percent)) {
+        case print_info::StripPart::outside:
             return style::screen;
+        case print_info::StripPart::track:
+            return style::line;
+        case print_info::StripPart::done:
+            return style::accent;
+        case print_info::StripPart::cursor:
+            break;
         }
-        return x < done - inset ? style::accent : style::line;
+        return style::text_strong;
     });
 }
 
@@ -661,6 +769,9 @@ void ScreenPrinting::on_stop() {
 }
 
 void ScreenPrinting::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::LOOP && !GetFirstDialog() && !sleep::screen_off()) {
+        thumb.load_step();
+    }
     if (event == GUI_event_t::LOOP) {
         // Arrêt demandé pendant le palpage : renvoyé quand il se termine (screen_printing_data_t)
         if (stop_pressed && waiting_for_abort && marlin_vars().gcode_command.get() != marlin_server::Cmd::G29

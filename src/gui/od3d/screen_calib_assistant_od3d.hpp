@@ -12,6 +12,7 @@
 #include "atelier_od3d.hpp"
 
 #include <array>
+#include <optional>
 #include <feature/od3d/calib_registry_od3d.hpp>
 #include <i_window_menu_item.hpp>
 #include <string_view_utf8.hpp>
@@ -41,19 +42,20 @@ void calibration_follow();
 /// suivante) ; vrai hors série
 bool confirm_stop_measure();
 
-/// Un test du registre : nom à gauche, état à droite (couleur selon le résultat)
+/// Un test du registre : nom à gauche, pastille d'état à droite (orange à faire, vert réussi ou fait à la main,
+/// rouge échec avec le contour d'alerte, jaune passé ou à faire à la main, gris à jour ; sans pastille : sans objet) ;
+/// le détail (mot et chiffres) s'ouvre au toucher dans le bilan
 class CalibTile final : public Button {
 public:
     CalibTile(window_t *parent, Rect16 body, uint8_t tag);
 
-    void show(const string_view_utf8 &name, const string_view_utf8 &status, Color status_color, bool alert, bool active);
+    void show(const string_view_utf8 &name, std::optional<Color> dot, Look look, bool active);
 
 protected:
     void unconditionalDraw() override;
 
 private:
-    string_view_utf8 status;
-    Color status_color;
+    std::optional<Color> dot;
 };
 
 class ScreenCalibAssistant final : public Screen {

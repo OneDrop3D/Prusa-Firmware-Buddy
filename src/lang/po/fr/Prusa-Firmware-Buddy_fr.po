@@ -11602,30 +11602,6 @@ msgid "XY skew"
 msgstr "Équerrage XY"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "by hand"
-msgstr "à la main"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "to do"
-msgstr "à faire"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "up to date"
-msgstr "à jour"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "failed"
-msgstr "échec"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "skipped"
-msgstr "passé"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "running"
-msgstr "en cours"
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Nothing to calibrate."
 msgstr "Rien à calibrer."
 

@@ -45,18 +45,27 @@ using calib_registry::entries;
 
 namespace {
 
-    // Géométrie (contenu de y 46 à 272) : texte sur 3 lignes, 2 colonnes de 6 tuiles (place pour 2 tests de plus),
-    // 3 boutons
-    constexpr size_t max_tiles = 12;
+    // Géométrie (contenu de y 46 à 272) : texte sur 3 lignes, 3 colonnes de 6 tuiles alignées sur les 3 boutons, de
+    // quoi loger tous les tests possibles du registre (calib_registry::max_tests). Tuile : corps 148 × 19, marges de
+    // 2 px jointives (aucun pixel entre deux tuiles n'est à personne), nom à gauche et pastille d'état à droite, tous
+    // deux hors des coins arrondis : 13 caractères au plus pour le nom (« Équerrage XY », « Accél. fil. »)
+    constexpr size_t tile_columns = 3;
+    constexpr size_t max_tiles = 18;
+    constexpr uint8_t tile_radius = style::radius_small;
+    constexpr int16_t tile_dot = 8; ///< diamètre de la pastille d'état
     constexpr Rect16 info_rect = Rect16(style::margin, style::top, 464, 48);
     constexpr Rect16 tile_body(size_t i) {
-        return Rect16(10 + 234 * int(i % 2), 97 + 23 * int(i / 2), 226, 20);
+        return Rect16(10 + 156 * int(i % tile_columns), 96 + 23 * int(i / tile_columns), 148, 19);
     }
     constexpr Rect16 button_body(int i) {
         return Rect16(10 + 156 * i, 236, 148, 36); // deux lignes de police small
     }
-    static_assert(entries.size() <= max_tiles, "2 colonnes de 6 tuiles : agrandir la grille");
+    static_assert(max_tiles >= calib_registry::max_tests, "une tuile pour chaque test possible du registre");
+    static_assert(entries.size() <= max_tiles);
     static_assert(style::with_ring(tile_body(0)).Top() > info_rect.Bottom());
+    static_assert(style::with_ring(tile_body(tile_columns)).Top() == style::with_ring(tile_body(0)).Bottom() + 1, "rangées jointives");
+    static_assert(style::with_ring(tile_body(1)).Left() > style::with_ring(tile_body(0)).Right());
+    static_assert(tile_body(0).Height() >= height(Font::small) + 2 && 2 * tile_radius <= tile_body(0).Height());
     static_assert(style::inside(style::content, style::with_ring(tile_body(max_tiles - 1))));
     static_assert(style::with_ring(button_body(0)).Top() > style::with_ring(tile_body(max_tiles - 1)).Bottom());
     static_assert(style::inside(style::content, style::with_ring(button_body(2))));
@@ -323,10 +332,11 @@ namespace {
     }
 
     /// Ce que montre une tuile
+    /// Pastilles d'état (le mot est au détail, au toucher)
+    constexpr Color dot_ok = Color::from_raw(0x2E9E5B); ///< vert de l'atelier
     struct TileView {
-        const char *status;
-        Color color;
-        bool alert = false;
+        std::optional<Color> dot; ///< pas de pastille : test sans objet ici
+        Button::Look look = Button::Look::card; ///< alert : échec ; secondary : en cours
         bool active = false; ///< touchable : refaire un test du bilan, ouvrir l'écran d'un test manuel
     };
 
@@ -334,34 +344,31 @@ namespace {
         const uint32_t b = test_bit(e.test);
         const bool open_stage = flow.stage == Stage::propose || flow.stage == Stage::summary;
         if (!calib_registry::applicable(e, ctx)) {
-            return { "-", style::text_faint };
+            return {};
         }
-        if (!e.automatic) {
-            return calib_registry::outdated(e, record) ? TileView { N_("by hand"), style::warning, false, open_stage }
-                                                       : TileView { "OK", style::text_strong, false, open_stage };
+        if (!e.automatic) { // à faire à la main : jaune ; fait : vert
+            return { calib_registry::outdated(e, record) ? style::warning : dot_ok, Button::Look::card, open_stage };
         }
-        if (flow.stage == Stage::propose || !(flow.session & b)) {
-            return (flow.stage == Stage::propose ? (flow.mask & b) : calib_registry::outdated(e, record))
-                ? TileView { N_("to do"), style::accent }
-                : TileView { N_("up to date"), style::text_muted };
+        if (flow.stage == Stage::propose || !(flow.session & b)) { // à faire : orange ; à jour : gris
+            return { (flow.stage == Stage::propose ? (flow.mask & b) : calib_registry::outdated(e, record)) ? style::accent : style::text_muted };
         }
         const bool summary = flow.stage == Stage::summary;
         if (flow.started & b) {
             switch (assistant::result(e.test)) {
             case Result::ok:
-                return { "OK", style::text_strong, false, summary }; // bilan : ses chiffres
+                return { dot_ok, Button::Look::card, summary }; // bilan : ses chiffres
             case Result::failed:
-                return { N_("failed"), style::danger, true, summary };
+                return { style::danger, Button::Look::alert, summary };
             case Result::skipped:
-                return { N_("skipped"), style::warning, false, summary };
+                return { style::warning, Button::Look::card, summary };
             case Result::none:
                 if (p.running && p.step.test == e.test) {
-                    return { N_("running"), style::accent };
+                    return { style::accent, Button::Look::secondary };
                 }
                 break;
             }
         }
-        return summary ? TileView { N_("skipped"), style::warning, false, true } : TileView { N_("to do"), style::text_soft };
+        return summary ? TileView { style::warning, Button::Look::card, true } : TileView { style::accent };
     }
 
     // ---- Chiffres du bilan (seulement mesurés ou calculés ; prédictions marquées « estimé ») ----
@@ -744,38 +751,36 @@ string_view_utf8 calibration_assistant_name() {
 // ---- Tuile ----
 
 CalibTile::CalibTile(window_t *parent, Rect16 body, uint8_t tag)
-    : Button(parent, body, tag, Look::card, string_view_utf8::MakeNULLSTR(), nullptr, style::screen, 8)
-    , status(string_view_utf8::MakeNULLSTR())
-    , status_color(style::text_muted) {
+    : Button(parent, body, tag, Look::card, string_view_utf8::MakeNULLSTR(), nullptr, style::screen, tile_radius) {
     set_font(Font::small);
 }
 
-void CalibTile::show(const string_view_utf8 &name, const string_view_utf8 &new_status, Color color, bool alert, bool active) {
-    const Look new_look = alert ? Look::alert : Look::card;
-    if (name.is_same_ref(label) && new_status.is_same_ref(status) && color == status_color && new_look == look && active == IsEnabled()) {
+void CalibTile::show(const string_view_utf8 &name, std::optional<Color> new_dot, Look new_look, bool active) {
+    if (name.is_same_ref(label) && new_dot == dot && new_look == look && active == IsEnabled()) {
         return;
     }
     label = name;
-    status = new_status;
-    status_color = color;
+    dot = new_dot;
     look = new_look;
     set_enabled(active);
     Invalidate();
 }
 
 void CalibTile::unconditionalDraw() {
-    Colors c = colors();
-    if (!IsEnabled()) {
-        c.fg = style::text; // un résultat reste lisible même quand la tuile n'est pas touchable
+    const Colors c = colors();
+    draw_frame(body(), c); // corps arrondi et contour d'une passe, marge comprise
+    // Nom et pastille repeignent leur rect au fond du corps : ils restent hors des carrés des coins (tile_radius de
+    // chaque bord), pour ne jamais poser un rectangle sur l'arrondi anticrénelé
+    const Rect16 b = body();
+    constexpr int16_t h = height(Font::small);
+    const int16_t dot_x = b.Left() + b.Width() - tile_radius - tile_dot;
+    const int16_t name_x = b.Left() + tile_radius;
+    const Color fg = !dot ? style::text_faint : (IsEnabled() ? c.fg : style::text); // lisible même pas touchable
+    draw_text(Rect16(name_x, b.Top() + (b.Height() - h) / 2, dot_x - 4 - name_x, h), label, Font::small, fg, c.fill);
+    if (dot) {
+        // Disque anticrénelé (contour de la même couleur), comme les coins des cartes
+        draw_rounded_frame(Rect16(dot_x, b.Top() + (b.Height() - tile_dot) / 2, tile_dot, tile_dot), c.fill, *dot, *dot, tile_dot / 2, 1);
     }
-    const Rect16 b = draw_frame(body(), c);
-    constexpr uint16_t w = width(Font::small);
-    constexpr uint16_t h = height(Font::small);
-    const int16_t y = b.Top() + (b.Height() - h) / 2;
-    const uint16_t status_w = std::min<uint16_t>(status.isNULLSTR() ? 0 : status.computeNumUtf8Chars() * w, b.Width() - 12);
-    const int16_t right = b.Right() - 5;
-    draw_text(Rect16(right - status_w, y, status_w, h), status, Font::small, status_color, c.fill, Align_t::RightCenter());
-    draw_text(Rect16(b.Left() + 6, y, std::max(0, right - status_w - 4 - (b.Left() + 6)), h), label, Font::small, c.fg, c.fill);
 }
 
 // ---- Écran ----
@@ -873,7 +878,7 @@ void ScreenCalibAssistant::show() {
     for (size_t i = 0; i < entries.size(); ++i) {
         const Entry &e = entries[i];
         const TileView v = tile_view(e, ctx, records[size_t(e.test)], p);
-        tiles[i].show(_(name_of(e.test)), _(v.status), v.color, v.alert, v.active);
+        tiles[i].show(_(name_of(e.test)), v.dot, v.look, v.active);
     }
 
     // Texte

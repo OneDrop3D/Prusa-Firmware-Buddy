@@ -152,8 +152,13 @@ uint32_t select(const Context &ctx, std::span<const Record> records, bool only_o
 uint32_t automatic_mask();
 uint32_t needs_mask(uint8_t needs);
 
-/// Proposer l'assistant au démarrage : un test automatique à faire, et ce registre n'a pas été écarté par « Ne plus
-/// demander » (dismissed = signature() enregistrée à ce moment)
+/// Tests automatiques cochés d'office dans la proposition (retour du 23/11 : « pouvoir passer certaines calibrations
+/// comme le PA ») : ceux de select(), sauf le PA jamais mesuré (1re calibration : il se mesure au début de la
+/// 1re impression de chaque bobine). Chacun se coche ou se décoche ensuite à l'écran.
+uint32_t proposed(const Context &ctx, std::span<const Record> records, bool only_outdated);
+
+/// Proposer l'assistant au démarrage : un test coché d'office (proposed()), et ce registre n'a pas été écarté par
+/// « Ne plus demander » (dismissed = signature() enregistrée à ce moment)
 bool should_propose(const Context &ctx, std::span<const Record> records, uint32_t dismissed);
 
 /// Empreinte des versions du registre : elle change dès qu'une version change

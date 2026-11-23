@@ -12418,3 +12418,27 @@ msgstr "Vitesse MMU :"
 #: src/gui/od3d/spool_sheet_od3d.cpp
 msgid "tip drift"
 msgstr "dérive de la pointe"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%d calibrations are new or changed in this firmware (about %d min). Touch a test to add or skip it; the tests then run by themselves."
+msgstr "%d calibrations sont nouvelles ou modifiées dans ce firmware (environ %d min). Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Full calibration: %d tests, about %d min. Touch a test to add or skip it; the tests then run by themselves."
+msgstr "Calibration complète : %d tests, environ %d min. Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nothing to calibrate. Touch a test to add it."
+msgstr "Rien à calibrer. Touchez un test pour l'ajouter."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Skip this test"
+msgstr "Passer ce test"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Skipped: still to do next time."
+msgstr "Passé : reste à faire la prochaine fois."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers."
+msgstr "Terminé : %d OK, %d en échec, %d passés. Touchez un test pour ses chiffres."

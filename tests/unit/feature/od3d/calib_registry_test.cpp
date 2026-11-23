@@ -271,3 +271,23 @@ TEST_CASE("calib_registry: summary numbers") {
         CHECK(x == no_value);
     }
 }
+
+TEST_CASE("calib_registry: PA unchecked at the first calibration, other tests checked") {
+    const Records none {};
+    const uint32_t offered = select(full(), none, true) & automatic_mask();
+    const uint32_t checked = proposed(full(), none, true);
+    CHECK_FALSE((checked & test_bit(Test::pa))); // mesuré au début de la 1re impression de chaque bobine
+    CHECK(checked == (offered & ~test_bit(Test::pa)));
+    CHECK(should_propose(full(), none, 0));
+
+    // PA déjà mesuré une fois : coché comme les autres (assistant ouvert depuis le menu)
+    Records r = all_done();
+    r[size_t(Test::pa)] = Record { .version = 1, .result = Result::ok };
+    CHECK((proposed(full(), r, false) & test_bit(Test::pa)));
+
+    // Seul le PA à faire, jamais mesuré : rien de coché, pas de proposition au démarrage
+    r = all_done();
+    r[size_t(Test::pa)] = Record {};
+    CHECK(proposed(full(), r, true) == 0);
+    CHECK_FALSE(should_propose(full(), r, 0));
+}

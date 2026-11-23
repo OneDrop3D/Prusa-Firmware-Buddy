@@ -58,6 +58,14 @@ Result result(Test test);
 /// « Annuler » (interface) : l'étape en cours est arrêtée, les suivantes ne sont pas lancées
 void request_cancel();
 
+/// L'étape en cours peut être passée sans risque (toutes, sauf le tube PTFE qui ne s'arrête pas en route)
+bool can_skip();
+
+/// « Passer » (interface, ou arrêt depuis l'écran de la mesure) : l'étape en cours s'arrête si elle tourne, comptée
+/// « passée » (pas un échec) ; la série continue. index : l'étape vue par l'interface (Progress::index), rien si la
+/// série est déjà à la suivante. À redemander tant que l'étape n'a pas commencé (chargement)
+void request_skip(uint8_t index);
+
 /// Chiffres du bilan de la dernière série (no_value : pas de valeur), relevés avant l'étape et après son succès :
 /// - input_shaper (écrits par M1959 A) : [0..3] type et fréquence ×10 de X puis Y ; après : [4], [5] baisse estimée des
 ///   vibrations restantes de X, Y par rapport à sans filtre (%) ; [6], [7] par rapport au réglage d'avant (%) ;

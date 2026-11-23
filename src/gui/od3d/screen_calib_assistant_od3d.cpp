@@ -101,11 +101,14 @@ namespace {
         bool boot = false; ///< proposé au démarrage : « Plus tard », « Ne plus demander »
         bool cancelled = false;
         bool check_failed = false; ///< l'accéléromètre n'a pas répondu à la dernière vérification
-        uint32_t session = 0; ///< tests de cette session (affichés au bilan)
-        uint32_t mask = 0; ///< tests encore à lancer
+        uint32_t session = 0; ///< tests de cette session (affichés au bilan ; décochés : « passé »)
+        uint32_t mask = 0; ///< tests encore à lancer ; dans la proposition : les tests cochés
+        uint32_t offered = 0; ///< proposition : les tests cochés d'office
         uint32_t started = 0; ///< tests envoyés à Marlin (leur résultat compte)
         uint16_t runs_at_start = 0;
         uint16_t checks_at_request = 0;
+        uint8_t skip_index = 0xff; ///< étape passée (« Passer »), redemandé tant qu'elle n'a pas commencé
+        uint16_t skip_runs = 0; ///< série de cette étape
     };
     Flow flow;
 
@@ -119,7 +122,7 @@ namespace {
 
     uint32_t tests_to_offer(bool only_outdated) {
         const auto records = assistant::records();
-        return calib_registry::select(assistant::context(), records, only_outdated) & calib_registry::automatic_mask();
+        return calib_registry::proposed(assistant::context(), records, only_outdated);
     }
 
     const char *name_of(Test test) {
@@ -297,12 +300,15 @@ namespace {
         }
     }
 
-    void start_session(uint32_t mask, bool ask) {
+    /// session : tests montrés au bilan (cochés d'office et décochés compris) ; mask : ceux à lancer
+    void start_session(uint32_t session, uint32_t mask, bool ask) {
         if (marlin_client::is_printing()) {
             MsgBoxWarning(_("Not while printing."), Responses_Ok);
             return;
         }
-        flow.session = flow.mask = mask;
+        flow.session = session | mask;
+        flow.mask = mask;
+        flow.skip_index = 0xff;
         flow.started = 0;
         flow.cancelled = flow.check_failed = false;
         if (!(mask & accel_tests())) {
@@ -362,8 +368,11 @@ namespace {
         if (!e.automatic) { // à faire à la main : jaune ; fait : vert
             return { calib_registry::outdated(e, record) ? style::warning : dot_ok, Button::Look::card, open_stage };
         }
-        if (flow.stage == Stage::propose || !(flow.session & b)) { // à faire : orange ; à jour : gris
-            return { (flow.stage == Stage::propose ? (flow.mask & b) : calib_registry::outdated(e, record)) ? style::accent : style::text_muted };
+        if (flow.stage == Stage::propose) { // coché : orange ; décoché : gris ; le toucher coche ou décoche
+            return { (flow.mask & b) ? style::accent : style::text_muted, Button::Look::card, true };
+        }
+        if (!(flow.session & b)) { // à faire : orange ; à jour : gris
+            return { calib_registry::outdated(e, record) ? style::accent : style::text_muted };
         }
         const bool summary = flow.stage == Stage::summary;
         if (flow.started & b) {
@@ -457,6 +466,10 @@ namespace {
     void build_details(Test test, Writer &w) {
         const calib_registry::Numbers &a = assistant::numbers_after(test);
         const calib_registry::Numbers &b = assistant::numbers_before(test);
+        if (!(flow.started & test_bit(test)) || assistant::result(test) == Result::skipped) {
+            w.text(N_("Skipped: still to do next time."));
+            return;
+        }
         if (assistant::result(test) != Result::ok || !any(a, 0, a.size())) {
             w.text(N_("No numbers: the test did not finish."));
             return;
@@ -688,16 +701,19 @@ namespace {
 
     /// Bilan : réussites, échecs, puis les gains principaux en une ligne
     void build_summary(Writer &w) {
-        int ok = 0, failed = 0;
+        int ok = 0, failed = 0, skipped = 0;
         for (const Entry &e : entries) {
-            if ((flow.session & test_bit(e.test)) && (flow.started & test_bit(e.test))) {
-                ok += assistant::result(e.test) == Result::ok;
-                failed += assistant::result(e.test) == Result::failed;
+            if (!(flow.session & test_bit(e.test)) || !e.automatic) {
+                continue;
             }
+            const Result r = (flow.started & test_bit(e.test)) ? assistant::result(e.test) : Result::skipped; // décoché
+            ok += r == Result::ok;
+            failed += r == Result::failed;
+            skipped += r == Result::skipped || r == Result::none;
         }
         char format[96];
-        _("Finished: %d OK, %d failed. Touch a test for its numbers.").copyToRAM(format, sizeof(format));
-        w.add(format, ok, failed);
+        _("Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers.").copyToRAM(format, sizeof(format));
+        w.add(format, ok, failed, skipped);
         bool first = true;
         const auto next = [&](const char *msgid) {
             w.add(first ? "\n" : ", ");
@@ -806,7 +822,8 @@ bool calibration_prompt_at_boot() {
     if (!calib_registry::should_propose(ctx, records, assistant::dismissed())) {
         return false;
     }
-    flow = Flow { .stage = Stage::propose, .boot = true, .mask = calib_registry::select(ctx, records, true) & calib_registry::automatic_mask() };
+    const uint32_t mask = calib_registry::proposed(ctx, records, true);
+    flow = Flow { .stage = Stage::propose, .boot = true, .mask = mask, .offered = mask };
     return true;
 }
 
@@ -883,8 +900,15 @@ void calibration_follow() {
 }
 
 bool confirm_stop_measure() {
-    return !calibration_series_running()
-        || MsgBoxQuestion(_("Stop this measurement? The assistant goes on with the next one."), Responses_YesNo, 1) == Response::Yes;
+    if (!calibration_series_running()) {
+        return true;
+    }
+    const assistant::Progress p = assistant::progress();
+    if (MsgBoxQuestion(_("Stop this measurement? The assistant goes on with the next one."), Responses_YesNo, 1) != Response::Yes) {
+        return false;
+    }
+    assistant::request_skip(p.index); // « passée » au bilan, pas un échec
+    return true;
 }
 
 string_view_utf8 calibration_assistant_name() {
@@ -940,7 +964,8 @@ ScreenCalibAssistant::ScreenCalibAssistant()
     , tabs(this, section_tab()) {
     ClrMenuTimeoutClose(); // l'assistant attend l'utilisateur ou une longue série
     if (flow.stage == Stage::idle) {
-        flow = Flow { .stage = Stage::propose, .mask = tests_to_offer(false) }; // depuis le menu : toutes
+        const uint32_t mask = tests_to_offer(false); // depuis le menu : toutes, sauf le PA jamais mesuré
+        flow = Flow { .stage = Stage::propose, .mask = mask, .offered = mask };
     }
     info.set_font(Font::small);
     info.SetAlignment(Align_t::LeftCenter());
@@ -993,17 +1018,21 @@ void ScreenCalibAssistant::update() {
     }
 
     const bool running_stage = flow.stage == Stage::accel_run || flow.stage == Stage::cell_run;
-    if (running_stage && flow.cancelled) {
+    const assistant::Progress p = assistant::progress();
+    const bool skipping = running_stage && p.running && flow.skip_index == p.index && flow.skip_runs == p.runs;
+    if (skipping) {
+        assistant::request_skip(p.index); // l'étape pas encore commencée (chargement) s'arrêtera dès son début
+    }
+    if (running_stage && (flow.cancelled || skipping)) {
         abort_prusa_wizard(); // à chaque tour : une phase sans « Abandonner » passe vite
     }
 
     // Redessiné seulement si ce qui est affiché change
-    const assistant::Progress p = assistant::progress();
     const auto wizard = running_stage ? prusa_wizard() : std::nullopt;
     const bool cooling = flow.stage == Stage::cooling; // la température n'est affichée que là
     uint32_t key = 2166136261u;
     for (const uint32_t v : { uint32_t(flow.stage), uint32_t(flow.cancelled), uint32_t(flow.check_failed), uint32_t(cooling ? uint16_t(nozzle()) : 0), uint32_t(cooling && cold()),
-             uint32_t(cooling && marlin_vars().is_processing.get()), uint32_t(p.running), uint32_t(p.index), uint32_t(p.runs), flow.mask, flow.started,
+             uint32_t(cooling && marlin_vars().is_processing.get()), uint32_t(p.running), uint32_t(p.index), uint32_t(p.runs), flow.mask, flow.started, uint32_t(skipping),
              wizard ? uint32_t(wizard->phase) | uint32_t(wizard->data[0]) << 8 | uint32_t(wizard->data[2]) << 16 | uint32_t(wizard->data[3]) << 24 : 0u }) {
         key = (key ^ v) * 16777619u;
     }
@@ -1033,9 +1062,9 @@ void ScreenCalibAssistant::show() {
     case Stage::propose: {
         const int count = std::popcount(flow.mask);
         const int minutes = calib_registry::minutes(flow.mask, ctx);
-        text = !count ? _("Nothing to calibrate.")
-            : flow.boot ? _("%d calibrations are new or changed in this firmware (about %d min). Once started, the tests run by themselves.").formatted(info_params, count, minutes)
-                        : _("Full calibration: %d tests, about %d min. Once started, the tests run by themselves.").formatted(info_params, count, minutes);
+        text = !count ? _("Nothing to calibrate. Touch a test to add it.")
+            : flow.boot ? _("%d calibrations are new or changed in this firmware (about %d min). Touch a test to add or skip it; the tests then run by themselves.").formatted(info_params, count, minutes)
+                        : _("Full calibration: %d tests, about %d min. Touch a test to add or skip it; the tests then run by themselves.").formatted(info_params, count, minutes);
         break;
     }
     case Stage::ask_accel:
@@ -1129,7 +1158,7 @@ void ScreenCalibAssistant::show() {
         break;
     case Stage::accel_run:
     case Stage::cell_run:
-        s = { nullptr, nullptr, N_("Cancel") };
+        s = { nullptr, N_("Skip this test"), N_("Cancel") };
         break;
     case Stage::detach:
         s = { N_("It's done") };
@@ -1152,7 +1181,9 @@ void ScreenCalibAssistant::show() {
         }
     }
     button_a.enable(s.a && s.a_enabled);
-    button_c.enable(!(flow.cancelled && (flow.stage == Stage::accel_run || flow.stage == Stage::cell_run)));
+    const bool run = flow.stage == Stage::accel_run || flow.stage == Stage::cell_run;
+    button_b.enable(!run || (!flow.cancelled && p.running && assistant::can_skip() && flow.skip_index != p.index));
+    button_c.enable(!(flow.cancelled && run));
     // La molette part du bouton utile de l'étape ; « Continuer » le reprend dès qu'il devient possible
     if (const uint8_t want = uint8_t(buttons_stage ^ (s.a && s.a_enabled ? 0x40 : 0)); focus_stage != want) {
         focus_stage = want;
@@ -1165,8 +1196,10 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
         const Entry &e = entries[tag];
         if (!e.automatic) {
             open_screen<ScreenSkew>(); // seul test manuel : la pièce imprimée à mesurer
+        } else if (flow.stage == Stage::propose) {
+            flow.mask ^= test_bit(e.test); // cocher ou décocher (passer avant le lancement)
         } else if (flow.stage == Stage::summary && show_details(e.test)) {
-            start_session(test_bit(e.test), false); // refaire ce test seul
+            start_session(test_bit(e.test), test_bit(e.test), false); // refaire ce test seul
         }
         return;
     }
@@ -1174,7 +1207,7 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     case Stage::idle:
     case Stage::propose:
         if (tag == tag_a) {
-            start_session(flow.mask, true);
+            start_session(flow.offered, flow.mask, true);
         } else if (tag == tag_b || tag == tag_c) {
             if (tag == tag_c) {
                 assistant::dismiss(); // jusqu'à la prochaine version qui change une calibration
@@ -1240,9 +1273,18 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
             cancel();
         }
         break;
-    case Stage::checking:
     case Stage::accel_run:
     case Stage::cell_run:
+        if (tag == tag_b && !flow.cancelled && assistant::can_skip()) {
+            const assistant::Progress p = assistant::progress();
+            flow.skip_index = p.index;
+            flow.skip_runs = p.runs;
+            assistant::request_skip(p.index);
+        } else if (tag == tag_c) {
+            cancel();
+        }
+        break;
+    case Stage::checking:
         if (tag == tag_c) {
             cancel();
         }

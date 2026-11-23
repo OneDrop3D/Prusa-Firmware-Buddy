@@ -50,6 +50,7 @@ namespace {
     std::atomic<uint8_t> current = 0;
     std::atomic<bool> running = false;
     std::atomic<bool> cancel_requested = false;
+    std::atomic<uint8_t> skip_index = 0xff; ///< étape passée par l'utilisateur (0xff : aucune)
     std::atomic<uint16_t> runs = 0;
     std::array<std::atomic<Result>, max_tests> results {};
     uint32_t run_mask = 0;
@@ -410,65 +411,84 @@ Result result(Test test) {
     return results[size_t(test)].load();
 }
 
+namespace {
+    /// Arrête la mesure de l'étape en cours si elle tourne
+    void stop_current() {
+        // Seulement la mesure qui tourne : un arrêt demandé avant son début vaudrait aussi pour sa prochaine mesure à la main
+        switch (steps[current % max_steps].test) {
+        case Test::belts:
+            if (belts::is_running()) {
+                belts::request_stop();
+            }
+            break;
+        case Test::speed_map:
+            if (speed_map::is_running()) {
+                speed_map::request_stop();
+            }
+            break;
+        case Test::damping:
+            if (damping::is_running()) {
+                damping::request_stop();
+            }
+            break;
+        case Test::nozzle_expansion:
+            if (nozzle_expansion::is_running()) {
+                nozzle_expansion::request_stop();
+            }
+            break;
+        case Test::mpc:
+            if (mpc::tune_status().running) {
+                mpc::request_cancel();
+            }
+            break;
+        case Test::pa:
+            if (pa::is_running()) {
+                pa::request_stop();
+            }
+            break;
+        case Test::max_flow:
+        case Test::min_temp:
+            if (calib::is_running()) {
+                calib::request_stop();
+            }
+            break;
+        case Test::fan_response:
+            if (fan_response::is_running()) {
+                fan_response::request_stop();
+            }
+            break;
+        case Test::e_jump:
+            if (e_jump::is_running()) {
+                e_jump::request_stop();
+            }
+            break;
+        case Test::mmu_speed:
+            mmu_speed::request_stop(); // entre deux cycles
+            break;
+        default:
+            break; // assistants de Prusa (input shaper, phase stepping) : leur écran a son « Annuler »
+        }
+    }
+} // namespace
+
 void request_cancel() {
     if (!running) {
         return;
     }
     cancel_requested = true;
-    // Seulement la mesure qui tourne : un arrêt demandé avant son début vaudrait aussi pour sa prochaine mesure à la main
-    switch (steps[current % max_steps].test) {
-    case Test::belts:
-        if (belts::is_running()) {
-            belts::request_stop();
-        }
-        break;
-    case Test::speed_map:
-        if (speed_map::is_running()) {
-            speed_map::request_stop();
-        }
-        break;
-    case Test::damping:
-        if (damping::is_running()) {
-            damping::request_stop();
-        }
-        break;
-    case Test::nozzle_expansion:
-        if (nozzle_expansion::is_running()) {
-            nozzle_expansion::request_stop();
-        }
-        break;
-    case Test::mpc:
-        if (mpc::tune_status().running) {
-            mpc::request_cancel();
-        }
-        break;
-    case Test::pa:
-        if (pa::is_running()) {
-            pa::request_stop();
-        }
-        break;
-    case Test::max_flow:
-    case Test::min_temp:
-        if (calib::is_running()) {
-            calib::request_stop();
-        }
-        break;
-    case Test::fan_response:
-        if (fan_response::is_running()) {
-            fan_response::request_stop();
-        }
-        break;
-    case Test::e_jump:
-        if (e_jump::is_running()) {
-            e_jump::request_stop();
-        }
-        break;
-    case Test::mmu_speed:
-        mmu_speed::request_stop(); // entre deux cycles
-        break;
-    default:
-        break; // assistants de Prusa (input shaper, phase stepping) : leur écran a son « Annuler »
+    stop_current();
+}
+
+bool can_skip() {
+    return running && steps[current % max_steps].test != Test::mmu_ptfe; // le tube PTFE ne s'arrête pas en route
+}
+
+void request_skip(uint8_t index) {
+    if (!can_skip() || index != current) {
+        return; // l'étape a déjà changé : la suivante n'est pas passée
     }
+    skip_index = index;
+    stop_current(); // rien s'il n'a pas encore commencé (chargement) : l'interface redemande à chaque tour
 }
 
 const Numbers &numbers_before(Test test) {
@@ -543,6 +563,7 @@ void run(uint32_t mask) {
         }
     }
     cancel_requested = false;
+    skip_index = 0xff;
     running = true;
     start(0);
 }
@@ -556,7 +577,7 @@ void step_end(uint8_t index) {
     if (ok) {
         capture(s, after_numbers[size_t(s.test)], true);
     }
-    add_result(s.test, ok ? Result::ok : (cancel_requested ? Result::skipped : Result::failed));
+    add_result(s.test, ok ? Result::ok : (cancel_requested || skip_index == index ? Result::skipped : Result::failed));
     start(uint8_t(index + 1));
 }
 

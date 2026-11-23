@@ -1851,7 +1851,7 @@ msgstr ""
 #: src/gui/wizard/screen_heaters_selftest.cpp:81
 #: src/gui/wizard/selftest_frame_revise_printer_setup.cpp:35
 msgid "Do you wish to retry the failed selftest?"
-msgstr "Souhaitez-vous réessayer le selftest ayant échoué ?"
+msgstr "Souhaitez-vous réessayer l'autotest ayant échoué ?"
 
 #: src/common/selftest/selftest_fans.hpp:55
 msgid "Dock"
@@ -2248,7 +2248,7 @@ msgstr ""
 
 #: src/gui/wizard/selftest_invalid_state.cpp:12
 msgid "Error invalid selftest state"
-msgstr "Erreur état de selftest non valide"
+msgstr "Erreur : état d'autotest non valide"
 
 #: src/gui/MItem_tools.cpp:360
 msgid ""
@@ -4826,7 +4826,7 @@ msgstr "SURINTENSITÉ DU MMU"
 #: tmp_error_headers/error_list_mmu.hpp:227
 #: tmp_error_headers/error_list_mmu.hpp:234
 msgid "MMU SELFTEST FAILED"
-msgstr "ÉCHEC DU SELFTEST DU MMU"
+msgstr "ÉCHEC DE L'AUTOTEST DU MMU"
 
 #: src/gui/MItem_mmu.hpp:159
 msgid "MMU Unit"
@@ -7151,7 +7151,7 @@ msgstr ""
 
 #: src/gui/screen_menu_selftest_snake.cpp:498
 msgid "Run selftests and calibrations now?"
-msgstr "Exécuter les selftests et les calibrations maintenant ?"
+msgstr "Exécuter les autotests et les calibrations maintenant ?"
 
 #: src/gui/screen_phase_stepping_calibration.cpp:43
 msgid ""
@@ -7187,7 +7187,7 @@ msgstr "LE SÉLECTEUR NE PEUT PAS SE DÉPLACER"
 
 #: src/gui/wizard/screen_fan_selftest.cpp:63 src/gui/ScreenSelftest.hpp:40
 msgid "SELFTEST"
-msgstr "SELFTEST"
+msgstr "AUTOTEST"
 
 #: tmp_error_headers/error_list.hpp:1114
 msgid "SELFTEST NOT PASSED"
@@ -12687,3 +12687,8 @@ msgstr "Mesure de l'écran sur la clé\nTemps de dessin dans OD3D_UI.CSV"
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Screen timings added to OD3D_UI.CSV on the USB drive."
 msgstr "Mesures de l'écran ajoutées à OD3D_UI.CSV sur la clé USB."
+
+# lot UI-D
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Park"
+msgstr "Repos"

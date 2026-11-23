@@ -32,6 +32,11 @@ public:
 
     void set_scroll_offset(int set) override;
 
+    /// OneDrop3D (interface G) : prépare aussi l'élément qui suit l'écran, la demi-ligne des listes G
+    /// (od3d/menu_od3d.cpp), quand le tampon a la place ; à appeler après la construction. Pas pour les listes dont
+    /// setup_item n'accepte que les lignes de l'écran (window_file_list_t).
+    void set_peek_item();
+
 protected:
     /// Calls setup_item for the individual slots.
     /// Call this:
@@ -58,6 +63,8 @@ private:
 
     /// Whether \p setup_items() was ever called
     bool items_set_up_ = false;
+
+    bool peek_item_ = false; ///< OneDrop3D : set_peek_item()
 };
 
 /// WindowMenu implementation that only keeps items that are currently on the screen in the memory.

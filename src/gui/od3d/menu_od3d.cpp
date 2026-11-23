@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <display.hpp>
+#include <fonts.hpp>
 #include <iterator>
 #include <i_window_menu_item.hpp>
 #include <img_resources.hpp>
@@ -92,8 +93,48 @@ namespace {
         draw_text(Rect16(rect.Left(), rect.Top() + h + 2, rect.Width(), rect.Height() - h - 2), string_view_utf8::MakeRAM(second), Font::small, second_fg, bg, Align_t::LeftTop());
     }
 
-    /// Une ligne de la liste (SPEC_G.md §1.7) ; extension_only : seule la valeur a changé
-    void draw_row(IWindowMenuItem &item, Rect16 row, bool first, bool last, bool extension_only) {
+    /// Libellé de la demi-ligne : la 1re ligne à la place qu'elle a dans draw_label, ses glyphes coupés à bottom (exclu) ;
+    /// rect ∩ [.., bottom) est repeint, d'une passe. Les glyphes passent par le tampon de l'écran (comme render_line) :
+    /// seules ses premières rangées sont envoyées.
+    void draw_label_cut(Rect16 rect, const string_view_utf8 &label, Color fg, Color bg, int16_t bottom) {
+        const font_t &font = *resource_font(Font::small);
+        std::array<char, 160> buf;
+        label.copyToRAM(buf.data(), buf.size());
+        char *second = strchr(buf.data(), '\n');
+        if (second) {
+            *second = '\0';
+        }
+        text::ellipsize(buf.data(), rect.Width() / font.w);
+        size_t chars = 0;
+        for (const char *p = buf.data(); *p; ++p) {
+            chars += (*p & 0xC0) != 0x80;
+        }
+        const int16_t y = second ? rect.Top() + 1 : rect.Top() + (rect.Height() - font.h) / 2; // draw_label : LeftCenter sur h + 2 ou sur rect
+        const Rect16 shown(rect.Left(), rect.Top(), rect.Width(), uint16_t(std::clamp<int>(bottom - rect.Top(), 0, rect.Height())));
+        const Rect16 glyphs = Rect16(rect.Left(), y, uint16_t(chars * font.w), font.h).Intersection(shown);
+        style::for_each_gap(shown, std::span<const Rect16>(&glyphs, 1), [bg](Rect16 r) {
+            display::fill_rect(r, bg);
+        });
+        if (glyphs.IsEmpty()) {
+            return;
+        }
+        StringReaderUtf8 reader(string_view_utf8::MakeRAM(buf.data()));
+        const size_t capacity = display::buffer_pixel_size() / (font.w * font.h);
+        int16_t x = rect.Left();
+        for (size_t left = chars; left > 0;) {
+            const size_t n = std::min(left, capacity);
+            for (size_t i = 0; i < n; ++i) {
+                display::store_char_in_buffer(uint16_t(n), uint16_t(i), reader.getUtf8Char(), &font, bg, fg);
+            }
+            display::draw_from_buffer(point_ui16(x, y), uint16_t(n * font.w), glyphs.Height());
+            x += n * font.w;
+            left -= n;
+        }
+    }
+
+    /// Une ligne de la liste (SPEC_G.md §1.7) ; extension_only : seule la valeur a changé. visible < row.Height() :
+    /// demi-ligne, seul son haut est peint (fond, haut de la tuile sans l'icône, haut du libellé, pas de valeur)
+    void draw_row(IWindowMenuItem &item, Rect16 row, bool first, bool last, bool extension_only, uint16_t visible) {
         const bool focused = item.is_focused();
         const bool enabled = item.IsEnabled();
         // Réglage à la molette (WiSpin) : la molette change la valeur au lieu de passer à la ligne suivante, et la ligne
@@ -107,14 +148,16 @@ namespace {
         if (extension.Left() < content.Left() + 8 * width(Font::small)) {
             extension = Rect16::fromLTRB(content.Left() + 8 * width(Font::small), extension.Top(), content.Left() + content.Width(), extension.Top() + extension.Height());
         }
-        const bool has_extension = extension.Width() > 0 && (enabled || item.DoesShowDisabledExtension());
+        const bool cut = visible < row.Height();
+        const Rect16 shown(row.Left(), row.Top(), row.Width(), visible);
+        const bool has_extension = !cut && extension.Width() > 0 && (enabled || item.DoesShowDisabledExtension());
 
         if (!extension_only) {
             // Ligne ciblée : fond #34373C (SPEC_G.md §1.6), sans anneau. Une passe : le fond seulement autour de la tuile, du
             // libellé et de la valeur, qui repeignent leur rect (le fond puis le texte : chaque pas de la molette faisait
             // clignoter deux lignes) ; les bouts arrondis sont deux bandes de 12 px, sans contenu
             const uint8_t corners = (first ? MIC_TOP_LEFT | MIC_TOP_RIGHT : 0) | (last ? MIC_BOT_LEFT | MIC_BOT_RIGHT : 0);
-            const Rect16 body = first ? row : Rect16(row.Left(), row.Top() + 1, row.Width(), row.Height() - 1);
+            const Rect16 body = (first ? row : Rect16(row.Left(), row.Top() + 1, row.Width(), row.Height() - 1)).Intersection(shown);
             if (!first) {
                 display::fill_rect(Rect16(row.Left(), row.Top(), row.Width(), 1), style::line);
             }
@@ -138,17 +181,27 @@ namespace {
             }
             const Color tile = tile_color(icon);
             const Rect16 tile_rect(row.Left() + tile_x, row.Top() + (row.Height() - tile_size) / 2, tile_size, tile_size);
+            const Rect16 tile_shown = tile_rect.Intersection(shown);
             const int16_t label_end = has_extension ? extension.Left() - 10 : content.Left() + content.Width();
             const Rect16 label_rect(content.Left(), content.Top(), std::max<int>(label_end - content.Left(), 0), content.Height());
-            const std::array<Rect16, 3> parts { tile_rect, label_rect, has_extension ? extension : Rect16() };
+            const std::array<Rect16, 3> parts { tile_shown, label_rect.Intersection(shown), has_extension ? extension : Rect16() };
             style::for_each_gap(Rect16(body.Left() + tile_x, body.Top(), body.Width() - tile_x - value_right, body.Height()), std::span<const Rect16>(parts.data(), has_extension ? 3 : 2), [&](Rect16 r) {
                 display::fill_rect(r, bg);
             });
 
-            display::draw_rounded_rect(tile_rect, bg, tile, 8, MIC_ALL_CORNERS);
+            const Color fg = enabled ? style::text : style::text_faint;
+            if (cut) {
+                // Le haut de la tuile, arrondi en haut seulement ; l'icône (lue d'un bloc) n'y est pas
+                if (!tile_shown.IsEmpty()) {
+                    display::draw_rounded_rect(tile_shown, bg, tile, style::radius_small, tile_shown.Height() < tile_size ? MIC_TOP_LEFT | MIC_TOP_RIGHT : MIC_ALL_CORNERS);
+                }
+                draw_label_cut(label_rect, item.GetLabel(), fg, bg, shown.Top() + shown.Height());
+                return;
+            }
+            display::draw_rounded_rect(tile_rect, bg, tile, style::radius_small, MIC_ALL_CORNERS);
             draw_icon({ int16_t(tile_rect.Left() + (tile_size - icon->w) / 2), int16_t(tile_rect.Top() + (tile_size - icon->h) / 2) }, *icon, tile,
                 enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
-            draw_label(label_rect, item.GetLabel(), enabled ? style::text : style::text_faint, bg,
+            draw_label(label_rect, item.GetLabel(), fg, bg,
                 edited ? _("Knob: adjust, click: OK") : string_view_utf8::MakeNULLSTR());
         }
 
@@ -199,7 +252,9 @@ MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has
 void MenuHeader::SetText(const string_view_utf8 &title) {
     title.copyToRAM(title_text.data(), title_text.size());
     text::title_case(title_text.data());
-    text::ellipsize(title_text.data(), Header::title_chars());
+    // Sans le disque du retour, le titre part de la marge : 36 px de plus que Header::title_chars() (disque 32, écarts
+    // 6 + 6, moins la marge de 8), soit 4 caractères (« Température de la buse » était coupé à 19)
+    text::ellipsize(title_text.data(), Header::title_chars() + 36 / width(Font::small));
     header.set_title(string_view_utf8::MakeRAM(title_text.data()));
 }
 
@@ -224,26 +279,35 @@ void MenuListBase::draw() {
     const int first = menu.scroll_offset();
     const int count = menu.current_items_on_screen_count();
     const int16_t pitch = menu.item_height() + GuiDefaults::MenuItemDelimeterHeight;
-    const bool all = IsInvalid() || menu.IsInvalid() || drawn_rows != count;
+    const int16_t bottom = menu.Top() + count * pitch;
+    // Demi-ligne : la ligne qui suit les lignes entières, s'il y en a une (une liste virtuelle la prépare aussi,
+    // window_menu_virtual.cpp) ; sa valeur ne compte pas, elle n'est pas peinte
+    const int16_t peek_h = std::min<int>(menu.Top() + menu.Height() - bottom, pitch - 1);
+    IWindowMenuItem *next = (count == menu.max_items_on_screen_count() && peek_h > 0 && first + count < menu.item_count()) ? menu.item_at(first + count) : nullptr;
+    const uint8_t rows = count + (next ? 1 : 0);
+    const bool all = IsInvalid() || menu.IsInvalid() || drawn_rows != rows;
 
-    for (int slot = 0; slot < count; ++slot) {
-        IWindowMenuItem *item = menu.item_at(first + slot);
+    for (int slot = 0; slot < rows; ++slot) {
+        IWindowMenuItem *item = slot < count ? menu.item_at(first + slot) : next;
         if (!item || (!all && !item->IsInvalid())) {
             continue;
         }
         const bool extension_only = !all && !item->IsIconInvalid() && !item->IsLabelInvalid();
-        draw_row(*item, Rect16(menu.Left(), menu.slot_rect(slot).Top(), row_w, pitch), slot == 0, slot == count - 1, extension_only);
+        if (slot < count || !extension_only) {
+            // Coins du bas sur la dernière ligne entière, sauf si la demi-ligne la prolonge ; ordre de haut en bas
+            draw_row(*item, Rect16(menu.Left(), menu.Top() + slot * pitch, row_w, pitch), slot == 0, slot == count - 1 && !next, extension_only, slot < count ? pitch : peek_h);
+        }
         item->Validate();
     }
 
     if (all) {
-        const int16_t bottom = menu.Top() + count * pitch;
-        display::fill_rect(Rect16(menu.Left(), bottom, row_w, menu.Top() + menu.Height() - bottom), style::screen);
+        const int16_t end = next ? bottom + peek_h : bottom;
+        display::fill_rect(Rect16(menu.Left(), end, row_w, menu.Top() + menu.Height() - end), style::screen);
         display::fill_rect(Rect16(menu.Left() + row_w, menu.Top(), scroll_gap, menu.Height()), style::screen);
         draw_scrollbar(menu);
     }
 
-    drawn_rows = count;
+    drawn_rows = rows;
     menu.Validate();
 }
 
@@ -253,6 +317,14 @@ void MenuListBase::windowEvent(window_t *sender, GUI_event_t event, void *param)
     if ((event == GUI_event_t::KNOB || event == GUI_event_t::CLICK) && list) {
         list->WindowEvent(sender, event, param);
         return;
+    }
+    // Demi-ligne touchée : la liste défile d'une ligne et la cible (le menu Prusa n'a pas de ligne à cet endroit)
+    if (event == GUI_event_t::TOUCH_CLICK && list) {
+        const int shown = list->max_items_on_screen_count();
+        if (event_conversion_union { .pvoid = param }.point.y >= list->Top() + shown * (list->item_height() + GuiDefaults::MenuItemDelimeterHeight)) {
+            list->move_focus_to_index(list->scroll_offset() + shown);
+            return;
+        }
     }
     window_frame_t::windowEvent(sender, event, param);
 }

@@ -6,6 +6,7 @@
 #include <display_helper.h>
 #include <window_icon.hpp>
 #include "gui_time.hpp"
+#include <gui/od3d/style_od3d.hpp>
 
 void window_text_t::SetText(const string_view_utf8 &txt) {
     if (text.is_same_ref(txt)) {
@@ -44,14 +45,16 @@ void do_draw(Rect16 rect, const string_view_utf8 &text, Font font, Color parent_
 } // namespace
 
 void window_text_t::unconditionalDraw() {
-    const bool invert_text_back_colors = IsFocused() && !flags.color_scheme_background && !flags.color_scheme_foreground;
+    // OneDrop3D (interface G) : au focus, le fond prend un ton plus clair (focus des écrans G), au lieu du bloc blanc
+    // inversé ; coins de la palette G
+    const bool focus_back = IsFocused() && !flags.color_scheme_background && !flags.color_scheme_foreground;
 
     do_draw(GetRect(), text, get_font(),
         GetParent() ? GetParent()->GetBackColor() : GetBackColor(),
-        invert_text_back_colors ? GetTextColor() : GetBackColor(),
-        invert_text_back_colors ? GetBackColor() : GetTextColor(),
+        focus_back ? od3d::style::focused(GetBackColor()) : GetBackColor(),
+        GetTextColor(),
         padding, { GetAlignment(), is_multiline(flags.multiline), check_overflow(flags.check_overflow) },
-        GuiDefaults::MenuItemCornerRadius, MIC_ALL_CORNERS, flags.has_round_corners);
+        od3d::style::radius_small, MIC_ALL_CORNERS, flags.has_round_corners);
 }
 
 /*****************************************************************************/

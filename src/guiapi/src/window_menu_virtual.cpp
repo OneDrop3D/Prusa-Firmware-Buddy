@@ -83,12 +83,26 @@ void WindowMenuVirtualBase::set_scroll_offset(int set) {
     }
 }
 
+void WindowMenuVirtualBase::set_peek_item() {
+    peek_item_ = true;
+    const int index = scroll_offset() + max_items_on_screen_count();
+    if (!items_set_up_ || index >= item_count() || max_items_on_screen_count() >= item_buffer_size) {
+        return; // rien à préparer maintenant : setup_items() et set_scroll_offset() s'en chargent
+    }
+    const int buffer_slot = index % item_buffer_size;
+    setup_buffer_slot(buffer_slot, index);
+    if (auto item = item_at_buffer_slot(buffer_slot)) {
+        item->Loop();
+    }
+}
+
 std::optional<int> WindowMenuVirtualBase::buffer_slot_index(int buffer_slot, int scroll_offset) const {
     // This is a reverse function to (buffer_slot = index % item_buffer_size) from item_at
     const auto result = scroll_offset + (buffer_slot + item_buffer_size - (scroll_offset % item_buffer_size)) % item_buffer_size;
     debug_assert(result % item_buffer_size == buffer_slot);
 
-    if (result >= scroll_offset + max_items_on_screen_count()) {
+    // OneDrop3D (interface G) : une ligne de plus que l'écran si set_peek_item() et que le tampon a la place
+    if (result >= scroll_offset + max_items_on_screen_count() + (peek_item_ ? 1 : 0)) {
         return std::nullopt;
     }
 

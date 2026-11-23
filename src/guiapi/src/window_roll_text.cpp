@@ -7,6 +7,7 @@
 
 #include "window_roll_text.hpp"
 #include "stm32f4xx_hal.h"
+#include <gui/od3d/style_od3d.hpp>
 
 void window_roll_text_t::unconditionalDraw() {
     if (flags.color_scheme_background || flags.color_scheme_foreground) {
@@ -15,9 +16,10 @@ void window_roll_text_t::unconditionalDraw() {
         roll.render_text(GetRect(), text, get_font(),
             GetBackColor(), GetTextColor(), padding, GetAlignment());
     } else {
+        // OneDrop3D (interface G) : focus = fond un ton plus clair, plus de couleurs inversées
         roll.render_text(GetRect(), text, get_font(),
-            (IsFocused()) ? GetTextColor() : GetBackColor(),
-            (IsFocused()) ? GetBackColor() : GetTextColor(),
+            IsFocused() ? od3d::style::focused(GetBackColor()) : GetBackColor(),
+            GetTextColor(),
             padding, GetAlignment());
     }
 }

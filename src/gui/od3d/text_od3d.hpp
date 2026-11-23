@@ -52,6 +52,10 @@ inline void title_case(char *s) {
         { "PRUSALINK", "PrusaLink" },
         { "OPENPRINTTAG", "OpenPrintTag" },
         { "G-CODE", "G-code" },
+        { "X", "X" }, // axes (« DÉPLACEMENT DE L'AXE Z », écrans Prusa à l'en-tête G)
+        { "Y", "Y" },
+        { "Z", "Z" },
+        { "XY", "XY" },
     };
 
     bool first = true;

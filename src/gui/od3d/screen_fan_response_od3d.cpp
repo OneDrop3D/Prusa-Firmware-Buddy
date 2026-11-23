@@ -153,7 +153,7 @@ ScreenFanResponse::ScreenFanResponse()
     , curve_back(this, curve_back_rect)
     , curve(this, curve_rect)
     , info(this, info_rect, is_multiline::yes)
-    , action(this, button_rect, tag_action, Button::Look::primary, _("Start"), &img::print_16x16, style::screen, 10)
+    , action(this, button_rect, tag_action, Button::Look::primary, _("Start"), &img::print_16x16, style::screen)
     , tabs(this, section_tab()) {
     ClrMenuTimeoutClose(); // l'écran reste ouvert pendant la mesure
     info.set_font(Font::small);

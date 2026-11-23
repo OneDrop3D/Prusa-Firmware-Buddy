@@ -488,7 +488,7 @@ void Panel::unconditionalDraw() {
 }
 
 PositionButton::PositionButton(window_t *parent, Rect16 body, uint8_t tag, int8_t spool, const string_view_utf8 &label)
-    : Button(parent, body, tag, Look::secondary, label, nullptr, style::surface, 10)
+    : Button(parent, body, tag, Look::secondary, label, nullptr, style::surface, style::radius_small)
     , spool(spool) {}
 
 void PositionButton::unconditionalDraw() {
@@ -510,9 +510,9 @@ ScreenMMUMotors::ScreenMMUMotors()
     , header(this, _("MMU motors"), true)
     , pulley_panel(this, panel_rect(0), _("Pulley"))
     , pulley_note(this, note_rect(0), is_multiline::no, is_closed_on_click_t::no, _("soon: MMU firmware"))
-    , pulley_back(this, pulley_body(0), tag_pulley, Button::Look::secondary, string_view_utf8::MakeCPUFLASH("<< 10 mm"), nullptr, style::surface, 10)
-    , pulley_forward(this, pulley_body(1), tag_pulley + 1, Button::Look::secondary, string_view_utf8::MakeCPUFLASH("10 mm >>"), nullptr, style::surface, 10)
-    , pulley_clean(this, pulley_body(2), tag_pulley + 2, Button::Look::selected, _("Clean"), nullptr, style::surface, 10)
+    , pulley_back(this, pulley_body(0), tag_pulley, Button::Look::secondary, string_view_utf8::MakeCPUFLASH("<< 10 mm"), nullptr, style::surface, style::radius_small)
+    , pulley_forward(this, pulley_body(1), tag_pulley + 1, Button::Look::secondary, string_view_utf8::MakeCPUFLASH("10 mm >>"), nullptr, style::surface, style::radius_small)
+    , pulley_clean(this, pulley_body(2), tag_pulley + 2, Button::Look::selected, _("Clean"), nullptr, style::surface, style::radius_small)
     , selector_panel(this, panel_rect(1), _("Selector"))
     , selector_note(this, note_rect(1), is_multiline::no)
     , selector {
@@ -521,7 +521,7 @@ ScreenMMUMotors::ScreenMMUMotors()
         { this, position_body(1, 2), tag_selector + 2, 2, string_view_utf8::MakeCPUFLASH(slot_numbers[2]) },
         { this, position_body(1, 3), tag_selector + 3, 3, string_view_utf8::MakeCPUFLASH(slot_numbers[3]) },
         { this, position_body(1, 4), tag_selector + 4, 4, string_view_utf8::MakeCPUFLASH(slot_numbers[4]) },
-        { this, position_body(1, 5), tag_selector + 5, -1, string_view_utf8::MakeCPUFLASH("Park") },
+        { this, position_body(1, 5), tag_selector + 5, -1, _("Park") }, // 6 caractères au plus (bouton de 68 px)
     }
     , idler_panel(this, panel_rect(2), _("Idler"))
     , idler_note(this, note_rect(2), is_multiline::no)

@@ -8,6 +8,7 @@
 #include <client_response_texts.hpp>
 #include <marlin_client.hpp>
 #include <gui/gui_utils.hpp>
+#include <gui/od3d/style_od3d.hpp>
 
 #include <algorithm> //find
 
@@ -277,14 +278,17 @@ void IRadioButton::EnableDrawingSelected() {
     disabled_drawing_selected = false;
 }
 
-static void button_draw(Rect16 rc_btn, Color back_color, Color parent_color, const string_view_utf8 &text, bool is_selected) {
-    Color button_cl = is_selected ? back_color : Color::from_raw(0x303337); // OneDrop3D (interface G) : bouton secondaire
-    Color text_cl = is_selected ? COLOR_BLACK : COLOR_WHITE;
-    if (GuiDefaults::RadioButtonCornerRadius) {
-        display::draw_rounded_rect(rc_btn, parent_color, button_cl, GuiDefaults::RadioButtonCornerRadius, MIC_ALL_CORNERS);
-        rc_btn += Rect16::Left_t(GuiDefaults::RadioButtonCornerRadius);
-        rc_btn -= Rect16::Width_t(2 * GuiDefaults::RadioButtonCornerRadius);
-    }
+static void button_draw(Rect16 rc_btn, [[maybe_unused]] Color back_color, Color parent_color, const string_view_utf8 &text, bool is_selected) {
+    // OneDrop3D (interface G) : bouton secondaire ; le choix de la molette prend le focus des écrans G, un ton plus
+    // clair (plus d'orange plein à texte noir). D'une passe : les bouts arrondis, puis le texte qui repeint le milieu
+    // (le corps entier puis le texte faisait clignoter le libellé à chaque cran)
+    namespace style = od3d::style;
+    const Color button_cl = is_selected ? style::focused(style::secondary) : style::secondary;
+    constexpr uint8_t r = style::radius;
+    display::draw_rounded_rect(Rect16(rc_btn.Left(), rc_btn.Top(), r, rc_btn.Height()), parent_color, button_cl, r, MIC_TOP_LEFT | MIC_BOT_LEFT);
+    display::draw_rounded_rect(Rect16(rc_btn.Left() + rc_btn.Width() - r, rc_btn.Top(), r, rc_btn.Height()), parent_color, button_cl, r, MIC_TOP_RIGHT | MIC_BOT_RIGHT);
+    rc_btn += Rect16::Left_t(r);
+    rc_btn -= Rect16::Width_t(2 * r);
 
     const Font font = auto_select_font(
         {
@@ -296,7 +300,7 @@ static void button_draw(Rect16 rc_btn, Color back_color, Color parent_color, con
         })
                           .value_or(Font::small);
 
-    render_text_align(rc_btn, text, font, button_cl, text_cl, { 0, 0, 0, 0 }, Align_t::Center());
+    render_text_align(rc_btn, text, font, button_cl, style::text, { 0, 0, 0, 0 }, Align_t::Center());
 }
 
 bool IRadioButton::IsEnabled(size_t index) const {

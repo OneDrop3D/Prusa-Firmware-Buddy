@@ -46,7 +46,7 @@ namespace {
         tag_calib,
     };
 
-    constexpr Color color_low = Color::from_raw(0x4A90D9); ///< K le plus bas : bleu
+    constexpr Color color_low = Color::from_raw(0x4FA3F7); ///< K le plus bas : le bleu des autres courbes (amortissement, courroies, dilatation)
     constexpr Color color_best = style::accent;
     constexpr Color color_high = style::danger;
     constexpr Color color_command = Color::from_raw(0x8A8E94);

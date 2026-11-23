@@ -1,6 +1,7 @@
 #pragma once
 #include "screen.hpp"
 #include "window_header.hpp"
+#include <gui/od3d/menu_od3d.hpp>
 #include "window_text.hpp"
 #include "window_numb.hpp"
 #include "window_arrows.hpp"
@@ -33,7 +34,7 @@ private:
     WindowArrows arrows;
 
     window_numb_t numb;
-    window_header_t header;
+    od3d::MenuHeader header; ///< OneDrop3D (interface G) : en-tête G compact (31 px, sans retour) au lieu de celui de Prusa
     window_icon_t icon;
 
     /*To avoid cropping text due to small rectangles it is necessary to size them accordingly. This count represents currently longest text applicable among all translations.

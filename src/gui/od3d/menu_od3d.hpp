@@ -10,12 +10,17 @@
 #include <utility>
 #include <i_window_menu.hpp>
 #include <i_window_menu_container.hpp>
+#include <type_traits>
 #include <window_frame.hpp>
+#include <window_menu_virtual.hpp>
 
 namespace od3d {
 
-/// Liste G : 5 lignes de 40 px sous l'en-tête ; la barre de défilement est dans les 6 px de droite
-inline constexpr Rect16 list_rect = { style::margin, style::top, 470, 200 };
+/// Liste G : 5 lignes de 40 px sous l'en-tête, puis la moitié haute de la 6e (retour du 23/11 : la bande vide de 29 px
+/// ne disait pas qu'il y avait d'autres lignes) ; la barre de défilement est dans les 6 px de droite.
+/// Le menu Prusa compte 5 lignes (220 / 40) : le focus qui arrive sur la demi-ligne fait défiler d'une ligne.
+inline constexpr uint16_t list_peek = 40 / 2;
+inline constexpr Rect16 list_rect = { style::margin, style::top, 470, 5 * 40 + list_peek };
 static_assert(style::inside(style::content, list_rect));
 
 /// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible.
@@ -42,7 +47,10 @@ private:
     bool back;
 };
 
-/// Dessine le menu qu'elle contient en liste G, à la place du dessin Prusa (partie commune, pour la flash)
+/// Dessine le menu qu'elle contient en liste G, à la place du dessin Prusa (partie commune, pour la flash).
+/// Sous les lignes entières, la place qui reste (moins d'une ligne) montre le haut de la ligne suivante, coupé net ;
+/// rien au bout de la liste. La toucher fait défiler d'une ligne et la cible, sans l'activer : on ne lance pas ce
+/// qu'on ne voit qu'à moitié, à quelques pixels des onglets.
 class MenuListBase : public window_frame_t {
 protected:
     MenuListBase(window_t *parent, Rect16 rect);
@@ -65,6 +73,9 @@ public:
     MenuList(window_t *parent, Rect16 rect, Args &&...args)
         : MenuListBase(parent, rect)
         , menu(this, rect, std::forward<Args>(args)...) {
+        if constexpr (std::is_base_of_v<WindowMenuVirtualBase, Menu>) {
+            menu.set_peek_item(); // la liste virtuelle prépare la demi-ligne
+        }
         attach(menu);
     }
 

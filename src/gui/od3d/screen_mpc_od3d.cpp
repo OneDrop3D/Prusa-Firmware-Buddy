@@ -383,8 +383,8 @@ ScreenMpcCalibration::ScreenMpcCalibration()
     , steps(this, steps_rect)
     , status(this, status_rect, is_multiline::no)
     , bar(this, bar_rect)
-    , start_button(this, button_body(0), tag_start, Button::Look::primary, _("Calibrate"), &img::calibrate_white_16x16, style::screen, 10)
-    , cancel_button(this, button_body(1), tag_cancel, Button::Look::outline, _("Cancel"), &img::cancel_16x16, style::screen, 10)
+    , start_button(this, button_body(0), tag_start, Button::Look::primary, _("Calibrate"), &img::calibrate_white_16x16, style::screen)
+    , cancel_button(this, button_body(1), tag_cancel, Button::Look::outline, _("Cancel"), &img::cancel_16x16, style::screen)
     , tabs(this, section_tab()) {
     ClrMenuTimeoutClose(); // l'écran reste ouvert pendant la calibration
     for (window_text_t *t : { &temp_note, &status }) {

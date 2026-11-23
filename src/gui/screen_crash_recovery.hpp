@@ -2,6 +2,7 @@
 
 #include "screen.hpp"
 #include "window_header.hpp"
+#include <gui/od3d/menu_od3d.hpp>
 #include "status_footer.hpp"
 #include <common/fsm_base_types.hpp>
 #include "window_wizard_icon.hpp"
@@ -121,7 +122,7 @@ using WinVariant = std::variant<std::nullopt_t,
 
 class ScreenCrashRecovery : public screen_t {
 protected:
-    window_header_t header;
+    od3d::MenuHeader header; ///< OneDrop3D (interface G) : en-tête G compact (31 px, sans retour) au lieu de celui de Prusa
     StatusFooter footer;
     crash_recovery::WinVariant window;
 

@@ -26,21 +26,23 @@ ScreenMoveZ::ScreenMoveZ()
 #endif /*PRINTER_TYPE*/
     , arrows(this, text_rc.TopRight(), { 0, 6, 0, 6 })
     , numb(this, numb_rc, value, "%d mm", font)
-    , header(this, _(headerLabel))
+    , header(this, _(headerLabel), false, true)
     , icon(this, icon_rc, &img::turn_knob_81x55) {
 
     header.SetIcon(&img::z_axis_16x16);
-    constexpr static padding_ui8_t padding({ 6, 0, 6, 0 });
+    constexpr static padding_ui8_t padding({ od3d::style::margin, 0, od3d::style::margin, 0 }); // OneDrop3D : marges G
 
     //  info text
     infoText.SetPadding(padding);
     infoText.set_font(GuiDefaults::FontMenuSpecial);
     infoText.SetAlignment(Align_t::Center());
+    infoText.SetTextColor(od3d::style::text_muted); // OneDrop3D (interface G) : consignes en texte secondaire
 
     //  close text
     closeText.SetPadding(padding);
     closeText.set_font(GuiDefaults::FontMenuSpecial);
     closeText.SetAlignment(Align_t::Center());
+    closeText.SetTextColor(od3d::style::text_muted);
 
     //  UP DOWN texts
     rightText.set_font(GuiDefaults::FontBig);

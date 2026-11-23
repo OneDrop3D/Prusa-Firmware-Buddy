@@ -1,12 +1,13 @@
 #pragma once
 
 #include "window_header.hpp"
+#include <gui/od3d/menu_od3d.hpp>
 #include "status_footer.hpp"
 #include "window_term.hpp"
 #include "screen.hpp"
 
 struct screen_messages_data_t : public screen_t {
-    window_header_t header;
+    od3d::MenuHeader header; ///< OneDrop3D (interface G) : en-tête G compact (31 px, sans retour) au lieu de celui de Prusa
     StatusFooter footer;
     window_term_t term;
     term_buff_t<20, 13> term_buff;

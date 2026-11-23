@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include "printers.h"
 #include <common/spi_baud_rate_prescaler_guard.hpp>
+#include <common/timing_precise.hpp>
 #include "hwio_pindef.h"
 #include "cmsis_os.h"
 
@@ -277,8 +278,10 @@ void ili9488_rd(uint8_t *pdata, uint16_t size) {
         return; // null or empty data - return
     }
     // generate little pulse on displayCs, because ILI need change displayCs logic level
+    // OneDrop3D (lot UI-0) : 1 µs au lieu de osDelay(1) (0 à 1 ms, deux fois par lecture) : l'ILI9488 demande CSX haut
+    // 40 ns au moins (tCHW, fiche ILI9488 V100 §17.4.3, SPI 4 fils) ; broche en vitesse haute : 25 fois la marge
     displayCs.write(Pin::State::high);
-    ili9488_delay_ms(1);
+    delay_us_precise<1>();
     displayCs.write(Pin::State::low);
 
     ili9488_clr_cs(); // CS = L
@@ -290,8 +293,8 @@ void ili9488_rd(uint8_t *pdata, uint16_t size) {
     ili9488_set_cs(); // CS = H
 
     // generate little pulse on displayCs, because ILI need change displayCs logic level
-    displayCs.write(Pin::State::high);
-    ili9488_delay_ms(1);
+    displayCs.write(Pin::State::high); // CSX haut termine la lecture (RAMRD)
+    delay_us_precise<1>();
     displayCs.write(Pin::State::low);
 }
 

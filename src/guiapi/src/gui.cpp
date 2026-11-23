@@ -98,6 +98,7 @@ void gui_handle_jogwheel() {
 
     if (encoder_diff != 0 || is_btn) {
         od3d::perf::input(od3d::perf::Cause::knob);
+        gui_redraw_timer.reset(); // OneDrop3D (lot UI-0) : dessin tout de suite, sans attendre les 40 ms d'une animation
 #if OD3D_SLEEP()
         od3d::sleep::filter_knob(encoder_diff, is_btn, btn_ev); // OneDrop3D (F39) : le geste qui réveille l'écran n'agit pas
 #endif
@@ -132,6 +133,7 @@ void gui_handle_touch() {
     }
 #endif
     od3d::perf::input(od3d::perf::Cause::touch);
+    gui_redraw_timer.reset(); // OneDrop3D (lot UI-0) : dessin tout de suite, comme la molette
 
     if (touch_event.type == GUI_event_t::TOUCH_CLICK) {
         sound::play(SoundType::button_echo);

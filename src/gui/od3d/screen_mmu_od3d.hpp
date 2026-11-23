@@ -20,7 +20,8 @@ namespace od3d {
 /// rangées (INDX 8 têtes), carte basse : bobine Ø32 à gauche, « n MATIÈRE » et l'état à droite.
 class ShelfSpool : public Button {
 public:
-    ShelfSpool(window_t *parent, uint8_t index, uint8_t tools);
+    /// top : haut de l'étagère (sous l'en-tête dans l'Atelier, sous l'aide dans le choix d'une bobine)
+    ShelfSpool(window_t *parent, uint8_t index, uint8_t tools, int16_t top = style::top);
 
     /// Relit l'emplacement et le redessine s'il a changé
     void update(bool mmu_ready);
@@ -70,6 +71,31 @@ private:
     Shortcut pressure_advance;
     Shortcut settings;
     Shortcut info;
+    TabBar tabs;
+};
+
+/// Rappel du choix d'une bobine : true, le choix se referme ; false, il reste ouvert (question refusée)
+using SlotPick = bool (*)(uint8_t slot);
+
+/// Ouvre le choix d'une bobine : titre, aide d'une ligne, une carte de l'étagère par outil (MMU3 : 5, sans MMU : 1,
+/// INDX : ses têtes) ; molette et toucher, le clic choisit et appelle pick. focus : carte mise en avant à l'ouverture.
+void open_slot_pick(const string_view_utf8 &title, const string_view_utf8 &help, uint8_t focus, SlotPick pick);
+
+/// Écran du choix d'une bobine (open_slot_pick), comme l'aperçu des températures : des cartes, pas une liste
+class ScreenSlotPick final : public Screen {
+public:
+    ScreenSlotPick();
+
+protected:
+    void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+private:
+    template <size_t... I>
+    explicit ScreenSlotPick(std::index_sequence<I...>);
+
+    Header header;
+    window_text_t help;
+    ShelfSpool spools[VirtualToolIndex::count];
     TabBar tabs;
 };
 

@@ -12023,10 +12023,6 @@ msgid "The saved bed mesh is cleared: the next print probes the whole print area
 msgstr "Le maillage gardé est effacé : la prochaine impression palpe toute la zone de la pièce."
 
 #: src/gui/od3d/screen_ptfe_od3d.cpp
-msgid "Spool to use\nPreloaded in the MMU"
-msgstr "Bobine utilisée\nPréchargée dans le MMU"
-
-#: src/gui/od3d/screen_ptfe_od3d.cpp
 msgid "Failed: sensor not reached within 1000 mm"
 msgstr "Échec : capteur pas atteint en 1000 mm"
 
@@ -12430,3 +12426,11 @@ msgstr "Repris"
 #: src/gui/od3d/screen_files_od3d.cpp
 msgid "Probed"
 msgstr "Nouveau"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Which spool?"
+msgstr "Quelle bobine ?"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Spool preloaded in the MMU"
+msgstr "Bobine préchargée dans le MMU"

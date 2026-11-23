@@ -2,6 +2,7 @@
 #include "screen_mmu_od3d.hpp"
 #include "layout_od3d.hpp"
 #include "menu_items_od3d.hpp"
+#include "menu_od3d.hpp"
 
 #include "screen_pa_od3d.hpp"
 #include "spool_sheet_od3d.hpp"
@@ -34,8 +35,9 @@ namespace {
         return layout::spool_cell(shelf_area, 5, shelf_gap, i);
     }
     /// Rect de la bobine index parmi tools (une ou deux rangées) ; celles au-delà, cachées, prennent la place de la 1re
-    constexpr Rect16 shelf_rect(uint8_t index, uint8_t tools) {
-        return layout::spool_cell(shelf_area, tools, shelf_gap, index < tools ? index : 0);
+    constexpr Rect16 shelf_rect(uint8_t index, uint8_t tools, int16_t top = style::top) {
+        const Rect16 area(shelf_area.Left(), top, shelf_area.Width(), shelf_area.Height());
+        return layout::spool_cell(area, tools, shelf_gap, index < tools ? index : 0);
     }
     constexpr Rect16 shortcut_body(int i) {
         return Rect16(style::margin + 156 * (i % 3), 187 + 46 * (i / 3), 148, 40);
@@ -71,6 +73,21 @@ namespace {
     }
     static_assert(shelf_fits(1) && shelf_fits(2) && shelf_fits(3) && shelf_fits(4) && shelf_fits(5) && shelf_fits(6) && shelf_fits(7) && shelf_fits(8));
     static_assert(shelf_card(style::with_ring(shelf_rect(0)), true).Height() == shelf_card_h, "une rangée : cartes de 130 px");
+
+    // Choix d'une bobine : l'aide sur une ligne sous l'en-tête, puis l'étagère de l'Atelier (mêmes cartes, 1 à 8 outils)
+    constexpr Rect16 pick_help_rect = { style::margin, style::top, 464, 20 };
+    constexpr int16_t pick_top = pick_help_rect.Bottom() + 1 + 8;
+    static_assert(style::inside(style::content, style::with_ring(Rect16(shelf_area.Left(), pick_top, shelf_area.Width(), shelf_area.Height()))));
+    static_assert(shelf_rect(0, 8, pick_top).Top() == pick_top && shelf_rect(7, 8, pick_top).Bottom() == pick_top + shelf_area.Height() - 1);
+
+    /// Demande du choix d'une bobine (open_slot_pick), lue par l'écran à sa création
+    struct PickRequest {
+        string_view_utf8 title;
+        string_view_utf8 help;
+        uint8_t focus = 0;
+        SlotPick pick = nullptr;
+    };
+    PickRequest pick_request;
 
     enum ShelfTag : uint8_t {
         // 0 à 4 : les bobines
@@ -113,8 +130,8 @@ namespace {
 
 // ---- Étagère ----
 
-ShelfSpool::ShelfSpool(window_t *parent, uint8_t index, uint8_t tools)
-    : Button(parent, shelf_rect(index, tools), index, Look::card, {}, nullptr, style::screen, style::radius_big)
+ShelfSpool::ShelfSpool(window_t *parent, uint8_t index, uint8_t tools, int16_t top)
+    : Button(parent, shelf_rect(index, tools, top), index, Look::card, {}, nullptr, style::screen, style::radius_big)
     , slot(Slot::read(index)) {
     if (index >= tools) {
         set_visible(false); // outil absent (MMU désactivé, têtes de l'INDX non montées)
@@ -295,6 +312,63 @@ void ScreenMMU::windowEvent(window_t *sender, GUI_event_t event, void *param) {
 
     default:
         break;
+    }
+    Screen::windowEvent(sender, event, param);
+}
+
+// ---- Choix d'une bobine ----
+
+void open_slot_pick(const string_view_utf8 &title, const string_view_utf8 &help, uint8_t focus, SlotPick pick) {
+    pick_request = { title, help, focus, pick };
+    open_screen<ScreenSlotPick>();
+}
+
+ScreenSlotPick::ScreenSlotPick()
+    : ScreenSlotPick(std::make_index_sequence<VirtualToolIndex::count>()) {}
+
+template <size_t... I>
+ScreenSlotPick::ScreenSlotPick(std::index_sequence<I...>)
+    : Screen(true)
+    , header(this, pick_request.title, true)
+    , help(this, pick_help_rect, is_multiline::no, is_closed_on_click_t::no, pick_request.help)
+    , spools { ShelfSpool(this, I, atelier::visible_tools(), pick_top)... }
+    , tabs(this, section_tab()) {
+    help.set_font(Font::small);
+    help.SetTextColor(style::text_soft);
+    help.SetBackColor(style::screen);
+    help.SetPadding({ 0, 0, 0, 0 });
+    const bool ready = mmu_ready();
+    for (ShelfSpool &spool : spools) {
+        spool.update(ready);
+    }
+    // La carte demandée (le dernier choix), sinon la première utilisable
+    if (pick_request.focus < std::size(spools) && spools[pick_request.focus].IsEnabled()) {
+        spools[pick_request.focus].SetFocus();
+        return;
+    }
+    for (ShelfSpool &spool : spools) {
+        if (spool.IsEnabled()) {
+            spool.SetFocus();
+            return;
+        }
+    }
+    keep_focus(*this);
+}
+
+void ScreenSlotPick::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::CHILD_CLICK) {
+        const uintptr_t tag = reinterpret_cast<uintptr_t>(param);
+        if (tag < std::size(spools) && pick_request.pick && pick_request.pick(uint8_t(tag))) {
+            Screens::Access()->close_screen();
+        }
+        return;
+    }
+    if (event == GUI_event_t::LOOP && !GetFirstDialog()) { // sous la question, le focus reste à la question
+        const bool ready = mmu_ready();
+        for (ShelfSpool &spool : spools) {
+            spool.update(ready);
+        }
+        keep_focus(*this);
     }
     Screen::windowEvent(sender, event, param);
 }

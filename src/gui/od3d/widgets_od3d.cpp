@@ -128,8 +128,18 @@ void draw_icon(point_i16_t at, const img::Resource &icon, Color bg, ropfn rop) {
     display::draw_img(point_ui16(at.x, at.y), icon, bg, rop);
 }
 
-void draw_qoi(Rect16 rect, AbstractByteReader &reader) {
-    display::draw_img(point_ui16(rect.Left(), rect.Top()), reader);
+void draw_computed(Rect16 rect, PixelFn pixel, const void *ctx) {
+    const Rect16 clip = rect.Intersection(style::screen_rect);
+    if (clip.IsEmpty()) {
+        return;
+    }
+    const int rows = display::buffer_pixel_size() / clip.Width(); // 4 lignes de l'écran au moins
+    display::BorrowBuffer buffer;
+    for (int y = clip.Top(); y <= clip.Bottom(); y += rows) {
+        const Rect16 part(clip.Left(), y, clip.Width(), std::min<int>(rows, clip.Bottom() + 1 - y));
+        store_pixels(buffer, rect, part, pixel, ctx);
+        display::draw_from_buffer(point_ui16(part.Left(), part.Top()), part.Width(), part.Height());
+    }
 }
 
 void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, std::optional<Color> ring) {

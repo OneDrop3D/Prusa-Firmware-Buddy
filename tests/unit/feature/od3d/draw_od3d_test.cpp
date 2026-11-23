@@ -1,5 +1,4 @@
-// OneDrop3D : dessin d'une passe (images calculées en flux QOI, fond entre les éléments, couleur du focus, cache des
-// vignettes).
+// OneDrop3D : dessin d'une passe (images calculées, fond entre les éléments, couleur du focus, cache des vignettes).
 #include <gui/od3d/style_od3d.hpp>
 #include <gui/od3d/thumbnail_od3d.hpp>
 
@@ -7,66 +6,104 @@
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <iterator>
+#include <optional>
 #include <vector>
 
 using namespace od3d;
 
 namespace {
 
-Color pattern(int x, int y) {
-    if (y == 0) {
-        return Color::from_raw(0x26282B); // une ligne d'une seule couleur : séries de plus de 62 pixels
+/// Source QOI calculée pixel par pixel, pour les tests des vignettes (l'ancien chemin des images calculées du firmware :
+/// séries et pixels RGB, chaque canal + 1 car l'écran mélange au fond avec une opacité de 255)
+class PixelQoiReader final : public AbstractByteReader {
+public:
+    using Pixel = Color (*)(const void *ctx, int x, int y);
+
+    PixelQoiReader(uint16_t w, uint16_t h, Pixel pixel, const void *ctx)
+        : pixel(pixel)
+        , ctx(ctx)
+        , w(w)
+        , h(h) {}
+
+    WritableBytes read(WritableBytes buffer) override {
+        size_t n = 0;
+        while (n < buffer.size() && (pending_pos < pending.size() || next())) {
+            buffer[n++] = pending[pending_pos++];
+        }
+        return buffer.first(n);
     }
-    if (y == 1) {
-        return (x / 3) % 2 ? Color::from_raw(0xF8651B) : Color::from_raw(0x000000);
+
+private:
+    bool next() {
+        pending.clear();
+        pending_pos = 0;
+        const uint32_t total = uint32_t(w) * h;
+        if (!started) {
+            started = true;
+            if (total == 0) {
+                return false;
+            }
+            for (char c : { 'q', 'o', 'i', 'f' }) {
+                pending.push_back(std::byte(c));
+            }
+            for (uint32_t v : { uint32_t(w), uint32_t(h) }) {
+                for (int shift = 24; shift >= 0; shift -= 8) {
+                    pending.push_back(std::byte(v >> shift));
+                }
+            }
+            pending.push_back(std::byte(3)); // RGB
+            pending.push_back(std::byte(0));
+            return true;
+        }
+        if (pos >= total) {
+            return false;
+        }
+        const Color c = pixel(ctx, pos % w, pos / w);
+        ++pos;
+        if (last && c == *last) {
+            uint8_t run = 1;
+            while (run < 62 && pos < total && pixel(ctx, pos % w, pos / w) == c) {
+                ++pos;
+                ++run;
+            }
+            pending.push_back(std::byte(0xc0 | (run - 1)));
+            return true;
+        }
+        last = c;
+        const auto up = [](uint8_t v) { return std::byte(v == 255 ? 255 : v + 1); };
+        pending.insert(pending.end(), { std::byte(0xfe), up(c.r), up(c.g), up(c.b) });
+        return true;
     }
-    return Color::from_rgb(uint8_t(x * 3), uint8_t(255 - x), 255); // une couleur par pixel, 255 compris
-}
+
+    Pixel pixel;
+    const void *ctx;
+    uint16_t w, h;
+    uint32_t pos = 0;
+    std::optional<Color> last;
+    bool started = false;
+    std::vector<std::byte> pending;
+    size_t pending_pos = 0;
+};
 
 } // namespace
 
-TEST_CASE("image calculée : relue pixel pour pixel par le décodeur QOI de Prusa") {
-    constexpr uint16_t w = 70, h = 3;
-    PixelQoiReader reader(w, h, [](const void *, int x, int y) { return pattern(x, y); }, nullptr);
-
-    // Comme display::draw_img() : l'en-tête, puis le flux par morceaux
-    std::array<std::byte, qoi::Decoder::HEADER_SIZE> header;
-    REQUIRE(reader.read(header).size() == header.size());
-    CHECK(qoi::Decoder::get_image_width(header) == w);
-    CHECK(qoi::Decoder::get_image_height(header) == h);
-
-    qoi::Decoder decoder;
-    std::vector<qoi::Pixel> pixels;
-    std::array<std::byte, 7> chunk; // petit, pour couper les opérations entre deux lectures
-    for (WritableBytes got = reader.read(chunk); !got.empty(); got = reader.read(chunk)) {
-        for (std::byte b : got) {
-            decoder.push(b);
-            while (decoder.has_pixel()) {
-                pixels.push_back(decoder.pull_pixel());
-            }
-        }
-    }
-    CHECK_FALSE(decoder.is_error());
-    REQUIRE(pixels.size() == size_t(w) * h);
-
-    // L'écran mélange chaque pixel au fond avec une opacité de 255 ((255 × v) >> 8 = v - 1) : le flux envoie v + 1
-    const auto shown = [](uint8_t v) { return uint8_t((255 * v) >> 8); };
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            const Color want = pattern(x, y);
-            const qoi::Pixel &got = pixels[y * w + x];
+TEST_CASE("image calculée : les pixels de la partie, ligne par ligne, en octets de l'afficheur") {
+    // Image de 10 × 6 posée en (100, 50) ; partie de 3 × 2 qui commence à son pixel (4, 2)
+    constexpr Rect16 rect = { 100, 50, 10, 6 };
+    constexpr Rect16 part = { 104, 52, 3, 2 };
+    std::array<uint8_t, 3 * 3 * 2 + 1> out {};
+    out.back() = 0xAA; // rien n'est écrit après la partie
+    store_pixels(out.data(), rect, part, [](const void *, int x, int y) { return Color::from_rgb(uint8_t(x), uint8_t(y), 200); }, nullptr);
+    size_t i = 0;
+    for (int y = 2; y < 4; ++y) {
+        for (int x = 4; x < 7; ++x) {
             INFO("x " << x << " y " << y);
-            CHECK((shown(got.r) & 0xFC) == (want.r & 0xFC));
-            CHECK((shown(got.g) & 0xFC) == (want.g & 0xFC));
-            CHECK((shown(got.b) & 0xFC) == (want.b & 0xFC));
+            CHECK(out[i++] == 200); // bleu d'abord, comme display::fill_rect
+            CHECK(out[i++] == y);
+            CHECK(out[i++] == x);
         }
     }
-}
-
-TEST_CASE("image calculée : vide") {
-    PixelQoiReader reader(0, 5, [](const void *, int, int) { return Color::from_raw(0); }, nullptr);
-    std::array<std::byte, 32> buffer;
-    CHECK(reader.read(buffer).empty());
+    CHECK(out.back() == 0xAA);
 }
 
 TEST_CASE("fond entre les éléments : chaque pixel peint une fois, jamais sous un élément") {

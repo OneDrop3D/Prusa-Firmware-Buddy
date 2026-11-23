@@ -138,39 +138,22 @@ private:
     std::array<uint32_t, 64> index {}; ///< couleurs déjà vues (RGB + alpha 255, 0 : vide), comme le décodeur
 };
 
-/// Image calculée pixel par pixel (bobines, anneau qui tourne, courbes, contours), relue en flux QOI : display::draw_img()
-/// l'envoie à l'écran d'une traite, au lieu d'un fill_rect par segment, et sans effacement préalable (pas de clignotement).
-class PixelQoiReader final : public AbstractByteReader {
-public:
-    using Pixel = Color (*)(const void *ctx, int x, int y);
+/// Pixel (x, y) d'une image calculée (bobines, anneau qui tourne, courbes, contours), relatif à l'image
+using PixelFn = Color (*)(const void *ctx, int x, int y);
 
-    PixelQoiReader(uint16_t w, uint16_t h, Pixel pixel, const void *ctx);
+/// Pixels de part (absolu, dans rect) de l'image pixel posée en rect, ligne par ligne, en octets de l'afficheur
+/// (bleu, vert, rouge : comme display::fill_rect) dans out
+void store_pixels(uint8_t *out, Rect16 rect, Rect16 part, PixelFn pixel, const void *ctx);
 
-    WritableBytes read(WritableBytes buffer) override;
-
-private:
-    bool next(); ///< prépare le morceau suivant (en-tête, pixel ou série) ; false à la fin de l'image
-    Color take(); ///< couleur du pixel pos, puis pos + 1
-
-    Pixel pixel;
-    const void *ctx;
-    uint16_t w, h;
-    uint32_t pos = 0;
-    std::optional<Color> peeked; ///< couleur du pixel pos, déjà calculée
-    std::optional<Color> last; ///< dernier pixel envoyé
-    bool started = false;
-    std::array<std::byte, qoi::Decoder::HEADER_SIZE> pending;
-    uint8_t pending_pos = 0, pending_len = 0;
-};
-
-/// display::draw_img() d'un flux QOI en rect (hors du template : un seul exemplaire dans la flash)
-void draw_qoi(Rect16 rect, AbstractByteReader &reader);
+/// Image calculée envoyée à l'écran par le tampon de l'afficheur, quelques lignes à la fois, sans effacement préalable
+/// (pas de clignotement). Retour du 23/11 (« dans l'Atelier, d'abord les bobines puis le reste ») : elle passait par un
+/// flux QOI codé puis décodé et mélangé au fond, les deux tiers du calcul des bobines. Défini dans widgets_od3d.cpp.
+void draw_computed(Rect16 rect, PixelFn pixel, const void *ctx);
 
 /// Dessine dans rect l'image f(x, y) → Color (x, y relatifs à rect)
 template <class F>
 void draw_pixels(Rect16 rect, const F &f) {
-    PixelQoiReader reader(rect.Width(), rect.Height(), [](const void *ctx, int x, int y) { return (*static_cast<const F *>(ctx))(x, y); }, &f);
-    draw_qoi(rect, reader);
+    draw_computed(rect, [](const void *ctx, int x, int y) { return (*static_cast<const F *>(ctx))(x, y); }, &f);
 }
 
 } // namespace od3d

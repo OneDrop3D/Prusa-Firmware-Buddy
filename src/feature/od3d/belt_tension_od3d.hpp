@@ -10,6 +10,11 @@
 /// le réglage manuel des courroies de Prusa (M961). Excitation : celle de M961 (calc_accel, bornée à sa plage de 60 à
 /// 130 Hz), à la position de M961.
 ///
+/// À vérifier (23/11 : 78 Hz ici, 98 Hz à l'appli de Prusa, 80 Hz pour une courroie à 136 Hz) : le pic retenu peut être
+/// une résonance de la tête, qui ne dépend pas de la tension, et non la corde de la courroie que Prusa regarde au
+/// stroboscope ; masse de la courroie (~2 g) contre tête (~0,7 kg). Diagnostic : le spectre brut par axe va dans
+/// /usb/OD3D_BELTS.CSV à chaque mesure ; M1992 P (excitation de M961) et M1992 R (mesure après l'arrêt des moteurs).
+///
 /// Les résultats restent en mémoire jusqu'au redémarrage ; l'interface les lit pendant la mesure (courbe en direct).
 #pragma once
 
@@ -61,6 +66,8 @@ struct Measurement {
     std::array<uint8_t, belt_count> points {}; ///< points déjà mesurés par courroie
     std::array<Peak, belt_count> peaks {};
     uint8_t harmonic = 1; ///< harmonique mesurée (1 : la fréquence d'excitation)
+    bool prusa_excitation = false; ///< M1992 P : les deux moteurs, tête d'avant en arrière, pour les deux balayages
+    bool ringing = false; ///< M1992 R : réponse mesurée après l'arrêt des moteurs (la tête amortie s'est tue)
 };
 
 /// Corps de M1992 : bloque jusqu'à la fin de la mesure ou jusqu'à request_stop(). harmonic : 1 ou 2.
@@ -68,7 +75,8 @@ struct Measurement {
 /// par la mesure d'avant) : les deux courroies remesurées en boucle sur live_points points autour de leur dernier pic
 /// (pics et spectre mis à jour à chaque tour), jusqu'à request_stop() (« Terminé » : les dernières valeurs, Status::done)
 /// ou live_ok_rounds tours de suite dans la plage de Prusa
-void run(uint8_t harmonic = 1, bool live = false);
+/// prusa_excitation, ringing : variantes de diagnostic (voir Measurement), reprises par le réglage en direct
+void run(uint8_t harmonic = 1, bool live = false, bool prusa_excitation = false, bool ringing = false);
 
 /// Le réglage en direct tourne, et ses tours de suite dans la plage (0 à live_ok_rounds)
 bool live();

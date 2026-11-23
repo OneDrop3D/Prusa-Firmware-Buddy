@@ -593,8 +593,9 @@ Result<ResponseSample> measure(const MeasureParams &args, float requested_freque
 
         // Then wait for the specified time
         {
-            const uint32_t end_time = millis() + static_cast<uint32_t>(excitation_period) * args.wait_cycles * 1000;
-            while (ticks_diff(millis(), end_time) > 0) {
+            // OneDrop3D : la période (~0,01 s) tronquée à 0 et la comparaison à l'envers ne laissaient jamais attendre
+            const uint32_t end_time = millis() + static_cast<uint32_t>(excitation_period * args.wait_cycles * 1000);
+            while (ticks_diff(end_time, millis()) > 0) {
                 accelerometer.clear();
                 idle(true);
             }

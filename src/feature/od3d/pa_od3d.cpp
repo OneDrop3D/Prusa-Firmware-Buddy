@@ -586,8 +586,11 @@ namespace {
     Error prepare_bed(session::Session &session, const pattern::Rect &area, const Temperatures &t) {
         thermalManager.setTargetBed(t.bed);
         st_phase = Phase::bed;
-        session::Result r = session.heat(t.probe, 3.f, 1000, session::heat_timeout_ms, false);
-        if (r == session::Result::ok) {
+        // Série de l'assistant, maillage repris : ni origine ni palpage ; la buse chauffe pendant l'attente du plateau et
+        // le déplacement vers la purge (heat_and_purge)
+        const bool reuse = session::mesh_ready();
+        session::Result r = reuse ? session::Result::ok : session.heat(t.probe, 3.f, 1000, session::heat_timeout_ms, false);
+        if (r == session::Result::ok && !reuse) {
             st_phase = Phase::preparing;
             r = session.home(t.probe);
         }

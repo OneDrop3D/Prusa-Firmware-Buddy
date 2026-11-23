@@ -54,6 +54,10 @@ enum Need : uint8_t {
     empty_bed = 1 << 4, ///< imprime ou palpe : plateau vide et propre confirmé avant
     flow_limit = 1 << 5, ///< seulement avec « Limiter au débit mesuré » (le résultat ne sert qu'à lui)
     one_spool = 1 << 6, ///< une seule mesure, avec la bobine du premier emplacement qui en a une
+    /// Série « Chauffe » (retour du 23/11 : une série à froid avec l'accéléromètre, une autre qui chauffe) : le test
+    /// chauffe, ou veut l'extrudeur vide (déchargement à chaud, partagé avec la dilatation de la buse). Sans ce bit :
+    /// série « Accéléromètre », à froid du début à la fin
+    heated = 1 << 7,
 };
 
 struct Entry {
@@ -69,23 +73,27 @@ struct Entry {
 /// ventilateur (sans besoin), la vitesse de la poulie du MMU (après le tube PTFE : sa longueur fait l'avance rapide),
 /// puis par emplacement PA, débit, température minimale, accélération du filament (un seul chargement par bobine,
 /// chauffe gardée ; l'ordre par emplacement est celui de cette liste ; build_steps() fait d'abord tous les tests sans
-/// Need::filament)
+/// Need::filament). Deux séries lancées séparément (Need::heated, series_tests()) :
+/// - « Accéléromètre », à froid : courroies, phase stepping, input shaper, amortissement, vitesses critiques, et la
+///   réponse du ventilateur (à froid, sans accéléromètre : rien n'y chauffe, l'accéléromètre peut rester fixé) ;
+/// - « Chauffe » : MPC, tube PTFE et vitesse de la poulie (à froid, mais l'extrudeur doit être vide : le déchargement à
+///   chaud est partagé avec la dilatation de la buse), dilatation de la buse, puis les mesures par bobine.
 inline constexpr std::array entries {
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 1, true },
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
-    Entry { Test::mpc, 0, 12, 1, true },
-    Entry { Test::mmu_ptfe, mmu | one_spool, 3, 1, true },
-    Entry { Test::nozzle_expansion, empty_bed, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
-    Entry { Test::pa, filament | empty_bed, 7, 1, true },
-    Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
-    Entry { Test::min_temp, filament | empty_bed, 6, 1, true },
-    Entry { Test::skew, empty_bed, 0, 1, false },
-    Entry { Test::fan_response, 0, 1, 1, true }, // sans besoin : avec les tests sans bobine (build_steps)
-    Entry { Test::e_jump, filament, 3, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
-    Entry { Test::mmu_speed, mmu | one_spool, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
+    Entry { Test::mpc, heated, 12, 1, true },
+    Entry { Test::mmu_ptfe, mmu | one_spool | heated, 3, 1, true },
+    Entry { Test::nozzle_expansion, empty_bed | heated, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
+    Entry { Test::pa, filament | empty_bed | heated, 3, 1, true }, // chargement compris ; motif compact, plateau palpé une fois par série
+    Entry { Test::max_flow, filament | empty_bed | flow_limit | heated, 3, 1, true },
+    Entry { Test::min_temp, filament | empty_bed | heated, 7, 1, true },
+    Entry { Test::skew, empty_bed | heated, 0, 1, false },
+    Entry { Test::fan_response, 0, 1, 1, true }, // à froid, sans besoin : série « Accéléromètre »
+    Entry { Test::e_jump, filament | heated, 1, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
+    Entry { Test::mmu_speed, mmu | one_spool | heated, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
 };
 static_assert(entries.size() == size_t(Test::count), "une entrée par Test");
 
@@ -134,6 +142,11 @@ struct Context {
     bool mmu = false;
     bool flow_limit = false;
     uint8_t spools = 0; ///< bit n : l'emplacement n a une bobine (utilisable)
+    /// Par test (indice Test), bit n : l'emplacement n a déjà une valeur pour la bobine en place (K du PA, débit maximal,
+    /// température minimale, accélération du filament ; effacée au changement de bobine)
+    std::array<uint8_t, max_tests> measured {};
+    /// Ordre des bobines pour les tests par bobine (spool_order()) ; les emplacements absents de spools sont ignorés
+    std::array<uint8_t, 8> order { 0, 1, 2, 3, 4, 5, 6, 7 };
 };
 
 /// La calibration a un sens sur cette imprimante (sans accéléromètre, ses tests ne sont pas proposés)
@@ -158,20 +171,39 @@ uint32_t select(const Context &ctx, std::span<const Record> records, bool only_o
 uint32_t automatic_mask();
 uint32_t needs_mask(uint8_t needs);
 
-/// Tests automatiques cochés d'office dans la proposition (retour du 23/11 : « pouvoir passer certaines calibrations
-/// comme le PA ») : ceux de select(), sauf le PA jamais mesuré (1re calibration : il se mesure au début de la
-/// 1re impression de chaque bobine). Chacun se coche ou se décoche ensuite à l'écran.
-uint32_t proposed(const Context &ctx, std::span<const Record> records, bool only_outdated);
+/// Tests automatiques d'une série : « Chauffe » (heat) ou « Accéléromètre », à froid (voir entries)
+uint32_t series_tests(bool heat);
+
+/// Tests par bobine dont toutes les bobines sont à refaire : leur version a augmenté depuis la dernière série qui les
+/// a menés à bien (une mesure faite à la main, version 0 ici, reste bonne)
+uint32_t redo_mask(std::span<const Record> records);
+
+/// Emplacements d'un test par bobine à mesurer : ceux qui n'ont pas encore de valeur pour la bobine en place, ou tous
+/// avec redo
+constexpr uint8_t spools_to_measure(Test test, const Context &ctx, bool redo) {
+    return redo ? ctx.spools : uint8_t(ctx.spools & ~ctx.measured[size_t(test) % max_tests]);
+}
+
+/// Tests automatiques cochés d'office dans la proposition (retour du 23/11 : « j'avais déjà calibré le PA de
+/// 2 filaments et il a essayé de refaire le PA de tous les filaments ») : un test machine jamais réussi dans cette
+/// version ; un test par bobine si une bobine n'a pas encore de valeur (seulement elle sera mesurée) ou si sa version a
+/// augmenté (redo_mask()). Ce qui est déjà fait n'est pas coché ; le cocher à l'écran le refait (toutes les bobines).
+uint32_t proposed(const Context &ctx, std::span<const Record> records);
 
 /// Proposer l'assistant au démarrage : un test coché d'office (proposed()), et ce registre n'a pas été écarté par
 /// « Ne plus demander » (dismissed = signature() enregistrée à ce moment)
 bool should_propose(const Context &ctx, std::span<const Record> records, uint32_t dismissed);
 
+/// Ordre des bobines d'une série (accélérer : jamais refroidir le plateau entre deux bobines, qui prend plusieurs
+/// minutes) : plateau, puis buse, de la plus froide à la plus chaude ; à égalité, la bobine déjà dans la buse d'abord.
+/// bed, nozzle : consignes de la matière de chaque emplacement
+std::array<uint8_t, 8> spool_order(std::span<const int16_t> bed, std::span<const int16_t> nozzle, std::optional<uint8_t> loaded);
+
 /// Empreinte des versions du registre : elle change dès qu'une version change
 uint32_t signature();
 
-/// Durée estimée des tests automatiques de mask [min]
-uint16_t minutes(uint32_t mask, const Context &ctx);
+/// Durée estimée des tests automatiques de mask [min] ; redo : tests par bobine à refaire sur toutes les bobines
+uint16_t minutes(uint32_t mask, const Context &ctx, uint32_t redo = 0);
 
 /// Une étape de l'assistant : un G-code mis en file, puis le suivant (jamais imbriqués)
 struct Step {
@@ -186,14 +218,17 @@ struct Step {
 void defer(std::span<Step> steps, size_t i);
 
 /// Étapes des tests automatiques de mask, dans l'ordre de `entries`, les tests par emplacement groupés par bobine (un
-/// chargement par bobine) ; nombre d'étapes écrites (out trop court : coupé)
-size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out);
+/// chargement par bobine, bobines dans ctx.order), la température minimale en dernier pour chaque bobine (elle finit
+/// sous la température de la matière : rien ne remonte après elle) ; par bobine, seulement les emplacements sans
+/// valeur, sauf pour les tests de redo (spools_to_measure()). Nombre d'étapes écrites (out trop court : coupé)
+size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out, uint32_t redo = 0);
 
 /// G-code de l'étape (une ligne) ; false pour un test manuel ou out trop court
 bool step_gcode(const Step &step, std::span<char> out);
 
 /// G-code de la mesure du PA d'un emplacement : seul endroit qui écrit les arguments de M1994 (od3d/f4-compact les
-/// change). M1994 P<n> charge la bobine lui-même (mise en file) si elle n'est pas dans la buse.
+/// change) ; toujours le motif compact (V1), aussi précis à ±0,004 près et 3 à 4 fois plus court que le grand.
+/// M1994 P<n> charge la bobine lui-même (mise en file) si elle n'est pas dans la buse.
 bool pa_gcode(uint8_t slot, std::span<char> out);
 
 /// Buse pour changer de bobine pendant la série (retour du 23/11 : « la température de la buse entre le passage du PLA
@@ -219,6 +254,11 @@ struct Spot {
 /// - sinon : position de chargement de Prusa (G27 W2), comme avant.
 /// filament : paramètre S de M701 ; false si out est trop court
 bool load_gcode(uint8_t slot, const char *filament, int16_t nozzle, std::optional<Spot> spot, std::span<char> out);
+
+/// Bilan : les chiffres d'un test sont montrés. Test par bobine : dès qu'une bobine en a, même si une autre a échoué
+/// ou a été passée (retour du 23/11 : « il n'a pas retrouvé le PA d'un filament qu'il avait calibré » : l'échec d'une
+/// bobine cachait les K de toutes)
+bool numbers_shown(const Entry &e, Result result, std::span<const int16_t> after);
 
 /// Résultat d'un test fait de plusieurs étapes : un échec l'emporte, puis une étape passée, puis réussi
 constexpr Result fold(Result so_far, Result step) {

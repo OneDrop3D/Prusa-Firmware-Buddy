@@ -28,6 +28,13 @@ Context full(Accelerometer accel = Accelerometer::yes) {
     return Context { .accelerometer = accel, .mmu = true, .flow_limit = true, .spools = 0b00101 };
 }
 
+/// Comme full(), chaque bobine déjà mesurée (K, débit…)
+Context measured(Accelerometer accel = Accelerometer::yes) {
+    Context ctx = full(accel);
+    ctx.measured.fill(0xff);
+    return ctx;
+}
+
 const uint32_t accel = needs_mask(Need::accelerometer);
 
 } // namespace
@@ -70,13 +77,13 @@ TEST_CASE("calib_registry: spools and flow limit") {
 TEST_CASE("calib_registry: version bump proposes only that test") {
     Records r = all_done();
     CHECK(select(full(), r, true) == 0);
-    CHECK_FALSE(should_propose(full(), r, 0));
+    CHECK_FALSE(should_propose(measured(), r, 0));
 
     // Une mise à jour a augmenté la version des courroies et du PA : seuls eux sont à refaire
     r[size_t(Test::belts)].version = uint8_t(entry(Test::belts).version - 1);
     r[size_t(Test::pa)].version = uint8_t(entry(Test::pa).version - 1);
     CHECK(select(full(), r, true) == (test_bit(Test::belts) | test_bit(Test::pa)));
-    CHECK(should_propose(full(), r, 0));
+    CHECK(should_propose(measured(), r, 0));
 
     // Sans accéléromètre, seul le PA
     CHECK(select(full(Accelerometer::no), r, true) == test_bit(Test::pa));
@@ -102,7 +109,7 @@ TEST_CASE("calib_registry: manual tests never trigger the prompt alone") {
     Records r = all_done();
     r[size_t(Test::skew)] = {};
     CHECK((select(full(), r, true) == test_bit(Test::skew)));
-    CHECK_FALSE(should_propose(full(), r, 0));
+    CHECK_FALSE(should_propose(measured(), r, 0));
     CHECK_FALSE((automatic_mask() & test_bit(Test::skew)));
 }
 
@@ -129,8 +136,9 @@ TEST_CASE("calib_registry: steps order") {
     CHECK(steps[9].test == Test::mmu_speed);
     CHECK(steps[9].slot == 0);
 
-    // Puis par bobine : PA, débit, température minimale, accélération du filament (un seul chargement par bobine)
-    const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp, Test::e_jump };
+    // Puis par bobine : PA, débit, accélération du filament, température minimale en dernier (elle finit sous la
+    // température de la matière : rien ne remonte après elle) ; un seul chargement par bobine
+    const Test per_slot[] = { Test::pa, Test::max_flow, Test::e_jump, Test::min_temp };
     for (size_t k = 0; k < 8; ++k) {
         CHECK(steps[10 + k].test == per_slot[k % 4]);
         CHECK(steps[10 + k].slot == (k < 4 ? 0 : 2));
@@ -194,7 +202,7 @@ TEST_CASE("calib_registry: G-codes") {
     const auto gcode = [&](Step s) {
         return step_gcode(s, out) ? std::string_view(out.data()) : std::string_view("-");
     };
-    CHECK(gcode({ Test::pa, 2 }) == "M1994 P2");
+    CHECK(gcode({ Test::pa, 2 }) == "M1994 P2 V1"); // motif compact, même avec « Grand motif PA »
     CHECK(gcode({ Test::max_flow, 4 }) == "M1995 P4");
     CHECK(gcode({ Test::min_temp, 0 }) == "M1996 P0");
     CHECK(gcode({ Test::input_shaper }) == "M1959 A");
@@ -273,24 +281,85 @@ TEST_CASE("calib_registry: summary numbers") {
     }
 }
 
-TEST_CASE("calib_registry: PA unchecked at the first calibration, other tests checked") {
+TEST_CASE("calib_registry: what is already done is not checked, and not redone") {
+    // Retour du 23/11 : le PA de 2 bobines déjà mesuré à la main (registre jamais passé par l'assistant), l'assistant
+    // refaisait le PA de toutes les bobines
     const Records none {};
-    const uint32_t offered = select(full(), none, true) & automatic_mask();
-    const uint32_t checked = proposed(full(), none, true);
-    CHECK_FALSE((checked & test_bit(Test::pa))); // mesuré au début de la 1re impression de chaque bobine
-    CHECK(checked == (offered & ~test_bit(Test::pa)));
-    CHECK(should_propose(full(), none, 0));
+    Context ctx = full(); // bobines 1 et 3 (bits 0 et 2)
+    ctx.spools = 0b00111;
+    ctx.measured[size_t(Test::pa)] = 0b00101;
+    std::array<Step, 32> steps;
+    size_t n = build_steps(test_bit(Test::pa), ctx, steps);
+    REQUIRE(n == 1);
+    CHECK(steps[0].slot == 1); // seulement la bobine sans K
+    CHECK(minutes(test_bit(Test::pa), ctx) == entry(Test::pa).minutes);
+    CHECK((proposed(ctx, none) & test_bit(Test::pa))); // coché : une bobine n'a pas de K
 
-    // PA déjà mesuré une fois : coché comme les autres (assistant ouvert depuis le menu)
+    // Toutes mesurées : pas coché ; coché à la main (redo) : toutes refaites
+    ctx.measured[size_t(Test::pa)] = 0b00111;
+    CHECK_FALSE((proposed(ctx, none) & test_bit(Test::pa)));
+    CHECK(build_steps(test_bit(Test::pa), ctx, steps) == 0);
+    CHECK(build_steps(test_bit(Test::pa), ctx, steps, test_bit(Test::pa)) == 3);
+
+    // Même règle pour les autres mesures par bobine
+    ctx.measured[size_t(Test::e_jump)] = 0b00011;
+    n = build_steps(test_bit(Test::e_jump), ctx, steps);
+    REQUIRE(n == 1);
+    CHECK(steps[0].slot == 2);
+
+    // Tests machine déjà réussis dans cette version : pas cochés
     Records r = all_done();
-    r[size_t(Test::pa)] = Record { .version = 1, .result = Result::ok };
-    CHECK((proposed(full(), r, false) & test_bit(Test::pa)));
+    ctx.measured.fill(0b00111);
+    CHECK(proposed(ctx, r) == 0);
+    CHECK_FALSE(should_propose(ctx, r, 0));
+    r[size_t(Test::belts)] = {};
+    CHECK(proposed(ctx, r) == test_bit(Test::belts));
 
-    // Seul le PA à faire, jamais mesuré : rien de coché, pas de proposition au démarrage
+    // Une mise à jour change l'algorithme du PA (version augmentée après une série) : toutes les bobines à refaire
     r = all_done();
-    r[size_t(Test::pa)] = Record {};
-    CHECK(proposed(full(), r, true) == 0);
-    CHECK_FALSE(should_propose(full(), r, 0));
+    r[size_t(Test::pa)].version = uint8_t(entry(Test::pa).version - 1);
+    if (r[size_t(Test::pa)].version > 0) {
+        CHECK(redo_mask(r) == test_bit(Test::pa));
+        CHECK((proposed(ctx, r) & test_bit(Test::pa)));
+    }
+    // Mesure faite à la main (version 0 ici) : gardée, rien à refaire
+    r[size_t(Test::pa)] = {};
+    CHECK(redo_mask(r) == 0);
+    CHECK_FALSE((proposed(ctx, r) & test_bit(Test::pa)));
+}
+
+TEST_CASE("calib_registry: summary keeps the numbers of the spools that worked") {
+    // Le PA d'une bobine échoue (confiance trop faible) : le test est « en échec », mais le K des autres reste montré
+    Numbers after = no_numbers;
+    after[0] = 400;
+    CHECK(numbers_shown(entry(Test::pa), Result::failed, after));
+    CHECK(numbers_shown(entry(Test::pa), Result::skipped, after));
+    CHECK(numbers_shown(entry(Test::min_temp), Result::ok, after));
+    CHECK_FALSE(numbers_shown(entry(Test::pa), Result::failed, no_numbers));
+    // Test machine en échec : pas de chiffres
+    CHECK_FALSE(numbers_shown(entry(Test::belts), Result::failed, after));
+    CHECK(numbers_shown(entry(Test::belts), Result::ok, after));
+}
+
+TEST_CASE("calib_registry: spools in order of bed then nozzle temperature, loaded one first") {
+    // 1 PETG (85 / 230), 2 PLA (60 / 215), 3 PETG, 4 PLA dans la buse, 5 PLA
+    const std::array<int16_t, 5> bed { 85, 60, 85, 60, 60 };
+    const std::array<int16_t, 5> nozzle { 230, 215, 230, 215, 215 };
+    const auto order = spool_order(bed, nozzle, 3);
+    CHECK(order[0] == 3); // dans la buse : pas de changement de bobine
+    CHECK(order[1] == 1);
+    CHECK(order[2] == 4);
+    CHECK(order[3] == 0);
+    CHECK(order[4] == 2);
+    // Les étapes suivent cet ordre : plus de refroidissement du plateau entre deux bobines
+    Context ctx = full();
+    ctx.spools = 0b00111;
+    ctx.order = spool_order(bed, nozzle, std::nullopt);
+    std::array<Step, 8> steps;
+    REQUIRE(build_steps(test_bit(Test::pa), ctx, steps) == 3);
+    CHECK(steps[0].slot == 1);
+    CHECK(steps[1].slot == 0);
+    CHECK(steps[2].slot == 2);
 }
 
 TEST_CASE("calib_registry: MMU tests wait for the MMU, the others run while it is flashed") {
@@ -343,4 +412,35 @@ TEST_CASE("calib_registry: loading G-code, above the reserved purge line for a p
     CHECK(g.find("G28") < g.find("G27"));
     std::array<char, 16> tiny;
     CHECK_FALSE(load_gcode(0, "PLA", 215, std::nullopt, tiny));
+}
+
+TEST_CASE("calib_registry: two series, cold with the accelerometer and heating") {
+    const uint32_t cold = series_tests(false), heat = series_tests(true);
+    // Chaque test automatique dans une seule série
+    CHECK((cold & heat) == 0);
+    CHECK((cold | heat) == automatic_mask());
+    // À froid : tous les tests à l'accéléromètre (buse froide exigée), et la réponse du ventilateur (rien n'y chauffe)
+    CHECK(cold == (needs_mask(Need::accelerometer) | test_bit(Test::fan_response)));
+    for (const Entry &e : entries) {
+        INFO("test " << int(e.test));
+        if (cold & test_bit(e.test)) {
+            CHECK_FALSE((e.needs & (Need::filament | Need::empty_bed | Need::mmu))); // ni bobine, ni plateau, ni MMU
+        }
+        if (e.needs & Need::accelerometer) {
+            CHECK((e.needs & Need::cold_nozzle));
+            CHECK((cold & test_bit(e.test)));
+        }
+    }
+    // Chauffe : MPC, tube PTFE et poulie (extrudeur vidé à chaud, comme pour la dilatation), dilatation, par bobine
+    for (const Test t : { Test::mpc, Test::mmu_ptfe, Test::nozzle_expansion, Test::mmu_speed, Test::pa, Test::max_flow, Test::min_temp, Test::e_jump }) {
+        CHECK((heat & test_bit(t)));
+    }
+    // Les étapes d'une série ne contiennent que ses tests ; ordre gardé (MPC part de la buse froide)
+    std::array<Step, 32> steps;
+    const size_t n = build_steps(heat, full(), steps);
+    REQUIRE(n > 0);
+    CHECK(steps[0].test == Test::mpc);
+    for (size_t i = 0; i < n; ++i) {
+        CHECK((heat & test_bit(steps[i].test)));
+    }
 }

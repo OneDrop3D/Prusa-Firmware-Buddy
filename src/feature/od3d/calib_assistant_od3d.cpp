@@ -417,12 +417,24 @@ Context context() {
     ctx.accelerometer = accelerometer();
     ctx.mmu = config_store().mmu2_enabled.get();
     ctx.flow_limit = calib::flow_limit_enabled();
+    std::array<int16_t, VirtualToolIndex::count> bed {}, nozzle {};
     for (uint8_t i = 0; i < VirtualToolIndex::count; ++i) {
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(i);
-        if (tool.is_enabled() && FilamentType::for_tool(tool)) {
+        const FilamentType type = FilamentType::for_tool(tool);
+        if (tool.is_enabled() && type) {
             ctx.spools |= uint8_t(1u << i);
         }
+        const FilamentTypeParameters p = type.parameters();
+        bed[i] = p.heatbed_temperature;
+        nozzle[i] = p.nozzle_temperature;
+        // Déjà mesuré pour la bobine en place (effacé au changement de bobine) : pas refait sans le demander
+        const uint8_t bit = uint8_t(1u << i);
+        ctx.measured[size_t(Test::pa)] |= pa::record(i).has_k() ? bit : 0;
+        ctx.measured[size_t(Test::max_flow)] |= calib::record(i).has_flow() ? bit : 0;
+        ctx.measured[size_t(Test::min_temp)] |= calib::record(i).has_min_temperature() ? bit : 0;
+        ctx.measured[size_t(Test::e_jump)] |= e_jump::record(i).has_jump() ? bit : 0;
     }
+    ctx.order = spool_order(bed, nozzle, filament_memory::loaded_slot());
     return ctx;
 }
 
@@ -623,14 +635,14 @@ void check() {
     ++checks;
 }
 
-void run(uint32_t mask) {
+void run(uint32_t mask, uint32_t redo) {
     if (running) {
         return;
     }
     const Context ctx = context();
     run_ctx = ctx;
     postponed_mask = 0;
-    step_count = uint8_t(build_steps(mask & automatic_mask(), ctx, steps));
+    step_count = uint8_t(build_steps(mask & automatic_mask(), ctx, steps, redo));
     run_mask = 0;
     for (uint8_t i = 0; i < step_count; ++i) {
         run_mask |= test_bit(steps[i].test);
@@ -686,8 +698,10 @@ void level_bed(uint8_t slot) {
     // palpage, puis origine, nettoyage et palpage (le plateau entier : rien n'y est encore imprimé)
     const FilamentTypeParameters m = type.parameters();
     const int16_t probe = std::min<int16_t>(m.nozzle_preheat_temperature, m.nozzle_temperature);
+    const int16_t bed = std::clamp<int16_t>(m.heatbed_temperature, 0, session::max_bed_temperature);
     session::Session s(cancel_requested);
-    if (s.heat_bed(std::clamp<int16_t>(m.heatbed_temperature, 0, session::max_bed_temperature), probe) == session::Result::ok) {
+    thermalManager.setTargetBed(bed); // le plateau chauffe pendant l'origine (comme M140 avant G28 au départ de la CORE One)
+    if (s.home(probe) == session::Result::ok && s.heat_bed(bed, probe) == session::Result::ok) {
         std::ignore = s.level(session::printable_zone(), probe); // échec : le test palpera lui-même
     }
 }

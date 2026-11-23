@@ -12444,8 +12444,20 @@ msgid "%d calibrations are new or changed in this firmware (about %d min). Touch
 msgstr "%d calibrations sont nouvelles ou modifiées dans ce firmware (environ %d min). Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Full calibration: %d tests, about %d min. Touch a test to add or skip it; the tests then run by themselves."
-msgstr "Calibration complète : %d tests, environ %d min. Touchez un test pour l'ajouter ou le passer ; les tests s'enchaînent ensuite seuls."
+msgid "Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it."
+msgstr "Série Accéléromètre, à froid : %d tests, environ %d min. Série Chauffe : %d tests, environ %d min. Touchez un test pour l'ajouter ou le passer."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accelerometer"
+msgstr "Accéléromètre"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "PA already measured, kept:"
+msgstr "PA déjà mesuré, gardé :"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Forget the measured values of this spool?"
+msgstr "Oublier les valeurs mesurées de cette bobine ?"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Nothing to calibrate. Touch a test to add it."

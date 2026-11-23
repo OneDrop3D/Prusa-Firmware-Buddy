@@ -124,8 +124,9 @@ void prepare();
 /// M1989 A
 void check();
 
-/// M1989 R<mask>
-void run(uint32_t mask);
+/// M1989 R<mask> S<redo> : redo, tests par bobine à refaire sur toutes les bobines (sinon seulement celles qui n'ont
+/// pas encore de valeur, calib_registry::build_steps())
+void run(uint32_t mask, uint32_t redo = 0);
 
 /// M1989 N<i>
 void step_end(uint8_t index);

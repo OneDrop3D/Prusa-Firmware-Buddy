@@ -346,10 +346,18 @@ Result Session::home(int16_t nozzle_probe) {
 }
 
 Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
+    // Série : maillage du plateau entier repris (retour du 23/11 : « il fait plusieurs fois le palpage du plateau ») ;
+    // origine là : ni attente de la buse, ni mouvement
+    if (mesh_ready()) {
+        set_bed_leveling_enabled(true);
+        if (planner.leveling_active) {
+            return Result::ok;
+        }
+    }
     if (const Result r = home(nozzle_probe); r != Result::ok) {
         return r;
     }
-    // Série : maillage du plateau entier repris (retour du 23/11 : « il fait plusieurs fois le palpage du plateau »)
+    // Origine refaite (perdue) : le maillage de la série reste
     if (series.active && series.mesh) {
         set_bed_leveling_enabled(true);
         return planner.leveling_active ? Result::ok : Result::leveling;

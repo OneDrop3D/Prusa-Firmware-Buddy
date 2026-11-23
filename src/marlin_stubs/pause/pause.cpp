@@ -31,6 +31,7 @@ static_assert(HAS_PAUSE());
 #include <option/has_loadcell.h>
 #if HAS_LOADCELL() && HAS_MMU2()
     #include <feature/od3d/spool_calib_od3d.hpp> // OneDrop3D (F5) : purge au débit mesuré
+    #include <feature/od3d/measure_session_od3d.hpp> // OneDrop3D : série de l'assistant de calibration
 #endif
 
 #include "Marlin/src/lcd/extensible_ui/ui_api.h"
@@ -922,6 +923,14 @@ bool Pause::nozzle_cleaner_purge_sequence() {
 #endif // HAS_NOZZLE_CLEANER()
 
 void Pause::color_correct_ask_process(Response response) {
+#if HAS_LOADCELL() && HAS_MMU2()
+    // OneDrop3D : pendant une série de l'assistant de calibration, pas de « Couleur correcte ? » (retour du 23/11 : une
+    // série sans intervention) ; la purge du test sur le plateau suit le chargement
+    if (od3d::session::in_series()) {
+        set(LoadState::load_finalize);
+        return;
+    }
+#endif
     setPhase(load_type == LoadType::load_purge ? PhasesLoadUnload::IsColorPurge : PhasesLoadUnload::IsColor);
     switch (response) {
 

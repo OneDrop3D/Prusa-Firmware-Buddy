@@ -438,11 +438,12 @@ void ScreenSpoolCalib::windowEvent(window_t *sender, GUI_event_t event, void *pa
             measure(calib::Kind::temperature);
             break;
         case tag_second:
-            if (calib::is_running() || pending) {
-                if (confirm_stop_measure()) { // pendant une série de l'assistant : il passe à la suivante
+            // Comme l'écran du PA : le clic suit le libellé affiché, l'effacement se confirme
+            if (second_cancels) {
+                if ((calib::is_running() || pending) && confirm_stop_measure()) { // série de l'assistant : il passe à la suivante
                     calib::request_stop();
                 }
-            } else {
+            } else if (MsgBoxQuestion(_("Forget the measured values of this spool?"), Responses_YesNo, 1) == Response::Yes) {
                 calib::clear(slot);
                 card.Invalidate();
             }

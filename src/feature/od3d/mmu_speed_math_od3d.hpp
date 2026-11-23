@@ -65,11 +65,15 @@ constexpr Choice choose(std::span<const Cycle> cycles) {
 /// pour la changer, créer un nouvel élément sous un autre nom.
 struct Saved {
     uint8_t speed = 0; ///< mm/s ; 0 : celle de Prusa
-    uint16_t prusa_ds = 0; ///< cycle à la vitesse de Prusa [0,1 s], 0 sans mesure
+    uint16_t prusa_ds : 15 = 0; ///< cycle à la vitesse de Prusa [0,1 s], 0 sans mesure
+    /// F11 : assistance du MMU pendant l'impression choisie (mmu_assist_od3d.hpp). Bit 15 de l'ancien prusa_ds, toujours 0
+    /// jusque-là (un cycle dure moins de 3 276 s) : config_store plein, pas de nouvel élément
+    uint16_t assist : 1 = 0;
     uint16_t cycle_ds = 0; ///< cycle à la vitesse choisie [0,1 s]
 
     constexpr bool operator==(const Saved &) const = default;
 };
+static_assert(sizeof(Saved) == 6, "même place dans le config_store qu'avant F11");
 
 /// Vitesse envoyée au MMU
 constexpr uint8_t speed_of(const Saved &s) {

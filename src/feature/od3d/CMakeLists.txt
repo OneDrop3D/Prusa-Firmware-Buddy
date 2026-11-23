@@ -26,6 +26,8 @@ if(HAS_MMU2)
   target_sources(firmware PRIVATE filament_memory_od3d.cpp)
   # N4 : vitesse de la poulie du MMU mesurée (M2002) ; F10 : pointe du filament suivie par emplacement
   target_sources(firmware PRIVATE mmu_speed_od3d.cpp tip_od3d.cpp)
+  # F11 : assistance du MMU pendant l'impression (registre 0x25, échanges dans ProtocolLogic)
+  target_sources(firmware PRIVATE mmu_assist_od3d.cpp)
 endif()
 if(HAS_MMU2 AND HAS_FILAMENT_TRACKER)
   # F13 : suivi du poids des bobines du MMU

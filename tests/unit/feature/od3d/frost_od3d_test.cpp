@@ -1,13 +1,10 @@
-/// OneDrop3D (interface G) : fond givré des dialogues (frost_od3d.hpp) : nœuds lus sur 2 lignes sur 8, interpolés, sur
-/// un afficheur simulé, comparés au calcul direct ; tout est lu avant d'écrire ; durée estimée de chaque dialogue
+/// OneDrop3D (interface G) : ouverture des fenêtres sur le voile (frost_od3d.hpp) : chaque pixel de la place de la
+/// fenêtre et du voile est peint, chaque élément une seule fois et jamais recouvert, le corps une fois hors des coins
+/// de chaque image ; état final juste ; octets envoyés à l'écran pour chaque fenêtre
 #include <gui/od3d/frost_od3d.hpp>
-#include <gui/od3d/spool_draw.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
-#include <cstdlib>
-#include <cstring>
-#include <random>
 #include <vector>
 
 using namespace od3d::frost;
@@ -16,312 +13,220 @@ namespace {
 
 constexpr int screen_w = 480, screen_h = 320;
 
-// Afficheur simulé : 3 octets par pixel, 6 bits en haut de chaque octet comme l'ILI9488 les rend
-std::vector<uint8_t> lcd;
-std::vector<uint8_t> buffer;
-size_t reads = 0, read_px = 0, writes = 0, written_px = 0;
-bool read_after_write = false;
+enum class Op : uint8_t {
+    none,
+    part,
+    body,
+    corner,
+    veil,
+};
 
-uint8_t *read(Area a) {
-    ++reads;
-    read_px += size_t(a.w) * a.h;
-    read_after_write = read_after_write || writes > 0;
-    REQUIRE(size_t(a.w) * a.h * 3 <= buffer.size());
-    REQUIRE(a.x >= 0);
-    REQUIRE(a.y >= 0);
-    REQUIRE(a.x + a.w <= screen_w);
-    REQUIRE(a.y + a.h <= screen_h);
-    for (int y = 0; y < a.h; ++y) {
-        std::memcpy(&buffer[size_t(y) * a.w * 3], &lcd[(size_t(a.y + y) * screen_w + a.x) * 3], size_t(a.w) * 3);
-    }
-    return buffer.data();
-}
+struct Pixel {
+    Op last = Op::none;
+    uint8_t count = 0;
+    uint8_t part = 0; ///< élément du dernier part()
+    Rect16 square; ///< carré du dernier corner()
+};
 
-void write(Area a, const uint8_t *buf) {
-    ++writes;
-    written_px += size_t(a.w) * a.h;
-    REQUIRE(buf == buffer.data());
-    REQUIRE(size_t(a.w) * a.h * 3 <= buffer.size());
-    for (int y = 0; y < a.h; ++y) {
-        std::memcpy(&lcd[(size_t(a.y + y) * screen_w + a.x) * 3], buf + size_t(y) * a.w * 3, size_t(a.w) * 3);
-    }
-}
+/// Afficheur simulé : qui a peint chaque pixel en dernier, et combien de fois
+struct Recorder final : Painter {
+    std::span<const Rect16> parts;
+    std::vector<Pixel> px = std::vector<Pixel>(screen_w * screen_h);
+    std::vector<size_t> part_calls;
+    size_t pixels = 0;
+    int stop_after = -1; ///< stop() vrai à partir de cet appel
+    int stops = 0;
+    bool part_overwritten = false; ///< un pixel d'élément repeint après lui
 
-void reset_counters(size_t capacity) {
-    buffer.assign(capacity * 3, 0);
-    reads = read_px = writes = written_px = 0;
-    read_after_write = false;
-}
-
-void fill_random(unsigned seed) {
-    std::mt19937 gen(seed);
-    lcd.resize(size_t(screen_w) * screen_h * 3);
-    for (auto &b : lcd) {
-        b = uint8_t(gen() & 0xFC);
-    }
-}
-
-// ---- Calcul direct, pixel par pixel ----
-
-int count(int len, int step) {
-    return len <= 1 ? 1 : (len - 2) / step + 2;
-}
-int at(int i, int len, int step) {
-    return std::min(i * step, len - 1);
-}
-int32_t slope(int a, int b, int len) {
-    return len ? (b - a) * 65536 / len : 0;
-}
-/// Pas des nœuds : 8, ou plus large si les nœuds de toutes les bandes ne tiennent pas dans 960
-int step_for(const std::array<Area, 4> &bands) {
-    for (int step = 8;; step *= 2) {
-        size_t n = 0;
-        for (const Area &b : bands) {
-            n += b.empty() ? 0 : size_t(count(b.w, step)) * count(b.h, step);
-        }
-        if (n <= 960) {
-            return step;
-        }
-    }
-}
-
-/// Nœud (i, j) d'une bande, composante c : moyenne des 2 lignes lues, 8 colonnes autour
-unsigned node(const std::vector<uint8_t> &before, const Area &b, int step, int i, int j, int c) {
-    const int k = std::min<int>(b.h, 2);
-    const int r0 = std::min(at(j, b.h, step), b.h - k);
-    const int cx = at(i, b.w, step);
-    const int x0 = std::max(cx - step / 2, 0), x1 = std::min(cx + step / 2, int(b.w));
-    unsigned sum = 0, n = 0;
-    for (int r = r0; r < r0 + k; ++r) {
-        for (int x = x0; x < x1; ++x, ++n) {
-            sum += before[(size_t(b.y + r) * screen_w + b.x + x) * 3 + c] >> 2;
-        }
-    }
-    return (sum * 4 + n / 2) / n;
-}
-
-std::vector<uint8_t> expected(const std::vector<uint8_t> &before, const std::array<Area, 4> &bands) {
-    std::vector<uint8_t> out = before;
-    const int step = step_for(bands);
-    for (const Area &b : bands) {
-        if (b.empty()) {
-            continue;
-        }
-        const int nc = count(b.w, step), nr = count(b.h, step);
-        for (int y = 0; y < b.h; ++y) {
-            int j = 0;
-            while (j + 1 < nr && at(j + 1, b.h, step) <= y) {
-                ++j;
-            }
-            const int j1 = std::min(j + 1, nr - 1), y0 = at(j, b.h, step), y1 = at(j1, b.h, step);
-            for (int x = 0; x < b.w; ++x) {
-                int i = 0;
-                while (i + 1 < nc && at(i + 1, b.w, step) <= x) {
-                    ++i;
-                }
-                const int i1 = std::min(i + 1, nc - 1), x0 = at(i, b.w, step), x1 = i1 == i ? b.w : at(i1, b.w, step);
-                for (int c = 0; c < 3; ++c) {
-                    const auto line = [&](int col) {
-                        const int a = node(before, b, step, col, j, c), z = node(before, b, step, col, j1, c);
-                        return a + ((slope(a, z, y1 - y0) * (y - y0) + 0x8000) >> 16);
-                    };
-                    const int a = line(i), z = line(i1);
-                    const int32_t v = (int32_t(a) << 16) + 0x8000 + (x - x0) * slope(a, z, x1 - x0);
-                    out[(size_t(b.y + y) * screen_w + b.x + x) * 3 + c] = shade(unsigned(v >> 16));
-                }
+    void mark(Rect16 r, Op op, uint8_t part = 0, Rect16 sq = {}) {
+        REQUIRE(r.Left() >= 0);
+        REQUIRE(r.Top() >= 0);
+        REQUIRE(r.Left() + r.Width() <= screen_w);
+        REQUIRE(r.Top() + r.Height() <= screen_h);
+        for (int y = r.Top(); y < r.Top() + r.Height(); ++y) {
+            for (int x = r.Left(); x < r.Left() + r.Width(); ++x) {
+                Pixel &p = px[y * screen_w + x];
+                part_overwritten = part_overwritten || (p.last == Op::part && op != Op::part); // un élément peint sur un autre : voulu
+                p = { op, uint8_t(p.count + 1), part, sq };
+                ++pixels;
             }
         }
     }
-    return out;
-}
-
-void check(Area area, Area hole, size_t capacity, unsigned seed) {
-    fill_random(seed);
-    reset_counters(capacity);
-    const std::vector<uint8_t> before = lcd;
-    const auto want = expected(before, margins(area, hole));
-    run(area, hole, capacity, read, write);
-    CHECK(lcd == want); // les bandes givrées, rien d'autre (ni le trou, ni hors de area)
-    CHECK_FALSE(read_after_write); // tout est lu avant la première écriture : rien ne progresse à l'œil
-}
-
-/// Durée estimée sur l'imprimante : lecture SPI à 5,25 MHz (3 octets : 4,57 µs par pixel) et ~1 ms de pauses par
-/// lecture (ili9488_rd : deux osDelay(1)), écriture à 42 MHz (0,57 µs par pixel), calcul compté à part
-double estimate_ms() {
-    return read_px * 0.00457 + reads * 1.0 + written_px * 0.00057;
-}
-
-/// Écran uni : chaque pixel du givrage prend la couleur du voile
-void fill(uint8_t r, uint8_t g, uint8_t b) {
-    lcd.resize(size_t(screen_w) * screen_h * 3);
-    for (size_t i = 0; i < lcd.size(); i += 3) {
-        lcd[i] = r;
-        lcd[i + 1] = g;
-        lcd[i + 2] = b;
+    void part(size_t i) override {
+        part_calls.push_back(i);
+        mark(parts[i], Op::part, uint8_t(i));
     }
+    void body(Rect16 r) override {
+        mark(r, Op::body);
+    }
+    void corner(Rect16 sq, uint8_t, Rect16 piece) override {
+        CHECK((piece.Left() >= sq.Left() && piece.Top() >= sq.Top() && piece.Left() + piece.Width() <= sq.Left() + sq.Width() && piece.Top() + piece.Height() <= sq.Top() + sq.Height()));
+        mark(piece, Op::corner, 0, sq);
+    }
+    void veil(Rect16 r) override {
+        mark(r, Op::veil);
+    }
+    bool stop() override {
+        return stop_after >= 0 && stops++ >= stop_after;
+    }
+    const Pixel &at(int x, int y) const {
+        return px[y * screen_w + x];
+    }
+};
+
+bool contains(const Rect16 &r, int x, int y) {
+    return x >= r.Left() && x < r.Left() + r.Width() && y >= r.Top() && y < r.Top() + r.Height();
 }
+
+bool inside(const Rect16 &outer, const Rect16 &r) {
+    return r.Left() >= outer.Left() && r.Top() >= outer.Top() && r.Left() + r.Width() <= outer.Left() + outer.Width() && r.Top() + r.Height() <= outer.Top() + outer.Height();
+}
+
+/// Le coin arrondi bit de rect, s'il l'est
+Rect16 final_square(const Rect16 &rect, uint8_t corners, int x, int y) {
+    for (const uint8_t bit : { uint8_t(MIC_TOP_LEFT), uint8_t(MIC_TOP_RIGHT), uint8_t(MIC_BOT_LEFT), uint8_t(MIC_BOT_RIGHT) }) {
+        const bool left = bit & (MIC_TOP_LEFT | MIC_BOT_LEFT), top = bit & (MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        const Rect16 sq(rect.Left() + (left ? 0 : rect.Width() - radius), rect.Top() + (top ? 0 : rect.Height() - radius), radius, radius);
+        if ((corners & bit) && contains(sq, x, y)) {
+            return sq;
+        }
+    }
+    return {};
+}
+
+/// Ouvre rect depuis from et vérifie l'image finale et le nombre de passages ; rend les pixels envoyés
+size_t check_open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, int stop_after = -1) {
+    Recorder rec;
+    rec.parts = parts;
+    rec.stop_after = stop_after;
+    plan(rect, corners, from, parts, rec, true);
+
+    CHECK_FALSE(rec.part_overwritten);
+    CHECK(rec.part_calls.size() == parts.size());
+    std::vector<int> calls(parts.size());
+    for (const size_t i : rec.part_calls) {
+        ++calls[i];
+    }
+    for (const int c : calls) {
+        CHECK(c == 1); // chaque élément une seule fois
+    }
+
+    size_t twice = 0;
+    const Rect16 zone = od3d::style::below_header;
+    for (int y = 0; y < screen_h; ++y) {
+        for (int x = 0; x < screen_w; ++x) {
+            const Pixel &p = rec.at(x, y);
+            if (!contains(zone, x, y)) {
+                REQUIRE(p.count == 0); // l'en-tête n'est pas touché
+                continue;
+            }
+            REQUIRE(p.count >= 1); // rien ne reste de l'écran d'avant
+            int in_part = -1;
+            uint8_t parts_here = 0;
+            for (size_t i = 0; i < parts.size(); ++i) {
+                if (contains(parts[i], x, y)) {
+                    in_part = int(i);
+                    ++parts_here;
+                }
+            }
+            twice += p.count > std::max<int>(parts_here, 1);
+            if (!contains(rect, x, y)) {
+                REQUIRE(p.last == Op::veil);
+                REQUIRE(p.count == 1);
+            } else if (in_part >= 0) {
+                REQUIRE(p.last == Op::part);
+                REQUIRE(p.part == in_part); // le dernier de ceux qui se chevauchent, comme le cadre les dessine
+                REQUIRE(p.count == parts_here);
+            } else if (const Rect16 sq = final_square(rect, corners, x, y); !sq.IsEmpty()) {
+                REQUIRE(p.last == Op::corner);
+                REQUIRE(p.square == sq);
+            } else {
+                REQUIRE(p.last == Op::body);
+            }
+        }
+    }
+    // Peints deux fois : seulement les coins des images intermédiaires (4 coins r × r par image)
+    CHECK(twice <= size_t(frames) * 4 * radius * radius);
+    return rec.pixels;
+}
+
+// Fenêtres de nos écrans (value_editor_od3d.cpp, spool_sheet_od3d.cpp, screen_progress_od3d.cpp)
+constexpr Rect16 sheet = { 0, 120, 480, 200 };
+constexpr Rect16 editor_parts[] = { { 0, 134, 480, 16 }, { 22, 160, 52, 52 }, { 406, 160, 52, 52 }, { 80, 159, 320, 53 }, { 30, 226, 420, 22 }, { 40, 262, 194, 40 }, { 246, 262, 194, 40 } };
+constexpr Rect16 band = { 0, 114, 480, 206 };
+constexpr Rect16 sheet_parts[] = { { 89, 114, 391, 56 }, { 14, 172, 292, 46 }, { 310, 172, 156, 46 }, { 14, 222, 148, 42 }, { 166, 222, 148, 42 }, { 318, 222, 148, 42 }, { 14, 128, 71, 32 } };
+constexpr Rect16 box = { 28, 46, 424, 226 };
+constexpr Rect16 box_parts[] = { { 40, 54, 400, 166 }, { 46, 56, 48, 48 }, { 46, 222, 388, 6 }, { 44, 229, 392, 40 } };
+
+constexpr uint8_t top_corners = MIC_TOP_LEFT | MIC_TOP_RIGHT;
 
 } // namespace
 
-TEST_CASE("od3d frost: the plain G background becomes the veil colour") {
-    // #1B1C1E (octets 0x1E 0x1C 0x1B, 6 bits 7, 7, 6) → #0C0C0C, la couleur de style::veil sur l'afficheur
-    CHECK(shade(0x1E & 0xFC) == 0x0C);
-    CHECK(shade(0x1C) == 0x0C);
-    CHECK(shade(0x1B & 0xFC) == 0x0C);
-    CHECK(shade(0) == 0);
-    CHECK(shade(252) == 0x70); // blanc → 44 %
-    for (unsigned v = 0; v < 252; ++v) {
-        CHECK(shade(v + 1) >= shade(v));
-        CHECK((shade(v) & 3) == 0);
-    }
+TEST_CASE("od3d frost: the first image starts at the touched element, inside the window") {
+    // Une carte des températures (au-dessus de la feuille de l'éditeur, qu'elle touche) : sa largeur, au bord de la feuille
+    const Rect16 card { 170, 46, 150, 90 };
+    const Rect16 s = start(card, sheet, 2 * radius);
+    CHECK(s == Rect16(170, 120, 150, 24));
+    // Une bobine de l'accueil, au-dessus de la fiche : sa largeur, en haut de la fiche
+    CHECK(start({ 100, 46, 78, 60 }, band, 24) == Rect16(100, 114, 78, 24));
+    // Un élément dans la fenêtre : lui-même
+    CHECK(start({ 50, 200, 100, 40 }, sheet, 24) == Rect16(50, 200, 100, 40));
+    // Un petit élément : agrandi autour de son milieu, sans sortir de la fenêtre
+    CHECK(start({ 0, 300, 4, 4 }, sheet, 24) == Rect16(0, 290, 24, 24));
+    // Redessin à sa place
+    CHECK(start(sheet, sheet, 24) == sheet);
+    // Sans élément, ou une liste entière : depuis le centre
+    CHECK(start({}, sheet, 24) == Rect16(228, 208, 24, 24));
+    CHECK(start({ 8, 46, 470, 200 }, sheet, 24) == Rect16(228, 208, 24, 24));
+}
 
-    fill(0x1C, 0x1C, 0x18);
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 0, 114, 480, 206 }, 1920, read, write);
-    for (int y = 41; y < 114; ++y) {
-        for (int x = 0; x < screen_w; ++x) {
-            const uint8_t *p = &lcd[(size_t(y) * screen_w + x) * 3];
-            REQUIRE((p[0] == 0x0C && p[1] == 0x0C && p[2] == 0x0C));
+TEST_CASE("od3d frost: each image contains the one before, the last is the window") {
+    const Rect16 s = start({ 100, 46, 78, 60 }, band, 24);
+    CHECK(step(s, band, 0, frames) == s);
+    CHECK(step(s, band, frames, frames) == band);
+    CHECK(step(s, band, 0, 0) == band);
+    Rect16 was = s;
+    for (int k = 1; k <= frames; ++k) {
+        const Rect16 now = step(s, band, k, frames);
+        CHECK(inside(now, was));
+        CHECK(inside(band, now));
+        // ralentit : chaque image gagne moins de largeur que la précédente
+        if (k > 1) {
+            CHECK(now.Width() - was.Width() <= was.Width() - step(s, band, k - 2, frames).Width());
         }
+        was = now;
     }
 }
 
-TEST_CASE("od3d frost: margins around the dialog") {
-    const Area area { 0, 41, 480, 279 };
-    const auto m = margins(area, { 28, 46, 424, 226 }); // écran de chargement
-    CHECK((m[0].x == 0 && m[0].y == 41 && m[0].w == 480 && m[0].h == 5));
-    CHECK((m[1].x == 0 && m[1].y == 46 && m[1].w == 28 && m[1].h == 226));
-    CHECK((m[2].x == 452 && m[2].y == 46 && m[2].w == 28 && m[2].h == 226));
-    CHECK((m[3].x == 0 && m[3].y == 272 && m[3].w == 480 && m[3].h == 48));
-    const auto sheet = margins(area, { 0, 114, 480, 206 }); // fiche de bobine : seulement le haut
-    CHECK((sheet[0].y == 41 && sheet[0].h == 73 && sheet[0].w == 480));
-    CHECK((sheet[1].empty() && sheet[2].empty() && sheet[3].empty()));
-    const auto none = margins(area, { 0, 0, 10, 10 }); // trou hors de la zone : toute la zone
-    CHECK((none[0].y == 41 && none[0].h == 279));
-    CHECK(none[3].empty());
-}
-
-TEST_CASE("od3d frost: nodes and interpolation give the direct calculation") {
-    const Area area { 0, 41, 480, 279 };
-    // Tampon de l'ILI9488 (4 lignes de 480), un tampon de 2 lignes à peine, et un tampon impair
-    for (size_t capacity : { size_t(1920), size_t(960), size_t(1500) }) {
-        check(area, { 28, 46, 424, 226 }, capacity, 1); // écran de chargement
-        check(area, { 0, 114, 480, 206 }, capacity, 2); // fiche de bobine
-        check(area, { 0, 120, 480, 200 }, capacity, 3); // éditeur de valeur
+TEST_CASE("od3d frost: every window paints each pixel once, the screen around veiled") {
+    SECTION("value editor, from a temperature card") {
+        const size_t px = check_open(sheet, top_corners, { 170, 46, 150, 90 }, editor_parts);
+        // Voile 480 × 79 et feuille 480 × 200, plus les coins des images : 3 octets par pixel à 42 MHz (0,571 µs)
+        CHECK(px <= 480 * 279 + frames * 8 * radius * radius);
+        INFO("editor: " << px * 3 << " bytes, ~" << px * 0.571 / 1000 << " ms");
+        CHECK(px * 0.571 / 1000 < 82);
     }
-    // Bandes d'une ligne, d'une colonne, collées aux bords de l'écran ; tout l'écran (nœuds plus espacés)
-    check({ 0, 0, 480, 320 }, { 1, 1, 478, 318 }, 1920, 4);
-    check({ 10, 300, 7, 20 }, {}, 1920, 5);
-    check({ 0, 0, 480, 320 }, {}, 1920, 6);
-    check({ 3, 50, 9, 17 }, {}, 1920, 7); // nœuds du bord à moins de 8 px
-}
-
-TEST_CASE("od3d frost: a smooth background stays smooth") {
-    // Dégradé horizontal : chaque pixel givré reste à un pas de l'afficheur du même pixel simplement assombri
-    lcd.resize(size_t(screen_w) * screen_h * 3);
-    for (int y = 0; y < screen_h; ++y) {
-        for (int x = 0; x < screen_w; ++x) {
-            for (int c = 0; c < 3; ++c) {
-                lcd[(size_t(y) * screen_w + x) * 3 + c] = uint8_t((x * 252 / (screen_w - 1)) & 0xFC);
-            }
-        }
+    SECTION("value editor from a list (centre), stopped by the knob after the first image") {
+        check_open(sheet, top_corners, { 8, 46, 470, 200 }, editor_parts, 0);
     }
-    const std::vector<uint8_t> before = lcd;
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 0, 114, 480, 206 }, 1920, read, write);
-    for (int y = 41; y < 114; ++y) {
-        for (int x = 0; x < screen_w; ++x) {
-            const size_t i = (size_t(y) * screen_w + x) * 3;
-            REQUIRE(std::abs(int(lcd[i]) - int(shade(before[i]))) <= 4);
-        }
+    SECTION("spool sheet, from a home spool") {
+        const size_t px = check_open(band, top_corners, { 100, 46, 78, 60 }, sheet_parts);
+        CHECK(px <= 480 * 279 + frames * 8 * radius * radius);
+    }
+    SECTION("loading box, all corners, from the centre (overlapping body and spool mark)") {
+        const size_t px = check_open(box, MIC_ALL_CORNERS, {}, box_parts);
+        CHECK(px <= 480 * 279 + frames * 8 * radius * radius);
+    }
+    SECTION("redrawn in place: a single image, no corner twice") {
+        const size_t px = check_open(sheet, top_corners, sheet, editor_parts);
+        CHECK(px == 480 * 279);
     }
 }
 
-TEST_CASE("od3d frost: each dialog frosts within budget, before it draws") {
-    fill_random(8);
-    // Fiche de bobine : 480 × 73 au-dessus d'elle
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 0, 114, 480, 206 }, 1920, read, write);
-    CHECK(reads == 10);
-    CHECK(read_px == 9600); // 2 lignes sur 8 (35 040 pixels relus avant)
-    CHECK(written_px == 480 * 73);
-    CHECK(estimate_ms() < 80);
-
-    // Éditeur de valeur : 480 × 79
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 0, 120, 480, 200 }, 1920, read, write);
-    CHECK(reads == 11);
-    CHECK(estimate_ms() < 85);
-
-    // Écran de chargement : 38 096 pixels autour du cadre (230 ms en tranches avant) ; les bandes de côté (28 px)
-    // coûtent surtout leurs pauses
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 28, 46, 424, 226 }, 1920, read, write);
-    CHECK(reads == 69);
-    CHECK(written_px == 38096);
-    CHECK(estimate_ms() < 150);
-
-    // Coins arrondis givrés aussi (8.0.2.30) : les lignes des coins s'ajoutent aux bandes du haut et du bas
-    constexpr uint8_t top = Corners::top_left | Corners::top_right, all = top | Corners::bottom_left | Corners::bottom_right;
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 0, 114, 480, 206 }, 1920, read, write, Corners { .r = 12, .mask = top });
-    CHECK(estimate_ms() < 95); // fiche de bobine : ~88 ms
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 0, 120, 480, 200 }, 1920, read, write, Corners { .r = 12, .mask = top });
-    CHECK(estimate_ms() < 100); // éditeur de valeur : ~95 ms
-    reset_counters(1920);
-    run({ 0, 41, 480, 279 }, { 28, 46, 424, 226 }, 1920, read, write, Corners { .r = 12, .mask = all });
-    CHECK(estimate_ms() < 150); // écran de chargement : ~100 ms (bandes de côté plus courtes)
-}
-
-TEST_CASE("od3d frost: the dialog's rounded corners show the frosted screen, not a square of veil") {
-    // Retour du 22/11 (8.0.2.30) : « un carré noir sous la fenêtre, sans les angles arrondis, qui dépasse ». Derrière les
-    // coins, une carte claire : le givrage les fait aussi (givré hors de l'arrondi, mêlé au corps sur le bord lissé), et
-    // ne touche pas au reste du dialogue hors des lignes de ses coins.
-    const std::array<uint8_t, 3> body { 0x28, 0x28, 0x24 };
-    struct Case {
-        Area hole;
-        uint8_t mask;
-    };
-    for (const Case &k : { Case { { 28, 46, 424, 226 }, uint8_t(Corners::top_left | Corners::top_right | Corners::bottom_left | Corners::bottom_right) },
-             Case { { 0, 114, 480, 206 }, uint8_t(Corners::top_left | Corners::top_right) }, // fiche de bobine
-             Case { { 0, 120, 480, 200 }, uint8_t(Corners::top_left | Corners::top_right) } }) { // éditeur de valeur
-        fill_random(11);
-        reset_counters(1920);
-        const Area area { 0, 41, 480, 279 };
-        const Corners corners { .r = 12, .mask = k.mask, .body = body };
-        const std::vector<uint8_t> before = lcd;
-        const uint16_t top = k.mask & (Corners::top_left | Corners::top_right) ? 12 : 0;
-        const uint16_t bottom = k.mask & (Corners::bottom_left | Corners::bottom_right) ? 12 : 0;
-        const auto frosted = expected(before, margins(area, k.hole, top, bottom)); // les bandes, lignes des coins comprises
-        run(area, k.hole, 1920, read, write, corners);
-        CHECK_FALSE(read_after_write);
-
-        size_t outside = 0;
-        for (int y = area.y; y < area.y + area.h; ++y) {
-            for (int x = 0; x < screen_w; ++x) {
-                const size_t i = (size_t(y) * screen_w + x) * 3;
-                const int lx = x - k.hole.x, ly = y - k.hole.y;
-                const bool in_hole = lx >= 0 && ly >= 0 && lx < k.hole.w && ly < k.hole.h;
-                INFO("x " << x << " y " << y);
-                if (!in_hole) {
-                    REQUIRE(std::equal(&lcd[i], &lcd[i] + 3, &frosted[i])); // autour : givré comme avant
-                    continue;
-                }
-                const bool corner_rows = ly < top || k.hole.h - 1 - ly < bottom;
-                if (!corner_rows) {
-                    REQUIRE(std::equal(&lcd[i], &lcd[i] + 3, &before[i])); // le dialogue : rien n'y est écrit
-                    continue;
-                }
-                const bool left = lx < 12, right = !left && k.hole.w - 1 - lx < 12, upper = ly < 12;
-                const uint8_t bit = left ? (upper ? Corners::top_left : Corners::bottom_left) : right ? (upper ? Corners::top_right : Corners::bottom_right) : 0;
-                const uint8_t q = (k.mask & bit) && (upper ? ly < 12 : k.hole.h - 1 - ly < 12) ? od3d::spool::corner_beyond_quarters(left ? lx : k.hole.w - 1 - lx, upper ? ly : k.hole.h - 1 - ly, 12) : 0;
-                for (int c = 0; c < 3; ++c) {
-                    REQUIRE(lcd[i + c] == uint8_t((body[c] * (4 - q) + frosted[i + c] * q + 2) / 4));
-                }
-                outside += q == 4;
-            }
-        }
-        CHECK(outside >= 2 * 20); // hors de l'arrondi (23 pixels par coin de 12 px) : l'écran givré, pas un carré de voile
-    }
+TEST_CASE("od3d frost: the element under the finger is painted first") {
+    Recorder rec;
+    rec.parts = sheet_parts;
+    plan(band, top_corners, { 14, 172, 292, 46 }, sheet_parts, rec, false); // « Charger », touché
+    REQUIRE_FALSE(rec.part_calls.empty());
+    CHECK(rec.part_calls.front() == 1);
 }

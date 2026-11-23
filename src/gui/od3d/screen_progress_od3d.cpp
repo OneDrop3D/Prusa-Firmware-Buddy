@@ -53,8 +53,7 @@ namespace {
     constexpr int16_t text_x = 102; ///< titre et sous-titre, à droite de la bobine Ø44
     constexpr Rect16 mark_rect = { content_x, 56, 48, 48 }; ///< bobine Ø44 (46,58) ou icône d'erreur 48 × 48
     constexpr uint8_t spinner_d = 44; ///< anneau d'attente (spinner_od3d.hpp : un tour en 1,6 s, SPEC_G.md §3.4)
-    constexpr uint8_t box_radius = style::radius_big; ///< coins de toutes nos grandes cartes
-    constexpr Color veil = style::veil; ///< coins du cadre : la couleur du fond givré autour
+    static_assert(style::radius_big == frost::radius, "coins du cadre sur le voile : ceux de toutes nos fenêtres");
 
     static_assert(style::inside(box_rect, body_rect) && style::inside(box_rect, bar_rect) && style::inside(body_rect, mark_rect));
     static_assert(style::inside(box_rect, style::with_ring(Rect16(content_x, buttons_y, content_w, buttons_h))));
@@ -344,8 +343,15 @@ Rect16 ScreenLoadUnload::Box::get_rect_for_touch() const {
     return Rect16(0, 0, style::screen_w, style::screen_h);
 }
 
-void ScreenLoadUnload::Box::unconditionalDraw() {
-    frost::draw_body(GetRect(), style::surface, box_radius, MIC_ALL_CORNERS); // coins givrés, ou du voile uni
+void ScreenLoadUnload::Box::draw() {
+    if (!IsVisible() || !IsInvalid()) {
+        window_frame_t::draw();
+        return;
+    }
+    // L'opération lancée par la fiche d'une bobine s'ouvre depuis la bobine (frost::close() l'a notée), une autre
+    // depuis le centre
+    const Rect16 from = std::exchange(owner.opened, true) ? GetRect() : frost::take_closed_origin();
+    frost::draw(getFirstNormal(), GetRect(), MIC_ALL_CORNERS, from, !std::exchange(owner.veiled, true));
 }
 
 void ScreenLoadUnload::Box::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -503,17 +509,38 @@ ScreenLoadUnload::Bar::Bar(window_t *parent, const ScreenLoadUnload &owner)
     : window_t(parent, bar_rect)
     , owner(owner) {}
 
+void ScreenLoadUnload::Bar::step() {
+    const bool whole = !HasValidBackground(); // comme Card::invalidate_content : le delta seul
+    Invalidate();
+    if (!whole) {
+        ValidateBackground();
+    }
+}
+
 void ScreenLoadUnload::Bar::unconditionalDraw() {
-    // Piste et partie faite d'une passe (la piste se repeignait sous la partie faite à chaque pas)
+    // Piste et partie faite d'une passe ; à chaque pas, seulement les colonnes où la fin a bougé (< 1 Ko au lieu de
+    // 7 Ko), la barre entière après autre chose
     const Rect16 r = GetRect();
     const int w = r.Width(), h = r.Height();
-    const int done = w * std::min<uint8_t>(owner.progress, 100) / 100;
-    draw_pixels(r, [&](int x, int y) {
+    const auto done_at = [w](uint8_t progress) {
+        const int done = w * std::min<uint8_t>(progress, 100) / 100;
+        return done >= 6 ? done : 0; // moins que ses coins : la piste seule
+    };
+    const int done = done_at(owner.progress);
+    // La fin, à inset près (≤ 3 px dans les coins) : x < done - inset
+    const int x0 = HasValidBackground() ? std::max(std::min(done_at(drawn), done) - 3, 0) : 0;
+    const int x1 = HasValidBackground() ? std::max(done_at(drawn), done) : w;
+    drawn = owner.progress;
+    if (x1 <= x0) {
+        return;
+    }
+    draw_pixels(Rect16(r.Left() + x0, r.Top(), x1 - x0, h), [&](int x, int y) {
+        x += x0;
         const int inset = print_info::corner_inset(y, h, 3);
         if (x < inset || x >= w - inset) {
             return style::surface;
         }
-        return done >= 6 && x < done - inset ? style::accent : style::line;
+        return x < done - inset ? style::accent : style::line;
     });
 }
 
@@ -608,7 +635,7 @@ void ScreenLoadUnload::Change(fsm::BaseData new_data) {
         }
         if (d.progress != progress) {
             progress = d.progress;
-            bar.Invalidate();
+            bar.step();
         }
     }
 
@@ -772,18 +799,19 @@ void ScreenLoadUnload::respond(Response response) {
 }
 
 void ScreenLoadUnload::unconditionalDraw() {
-    // L'en-tête garde son fond : ses éléments, peints sur #1B1C1E, faisaient des pavés clairs sur le voile
-    display::fill_rect(style::header, style::screen);
-    if (!std::exchange(frosted, true)) {
-        // 1er dessin : l'écran d'où l'on vient reste autour du cadre, flouté et assombri d'une traite avant le cadre
-        // (retour du 22/11 : « il n'y a pas de fond », puis « le flou arrive après »), coins du cadre compris (8.0.2.30 :
-        // un carré de voile uni dépassait de ses coins arrondis)
-        frost::run(style::below_header, box_rect, box_radius, MIC_ALL_CORNERS, style::surface);
-        return;
+    // Le fond de l'en-tête entre ses éléments, qui se peignent ensuite chacun à sa place (ils étaient peints sur un
+    // aplat de tout l'en-tête) ; sous l'en-tête, le cadre et son voile (Box::draw)
+    std::array<Rect16, 8> parts;
+    size_t n = 0;
+    for (window_t *w = getFirstNormal(); w && n < parts.size(); w = w->GetNext()) {
+        if (w->IsVisible() && w->GetRect().Top() < style::below_header.Top()) {
+            parts[n++] = w->GetRect();
+        }
     }
-    // Redessiné en entier : ce qui était autour n'est plus sûr, voile uni (coins du cadre compris)
-    frost::forget();
-    display::fill_rect(Rect16::fromLTRB(0, style::header_line.Top(), style::screen_w, style::screen_h), veil);
+    style::for_each_gap(Rect16::fromLTRB(0, 0, style::screen_w, style::below_header.Top()), std::span<const Rect16>(parts.data(), n), [](Rect16 gap) {
+        display::fill_rect(gap, style::screen);
+    });
+    veiled = false; // l'écran entier se repeint : le voile autour du cadre aussi
 }
 
 void ScreenLoadUnload::windowEvent(window_t *sender, GUI_event_t event, void *param) {

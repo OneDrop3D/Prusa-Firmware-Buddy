@@ -4,6 +4,7 @@
 /// maximales comprises) ; la valeur n'est appliquée par l'appelant qu'après OK.
 #pragma once
 
+#include <array>
 #include <IDialog.hpp>
 #include <numeric_input_config.hpp>
 #include <optional>
@@ -21,26 +22,38 @@ public:
     ///              l'éditeur est fermé sans OK ; sinon c'est à l'appelant d'appliquer la valeur rendue
     /// @param unit si donnée, affichée après la valeur à la place de l'unité de config (« g » : Prusa n'a pas d'unité
     ///             de masse)
+    /// @param from l'élément d'où s'ouvre la feuille ; vide : l'élément ciblé (une liste entière n'en est pas un : depuis
+    ///             le centre, sauf si l'appelant donne le rect de sa ligne)
     /// @returns la valeur choisie, ou nullopt si l'éditeur a été fermé sans OK
-    static std::optional<float> exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply = nullptr, const char *unit = nullptr);
+    static std::optional<float> exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply = nullptr, const char *unit = nullptr, Rect16 from = {});
 
 private:
-    ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit);
+    ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit, Rect16 from);
 
-    void unconditionalDraw() override;
+    /// À repeindre en entier : la feuille s'ouvre depuis l'élément touché sur le voile (frost_od3d.hpp), chaque partie
+    /// peinte une fois (paint_part) ; sinon la valeur seule
+    void draw() override;
+    void paint_part(size_t i);
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
     void screenEvent(window_t *sender, GUI_event_t event, void *param) override;
 
-    /// Valeur et barre : seule partie redessinée quand la valeur change
+    /// Valeur et barre : seule partie redessinée quand la valeur change, en delta (les chiffres changés, les colonnes de
+    /// la barre où le disque a bougé)
     class ValueView : public window_t {
     public:
         ValueView(ValueEditor &editor);
+
+        void draw_value();
+        void draw_bar();
+        void forget(); ///< la feuille se repeint : valeur et barre entières
 
     protected:
         void unconditionalDraw() override;
 
     private:
         ValueEditor &editor;
+        std::array<char, 12> drawn {}; ///< chiffres à l'écran (vide : rien de sûr, tout se repeint)
+        int16_t drawn_filled = -1; ///< bout du remplissage à l'écran, en px de la barre (-1 : rien de sûr)
     };
 
     void step(int steps);
@@ -55,7 +68,7 @@ private:
     const char *unit;
     bool accepted = false;
     bool dragged = false; ///< le doigt a glissé sur la barre : le balayage qui suit n'annule pas
-    bool frosted = false; ///< le fond au-dessus de la feuille a été givré (1er dessin)
+    Rect16 from; ///< l'élément touché, d'où s'ouvre la feuille (sa place une fois ouverte)
     ValueView view;
 };
 

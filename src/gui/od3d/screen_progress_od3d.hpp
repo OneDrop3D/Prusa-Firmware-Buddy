@@ -2,8 +2,8 @@
 /// OneDrop3D (F1, interface G) : écran de progression des opérations sur les bobines (SPEC_G.md §1.9, §3.4).
 /// Il prend la place de l'apparence de ScreenFilamentChange (Prusa) pour la machine à états Load_unload, sans
 /// changer la machine : mêmes phases, mêmes réponses (« Annuler » = Response::Stop, seulement là où Prusa permet
-/// d'arrêter), mêmes erreurs du MMU et du capteur de filament, mêmes sons. Un dialogue sur l'écran d'origine,
-/// qui reste visible autour (pas de voile sans alpha).
+/// d'arrêter), mêmes erreurs du MMU et du capteur de filament, mêmes sons. Un cadre sur un voile uni, qui s'ouvre
+/// depuis la bobine touchée (frost_od3d.hpp).
 #pragma once
 
 #include "atelier_od3d.hpp"
@@ -55,7 +55,9 @@ private:
         Rect16 get_rect_for_touch() const override;
 
     protected:
-        void unconditionalDraw() override;
+        /// À repeindre en entier : le cadre s'ouvre depuis l'élément touché (1er dessin), chaque élément peint une fois,
+        /// puis le voile autour s'il a été recouvert ; sinon les éléments changés
+        void draw() override;
         void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 
     private:
@@ -91,15 +93,19 @@ private:
         std::optional<uint8_t> drawn; ///< position de l'anneau à l'écran (rien : bobine, icône ou rien de dessiné)
     };
 
+    /// Barre de progression : à chaque pas, seulement les colonnes entre l'ancienne et la nouvelle fin
     class Bar : public window_t {
     public:
         Bar(window_t *parent, const ScreenLoadUnload &owner);
+
+        void step(); ///< l'avancement a changé : le delta, sauf si la barre est déjà à repeindre en entier
 
     protected:
         void unconditionalDraw() override;
 
     private:
         const ScreenLoadUnload &owner;
+        uint8_t drawn = 0; ///< avancement à l'écran
     };
 
     void enter_phase();
@@ -127,7 +133,8 @@ private:
     std::array<Response, 3> responses {};
     uint8_t background_button = 0xff; ///< bouton « Continuer en arrière-plan » (étape sans question), 0xff : aucun
     uint8_t shown_buttons = 0; ///< boutons affichés : le cadre se repeint quand leur nombre change
-    bool frosted = false; ///< le fond autour du cadre a été givré (1er dessin)
+    bool opened = false; ///< le cadre s'est ouvert (1er dessin) : il se repeint ensuite à sa place
+    bool veiled = false; ///< le voile autour du cadre est à l'écran (l'écran entier se repeint : plus)
 
     Header header; ///< températures en direct pendant la chauffe (le pied de page de Prusa les montrait)
     Box box;

@@ -16,7 +16,7 @@
  *
  *#### Usage
  *
- *    M1989 H | A | R<bits> | N<i>
+ *    M1989 H | A | R<bits> | N<i> | L<slot> | C
  *
  *#### Parameters
  *
@@ -27,6 +27,9 @@
  * - `R` - lance la série des tests automatiques dont les bits (od3d::calib_registry::Test) sont donnés : une étape mise
  *   en file à la fois, suivie de `M1989 N<i>`
  * - `N` - repère de fin de l'étape i (mis en file par la série) : lit son résultat, met en file l'étape suivante
+ * - `L` - avant le chargement d'une bobine pour un test qui imprime (mis en file par la série) : plateau entier palpé
+ *   une fois pour la série, à la température de la matière de l'emplacement
+ * - `C` - plateau nettoyé après « Plateau plein » : place libre partout, l'étape en attente repart
  *
  * Refusé pendant une impression.
  */
@@ -34,6 +37,10 @@ void PrusaGcodeSuite::M1989() {
     namespace assistant = od3d::calib_assistant;
     if (parser.seenval('N')) {
         assistant::step_end(parser.value_byte());
+    } else if (parser.seenval('L')) {
+        assistant::level_bed(parser.value_byte());
+    } else if (parser.seen('C')) {
+        assistant::clean_done();
     } else if (parser.seenval('R')) {
         assistant::run(parser.value_ulong());
     } else if (parser.seen('A')) {

@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cmath>
+#include <optional>
 #include <string_view>
 
 using namespace od3d::calib_registry;
@@ -319,4 +320,27 @@ TEST_CASE("calib_registry: MMU tests wait for the MMU, the others run while it i
     CHECK(s[3].test == Test::mmu_ptfe);
     defer(s, 9); // hors de la série : rien
     CHECK(s[0].test == Test::mpc);
+}
+
+TEST_CASE("calib_registry: changing spools never cools the nozzle in between") {
+    // PLA (215) dans la buse, PETG (240) à charger : déchargement et chargement à 240 ; et dans l'autre sens aussi
+    CHECK(load_temperature(215, 240) == 240);
+    CHECK(load_temperature(240, 215) == 240);
+    CHECK(load_temperature(std::nullopt, 215) == 215); // buse vide : la nouvelle matière
+}
+
+TEST_CASE("calib_registry: loading G-code, above the reserved purge line for a printing test") {
+    std::array<char, 128> out;
+    // Test qui imprime : palpage de la série d'abord, tête au-dessus du départ de la purge (Z absolu, après l'origine)
+    REQUIRE(load_gcode(2, "#3", 240, Spot { 11.f, 13.f, 15.f }, out));
+    CHECK(std::string_view(out.data()) == "M1989 L2\nG28 O I\nM104 S240\nG27 X11.0 Y13.0 Z15.0 P1\nM701 S\"#3\" W2 P2");
+    // Sinon (accélération du filament) : position de chargement de Prusa
+    REQUIRE(load_gcode(0, "PLA", 215, std::nullopt, out));
+    CHECK(std::string_view(out.data()) == "G28 O I\nM104 S215\nG27 W2\nM701 S\"PLA\" W2 P0");
+    // Origine avant toute descente : G28 avant G27
+    REQUIRE(load_gcode(4, "PETG", 240, Spot { 200.f, 150.f, 15.f }, out));
+    const std::string_view g(out.data());
+    CHECK(g.find("G28") < g.find("G27"));
+    std::array<char, 16> tiny;
+    CHECK_FALSE(load_gcode(0, "PLA", 215, std::nullopt, tiny));
 }

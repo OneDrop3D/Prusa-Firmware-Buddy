@@ -11654,8 +11654,12 @@ msgid "Step %d/%d: %s. You may leave this screen: the pill shows the progress."
 msgstr "Étape %d/%d : %s. Vous pouvez quitter cet écran : la pastille montre l'avancement."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "Is the bed empty and clean? Test lines will be printed at the front of the bed."
-msgstr "Plateau vide et propre ? Des lignes de test vont être imprimées à l'avant du plateau."
+msgid "Is the bed empty and clean? Each test prints in its own place on the bed."
+msgstr "Plateau vide et propre ? Chaque test imprime à sa propre place sur le plateau."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "The bed is full of test prints. Remove them and put the clean sheet back, then Continue."
+msgstr "Le plateau est plein de motifs de test. Retirez-les et remettez la plaque propre, puis Continuer."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Calibrate now"

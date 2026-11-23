@@ -50,4 +50,43 @@ Rect probe_rect(const Rect &pattern, float grow_x, float grow_y, const Rect &bed
     return pattern.grown(grow_x, grow_y).clipped(bed);
 }
 
+Shelf::Shelf(const Rect &zone, std::span<const Rect> keep_out, float gap)
+    : zone_(zone)
+    , gap_(gap)
+    , x_(zone.x0)
+    , y_(zone.y0) {
+    for (size_t i = 0; i < keep_out.size() && i < max_keep_out; ++i) {
+        keep_out_[i] = keep_out[i].grown(gap, gap);
+    }
+}
+
+std::optional<Rect> Shelf::place(float w, float h) {
+    if (!(w > 0.f) || !(h > 0.f) || w > zone_.width()) {
+        return std::nullopt;
+    }
+    float x = x_, y = y_, row = row_;
+    // Chaque tour avance x ou y d'au moins gap (ou du rectangle) : borné
+    for (int guard = 0; guard < 512; ++guard) {
+        if (x + w > zone_.x1) { // rangée suivante
+            y += row + std::max(gap_, 1.f);
+            x = zone_.x0;
+            row = 0;
+        }
+        if (y + h > zone_.y1) {
+            return std::nullopt;
+        }
+        const Rect r { x, y, x + w, y + h };
+        const auto blocking = std::find_if(keep_out_.begin(), keep_out_.end(), [&](const Rect &k) { return !k.empty() && overlaps(r, k); });
+        if (blocking != keep_out_.end()) {
+            x = blocking->x1; // à droite de la zone interdite
+            continue;
+        }
+        x_ = x + w + gap_;
+        y_ = y;
+        row_ = std::max(row, h);
+        return r;
+    }
+    return std::nullopt;
+}
+
 } // namespace od3d::pattern

@@ -9,8 +9,10 @@
 /// à sa droite des traits qui donnent son numéro (un sur cinq plus long), pour choisir la meilleure ligne à l'œil.
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace od3d::pattern {
@@ -96,5 +98,44 @@ struct Lines {
 /// Rectangle palpé avant le motif : la surface du motif agrandie de grow (comme Prusa agrandit la zone d'impression
 /// d'un point majeur de la grille), bornée au plateau
 Rect probe_rect(const Rect &pattern, float grow_x, float grow_y, const Rect &bed);
+
+/// Les rectangles se recouvrent (bords qui se touchent : non)
+constexpr bool overlaps(const Rect &a, const Rect &b) {
+    return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+// ---- Place des motifs d'une série (retours du 23/11 : « il a imprimé plusieurs fois sur la même zone », « il faut
+// décaler le plateau ») ----
+
+/// Distribue sur le plateau les motifs et les lignes de purge d'une série, sans chevauchement : rangées de l'avant vers
+/// l'arrière, de gauche à droite dans une rangée (une rangée a la hauteur de son plus haut rectangle), chaque rectangle
+/// à gap au moins des autres et des zones interdites (keep_out : points que la tête palpe encore pendant la série).
+/// Plus de place : nullopt, sans rien changer (on repart de zéro avec un nouvel objet, plateau nettoyé).
+class Shelf {
+public:
+    static constexpr size_t max_keep_out = 2;
+
+    Shelf() = default;
+    Shelf(const Rect &zone, std::span<const Rect> keep_out, float gap);
+
+    std::optional<Rect> place(float w, float h);
+
+private:
+    Rect zone_ {};
+    std::array<Rect, max_keep_out> keep_out_ {}; ///< agrandies de gap ; vides : aucune
+    float gap_ = 0;
+    float x_ = 0; ///< début de la place libre dans la rangée
+    float y_ = 0; ///< avant de la rangée
+    float row_ = 0; ///< hauteur de la rangée
+};
+
+/// Rétraction des motifs avant un déplacement à vide ou une levée [mm de filament], à retract_speed. shortcut: le
+/// firmware ne connaît pas la rétraction des profils PrusaSlicer (elle est dans le G-code tranché) et les préréglages
+/// du fork n'en ont pas : 0,8 mm pour les matières rigides (PrusaSlicer pour la CORE One : 0,7 à 0,8 mm), rien pour
+/// les flexibles (la rétraction les coince dans l'extrudeur) ; à remplacer par une valeur par matière si elle arrive.
+constexpr float retract_mm(bool flexible) {
+    return flexible ? 0.f : 0.8f;
+}
+inline constexpr float retract_speed = 35.f; ///< [mm/s]
 
 } // namespace od3d::pattern

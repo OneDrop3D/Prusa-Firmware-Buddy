@@ -144,6 +144,14 @@ bool pa_gcode(uint8_t slot, std::span<char> out) {
     return write(out, "M1994 P%u", unsigned(slot));
 }
 
+bool load_gcode(uint8_t slot, const char *filament, int16_t nozzle, std::optional<Spot> spot, std::span<char> out) {
+    if (spot) {
+        return write(out, "M1989 L%u\nG28 O I\nM104 S%d\nG27 X%.1f Y%.1f Z%.1f P1\nM701 S\"%s\" W2 P%u", unsigned(slot), int(nozzle), double(spot->x), double(spot->y),
+            double(spot->z), filament, unsigned(slot));
+    }
+    return write(out, "G28 O I\nM104 S%d\nG27 W2\nM701 S\"%s\" W2 P%u", int(nozzle), filament, unsigned(slot));
+}
+
 bool step_gcode(const Step &step, std::span<char> out) {
     switch (step.test) {
     case Test::input_shaper:

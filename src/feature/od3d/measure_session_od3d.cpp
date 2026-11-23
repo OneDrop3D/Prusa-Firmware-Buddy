@@ -1,5 +1,6 @@
 /// @file
 #include "measure_session_od3d.hpp"
+#include "filament_memory_od3d.hpp"
 #include "flow_limit_od3d.hpp"
 #include "live_od3d.hpp"
 
@@ -11,6 +12,7 @@
 #include <common/marlin_server.hpp>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
+#include <filament.hpp>
 #include <Marlin.h>
 #include <feature/bedlevel/bedlevel.h>
 #include <feature/pressure_advance/pressure_advance_config.hpp>
@@ -23,6 +25,7 @@
 #include <module/temperature.h>
 #include <timing.h>
 #include <tool/hotend/hotend.hpp>
+#include <tool_index.hpp>
 #include <option/has_crash_detection.h>
 #include <option/has_emergency_stop.h>
 #if HAS_EMERGENCY_STOP()
@@ -36,9 +39,23 @@ namespace od3d::session {
 
 namespace {
 
-    constexpr float retract_mm = 0.8f; ///< contre le suintement, aux déplacements et à la fin
-    constexpr float retract_speed = 35.f;
     constexpr float default_smooth_time = 0.04f;
+    float retract_mm = 0.8f; ///< contre le suintement, aux déplacements et à la fin (selon la matière, à chaque session)
+
+    /// Série de l'assistant (voir measure_session_od3d.hpp)
+    struct Series {
+        bool active = false;
+        bool full = false;
+        bool mesh = false; ///< plateau entier palpé depuis series_begin()
+        bool printed = false; ///< une purge au moins faite depuis series_begin() : plus de palpage du plateau entier
+        pattern::Shelf shelf;
+        std::optional<PurgeStart> purge; ///< ligne de purge réservée, pas encore imprimée
+    };
+    Series series;
+
+    constexpr float shelf_gap = 4.f; ///< entre deux motifs [mm]
+    constexpr float purge_half = 3.f; ///< demi-largeur de la ligne de purge (cordon épais, comme la mesure automatique du PA)
+    constexpr float keep_out_half = 8.f; ///< autour d'un point que la tête palpe encore pendant la série [mm]
 
     /// Drapeau d'arrêt de la session en cours (nullptr sans session)
     const std::atomic<bool> *active_stop = nullptr;
@@ -155,6 +172,62 @@ pattern::Rect printable_zone() {
     return r.grown(-edge_margin, -edge_margin);
 }
 
+// ---- Série de l'assistant ----
+
+void series_begin() {
+    series = {};
+    series.active = true;
+    // La tête palpe encore ces points pendant la série : origine Z si elle se perd (G28), centre du plateau (dilatation
+    // de la buse, M2003, si elle passe à la fin de la série)
+    const pattern::Rect keep_out[] {
+        pattern::Rect { Z_SAFE_HOMING_X_POINT, Z_SAFE_HOMING_Y_POINT, Z_SAFE_HOMING_X_POINT, Z_SAFE_HOMING_Y_POINT }.grown(keep_out_half, keep_out_half),
+        pattern::Rect { X_BED_SIZE / 2.f, Y_BED_SIZE / 2.f, X_BED_SIZE / 2.f, Y_BED_SIZE / 2.f }.grown(keep_out_half, keep_out_half),
+    };
+    series.shelf = pattern::Shelf(printable_zone(), keep_out, shelf_gap);
+}
+
+void series_end() {
+    series = {};
+}
+
+bool in_series() {
+    return series.active;
+}
+
+bool series_full() {
+    return series.full;
+}
+
+std::optional<pattern::Rect> claim(float w, float h) {
+    if (!series.active) {
+        return std::nullopt;
+    }
+    const auto r = series.shelf.place(w, h);
+    series.full = series.full || !r;
+    return r;
+}
+
+std::optional<PurgeStart> purge_start() {
+    if (!series.active) {
+        return PurgeStart { purge_x, purge_y, -1.f };
+    }
+    if (!series.purge) {
+        // Vers +X (comme la mesure automatique du PA) : la purge, essuyage compris, tient dans purge_length
+        if (const auto r = claim(purge_length + 2.f, 2.f * purge_half)) {
+            series.purge = PurgeStart { r->x0 + 1.f, r->y0 + purge_half, 1.f };
+        }
+    }
+    return series.purge;
+}
+
+std::optional<PurgeStart> load_spot() {
+    return series.active ? series.purge : std::nullopt;
+}
+
+bool mesh_ready() {
+    return series.active && series.mesh && !axes_need_homing();
+}
+
 Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {
     active_stop = &stop_requested;
     planner.synchronize();
@@ -178,6 +251,8 @@ Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {
     saved_bed = thermalManager.degTargetBed();
     saved_leveling = planner.leveling_active;
     retracted = false;
+    const auto tool = VirtualToolIndex::currently_selected_opt();
+    retract_mm = pattern::retract_mm(tool && FilamentType::for_tool(*tool).parameters().is_flexible);
     block_estall.emplace();
     flow_limit::suspended = true;
 }
@@ -201,8 +276,15 @@ Session::~Session() {
     }
     planner.apply_settings(saved_settings);
     planner.set_stealth_mode(saved_stealth);
-    hotend().set_nozzle_target_temp(saved_target);
-    thermalManager.setTargetBed(saved_bed); // plateau laissé à sa consigne d'avant
+    // Série : plateau gardé chaud, et la buse aussi avec une bobine dedans ; le test suivant va directement à sa
+    // température (retour du 23/11 : la buse redescendait entre deux tests). Buse vide (dilatation, finie à 260 °C) :
+    // consigne d'avant. La série coupe tout à sa fin
+    if (!series.active || !filament_memory::loaded_slot()) {
+        hotend().set_nozzle_target_temp(saved_target);
+    }
+    if (!series.active) {
+        thermalManager.setTargetBed(saved_bed); // plateau laissé à sa consigne d'avant
+    }
     block_estall.reset();
     flow_limit::suspended = false;
 #if HAS_CRASH_DETECTION()
@@ -267,6 +349,13 @@ Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
     if (const Result r = home(nozzle_probe); r != Result::ok) {
         return r;
     }
+    // Série : maillage du plateau entier repris (retour du 23/11 : « il fait plusieurs fois le palpage du plateau »)
+    if (series.active && series.mesh) {
+        set_bed_leveling_enabled(true);
+        return planner.leveling_active ? Result::ok : Result::leveling;
+    }
+    // Série, rien encore imprimé : le plateau entier, une fois pour toute la série
+    const bool whole = series.active && !series.printed;
 
     // Comme le G-code de départ de PrusaSlicer pour la CORE One : moteur E coupé, nettoyage de la buse par
     // tapotements sur la bande avant droite, palpage de la zone imprimée (agrandie d'un point majeur de la grille,
@@ -279,7 +368,7 @@ Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
         return Result::stopped;
     }
     const pattern::Rect bed { 0.f, 0.f, float(X_BED_SIZE), float(Y_BED_SIZE) };
-    const pattern::Rect probe = pattern::probe_rect(area, MESH_X_DIST * GRID_MAJOR_STEP, MESH_Y_DIST * GRID_MAJOR_STEP, bed);
+    const pattern::Rect probe = pattern::probe_rect(whole ? printable_zone() : area, MESH_X_DIST * GRID_MAJOR_STEP, MESH_Y_DIST * GRID_MAJOR_STEP, bed);
     if (probe.empty()) {
         return Result::no_room;
     }
@@ -307,6 +396,7 @@ Result Session::level(const pattern::Rect &area, int16_t nozzle_probe) {
     if (interrupted()) {
         return Result::stopped;
     }
+    series.mesh = whole && planner.leveling_active;
     return planner.leveling_active ? Result::ok : Result::leveling;
 }
 
@@ -385,7 +475,14 @@ bool Session::purge(float x, float dir) {
         target.e += s.e;
         queue_to(target, s.feedrate_mm_min / 60.f);
     }
-    return wait_moves();
+    if (!wait_moves()) {
+        return false;
+    }
+    if (series.active) {
+        series.purge.reset(); // faite : la suivante aura sa place
+        series.printed = true;
+    }
+    return true;
 }
 
 bool Session::travel_to(float x, float y, float z, bool lower) {
@@ -426,12 +523,12 @@ bool Session::print_to(float x, float y, float e_per_mm, float speed) {
 }
 
 void Session::retract() {
-    if (retracted || !hot()) {
+    if (retracted || !hot() || !(retract_mm > 0.f)) {
         return;
     }
     xyze_pos_t target = current_position;
     target.e -= retract_mm;
-    queue_to(target, retract_speed);
+    queue_to(target, pattern::retract_speed);
     retracted = true;
 }
 
@@ -441,7 +538,7 @@ void Session::deretract() {
     }
     xyze_pos_t target = current_position;
     target.e += retract_mm;
-    queue_to(target, retract_speed);
+    queue_to(target, pattern::retract_speed);
     retracted = false;
 }
 

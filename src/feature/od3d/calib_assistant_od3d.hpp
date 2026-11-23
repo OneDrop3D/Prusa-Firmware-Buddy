@@ -49,6 +49,7 @@ struct Progress {
     uint8_t count = 0;
     Step step {};
     uint16_t runs = 0; ///< séries finies depuis le démarrage : l'écran sait quand la sienne est finie
+    bool bed_full = false; ///< série en pause : plus de place sur le plateau pour l'étape index ; nettoyé : M1989 C
 };
 Progress progress();
 
@@ -128,5 +129,13 @@ void run(uint32_t mask);
 
 /// M1989 N<i>
 void step_end(uint8_t index);
+
+/// M1989 C : plateau nettoyé après « Plateau plein » (Progress::bed_full) : tout le plateau est de nouveau libre (et
+/// palpé de nouveau), l'étape en attente est relancée ; aussi pour finir la série après « Annuler » pendant l'attente
+void clean_done();
+
+/// M1989 L<emplacement> (mis en file avant le chargement d'un test qui imprime, calib_registry::load_gcode) : plateau
+/// entier palpé pour la série s'il ne l'est pas encore, avant que du filament pende de la buse
+void level_bed(uint8_t slot);
 
 } // namespace od3d::calib_assistant

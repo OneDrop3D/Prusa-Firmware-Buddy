@@ -103,6 +103,7 @@ namespace {
         detach, ///< « Retirez l'accéléromètre » (et remettez la chaussette) : rien ne chauffe avant « C'est fait »
         bed, ///< « Plateau vide et propre ? »
         cell_run, ///< MPC et mesures par bobine
+        bed_full, ///< série en pause : plus de place sur le plateau, à nettoyer (M1989 C)
         summary,
     };
 
@@ -396,6 +397,11 @@ namespace {
         case Stage::cell_run:
             assistant::request_cancel(); // la série finit l'étape en cours sans lancer la suivante
             abort_prusa_wizard();
+            break;
+        case Stage::bed_full:
+            assistant::request_cancel();
+            marlin_client::gcode("M1989 C"); // la série en pause passe les étapes restantes et finit
+            flow.stage = Stage::cell_run;
             break;
         case Stage::cooling:
         case Stage::sock_off:
@@ -1143,6 +1149,13 @@ void ScreenCalibAssistant::update() {
     case Stage::cell_run:
         if (run_finished()) {
             flow.stage = Stage::summary;
+        } else if (!flow.cancelled && assistant::progress().bed_full) {
+            flow.stage = Stage::bed_full;
+        }
+        break;
+    case Stage::bed_full:
+        if (!assistant::progress().bed_full) {
+            flow.stage = Stage::cell_run; // M1989 C lu par Marlin : l'étape repart
         }
         break;
     default:
@@ -1254,7 +1267,10 @@ void ScreenCalibAssistant::show() {
                           : _("Remove the accelerometer from the nozzle.");
         break;
     case Stage::bed:
-        text = _("Is the bed empty and clean? Test lines will be printed at the front of the bed.");
+        text = _("Is the bed empty and clean? Each test prints in its own place on the bed.");
+        break;
+    case Stage::bed_full:
+        text = _("The bed is full of test prints. Remove them and put the clean sheet back, then Continue.");
         break;
     case Stage::summary: {
         static char summary[360]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse
@@ -1298,6 +1314,7 @@ void ScreenCalibAssistant::show() {
         break;
     case Stage::rehome:
     case Stage::bed:
+    case Stage::bed_full:
         s = { N_("Continue"), nullptr, N_("Cancel") };
         break;
     case Stage::accel_run:
@@ -1431,6 +1448,13 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     case Stage::bed:
         if (tag == tag_a) {
             run_part(false);
+        } else {
+            cancel();
+        }
+        break;
+    case Stage::bed_full:
+        if (tag == tag_a) {
+            marlin_client::gcode("M1989 C"); // plateau nettoyé : l'étape en attente repart (update() revient à la série)
         } else {
             cancel();
         }

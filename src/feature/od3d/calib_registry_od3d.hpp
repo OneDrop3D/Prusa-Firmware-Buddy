@@ -196,6 +196,30 @@ bool step_gcode(const Step &step, std::span<char> out);
 /// change). M1994 P<n> charge la bobine lui-même (mise en file) si elle n'est pas dans la buse.
 bool pa_gcode(uint8_t slot, std::span<char> out);
 
+/// Buse pour changer de bobine pendant la série (retour du 23/11 : « la température de la buse entre le passage du PLA
+/// au PETG descend beaucoup ») : la plus haute de la matière dans la buse (à décharger) et de la nouvelle (à charger),
+/// sans redescendre entre les deux ; loaded : température de la matière dans la buse, s'il y en a une
+constexpr int16_t load_temperature(std::optional<int16_t> loaded, int16_t next) {
+    return loaded && *loaded > next ? *loaded : next;
+}
+
+/// Chargement au-dessus du départ de la ligne de purge réservée au test sur le plateau, à z
+struct Spot {
+    float x;
+    float y;
+    float z;
+};
+
+/// Chargement de la bobine slot avant son test, mis en file d'injection par l'assistant (« Charger dans la buse » de
+/// Prusa, jamais depuis la pile d'un test) : origine si besoin (G28 O I), buse à nozzle (load_temperature()), puis :
+/// - test qui imprime (spot) : plateau palpé d'abord s'il ne l'est pas encore dans la série (M1989 L<slot>, avant que du
+///   filament pende de la buse), tête au-dessus du départ de la purge (G27 … P1 : Z absolu, après l'origine), chargement
+///   là (M701 s'y gare aussi s'il décharge d'abord une autre bobine) : ce qui sort de la buse est posé par la ligne de
+///   purge du test, comme la purge du G-code de départ de PrusaSlicer pour la CORE One, au lieu de tomber dans le vide ;
+/// - sinon : position de chargement de Prusa (G27 W2), comme avant.
+/// filament : paramètre S de M701 ; false si out est trop court
+bool load_gcode(uint8_t slot, const char *filament, int16_t nozzle, std::optional<Spot> spot, std::span<char> out);
+
 /// Résultat d'un test fait de plusieurs étapes : un échec l'emporte, puis une étape passée, puis réussi
 constexpr Result fold(Result so_far, Result step) {
     if (so_far == Result::none) {

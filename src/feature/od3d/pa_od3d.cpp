@@ -214,7 +214,6 @@ namespace {
     constexpr float accel_xy = 5000.f; ///< comme PrusaPATuner ; la limite d'accélération du filament de Prusa reste
     constexpr uint8_t min_confidence = 30; ///< en dessous, rien n'est enregistré (le choix à l'œil reste possible)
     constexpr float tick_speed = 10.f; ///< traits des repères [mm/s]
-    constexpr float tick_hop = 0.4f; ///< levée entre deux traits [mm]
 
     void fail(Error e) {
         st_error = e;
@@ -229,22 +228,9 @@ namespace {
         const float y = lines.y(index);
         const float x_ticks = lines.x0 + lines.length + pattern::tick_gap;
         for (size_t i = 0; i < n; ++i) {
+            // D'un trait au suivant : rétraction et levée (retour du 23/11 : « il n'y a pas de rétractation »)
             const float tx = x_ticks + ticks[i].dx;
-            if (i == 0) {
-                if (!session.travel_to(tx, y, z)) {
-                    return false;
-                }
-            } else {
-                // Petit saut sans rétraction d'un trait au suivant
-                if (!session.move_z(z + tick_hop)) {
-                    return false;
-                }
-                do_blocking_move_to_xy(tx, y, session::travel_speed_xy);
-                if (!session.move_z(z)) {
-                    return false;
-                }
-            }
-            if (!session.print_to(tx, y + ticks[i].length, e_mm, tick_speed) || !wait_moves()) {
+            if (!session.travel_to(tx, y, z) || !session.print_to(tx, y + ticks[i].length, e_mm, tick_speed) || !wait_moves()) {
                 return false;
             }
         }
@@ -266,10 +252,13 @@ namespace {
         if (lines.reversed(index) && !print_marks(session, lines, index, e_mm, z)) {
             return false;
         }
-        // Buse au départ de la ligne, posée à hauteur de couche (déplacement levé, rétraction)
+        // Buse au départ de la ligne, posée à hauteur de couche (déplacement levé, rétraction), puis filament remis tête
+        // arrêtée, comme le trancheur : la pression se rétablit avant l'enregistrement de la force (400 ms plus loin),
+        // jamais pendant un créneau mesuré
         if (!session.travel_to(lines.x_start(index), y, z)) {
             return false;
         }
+        session.deretract();
         planner.synchronize();
         if (must_stop()) {
             return false;
@@ -689,12 +678,12 @@ void calibrate(const Request &rq, bool load_tried) {
     // Pas dans la buse : chargement de Prusa mis en file, avec le MMU ou, sans MMU, sa demande d'insérer le filament
     // (« Arrêter » y passe la mesure : load_failed au retour)
     const FilamentTypeParameters material = type.parameters();
-    const Temperatures t = temperatures_for(material, rq.temperature, rq.bed_temperature);
+    Temperatures t = temperatures_for(material, rq.temperature, rq.bed_temperature);
     st_temperature = t.nozzle;
 
     // Motif : une ligne par K, de l'avant vers l'arrière (grand : grossier + fin, repères à droite ; compact : place
     // pour compact_cap lignes) ; il doit tenir dans la zone imprimable (bords du plateau et course)
-    const pattern::Lines lines = lines_for(rq, rq.compact ? compact_cap : uint8_t(coarse + rq.refine), rq.x, rq.y);
+    pattern::Lines lines = lines_for(rq, rq.compact ? compact_cap : uint8_t(coarse + rq.refine), rq.x, rq.y);
     if (!session::printable_zone().contains(lines.area())) {
         fail(Error::no_room);
         return;
@@ -715,6 +704,26 @@ void calibrate(const Request &rq, bool load_tried) {
         return;
     }
 
+    // Série de l'assistant : le motif a sa place sur le plateau, sa purge aussi (retour du 23/11 : chaque bobine
+    // imprimait au même endroit) ; maillage de la série repris : la buse va directement à sa température d'impression
+    if (session::in_series()) {
+        const pattern::Rect a = lines.area();
+        const auto spot = session::claim(a.width(), a.height());
+        if (!spot) {
+            fail(Error::no_room);
+            return;
+        }
+        lines = lines_for(rq, lines.count, rq.x + spot->x0 - a.x0, rq.y + spot->y0 - a.y0);
+    }
+    const auto purge = session::purge_start();
+    if (!purge) {
+        fail(Error::no_room);
+        return;
+    }
+    if (session::mesh_ready()) {
+        t.probe = t.nozzle;
+    }
+
     running = true;
     ScopeGuard not_running = [] { running = false; };
     st_steps = lines.count;
@@ -731,7 +740,7 @@ void calibrate(const Request &rq, bool load_tried) {
         fail(e);
         return;
     }
-    if (const Error e = heat_and_purge(session, t.nozzle, session::purge_x, session::purge_y, -1.f); e != Error::none) {
+    if (const Error e = heat_and_purge(session, t.nozzle, purge->x, purge->y, purge->dir); e != Error::none) {
         fail(e);
         return;
     }

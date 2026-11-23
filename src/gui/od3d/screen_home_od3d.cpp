@@ -9,7 +9,6 @@
 #include "spool_draw.hpp"
 #include "spool_sheet_od3d.hpp"
 
-#include <buddy/fatfs.h>
 #include <common/marlin_vars.hpp>
 #include <common/thumbnail_sizes.hpp>
 #include <cstring>
@@ -36,6 +35,11 @@
 #if HAS_POWER_PANIC()
     #include <power_panic.hpp>
 #endif
+
+// FatFS et dirent.h (lazyfilelist) déclarent chacun un DIR : celui de FatFS est renommé, seul le montage est lu ici
+#define DIR FATFS_DIR
+#include <buddy/fatfs.h>
+#undef DIR
 
 namespace od3d {
 

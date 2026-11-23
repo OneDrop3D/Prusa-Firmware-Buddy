@@ -24,6 +24,7 @@
 static_assert(GRID_MAJOR_POINTS_X == od3d::mesh_memory::majors_x && GRID_MAJOR_POINTS_Y == od3d::mesh_memory::majors_y);
 static_assert(GRID_BORDER + (GRID_MAJOR_POINTS_X - 1) * GRID_MAJOR_STEP == GRID_MAX_POINTS_X - 1 - GRID_BORDER);
 static_assert(GRID_BORDER + (GRID_MAJOR_POINTS_Y - 1) * GRID_MAJOR_STEP == GRID_MAX_POINTS_Y - 1 - GRID_BORDER);
+static_assert(od3d::mesh_memory::age_choices.back() == od3d::mesh_memory::chosen_max_age_hours);
 
 namespace od3d::mesh_memory {
 
@@ -52,6 +53,7 @@ namespace {
     uint64_t restored = 0; ///< points remis par restore(), à corriger par verify()
     bool chain = false; ///< dernier G29 P1 sans C : zone de l'impression, gardé ou repris (son extension C s'y ajoute)
     uint32_t chain_time = 0; ///< date du maillage de cette suite
+    PrintChoice choice; ///< « Maillage » d'« Avant l'impression » pour l'impression demandée
 
     float &z_of(size_t i) {
         return unified_bed_leveling::z_values[GRID_BORDER + (i % majors_x) * GRID_MAJOR_STEP][GRID_BORDER + (i / majors_x) * GRID_MAJOR_STEP];
@@ -133,17 +135,31 @@ namespace {
 
 } // namespace
 
+bool offered() {
+    Record now; // fil de l'interface : 128 octets sur sa pile
+    conditions(now);
+    return compare_before_print(config_store().od3d_mesh.get(), now, max_age_s(max_age_hours(), true)) == Refusal::none;
+}
+
+void choose_for_next_print(bool reuse) {
+    choice.choose(reuse);
+}
+
+void on_print_request() {
+    choice.on_print_request();
+}
+
 uint64_t restore(const PrintArea::rect_t &probe_area) {
     restored = 0;
-    const uint8_t hours = max_age_hours();
-    if (hours == 0) {
-        return 0;
+    const uint32_t age_s = max_age_s(max_age_hours(), choice.current());
+    if (age_s == 0) {
+        return 0; // réglage désactivé sans choix, ou « Maillage : nouveau »
     }
     static Record now; // hors de la pile de G29
     stored = config_store().od3d_mesh.get();
     conditions(now);
     const uint64_t need = needed(probe_area);
-    Refusal refusal = compare(stored, now, uint32_t(hours) * 3600u);
+    Refusal refusal = compare(stored, now, age_s);
     if (refusal == Refusal::none) {
         refusal = covers(stored, need);
     }
@@ -199,10 +215,10 @@ void on_probed(bool extend, bool print_area, bool reused) {
         return;
     }
     if (!extend) {
-        // Seul le maillage d'une impression est gardé ; repris, il garde sa date (il vieillit depuis son palpage)
-        // Réglage désactivé : rien n'est écrit (pas d'écriture inutile à chaque impression)
+        // Seul le maillage d'une impression est gardé ; repris, il garde sa date (il vieillit depuis son palpage).
+        // Gardé même réglage désactivé : « Avant l'impression » peut proposer de le reprendre (128 octets par impression)
         chain_time = reused ? stored.time : now_s();
-        chain = print_area && chain_time != 0 && max_age_hours() != 0;
+        chain = print_area && chain_time != 0;
         if (chain && !reused) {
             store(chain_time);
         }

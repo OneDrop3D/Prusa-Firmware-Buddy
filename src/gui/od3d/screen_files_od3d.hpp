@@ -254,11 +254,24 @@ private:
         bool active = true;
     };
 
+    /// « Maillage : repris / nouveau » (F44), à droite d'« Imprimer » : reprise du maillage gardé ou palpage complet, pour
+    /// cette impression seulement. Montré si un maillage gardé peut servir (mesh_memory::offered).
+    class MeshChoice : public Card {
+    public:
+        MeshChoice(window_t *parent, Rect16 body, bool shown);
+
+    protected:
+        void draw_content(Rect16 body) override;
+        void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+    };
+
     void update_buttons();
 
+    const bool mesh_offered; ///< avant les éléments : « Imprimer » se rétrécit pour « Maillage »
     Header header;
     PreviewThumb thumb;
     Button print;
+    MeshChoice mesh;
     Button map;
     TabBar tabs;
     print_info::FileInfo info;

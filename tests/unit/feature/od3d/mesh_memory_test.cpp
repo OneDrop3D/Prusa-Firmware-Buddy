@@ -157,3 +157,66 @@ TEST_CASE("maillage gardé : unités") {
     CHECK(Record {}.empty());
     CHECK_FALSE(stored_record().empty());
 }
+
+TEST_CASE("maillage gardé : proposé avant l'impression") {
+    const Record s = stored_record();
+    Record n = now_record();
+    // Plateau froid, chambre et buse pas encore chauffées : vérifiés au G29, pas avant
+    n.bed_c10 = 220;
+    n.chamber_c10 = no_temperature;
+    n.probe_c = 0;
+    CHECK(compare_before_print(s, n, 24 * hour) == Refusal::none);
+    CHECK(compare(s, n, 24 * hour) == Refusal::bed);
+    // Le reste refuse dès « Avant l'impression » : la ligne n'est pas montrée
+    CHECK(compare_before_print(s, n, 0) == Refusal::disabled);
+    CHECK(compare_before_print(Record {}, n, 24 * hour) == Refusal::empty);
+    CHECK(compare_before_print(s, n, hour - 1) == Refusal::too_old);
+    n.nozzle_um = 600;
+    CHECK(compare_before_print(s, n, 24 * hour) == Refusal::nozzle);
+    n = now_record();
+    n.sheet = 1; // autre plaque
+    CHECK(compare_before_print(s, n, 24 * hour) == Refusal::nozzle);
+    n = now_record();
+    n.probe_offset_um = 20;
+    CHECK(compare_before_print(s, n, 24 * hour) == Refusal::z_offset);
+}
+
+TEST_CASE("maillage gardé : le choix vaut pour l'impression demandée juste après") {
+    PrintChoice c;
+    c.on_print_request(); // sans « Avant l'impression » : le réglage
+    CHECK_FALSE(c.current().has_value());
+
+    c.choose(false); // « Maillage : nouveau » (plaque changée)
+    CHECK_FALSE(c.current().has_value()); // rien avant la demande : un G29 en cours n'est pas touché
+    c.on_print_request();
+    CHECK(c.current() == false);
+    CHECK(c.current() == false); // G29 P1 puis G29 P1 … C de la même impression
+    c.on_print_request(); // impression suivante par PrusaLink, réimpression, Connect : le réglage
+    CHECK_FALSE(c.current().has_value());
+
+    c.choose(true); // « Maillage : repris »
+    c.on_print_request();
+    CHECK(c.current() == true);
+
+    c.choose(false);
+    c.choose(true); // l'interrupteur rebasculé avant « Imprimer »
+    c.on_print_request();
+    CHECK(c.current() == true);
+}
+
+TEST_CASE("maillage gardé : âge maximal selon le réglage et le choix") {
+    // Sans choix : le réglage, désactivé = pas de reprise (comme avant)
+    CHECK(max_age_s(0, std::nullopt) == 0);
+    CHECK(max_age_s(24, std::nullopt) == 24 * hour);
+    // « Nouveau » : palpage complet, même réglage actif
+    CHECK(max_age_s(24, false) == 0);
+    CHECK(max_age_s(0, false) == 0);
+    // « Repris » : l'âge du réglage, ou le plus long proposé s'il est désactivé
+    CHECK(max_age_s(6, true) == 6 * hour);
+    CHECK(max_age_s(0, true) == uint32_t(chosen_max_age_hours) * hour);
+    // Proposé avant l'impression réglage désactivé : maillage de 48 h repris si on le choisit
+    Record n = now_record();
+    n.time += 47 * hour;
+    CHECK(compare_before_print(stored_record(), n, max_age_s(0, true)) == Refusal::none);
+    CHECK(compare_before_print(stored_record(), n, max_age_s(24, true)) == Refusal::too_old);
+}

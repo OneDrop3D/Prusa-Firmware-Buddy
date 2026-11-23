@@ -13,8 +13,10 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace od3d::mesh_memory {
@@ -88,6 +90,41 @@ enum class Refusal : uint8_t {
 /// stored peut-il servir maintenant ? now : mêmes champs relevés maintenant (time : heure actuelle, 0 si inconnue ;
 /// z_um et valid ignorés) ; max_age_s : 0 = réglage désactivé
 Refusal compare(const Record &stored, const Record &now, uint32_t max_age_s);
+
+/// compare() avant le départ (« Avant l'impression ») : plateau, chambre et buse ne sont pas encore à leur température
+/// de palpage, ils ne comptent qu'au G29 (avec la zone à palper)
+Refusal compare_before_print(const Record &stored, Record now, uint32_t max_age_s);
+
+/// « Maillage : repris » choisi alors que le réglage est désactivé : âge maximal, le plus long que propose le réglage
+inline constexpr uint8_t chosen_max_age_hours = 72;
+
+/// Âge maximal [s] du maillage repris pour une impression ; 0 : pas de reprise (palpage complet). setting_hours : le
+/// réglage (0 = désactivé) ; reuse : le choix d'« Avant l'impression », nullopt sans choix (PrusaLink, réimpression...)
+constexpr uint32_t max_age_s(uint8_t setting_hours, std::optional<bool> reuse) {
+    if (!reuse) {
+        return uint32_t(setting_hours) * 3600u;
+    }
+    return *reuse ? uint32_t(setting_hours ? setting_hours : chosen_max_age_hours) * 3600u : 0;
+}
+
+/// Choix « Maillage » d'« Avant l'impression » (retour du 23/11 : plaque changée, ou impression à lancer vite), pour la
+/// seule impression demandée juste après ; les autres départs (PrusaLink, Connect, réimpression, port série) gardent le
+/// réglage. En mémoire vive : config_store est plein.
+class PrintChoice {
+public:
+    /// Interface, juste avant marlin_client::print_start : true repris, false palpage complet
+    void choose(bool reuse) { next = reuse ? 1 : 0; }
+
+    /// Fil de Marlin, à chaque demande d'impression : elle prend le choix posé juste avant, ou aucun (le réglage)
+    void on_print_request() { now = next.exchange(-1); }
+
+    /// G29 : le choix pour l'impression demandée ; nullopt : aucun, le réglage
+    std::optional<bool> current() const { return now < 0 ? std::nullopt : std::optional<bool>(now == 1); }
+
+private:
+    std::atomic<int8_t> next { -1 };
+    int8_t now = -1;
+};
 
 /// Couverture : needed (points que G29 palperait) tous gardés, et assez nombreux pour que la reprise gagne du temps
 Refusal covers(const Record &stored, uint64_t needed);

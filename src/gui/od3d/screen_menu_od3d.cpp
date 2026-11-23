@@ -149,9 +149,10 @@ void MI_PA_LARGE::OnChange(size_t) {
 
 // ---- Maillage du plateau gardé (F44) ----
 
-// Vaut dès la prochaine impression (G29 P1 du G-code de départ)
+// Vaut dès la prochaine impression (G29 P1 du G-code de départ) ; « Avant l'impression » peut le changer pour une
+// impression (« Maillage : repris / nouveau »)
 MI_MESH_REUSE::MI_MESH_REUSE()
-    : MenuItemSelectMenu(_("Reuse bed mesh\nNo probing if the bed is unchanged")) {
+    : MenuItemSelectMenu(_("Reuse bed mesh by default\nCan be changed before each print")) {
     SetIconId(&img::heatbed_16x16);
     const auto &choices = mesh_memory::age_choices;
     const auto it = std::find(choices.begin(), choices.end(), mesh_memory::max_age_hours());

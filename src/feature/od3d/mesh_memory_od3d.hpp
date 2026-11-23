@@ -7,7 +7,8 @@
 /// - après le palpage, on_probed() garde le maillage d'une impression (G29 P1 sans zone : zone M555 du fichier) et son
 ///   extension près de la purge (G29 P1 … C). Un palpage à zone donnée (mesures OneDrop3D, G-code tapé) peut reprendre
 ///   le maillage gardé mais ne le remplace pas.
-/// Désactivé par défaut (réglage « Réutiliser le maillage »).
+/// Le maillage d'une impression est toujours gardé. « Avant l'impression » propose « Maillage : repris / nouveau » dès
+/// qu'il peut servir (PrintChoice) ; par défaut le réglage « Réutiliser le maillage par défaut » (désactivé : nouveau).
 #pragma once
 
 #include <array>
@@ -28,6 +29,16 @@ void forget();
 
 /// Un maillage est gardé
 bool has_mesh();
+
+/// « Avant l'impression » : le maillage gardé peut servir si on le reprend (pas trop vieux, même buse, plaque et sonde),
+/// quel que soit le réglage ; les températures et la zone ne se vérifient qu'au G29
+bool offered();
+
+/// « Avant l'impression », juste avant marlin_client::print_start : reprise, ou palpage complet pour cette impression
+void choose_for_next_print(bool reuse);
+
+/// marlin_server, à chaque demande d'impression : elle prend le choix posé juste avant, sinon le réglage
+void on_print_request();
 
 // ---- Pour G29 P1 (fil de Marlin) ----
 

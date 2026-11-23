@@ -14,6 +14,7 @@
 #include <display.hpp>
 #include <display_helper.h>
 #include <FreeRTOS.h>
+#include <feature/od3d/mesh_memory_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <gcode/gcode_reader_any.hpp>
@@ -87,8 +88,12 @@ namespace {
     constexpr int16_t warning_y = 188;
     constexpr Rect16 print_body = { style::margin, 228, 228, 44 };
     constexpr Rect16 map_body = { 244, 228, 228, 44 };
+    // « Maillage » proposé (F44) : « Imprimer » (icône et 8 à 9 caractères) rétréci de moitié, « Maillage » à sa droite
+    constexpr Rect16 print_narrow_body = { style::margin, 228, 110, 44 };
+    constexpr Rect16 mesh_body = { style::margin + 118, 228, 110, 44 };
     static_assert(preview_box.Bottom() < warning_y && warning_y + 2 * 16 <= style::with_ring(print_body).Top());
     static_assert(style::inside(style::content, style::with_ring(map_body)));
+    static_assert(style::with_ring(print_narrow_body).Right() < style::with_ring(mesh_body).Left() && style::with_ring(mesh_body).Right() < style::with_ring(map_body).Left());
     static_assert(thumb_w / preview_factor <= preview_box.Width() && thumb_h / preview_factor <= preview_box.Height());
 
     constexpr const char *dot = " \xC2\xB7 "; ///< « · » : dans la police grâce au titre « Fichiers · clé USB » du .po
@@ -145,8 +150,14 @@ namespace {
         return marlin_vars().media_inserted && !marlin_client::is_printing();
     }
 
+    /// « Maillage » de l'« Avant l'impression » ouvert : true repris, false palpé en entier ; nullopt s'il n'est pas proposé
+    std::optional<bool> mesh_reuse;
+
     void start_print(marlin_client::PreviewSkipIfAble skip) {
         if (can_print()) {
+            if (mesh_reuse) {
+                mesh_memory::choose_for_next_print(*mesh_reuse); // pour la demande qui suit seulement
+            }
             // Départ normal de Prusa : chargement, vérifications, questions sur le filament, association des outils
             marlin_client::print_start(ScreenPreview::path.data(), skip);
         }
@@ -1004,14 +1015,41 @@ void PreviewThumb::unconditionalDraw() {
     }
 }
 
+ScreenPreview::MeshChoice::MeshChoice(window_t *parent, Rect16 body, bool shown)
+    : Card(parent, style::with_ring(body), [] { mesh_reuse = !mesh_reuse.value_or(true); }, style::secondary, style::screen, style::radius_big) {
+    set_visible(shown);
+    set_enabled(shown);
+}
+
+void ScreenPreview::MeshChoice::draw_content(Rect16 body) {
+    // « Maillage », puis l'interrupteur et « repris » ou « nouveau » à places fixes : un changement repeint tout le texte
+    const Color bg = fill();
+    const bool reuse = mesh_reuse.value_or(false);
+    draw_text(Rect16(body.Left(), body.Top() + 4, body.Width(), height(Font::small)), _("Bed mesh"), Font::small, style::text_muted, bg, Align_t::Center());
+    const int16_t x = body.Left() + 4, y = body.Top() + 22;
+    draw_icon({ x, y }, reuse ? img::switch_on_36x18 : img::switch_off_36x18, bg);
+    draw_text(Rect16(x + 39, y + 1, body.Left() + body.Width() - 4 - (x + 39), height(Font::small)), reuse ? _("Reused") : _("Probed"), Font::small, style::text_strong, bg);
+}
+
+void ScreenPreview::MeshChoice::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    Card::windowEvent(sender, event, param);
+    if (event == GUI_event_t::CLICK || event == GUI_event_t::TOUCH_CLICK) {
+        invalidate_content();
+    }
+}
+
 ScreenPreview::ScreenPreview()
     : Screen(true)
+    , mesh_offered(mesh_memory::offered())
     , header(this, _("Before printing"), true)
     , thumb(this, preview_box, path.data())
-    , print(this, print_body, print_now, true)
+    , print(this, mesh_offered ? print_narrow_body : print_body, print_now, true)
+    , mesh(this, mesh_body, mesh_offered)
     , map(this, map_body, map_colours, false)
     , tabs(this, TabBar::Tab::print)
     , info(read_file_info(path.data())) {
+    // Par défaut le réglage (désactivé : nouveau) ; pour cette impression seulement
+    mesh_reuse = mesh_offered ? std::optional(mesh_memory::max_age_hours() != 0) : std::nullopt;
     std::array<char, filename_defs::path_buffer_size> sfn = path; // get_LFN veut un chemin modifiable
     std::array<char, filename_defs::filename_buffer_size> lfn;
     get_LFN(lfn.data(), lfn.size(), sfn.data());

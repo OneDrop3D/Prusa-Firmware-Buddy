@@ -12011,10 +12011,6 @@ msgid "max flow"
 msgstr "débit max"
 
 #: src/gui/od3d/screen_menu_od3d.cpp
-msgid "Reuse bed mesh\nNo probing if the bed is unchanged"
-msgstr "Réutiliser le maillage du plateau\nPas de palpage s'il n'a pas changé"
-
-#: src/gui/od3d/screen_menu_od3d.cpp
 msgid "%d h max"
 msgstr "%d h max"
 
@@ -12418,3 +12414,19 @@ msgstr "Vitesse MMU :"
 #: src/gui/od3d/spool_sheet_od3d.cpp
 msgid "tip drift"
 msgstr "dérive de la pointe"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Reuse bed mesh by default\nCan be changed before each print"
+msgstr "Réutiliser le maillage par défaut\nModifiable avant chaque impression"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Bed mesh"
+msgstr "Maillage"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Reused"
+msgstr "Repris"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Probed"
+msgstr "Nouveau"

@@ -68,6 +68,13 @@ Refusal compare(const Record &stored, const Record &now, uint32_t max_age_s) {
     return Refusal::none;
 }
 
+Refusal compare_before_print(const Record &stored, Record now, uint32_t max_age_s) {
+    now.bed_c10 = stored.bed_c10;
+    now.chamber_c10 = stored.chamber_c10;
+    now.probe_c = stored.probe_c;
+    return compare(stored, now, max_age_s);
+}
+
 Refusal covers(const Record &stored, uint64_t needed) {
     if ((stored.valid & needed) != needed) {
         return Refusal::not_covered;

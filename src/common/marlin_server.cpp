@@ -11,6 +11,7 @@
 #include <feature/od3d/mpc_control_od3d.hpp> // OneDrop3D (F7)
 #include <feature/od3d/lookahead_od3d.hpp> // OneDrop3D (F26)
 #include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
+#include <feature/od3d/mesh_memory_od3d.hpp> // OneDrop3D (F44)
 #include <mapi/parking.hpp>
 #include <mapi/feedrates/standard_feedrates.hpp>
 #include "marlin_client_events.hpp"
@@ -1568,6 +1569,7 @@ bool printer_paused_extended() {
 
 #if HAS_SERIAL_PRINT()
 void serial_print_start() {
+    od3d::mesh_memory::on_print_request(); // OneDrop3D (F44) : maillage selon le réglage
     if (server.print_state != State::Idle) {
         finalize_print(false);
         cleanup_print();
@@ -1579,6 +1581,9 @@ void serial_print_start() {
 #endif
 
 void print_start(const char *filename, const GCodeReaderPosition &resume_pos, PreviewSkipIfAble skip_preview, ResetToolMapping reset_tool_mapping) {
+    // OneDrop3D (F44) : toute demande prend le choix « Maillage » posé juste avant par « Avant l'impression », sinon le
+    // réglage (PrusaLink, Connect, réimpression, reprise)
+    od3d::mesh_memory::on_print_request();
 #if HAS_SELFTEST()
     if (SelftestInstance().IsInProgress()) {
         return;

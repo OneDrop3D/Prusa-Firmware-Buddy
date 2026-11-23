@@ -149,6 +149,7 @@ public:
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+    void draw() override; ///< Screen::draw(), puis la metric « step » d'un cran de molette
     void unconditionalDraw() override;
 
 private:
@@ -173,11 +174,13 @@ private:
     FileTile tiles[tiles_count];
     GridScroll scroll;
     TabBar tabs;
-    LazyDirView<tiles_count> view;
+    LazyDirView<tiles_count> page_view; ///< sans place dans le tas : la page seule, le dossier relu à chaque rangée
+    LazyDirViewBase *view = &page_view; ///< entrées du dossier en mémoire : la fenêtre du tas (24), sinon page_view
     std::optional<ScaledQoiReader> scaler; ///< une vignette à la fois ; dans l'écran plutôt que sur la pile (6 Ko)
     bool loaded = false;
     bool ready_logged = false; ///< metric « ready » envoyée pour cette page
     int8_t loading = -1; ///< carte dont la vignette se dessine par bandes, -1 sans
+    uint32_t step_ms = 0; ///< cran de molette pas encore à l'écran (metric « step »), 0 sans
     uint32_t load_start_ms = 0;
     uint32_t longest_band_ms = 0; ///< metric « band » : le plus long moment sans réponse de l'écran
     uint32_t last_input_ms = 0; ///< dernière molette, clic ou toucher
@@ -251,11 +254,24 @@ private:
         bool active = true;
     };
 
+    /// « Maillage : repris / nouveau » (F44), à droite d'« Imprimer » : reprise du maillage gardé ou palpage complet, pour
+    /// cette impression seulement. Montré si un maillage gardé peut servir (mesh_memory::offered).
+    class MeshChoice : public Card {
+    public:
+        MeshChoice(window_t *parent, Rect16 body, bool shown);
+
+    protected:
+        void draw_content(Rect16 body) override;
+        void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+    };
+
     void update_buttons();
 
+    const bool mesh_offered; ///< avant les éléments : « Imprimer » se rétrécit pour « Maillage »
     Header header;
     PreviewThumb thumb;
     Button print;
+    MeshChoice mesh;
     Button map;
     TabBar tabs;
     print_info::FileInfo info;

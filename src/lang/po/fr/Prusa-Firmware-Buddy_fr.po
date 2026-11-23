@@ -12678,3 +12678,12 @@ msgstr "Le firmware du MMU ne connaît pas l'assistance (pas de registre 0x25) :
 #: src/gui/od3d/screen_belts_od3d.cpp src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Measurement being validated: adjust with the Prusa app or the Prusa wizard (M961)."
 msgstr "Mesure en cours de validation : réglez avec l'appli Prusa ou l'assistant Prusa (M961)."
+
+# lot UI-0
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Screen timing to USB\nDrawing times in OD3D_UI.CSV"
+msgstr "Mesure de l'écran sur la clé\nTemps de dessin dans OD3D_UI.CSV"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Screen timings added to OD3D_UI.CSV on the USB drive."
+msgstr "Mesures de l'écran ajoutées à OD3D_UI.CSV sur la clé USB."

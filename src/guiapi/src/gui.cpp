@@ -46,6 +46,8 @@
     #include <gui/screen_menu_selftest_snake.hpp>
 #endif
 
+#include <gui/od3d/perf_od3d.hpp> // OneDrop3D (lot UI-0) : latence entre l'entrée et la fin du dessin
+
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     #include <gui/od3d/sleep_gui_od3d.hpp> // OneDrop3D (F39) : mode veille
     #define OD3D_SLEEP() 1
@@ -95,6 +97,8 @@ void gui_handle_jogwheel() {
     int32_t encoder_diff = jogwheel.ConsumeEncoderDiff();
 
     if (encoder_diff != 0 || is_btn) {
+        od3d::perf::input(od3d::perf::Cause::knob);
+        gui_redraw_timer.reset(); // OneDrop3D (lot UI-0) : dessin tout de suite, sans attendre les 40 ms d'une animation
 #if OD3D_SLEEP()
         od3d::sleep::filter_knob(encoder_diff, is_btn, btn_ev); // OneDrop3D (F39) : le geste qui réveille l'écran n'agit pas
 #endif
@@ -128,6 +132,8 @@ void gui_handle_touch() {
         return; // OneDrop3D (F39) : le toucher qui réveille l'écran n'agit pas
     }
 #endif
+    od3d::perf::input(od3d::perf::Cause::touch);
+    gui_redraw_timer.reset(); // OneDrop3D (lot UI-0) : dessin tout de suite, comme la molette
 
     if (touch_event.type == GUI_event_t::TOUCH_CLICK) {
         sound::play(SoundType::button_echo);
@@ -177,6 +183,8 @@ void gui_redraw(void) {
             gui_invalid = false;
             should_sleep = false;
         }
+    } else if (!gui_invalid && !Screens::Access()->is_change_pending()) {
+        od3d::perf::drop_input(); // l'entrée n'a rien changé à l'écran
     }
 
     if (should_sleep) {

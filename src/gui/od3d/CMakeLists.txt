@@ -5,6 +5,7 @@ target_sources(
           dialog_wait_od3d.cpp
           island_od3d.cpp
           menu_od3d.cpp
+          perf_od3d.cpp
           print_info_od3d.cpp
           screen_belts_od3d.cpp
           screen_calib_assistant_od3d.cpp

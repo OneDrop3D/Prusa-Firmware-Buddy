@@ -26,6 +26,7 @@ target_sources(
           M2001_od3d.cpp
           M2003_od3d.cpp
           M2000_od3d.cpp
+          M2010_od3d.cpp
           M306_od3d.cpp
           M9140_M9150.cpp
           M9200.cpp

@@ -62,6 +62,22 @@ void MI_PAIR_PRINTFORGE::click(IWindowMenu &) {
     od3d::pairing::stop();
 }
 
+MI_UI_MEASURE::MI_UI_MEASURE()
+    : IWindowMenuItem(_("Screen timing to USB\nDrawing times in OD3D_UI.CSV"), &img::speed_16x16, is_enabled_t::yes, is_hidden_t::no) {}
+
+void MI_UI_MEASURE::click(IWindowMenu &) {
+    if (marlin_client::is_printing()) {
+        MsgBoxWarning(_("Not while printing."), Responses_Ok);
+        return;
+    }
+    if (!marlin_vars().media_inserted.get()) {
+        MsgBoxWarning(_("Insert a USB drive"), Responses_Ok);
+        return;
+    }
+    marlin_client::gcode("M2010");
+    MsgBoxInfo(_("Screen timings added to OD3D_UI.CSV on the USB drive."), Responses_Ok);
+}
+
 ScreenMenuFeatures::ScreenMenuFeatures()
     : BasicScreenMenu(_("OneDrop3D Features")) {}
 

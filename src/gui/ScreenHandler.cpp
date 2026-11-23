@@ -8,6 +8,7 @@
 #include <i_window_menu_item.hpp>
 #include <sound.hpp>
 #include <gui/od3d/frost_od3d.hpp> // OneDrop3D : frost::forget()
+#include <gui/od3d/perf_od3d.hpp> // OneDrop3D (lot UI-0) : mesure de chaque dessin
 #include <gui/od3d/widgets_od3d.hpp> // OneDrop3D : chrome::next_screen()
 
 static const uint32_t MENU_TIMEOUT_MS = 30000;
@@ -75,7 +76,10 @@ void Screens::Draw() {
     if (current->IsInvalid()) {
         od3d::frost::forget(); // OneDrop3D : l'écran entier se repeint, le givre sous un dialogue est perdu (il regivre)
     }
+    od3d::perf::draw_begin();
     current->Draw();
+    const window_t *dialog = current->GetLastDialog(); // l'éditeur, une fiche : pas l'écran dessous
+    od3d::perf::draw_end(dialog ? od3d::perf::vtable_of(dialog) : reinterpret_cast<uintptr_t>(stack_iterator->creator.func));
 }
 
 screen_t *Screens::Get() const {

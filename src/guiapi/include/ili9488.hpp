@@ -77,6 +77,14 @@ size_t ili9488_buffer_size();
 extern void ili9488_enable_safe_mode(void);
 extern void ili9488_draw_from_buffer(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
+/// OneDrop3D (lot UI-0) : remplit out avec les pixels de band (3 octets chacun, bleu, vert, rouge, ligne après ligne)
+using ili9488_band_fn = void (*)(const void *ctx, uint8_t *out, Rect16 band);
+
+/// OneDrop3D (lot UI-0) : image calculée envoyée en une fenêtre, par bandes, en ping-pong : le tampon est coupé en deux
+/// moitiés, fill calcule une bande dans l'une pendant que l'autre part par DMA. Rien ne reste en vol au retour.
+/// fill ne doit pas toucher à l'écran.
+void ili9488_draw_bands(Rect16 rect, ili9488_band_fn fill, const void *ctx);
+
 extern void ili9488_spi_tx_complete(void);
 extern bool ili9488_is_reset_required();
 extern void ili9488_set_complete_lcd_reinit();

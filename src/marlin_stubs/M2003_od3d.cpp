@@ -23,10 +23,11 @@
  *
  *#### Parameters
  *
- * - sans paramètre : buse vide (refusé si le capteur de l'extrudeur voit du filament), plateau à 60 °C, origine et
- *   nettoyage de la buse, puis le centre du plateau palpé 3 fois à 170, 215, 260, 215 et 170 °C, buse stable 90 s à
- *   chaque palier. La pente est gardée pour la buse réglée dans Prusa (type de hotend, haut débit, trempée) et remplace
- *   le modèle de Prusa pour elle ; le maillage gardé est oublié. Environ 15 min. S'arrête depuis l'écran.
+ * - sans paramètre : buse vide (refusé si le capteur de l'extrudeur voit du filament), plateau à 60 °C, origine,
+ *   puis le centre du plateau palpé 3 fois à 170, 215, 260, 215 et 170 °C, buse nettoyée à chaque nouvelle température
+ *   (170, 215, 260 °C) et stable 30 s à chaque palier. La pente est gardée pour la buse réglée dans Prusa (type de
+ *   hotend, haut débit, trempée) et remplace le modèle de Prusa pour elle ; le maillage gardé est oublié. Environ
+ *   10 min (estimé). S'arrête depuis l'écran.
  * - `R` - la buse réglée revient au modèle de Prusa
  */
 void PrusaGcodeSuite::M2003() {

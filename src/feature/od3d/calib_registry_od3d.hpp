@@ -78,7 +78,7 @@ inline constexpr std::array entries {
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
     Entry { Test::mpc, 0, 12, 1, true },
     Entry { Test::mmu_ptfe, mmu | one_spool, 3, 1, true },
-    Entry { Test::nozzle_expansion, empty_bed, 15, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
+    Entry { Test::nozzle_expansion, empty_bed, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
     Entry { Test::pa, filament | empty_bed, 7, 1, true },
     Entry { Test::max_flow, filament | empty_bed | flow_limit, 5, 1, true },
     Entry { Test::min_temp, filament | empty_bed, 6, 1, true },

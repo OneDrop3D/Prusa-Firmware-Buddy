@@ -19,6 +19,7 @@
 #include <module/probe.h>
 #include <module/temperature.h>
 #include <raii/scope_guard.hpp>
+#include <timing.h>
 
 namespace od3d::nozzle_expansion {
 
@@ -64,19 +65,10 @@ namespace {
         if (const session::Result r = s.heat_bed(bed_temperature, temperatures[0]); r != session::Result::ok) {
             return from(r);
         }
-        live::set(N_("Bed at %d\xC2\xB0""C, letting it settle"), bed_temperature);
-        if (!session::wait_ms(bed_soak_ms)) {
-            return Status::stopped;
-        }
+        // Le plateau se stabilise pendant l'origine, le nettoyage et la 1re chauffe (avant : attendus après les 2 min)
+        const uint32_t bed_ready_ms = ticks_ms();
         if (const session::Result r = s.home(temperatures[0]); r != session::Result::ok) {
             return from(r);
-        }
-        // Comme le G-code de départ de la CORE One avant de palper : un reste de plastique au bout de la buse, mou à
-        // 260 °C, fausserait le contact
-        live::set(N_("Nozzle cleaning on the front strip"));
-        GcodeSuite::process_subcommands_now_P("G29 P9 X208 Y-2.5 W32 H4");
-        if (session::must_stop()) {
-            return Status::stopped;
         }
         set_bed_leveling_enabled(false); // même point, z natif ; ~Session remet le maillage
 
@@ -86,10 +78,30 @@ namespace {
             taps_now = 0;
             phase_now = Phase::heating;
             ++revisions;
+            // À chaque température jamais atteinte (170, 215, 260 °C) : la buse suinte en chauffant ; nettoyée par
+            // tapotements une fois à température (G29 P9, comme le G-code de départ de la CORE One avant le maillage ;
+            // s'il échoue, Prusa demande de la nettoyer), sinon un reste de plastique mou fausserait le contact
+            if (new_high(i)) {
+                if (const session::Result r = s.heat(temperatures[i], 3.f, 0, session::heat_timeout_ms, false); r != session::Result::ok) {
+                    return from(r);
+                }
+                live::set(N_("Nozzle cleaning at %d\xC2\xB0""C on the front strip"), temperatures[i]);
+                GcodeSuite::process_subcommands_now_P("G29 P9 X208 Y-2.5 W32 H4");
+                if (session::must_stop()) {
+                    return Status::stopped;
+                }
+                set_bed_leveling_enabled(false); // G29 a pu le remettre
+            }
             do_blocking_move_to_z(hover_z, session::travel_speed_z);
             do_blocking_move_to_xy(point, session::travel_speed_xy);
             if (const session::Result r = s.heat(temperatures[i], 1.5f, settle_ms, session::heat_timeout_ms, false); r != session::Result::ok) {
                 return from(r);
+            }
+            if (const uint32_t soaked = ticks_ms() - bed_ready_ms; soaked < bed_soak_ms) { // 1er palier
+                live::set(N_("Bed at %d\xC2\xB0""C, letting it settle"), bed_temperature);
+                if (!session::wait_ms(bed_soak_ms - soaked)) {
+                    return Status::stopped;
+                }
             }
 
             phase_now = Phase::probing;

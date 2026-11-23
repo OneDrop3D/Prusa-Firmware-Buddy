@@ -12574,3 +12574,11 @@ msgstr "emplacement %d"
 #: src/feature/od3d/live_od3d.hpp
 msgid "You may leave this screen: the pill shows the progress."
 msgstr "Vous pouvez quitter cet écran : la pastille montre l'avancement."
+
+#: src/feature/od3d/nozzle_expansion_od3d.cpp
+msgid "Nozzle cleaning at %d°C on the front strip"
+msgstr "Nettoyage de la buse à %d °C sur la bande avant"
+
+#: src/feature/od3d/nozzle_expansion_od3d.cpp
+msgid "Empty nozzle, clear bed. Center probed 170-260°C and back, cleaned on the way up, ~10 min."
+msgstr "Buse vide, plateau dégagé. Centre palpé 170-260°C aller-retour, nettoyée en montant, 10 min env."

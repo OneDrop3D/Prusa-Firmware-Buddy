@@ -1,7 +1,7 @@
 /// @file
 #include "screen_ptfe_od3d.hpp"
 
-#include "widgets_od3d.hpp"
+#include "screen_mmu_od3d.hpp"
 
 #include <common/marlin_vars.hpp>
 #include <cstdio>
@@ -18,7 +18,20 @@ namespace {
 
     namespace pt = ptfe;
 
-    uint8_t chosen_slot = 0; ///< gardé tant que l'imprimante reste allumée
+    uint8_t chosen_slot = 0; ///< dernier choix, mis en avant au retour ; gardé tant que l'imprimante reste allumée
+
+    /// Choix d'une bobine : confirmation, puis la mesure ; refusée, le choix reste ouvert pour une autre bobine
+    bool start_with(uint8_t slot) {
+        chosen_slot = slot;
+        StringViewUtf8Parameters<4> params;
+        // Retour du 22/11 : « ça ralentit toujours au même endroit » pendant la mesure, c'est voulu : on le dit avant
+        const string_view_utf8 question = _("The MMU pushes the spool of slot %d to the extruder, slowly after 341 mm (normal during the measurement), then unloads it. Is that spool preloaded?").formatted(params, slot + 1);
+        if (MsgBoxQuestion(question, Responses_YesNo) != Response::Yes) {
+            return false;
+        }
+        marlin_client::gcode_printf("M1999 B1 P%u", unsigned(slot));
+        return true;
+    }
 
 } // namespace
 
@@ -68,26 +81,6 @@ MI_PTFE_LENGTH_NOW::MI_PTFE_LENGTH_NOW()
     SetIconId(&img::metrics_16x16);
 }
 
-MI_PTFE_SLOT::MI_PTFE_SLOT()
-    : MenuItemSelectMenu(_("Spool to use\nPreloaded in the MMU")) {
-    SetIconId(&img::spool_16x16);
-    set_behavior(Behavior::quick_cycle); // comme les relais de bobine (MI_SPOOL_JOIN_TARGET)
-    set_current_item(chosen_slot);
-}
-
-int MI_PTFE_SLOT::item_count() const {
-    return pt::slots;
-}
-
-string_view_utf8 MI_PTFE_SLOT::build_item_text(int index, StringViewUtf8ParamBase &params) const {
-    return _("Slot %i").formatted(params, index + 1);
-}
-
-bool MI_PTFE_SLOT::on_item_selected(const OnItemSelectedArgs &args) {
-    chosen_slot = uint8_t(args.new_index);
-    return true;
-}
-
 MI_PTFE_START::MI_PTFE_START()
     : IWindowMenuItem(_("Start the measurement\nAbout 1 minute, cold nozzle OK"), &img::wizard_16x16, is_enabled_t::yes, is_hidden_t::no) {}
 
@@ -96,13 +89,8 @@ void MI_PTFE_START::click(IWindowMenu &) {
         MsgBoxWarning(_("Not while printing."), Responses_Ok);
         return;
     }
-    StringViewUtf8Parameters<4> params;
-    // Retour du 22/11 : « ça ralentit toujours au même endroit » pendant la mesure, c'est voulu : on le dit avant
-    const string_view_utf8 question = _("The MMU pushes the spool of slot %d to the extruder, slowly after 341 mm (normal during the measurement), then unloads it. Is that spool preloaded?").formatted(params, chosen_slot + 1);
-    if (MsgBoxQuestion(question, Responses_YesNo) != Response::Yes) {
-        return;
-    }
-    marlin_client::gcode_printf("M1999 B1 P%u", unsigned(chosen_slot));
+    // Titre court : l'en-tête n'en montre que 16 caractères (heure sur 12 h), 19 sur 24 h
+    open_slot_pick(_("Which spool?"), _("Spool preloaded in the MMU"), chosen_slot, start_with);
 }
 
 MI_PTFE_RESULT::MI_PTFE_RESULT()

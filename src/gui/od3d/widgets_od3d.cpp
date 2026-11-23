@@ -7,7 +7,10 @@
 #include "screen_temperatures_od3d.hpp"
 #include "island_od3d.hpp"
 #include "layout_od3d.hpp"
+#include "frost_od3d.hpp"
+#include "perf_od3d.hpp"
 #include "spinner_od3d.hpp"
+#include "text_od3d.hpp"
 #include "thumbnail_od3d.hpp"
 
 #include <algorithm>
@@ -81,51 +84,78 @@ namespace {
         return Rect16(outer.Left() + style::ring, outer.Top() + style::ring, outer.Width() - 2 * style::ring, outer.Height() - 2 * style::ring);
     }
 
+    Parts *recording = nullptr; ///< Record en cours
+
 } // namespace
 
-void draw_margin(Rect16 outer, Color back) {
+Record::Record(Parts &parts)
+    : was(std::exchange(recording, &parts)) {}
+
+Record::~Record() {
+    recording = was;
+}
+
+bool noted(Rect16 rect) {
+    if (!recording) {
+        return false;
+    }
+    if (!rect.IsEmpty()) {
+        if (recording->n == recording->rects.size()) {
+            recording->full = true;
+        } else {
+            recording->rects[recording->n++] = rect;
+        }
+    }
+    return true;
+}
+
+void draw_margin(Rect16 outer, Color back, std::span<const Rect16> parts) {
     constexpr int16_t m = style::ring;
-    display::fill_rect(Rect16(outer.Left(), outer.Top(), outer.Width(), m), back);
-    display::fill_rect(Rect16(outer.Left(), outer.Bottom() + 1 - m, outer.Width(), m), back);
-    display::fill_rect(Rect16(outer.Left(), outer.Top() + m, m, outer.Height() - 2 * m), back);
-    display::fill_rect(Rect16(outer.Right() + 1 - m, outer.Top() + m, m, outer.Height() - 2 * m), back);
+    for (const Rect16 strip : { Rect16(outer.Left(), outer.Top(), outer.Width(), m), Rect16(outer.Left(), outer.Bottom() + 1 - m, outer.Width(), m),
+             Rect16(outer.Left(), outer.Top() + m, m, outer.Height() - 2 * m), Rect16(outer.Right() + 1 - m, outer.Top() + m, m, outer.Height() - 2 * m) }) {
+        style::for_each_gap(strip, parts, [&](Rect16 r) { display::fill_rect(r, back); });
+    }
 }
 
-void draw_body(Rect16 outer, Color body, Color back, uint8_t radius) {
-    draw_margin(outer, back);
-    display::draw_rounded_rect(inner(outer), back, body, radius, MIC_ALL_CORNERS);
-}
-
-void draw_rounded_frame(Rect16 rect, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w) {
-    if (!border_w) {
+void draw_rounded_frame(Rect16 rect, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w, std::span<const Rect16> parts) {
+    if (noted(rect)) {
+        return; // une tuile ou une pastille dans le contenu d'une carte : un morceau du contenu
+    }
+    if (!border_w && parts.empty()) {
         display::draw_rounded_rect(rect, back, fill, radius, MIC_ALL_CORNERS);
         return;
     }
-    const int w = rect.Width(), h = rect.Height(), r = radius, bw = border_w;
-    draw_pixels(rect, [&](int x, int y) {
+    const int w = rect.Width(), h = rect.Height(), r = std::min<int>({ radius, w / 2, h / 2 }), bw = std::min<int>(border_w, r);
+    const auto corner = [&](int x, int y) { // relatif à rect, dans un carré de coin
         const int cx = x < r ? x : w - 1 - x; // position dans le carré de coin le plus proche
         const int cy = y < r ? y : h - 1 - y;
-        if (cx < r && cy < r) {
-            // Coin anticrénelé (retour du 22/11 : « Annuler » en escalier) : contour entre deux arcs concentriques,
-            // mélangé en quarts au fond à l'intérieur et à back à l'extérieur
-            const float d = spool::radius_in_square(cx, cy, 2 * r);
-            const Color inside = spool::mix_quarters(fill, border, spool::beyond_quarters(d, r - bw));
-            return spool::mix_quarters(inside, back, spool::beyond_quarters(d, r));
-        }
-        return (x < bw || x >= w - bw || y < bw || y >= h - bw) ? border : fill;
-    });
+        // Coin anticrénelé (retour du 22/11 : « Annuler » en escalier) : contour entre deux arcs concentriques,
+        // mélangé en quarts au fond à l'intérieur et à back à l'extérieur
+        const float d = spool::radius_in_square(cx, cy, 2 * r);
+        const Color inside = bw ? spool::mix_quarters(fill, border, spool::beyond_quarters(d, r - bw)) : fill;
+        return spool::mix_quarters(inside, back, spool::beyond_quarters(d, r));
+    };
+    style::for_each_frame_piece(
+        rect, r, bw, parts, [&](Rect16 p, bool inside) { display::fill_rect(p, inside ? fill : border); },
+        [&](Rect16 p) { draw_pixels(p, [&](int x, int y) { return corner(p.Left() - rect.Left() + x, p.Top() - rect.Top() + y); }); });
 }
 
-void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w) {
-    draw_margin(outer, back);
-    draw_rounded_frame(inner(outer), back, border, fill, radius, border_w);
+void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w, std::span<const Rect16> parts) {
+    draw_margin(outer, back, parts);
+    draw_rounded_frame(inner(outer), back, border, fill, radius, border_w, parts);
 }
 
 void draw_text(Rect16 rect, const string_view_utf8 &text, Font font, Color fg, Color bg, Align_t align) {
+    if (noted(rect)) {
+        return;
+    }
     render_text_align(rect, text, font, bg, fg, { 0, 0, 0, 0 }, text_flags(align, is_multiline::no, check_overflow::no));
 }
 
 void draw_icon(point_i16_t at, const img::Resource &icon, Color bg, ropfn rop) {
+    if (noted(Rect16(at, icon.w, icon.h))) {
+        return;
+    }
     display::draw_img(point_ui16(at.x, at.y), icon, bg, rop);
 }
 
@@ -147,6 +177,9 @@ void draw_computed(Rect16 rect, PixelFn pixel, const void *ctx) {
 }
 
 void draw_spool(point_i16_t at, const spool::Look &look, uint8_t d, Color back, std::optional<Color> ring) {
+    if (noted(ring ? Rect16(at.x - 2, at.y - 2, d + 4, d + 4) : Rect16(at, d, d))) {
+        return;
+    }
     const spool::Disc disc(look, d);
     if (!ring) {
         draw_pixels(Rect16(at.x, at.y, d, d), [&](int x, int y) { return disc.pixel(x, y, back); });
@@ -182,10 +215,14 @@ bool draw_whole(window_frame_t &frame, window_t *first, window_t *last, void (*o
     if (!frame.IsVisible() || !frame.IsInvalid()) {
         return false;
     }
-    // Comme window_frame_t::draw() : tout est à peindre, sauf une fenêtre cachée dont la place est couverte
+    // Comme window_frame_t::draw() : tout est à peindre, sauf une fenêtre cachée dont la place est couverte. Une fenêtre
+    // neuve est déjà toute à peindre : l'invalider encore ferait oublier à l'en-tête et aux onglets qu'ils sont déjà à
+    // l'écran (chrome::forget), et ils se repeignaient à chaque page
     for (window_t *w = first; w; w = w->GetNext()) {
         if (w->IsVisible() || !frame.GetFirstEnabledSubWin(w->GetRect())) {
-            w->Invalidate();
+            if (!w->IsInvalid() || w->HasValidBackground()) {
+                w->Invalidate();
+            }
         } else {
             w->Validate();
         }
@@ -199,10 +236,15 @@ bool draw_whole(window_frame_t &frame, window_t *first, window_t *last, void (*o
             rects[n++] = w->GetRect();
         }
     }
+    const auto draw = [&](size_t i) { wins[i]->Draw(); };
+    const auto fill = [&](Rect16 r) { display::fill_rect(r, frame.GetBackColor()); };
+    const std::span<const Rect16> elements(rects.data(), n);
     if (n == wins.size()) {
         fill_background(frame, first, last); // trop d'éléments : comme avant, le fond puis les éléments
+    } else if (const Rect16 from = chrome::take_origin(); !from.IsEmpty()) {
+        style::paint_from(frame.GetRect(), elements, { int16_t(from.Left() + from.Width() / 2), int16_t(from.Top() + from.Height() / 2) }, draw, fill);
     } else {
-        style::paint_top_down(frame.GetRect(), std::span<const Rect16>(rects.data(), n), [&](size_t i) { wins[i]->Draw(); }, [&](Rect16 r) { display::fill_rect(r, frame.GetBackColor()); });
+        style::paint_top_down(frame.GetRect(), elements, draw, fill);
     }
     for (window_t *w = first; w; w = w == last ? nullptr : w->GetNext()) {
         w->Draw(); // le reste (cachés, ou au-delà de 40) ; ceux déjà peints sont valides et passent
@@ -250,8 +292,19 @@ namespace chrome {
         uint8_t drawn_slots = 0; ///< dessinés par l'écran courant
         bool handed = false;
         const window_t *gap_parent = nullptr;
+        Rect16 origin; ///< élément cliqué ou touché au dernier changement d'écran
+        uint32_t origin_ms = 0;
         static_assert(size_t(Slot::count) <= 8);
     } // namespace
+
+    uint64_t shown(Slot slot) {
+        return on_display[size_t(slot)];
+    }
+
+    Rect16 take_origin() {
+        const Rect16 r = std::exchange(origin, Rect16());
+        return ticks_diff(ticks_ms(), origin_ms) < 1000 ? r : Rect16();
+    }
 
     void gap_screen(const window_t *screen) {
         gap_parent = screen;
@@ -278,6 +331,12 @@ namespace chrome {
     }
 
     void hand_over(window_frame_t &screen) {
+        // Un élément (pas une liste entière) cliqué ou touché : le nouvel écran se peint en onde depuis lui ; sinon (appui
+        // long, balayage, fin d'une opération) de haut en bas
+        const window_t *focused = window_t::GetFocusedWindow();
+        const bool clicked = last_gui_input_event == GUI_event_t::CLICK || last_gui_input_event == GUI_event_t::TOUCH_CLICK;
+        origin = clicked && focused && 4 * uint32_t(focused->GetRect().Width()) * focused->GetRect().Height() < uint32_t(style::screen_w) * style::screen_h ? focused->GetRect() : Rect16();
+        origin_ms = ticks_ms();
         if (&screen != gap_parent) {
             return;
         }
@@ -470,11 +529,22 @@ void Card::invalidate_content() {
     }
 }
 
-void Card::unconditionalDraw() {
-    if (!HasValidBackground()) {
-        draw_body(GetRect(), fill(), back, radius);
+void Card::draw_card(Color border, uint8_t border_w) {
+    Parts parts;
+    {
+        Record record(parts);
+        draw_content(body());
     }
+    draw_frame(GetRect(), back, border, fill(), radius, border_w, parts.span());
     draw_content(body());
+}
+
+void Card::unconditionalDraw() {
+    if (HasValidBackground()) {
+        draw_content(body()); // invalidate_content : le contenu seul
+    } else {
+        draw_card(fill(), 0); // focus, ou tout à repeindre : le corps autour du contenu, puis le contenu
+    }
 }
 
 void Card::windowEvent(window_t *sender, GUI_event_t event, void *param) {
@@ -525,8 +595,9 @@ void IconCard::set_subtitle(const string_view_utf8 &set) {
 void IconCard::draw_content(Rect16 body) {
     // Tuile de 22 px : le titre en gras (8 caractères, « Fichiers », « Contrôle ») garde une marge dans 128 px
     const Rect16 t(body.Left() + 7, body.Top() + (body.Height() - 22) / 2, 22, 22);
-    display::draw_rounded_rect(t, fill(), tile, style::radius_small, MIC_ALL_CORNERS);
-    draw_icon({ int16_t(t.Left() + 3), int16_t(t.Top() + 3) }, icon, tile);
+    const Rect16 glyph(t.Left() + 3, t.Top() + 3, 16, 16);
+    draw_rounded_frame(t, fill(), tile, tile, style::radius_small, 0, std::span<const Rect16>(&glyph, 1)); // la tuile autour de l'icône
+    draw_icon({ glyph.Left(), glyph.Top() }, icon, tile);
     const int16_t x = t.Left() + t.Width() + 5;
     const uint16_t w = body.Left() + body.Width() - x;
     // Textes jusqu'au bord droit : leur fond s'arrête avant les coins arrondis
@@ -535,18 +606,20 @@ void IconCard::draw_content(Rect16 body) {
 }
 
 Temps Temps::read() {
-    Temps t;
-    t.nozzle = static_cast<int16_t>(std::lround(marlin_vars().active_hotend().temp_nozzle.get()));
-    t.bed = static_cast<int16_t>(std::lround(marlin_vars().temp_bed.get()));
+    static Temps held; // ce qui est à l'écran : en-tête de chaque écran, carte de l'accueil, écran Températures
+    held.nozzle = style::held_degrees(marlin_vars().active_hotend().temp_nozzle.get(), held.nozzle);
+    held.bed = style::held_degrees(marlin_vars().temp_bed.get(), held.bed);
 #if HAS_CHAMBER_API()
-    if (const auto chamber = buddy::chamber().current_temperature()) {
-        t.chamber = static_cast<int16_t>(std::lround(*chamber));
-    }
+    const auto chamber = buddy::chamber().current_temperature();
+    held.chamber = chamber ? style::held_degrees(static_cast<float>(*chamber), held.chamber) : int16_t(-1);
 #endif
-    return t;
+    return held;
 }
 
 void draw_temps(Rect16 rect, const Temps &temps, Color fg, Color bg, bool centered) {
+    if (noted(rect)) {
+        return;
+    }
     const img::Resource *icons[] = { &img::nozzle_16x16, &img::heatbed_16x16, &img::enclosure_16x16 };
     const int16_t values[] = { temps.nozzle, temps.bed, temps.chamber };
     constexpr int16_t icon_gap = 2, item_gap = 6;
@@ -594,7 +667,7 @@ TempsButton::TempsButton(window_t *parent, Rect16 body)
 void TempsButton::unconditionalDraw() {
     const Rect16 r = GetRect();
     const uint64_t key = uint64_t(uint16_t(temps.nozzle)) | uint64_t(uint16_t(temps.bed)) << 16 | uint64_t(uint16_t(temps.chamber)) << 32
-        | uint64_t(IsFocused()) << 48 | uint64_t(r.Left() & 0x1ff) << 49 | uint64_t(r.Height() & 0x3f) << 58;
+        | uint64_t(IsFocused()) << 48 | uint64_t(r.Left() & 0x1ff) << 49 | uint64_t(r.Top() & 0x3f) << 58; // même hauteur dans les deux en-têtes
     if (!chrome::kept(chrome::Slot::temps, key, std::exchange(first_draw, false), GetParent())) {
         Card::unconditionalDraw();
     }
@@ -694,23 +767,23 @@ namespace {
     // En-tête de 40 px (style::header), de droite à gauche : heure, réseau, températures, puis le titre prend le reste
     constexpr int16_t header_gap = 6;
     constexpr uint16_t temps_w = 173; ///< 3 × (icône 16 + 2) + « 230° » « 110° » « 45° » + 2 × 6, plus 4 de chaque côté
-    constexpr uint8_t back_d = 32; ///< disque du retour (22 dans la maquette)
+    /// Une seule hauteur pour le retour, les températures et la pastille, dans les deux en-têtes : la tuile de la ligne
+    /// « ‹ Retour » des listes (26 px, menu_od3d.cpp)
+    constexpr uint8_t item_h = 26;
 
     /// Hauteurs : l'en-tête normal (40 px, trait en 40) ou compact (31 px, trait en 31) pour les écrans de Prusa dont
     /// le contenu commence à 32 (GuiDefaults::HeaderHeight), sans retour
     struct Geometry {
         uint16_t h; ///< hauteur sans le trait
-        uint16_t temps_h; ///< bouton des températures
-        uint16_t island_h; ///< pastille de l'opération en arrière-plan
     };
-    constexpr Geometry normal_geometry { style::header.Height(), 30, 28 };
-    constexpr Geometry compact_geometry { 31, 26, 24 };
+    constexpr Geometry normal_geometry { style::header.Height() };
+    constexpr Geometry compact_geometry { 31 };
     static_assert(compact_geometry.h + 1 <= GuiDefaults::HeaderHeight, "le contenu des écrans de Prusa commence sous le trait");
-    static_assert((compact_geometry.h - compact_geometry.temps_h) / 2 >= style::ring && (compact_geometry.h - compact_geometry.island_h) / 2 >= style::ring);
+    static_assert((compact_geometry.h - item_h) / 2 >= style::ring, "la marge de 2 px des éléments tient dans l'en-tête compact");
     const Geometry &geometry(bool compact) {
         return compact ? compact_geometry : normal_geometry;
     }
-    constexpr Rect16 back_body = { 6, (style::header.Height() - back_d) / 2, back_d, back_d };
+    constexpr Rect16 back_body = { style::margin, (style::header.Height() - item_h) / 2, item_h, item_h };
     static_assert(style::inside(style::back_touch, style::with_ring(back_body)));
 
     uint16_t clock_w() {
@@ -723,7 +796,7 @@ namespace {
         return clock_x() - header_gap - 16;
     }
     Rect16 temps_body(const Geometry &g = normal_geometry) {
-        return Rect16(network_x() - header_gap - temps_w, (g.h - g.temps_h) / 2, temps_w, g.temps_h);
+        return Rect16(network_x() - header_gap - temps_w, (g.h - item_h) / 2, temps_w, item_h);
     }
     Rect16 title_rect(bool has_back, const Geometry &g = normal_geometry) {
         // Le titre n'est pas actif : il peut passer sur la zone tactile du retour, 6 px après son disque
@@ -745,7 +818,7 @@ namespace {
     Rect16 island_body(const Geometry &g) {
         const int16_t right = temps_body(g).Left() - 2 * style::ring - header_gap;
         const int16_t left = std::max<int16_t>(right - island_w, island_min_left);
-        return Rect16(left, (g.h - g.island_h) / 2, right - left, g.island_h);
+        return Rect16(left, (g.h - item_h) / 2, right - left, item_h);
     }
     // Heure sur 12 h (8 caractères) : la place la plus étroite
     static_assert(style::screen_w - style::margin - 8 * width(Font::small) - 2 * header_gap - 16 - temps_w - 2 * style::ring - header_gap - island_min_left - island_pad - island_spinner - island_text_gap - island_text_end >= 12 * width(Font::small), "12 caractères (island::format_text)");
@@ -753,6 +826,9 @@ namespace {
     /// le sens des aiguilles d'une montre, de 0 à 2π) ; hors de l'anneau, bg, mélangé à ses bords (anticrénelage)
     template <class Arc>
     void draw_island_ring(Rect16 rect, Color bg, Arc arc) {
+        if (noted(rect)) {
+            return;
+        }
         constexpr int d = island_spinner;
         draw_pixels(rect, [&](int x, int y) {
             const float r = spool::radius_in_square(x, y, d);
@@ -774,8 +850,12 @@ namespace {
 
 } // namespace
 
+void menu_back() {
+    go_back();
+}
+
 BackButton::BackButton(window_t *parent, Action action)
-    : IconButton(parent, style::with_ring(back_body), action ? action : go_back, img::arrow_left_16x16, {}, style::secondary, back_d / 2) {}
+    : IconButton(parent, style::with_ring(back_body), action ? action : go_back, img::arrow_left_16x16, {}, style::tile, style::radius_small) {}
 
 Rect16 BackButton::get_rect_for_touch() const {
     return style::back_touch;
@@ -796,7 +876,8 @@ void BackButton::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     // Les deux sens, comme les écrans de Prusa (un balayage vers la gauche y est aussi un retour) ; pas pendant le réglage
     // d'une valeur à la molette (ligne de liste en mode édition)
     if (event == GUI_event_t::TOUCH_SWIPE_RIGHT || event == GUI_event_t::TOUCH_SWIPE_LEFT) {
-        if (IsVisible() && IsEnabled() && !IWindowMenuItem::edited_item()) {
+        // Dans un menu, sa ligne « Retour » le prend (WindowMenu) : un seul retour, un seul son
+        if (IsVisible() && IsEnabled() && !IWindowMenuItem::edited_item() && action != menu_back) {
             sound::play(SoundType::button_echo);
             action();
         }
@@ -863,7 +944,7 @@ void IslandPill::draw_content(Rect16 body) {
             break;
         case Tone::error:
             arc = style::danger;
-            fg = Color::from_raw(0xFF8A73); // texte danger (SPEC_G.md §1.1)
+            fg = style::text_danger;
             break;
         }
         const float end = 2 * std::numbers::pi_v<float> * f.percent / 100;
@@ -944,7 +1025,11 @@ void HeaderTitle::windowEvent(window_t *sender, GUI_event_t event, void *param) 
 
 void HeaderTitle::unconditionalDraw() {
     if (!showing_notice) {
-        window_text_t::unconditionalDraw();
+        // Police normale (retour du 23/11 : l'en-tête trop petit) ; un titre trop long finit par « ... » au lieu d'être coupé net
+        std::array<char, 64> shown;
+        GetText().copyToRAM(shown.data(), shown.size());
+        text::ellipsize(shown.data(), GetRect().Width() / width(Font::normal));
+        draw_text(GetRect(), string_view_utf8::MakeRAM(shown.data()), Font::normal, style::text, GetBackColor());
         return;
     }
     // Deux lignes centrées en hauteur, chaque pixel peint une fois : bande du haut, lignes (fond compris), bande du bas
@@ -973,9 +1058,6 @@ Header::Header(window_t *parent, const string_view_utf8 &title_text, bool has_ba
     has_back = has_back && !compact; // le compact n'a pas la place du disque du retour
     back.set_visible(has_back);
     back.set_enabled(has_back);
-    title.set_font(Font::small);
-    title.SetAlignment(Align_t::LeftCenter());
-    title.SetTextColor(style::text);
     title.SetBackColor(style::screen);
     title.SetPadding({ 0, 0, 0, 0 });
     line.SetBackColor(style::line);
@@ -989,10 +1071,6 @@ void Header::show_back(bool show) {
 void Header::set_title(const string_view_utf8 &text) {
     title.SetText(text);
     title.Invalidate();
-}
-
-uint8_t Header::title_chars() {
-    return title_rect(true).Width() / width(Font::small);
 }
 
 // ---- Barre d'onglets ----
@@ -1026,6 +1104,36 @@ namespace {
         { &img::settings_16x16, N_("Settings"), tab_settings },
     };
 
+    // Repère de l'onglet actif (SPEC_G.md §1.4) : 44 × 3 px à x + 38 de l'onglet, en haut de la barre
+    constexpr uint8_t marker_h = 3;
+    constexpr int16_t marker_dx = 38;
+    constexpr uint16_t marker_w = 44;
+    constexpr Rect16 marker_band = { 0, style::tab_bar_rect.Top(), style::screen_w, marker_h };
+    static_assert(style::tab_line.Bottom() + 1 == marker_band.Top());
+
+    // Glissement du repère d'un onglet à l'autre : une image par TEXT_ROLL (40 ms), position selon le temps écoulé
+    constexpr int glide_frames = 5;
+    constexpr uint32_t glide_frame_ms = 40;
+    struct {
+        int16_t from = 0;
+        uint32_t start_ms = 0;
+        uint32_t inputs = 0; ///< entrées comptées au départ (perf::inputs) : une de plus termine le glissement
+        bool on = false;
+    } glide;
+    std::optional<txtroll_t> glide_tick; ///< tant qu'il existe, l'interface envoie TEXT_ROLL toutes les 40 ms
+
+    void stop_glide() {
+        glide.on = false;
+        glide_tick.reset();
+    }
+
+    /// La bande du repère d'une passe, repère à x : la barre autour, le repère arrondi en bas
+    void draw_marker_band(int16_t x) {
+        const Rect16 mark(x, marker_band.Top(), marker_w, marker_h);
+        style::for_each_gap(marker_band, std::span<const Rect16>(&mark, 1), [](Rect16 r) { display::fill_rect(r, style::tab_bar); });
+        display::draw_rounded_rect(mark, style::tab_bar, style::accent, 2, MIC_BOT_LEFT | MIC_BOT_RIGHT);
+    }
+
 } // namespace
 
 TabBar::Button::Button(window_t *parent, Tab tab, Tab active)
@@ -1048,28 +1156,88 @@ void TabBar::Button::unconditionalDraw() {
         return;
     }
     const Rect16 r = GetRect();
-    // Ciblé à la molette : une pastille plus claire dans la case (la barre n'a pas de marge)
+    const Rect16 area(r.Left(), r.Top() + marker_h, r.Width(), r.Height() - marker_h); // la bande du repère est au Marker
+    const Rect16 glyph(r.Left() + (r.Width() - icon.w) / 2, r.Top() + 6, icon.w, icon.h);
+    const Rect16 text(r.Left() + 10, r.Top() + 24, r.Width() - 20, height(Font::small));
+    const Rect16 inner[] = { glyph, text };
+    // Ciblé à la molette : une pastille plus claire dans la case (la barre n'a pas de marge). D'une passe : la barre
+    // autour de la pastille, la pastille autour de l'icône et du libellé (avant : tout l'onglet uni, puis le reste)
     const Color bg = IsFocused() ? style::surface : style::tab_bar;
-    display::fill_rect(r, style::tab_bar);
+    const auto fill_bar = [](Rect16 g) { display::fill_rect(g, style::tab_bar); };
     if (IsFocused()) {
-        display::draw_rounded_rect(Rect16(r.Left() + 6, r.Top() + 4, r.Width() - 12, r.Height() - 5), style::tab_bar, bg, radius, MIC_ALL_CORNERS);
+        const Rect16 pill(r.Left() + 6, r.Top() + 4, r.Width() - 12, r.Height() - 5);
+        style::for_each_gap(area, std::span<const Rect16>(&pill, 1), fill_bar);
+        draw_rounded_frame(pill, style::tab_bar, bg, bg, radius, 0, inner);
+    } else {
+        style::for_each_gap(area, inner, fill_bar);
     }
-    if (active) {
-        display::draw_rounded_rect(Rect16(r.Left() + 38, r.Top(), 44, 3), style::tab_bar, style::accent, 2, MIC_BOT_LEFT | MIC_BOT_RIGHT);
+    draw_icon({ glyph.Left(), glyph.Top() }, icon, bg, active ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+    draw_text(text, label, Font::small, active ? style::accent : style::text_muted, bg, Align_t::Center());
+}
+
+TabBar::Marker::Marker(window_t *parent, Tab active)
+    : window_t(parent, Rect16(0, style::tab_line.Top(), style::screen_w, style::tab_line.Height() + marker_h))
+    , x(int16_t(style::tab_w * int(active) + marker_dx)) {
+    if (glide.on) {
+        stop_glide(); // écran changé pendant un glissement : le repère à l'écran n'est pas sûr, il se repeint
+        chrome::forget(chrome::Slot::marker);
     }
-    draw_icon({ int16_t(r.Left() + (r.Width() - icon.w) / 2), int16_t(r.Top() + 6) }, icon, bg, active ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
-    draw_text(Rect16(r.Left() + 10, r.Top() + 24, r.Width() - 20, height(Font::small)), label, Font::small, active ? style::accent : style::text_muted, bg, Align_t::Center());
+}
+
+void TabBar::Marker::invalidate(Rect16 rect) {
+    chrome::forget(chrome::Slot::marker);
+    window_t::invalidate(rect);
+}
+
+void TabBar::Marker::unconditionalDraw() {
+    const uint64_t was = chrome::shown(chrome::Slot::marker); // x + 1 du repère à l'écran, 0 : inconnu
+    const bool first = std::exchange(first_draw, false);
+    if (chrome::kept(chrome::Slot::marker, uint64_t(x) + 1, first, GetParent())) {
+        return; // trait et repère déjà là
+    }
+    if (first && was && chrome::shown(chrome::Slot::marker)) {
+        // Le repère de l'écran d'avant est encore là, à un autre onglet : il glisse jusqu'ici (TEXT_ROLL)
+        glide = { .from = int16_t(was - 1), .start_ms = ticks_ms(), .inputs = perf::inputs(), .on = true };
+        glide_tick.emplace();
+        return;
+    }
+    int16_t at = x;
+    if (glide.on) {
+        const int k = perf::inputs() != glide.inputs ? glide_frames : int(ticks_diff(ticks_ms(), glide.start_ms) / glide_frame_ms);
+        at = frost::step(Rect16(glide.from, 0, 1, 1), Rect16(x, 0, 1, 1), k, glide_frames).Left();
+        if (k >= glide_frames) {
+            stop_glide();
+        }
+    }
+    if (!HasValidBackground()) {
+        display::fill_rect(style::tab_line, style::line);
+    }
+    draw_marker_band(at); // 480 × 3 px : 4,3 Ko
+}
+
+void TabBar::Marker::windowEvent(window_t *sender, GUI_event_t event, void *param) {
+    if (event == GUI_event_t::TEXT_ROLL && glide.on) {
+        if (!IsVisible()) {
+            stop_glide(); // sous un dialogue : il se repeindra en entier, à sa place
+            chrome::forget(chrome::Slot::marker);
+        } else {
+            const bool background_valid = HasValidBackground(); // comme Card::invalidate_content : la bande seule
+            Invalidate();
+            if (background_valid) {
+                ValidateBackground();
+            }
+        }
+    }
+    window_t::windowEvent(sender, event, param);
 }
 
 TabBar::TabBar(window_t *parent, Tab active)
-    : line(parent, style::tab_line)
+    : line(parent, active)
     , buttons {
         { parent, Tab::home, active },
         { parent, Tab::print, active },
         { parent, Tab::workshop, active },
         { parent, Tab::settings, active },
-    } {
-    line.SetBackColor(style::line);
-}
+    } {}
 
 } // namespace od3d

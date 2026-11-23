@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <Rect16.h>
 #include <span>
@@ -28,7 +29,21 @@ inline constexpr Color text_muted = Color::from_raw(0xA9ADB3); ///< sous-titres,
 inline constexpr Color text_faint = Color::from_raw(0x6B6F75); ///< éléments désactivés
 inline constexpr Color warning = Color::from_raw(0xF2C14E);
 inline constexpr Color danger = COLOR_RED_ALERT; ///< #E74626
-/// Voile noir à 55 % sur le fond (× 0,45) : fond givré derrière les dialogues (frost_od3d.hpp), coins de leurs cadres
+inline constexpr Color text_tertiary = Color::from_raw(0x7D8188); ///< légendes, « stable », PA connu
+inline constexpr Color text_danger = Color::from_raw(0xFF8A73);
+inline constexpr Color choice = Color::from_raw(0x3A2618); ///< fond d'un choix sélectionné, ligne réglée à la molette
+inline constexpr Color target = Color::from_raw(0x5B5F66); ///< ligne de cible des courbes, contour « Annuler »
+inline constexpr Color handle = Color::from_raw(0x5B5B5B); ///< poignée de la fiche, cadre « MMU n » de l'assistant
+inline constexpr Color grid = Color::from_raw(0x2C3036); ///< grille de la carte du plateau
+inline constexpr Color crosshair = Color::from_raw(0x824223); ///< #F8651B à 45 % sur la carte du plateau
+inline constexpr Color filament_green = Color::from_raw(0x2E9E5B); ///< vert des filaments proposés, mesure réussie
+// Courbes et jauges : une couleur par rôle
+inline constexpr Color curve_blue = Color::from_raw(0x4FA3F7);
+inline constexpr Color curve_green = Color::from_raw(0x5FBF6A);
+inline constexpr Color curve_grey = Color::from_raw(0x8A8E94);
+inline constexpr Color band_green = Color::from_raw(0x2E5A3A); ///< plage conseillée sur une jauge
+inline constexpr Color band_tint = Color::from_raw(0x2B3A30); ///< plage conseillée sous une courbe
+/// Voile uni derrière nos fenêtres (frost_od3d.hpp) : le fond × 0,45, le noir à 55 % de la maquette
 inline constexpr Color veil = Color::from_raw(0x0C0C0D);
 
 /// Corps d'un élément ciblé par la molette : un ton plus clair, sans anneau blanc (retour de l'utilisateur, 21/11).
@@ -45,6 +60,7 @@ inline Color focused(Color c) {
 inline constexpr Color tile_heat = Color::from_raw(0x4A2C1E);
 inline constexpr Color tile_filament = Color::from_raw(0x1F3652);
 inline constexpr Color tile_motion = Color::from_raw(0x463B1E);
+inline constexpr Color tile_network = Color::from_raw(0x1F4436);
 
 // Géométrie (SPEC_G.md §1.3, §1.4, §1.11)
 inline constexpr uint16_t screen_w = 480;
@@ -61,7 +77,7 @@ inline constexpr uint8_t radius_big = radius; ///< grandes cartes : même arrond
 inline constexpr Rect16 header = { 0, 0, screen_w, 40 }; ///< en-tête : retour, titre, températures, réseau, heure
 inline constexpr Rect16 header_line = { 0, 40, screen_w, 1 };
 inline constexpr Rect16 back_touch = { 0, 0, 46, 44 }; ///< zone tactile du retour : 46 × 44, plus grande que son disque
-/// Sous l'en-tête : ce que couvrent nos dialogues (l'en-tête reste vivant au-dessus) et ce qu'ils givrent autour d'eux
+/// Sous l'en-tête : ce que couvrent nos fenêtres et leur voile (l'en-tête reste vivant au-dessus)
 inline constexpr Rect16 below_header = Rect16::fromLTRB(0, header_line.Bottom() + 1, screen_w, screen_h);
 inline constexpr Rect16 tab_line = { 0, 275, screen_w, 1 };
 inline constexpr Rect16 tab_bar_rect = { 0, 276, screen_w, 44 };
@@ -177,6 +193,97 @@ void paint_top_down(Rect16 area, std::span<const Rect16> rects, Draw &&draw, Fil
         fill(gap);
     });
     draw_above(INT16_MAX);
+}
+
+/// Carré de la distance de r au point p (0 dedans)
+constexpr int distance2(Rect16 r, point_i16_t p) {
+    const int dx = std::max({ r.Left() - p.x, 0, p.x - r.Right() });
+    const int dy = std::max({ r.Top() - p.y, 0, p.y - r.Bottom() });
+    return dx * dx + dy * dy;
+}
+
+inline constexpr int wave_step = 48; ///< largeur d'un anneau de la peinture en onde, en px
+
+/// Comme paint_top_down, mais en onde depuis le point from (l'élément touché) : par anneaux de wave_step px, les
+/// éléments qu'il atteint puis les bandes du fond qui y sont. On anime l'ordre de peinture, pas le contenu : chaque pixel
+/// est peint une fois, sans un octet de plus, et l'animation dure le temps du dessin.
+template <class Draw, class Fill>
+void paint_from(Rect16 area, std::span<const Rect16> rects, point_i16_t from, Draw &&draw, Fill &&fill) {
+    if (rects.size() > max_gap_rects) {
+        paint_top_down(area, rects, draw, fill);
+        return;
+    }
+    std::array<bool, max_gap_rects> done {};
+    const auto draw_one = [&](const auto &self, size_t k) -> void {
+        for (size_t i = 0; i < k; ++i) {
+            if (!done[i] && rects[i].HasIntersection(rects[k])) {
+                self(self, i); // un élément qui en chevauche un plus ancien est peint après lui
+            }
+        }
+        done[k] = true;
+        draw(k);
+    };
+    const int far_x = std::max(from.x - area.Left(), area.Right() - from.x), far_y = std::max(from.y - area.Top(), area.Bottom() - from.y);
+    const int far = far_x * far_x + far_y * far_y; // le coin de area le plus loin
+    for (int ring = 0, inner = -1; inner < far; inner = ring * ring, ring += wave_step) {
+        for (size_t i = 0; i < rects.size(); ++i) {
+            if (!done[i] && distance2(rects[i], from) <= ring * ring) {
+                draw_one(draw_one, i);
+            }
+        }
+        for_each_gap(area, rects, [&](Rect16 gap) {
+            if (const int d = distance2(gap, from); d > inner && d <= ring * ring) {
+                fill(gap);
+            }
+        });
+    }
+    for (size_t i = 0; i < rects.size(); ++i) {
+        if (!done[i]) {
+            draw_one(draw_one, i); // hors de area
+        }
+    }
+}
+
+/// Rectangle arrondi rect (coins de rayon r, contour de bw px ≤ r) peint autour de parts, que leur propriétaire repeint
+/// lui-même en entier : plain(morceau, true) pour l'intérieur uni, plain(morceau, false) pour les traits droits du
+/// contour, corner(morceau) pour ce qui reste des 4 carrés r × r des coins (lissés). Chaque pixel de rect hors de parts
+/// une fois. Trop de parts : rect entier (le contenu se peint ensuite par-dessus, comme avant).
+template <class Plain, class Corner>
+void for_each_frame_piece(Rect16 rect, uint8_t r, uint8_t bw, std::span<const Rect16> parts, Plain &&plain, Corner &&corner) {
+    r = uint8_t(std::min<int>({ r, rect.Width() / 2, rect.Height() / 2 }));
+    bw = std::min(bw, r);
+    if (parts.size() + 8 > max_gap_rects) {
+        parts = {};
+    }
+    const int16_t l = rect.Left(), t = rect.Top(), w = rect.Width(), h = rect.Height();
+    const Rect16 squares[] = { { l, t, r, r }, { int16_t(l + w - r), t, r, r }, { l, int16_t(t + h - r), r, r }, { int16_t(l + w - r), int16_t(t + h - r), r, r } };
+    const Rect16 lines[] = { { int16_t(l + r), t, uint16_t(w - 2 * r), bw }, { int16_t(l + r), int16_t(t + h - bw), uint16_t(w - 2 * r), bw },
+        { l, int16_t(t + r), bw, uint16_t(h - 2 * r) }, { int16_t(l + w - bw), int16_t(t + r), bw, uint16_t(h - 2 * r) } };
+    std::array<Rect16, max_gap_rects> keep;
+    size_t n = std::copy(parts.begin(), parts.end(), keep.begin()) - keep.begin();
+    for (const Rect16 &k : squares) {
+        keep[n++] = k;
+    }
+    for (const Rect16 &k : lines) {
+        keep[n++] = k;
+    }
+    for_each_gap(rect, std::span<const Rect16>(keep.data(), n), [&](Rect16 p) { plain(p, true); });
+    for (const Rect16 &line : lines) {
+        if (!line.IsEmpty()) {
+            for_each_gap(line, parts, [&](Rect16 p) { plain(p, false); });
+        }
+    }
+    for (const Rect16 &square : squares) {
+        if (!square.IsEmpty()) {
+            for_each_gap(square, parts, corner);
+        }
+    }
+}
+
+/// Degrés entiers affichés pour la mesure t, quand shown est à l'écran : l'arrondi ne change qu'au-delà de 0,7 °C
+/// d'écart (hystérésis de 0,2 °C autour de x,5), sinon les chiffres sautaient à chaque oscillation de la mesure
+inline int16_t held_degrees(float t, int16_t shown) {
+    return std::abs(t - shown) < 0.7f ? shown : static_cast<int16_t>(std::lround(t));
 }
 
 } // namespace od3d::style

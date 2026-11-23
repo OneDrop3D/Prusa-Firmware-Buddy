@@ -37,10 +37,10 @@ namespace {
     static_assert(info_rect.Top() > spectrum_rect.Bottom() && style::inside(style::content, info_rect));
     static_assert(style::inside(style::content, style::with_ring(action_body)) && style::with_ring(action_body).Left() > info_rect.Right());
 
-    constexpr Color ok_green = Color::from_raw(0x5FBF6A);
-    constexpr Color band_green = Color::from_raw(0x2E5A3A); ///< plage de Prusa sur la jauge
-    constexpr Color band_tint = Color::from_raw(0x2B3A30); ///< plage de Prusa sous la courbe
-    constexpr Color curve_b = Color::from_raw(0x4FA3F7);
+    constexpr Color ok_green = style::curve_green;
+    constexpr Color band_green = style::band_green; ///< plage de Prusa sur la jauge
+    constexpr Color band_tint = style::band_tint; ///< plage de Prusa sous la courbe
+    constexpr Color curve_b = style::curve_blue;
     constexpr Color curve_colors[belts::belt_count] = { style::accent, curve_b };
 
     constexpr uint8_t tag_action = 0;

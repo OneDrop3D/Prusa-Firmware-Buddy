@@ -269,8 +269,8 @@ MI_OD3D_NUMBER::MI_OD3D_NUMBER(const string_view_utf8 &label, const img::Resourc
     SetIconId(icon);
 }
 
-void MI_OD3D_NUMBER::click(IWindowMenu &) {
-    if (const auto v = ValueEditor::exec(_(editor_label), get(), config, nullptr, unit)) {
+void MI_OD3D_NUMBER::click(IWindowMenu &menu) {
+    if (const auto v = ValueEditor::exec(_(editor_label), get(), config, nullptr, unit, ValueEditor::row(menu, *this))) {
         set(static_cast<uint8_t>(std::lround(config.clamp(*v))));
         Loop();
     }

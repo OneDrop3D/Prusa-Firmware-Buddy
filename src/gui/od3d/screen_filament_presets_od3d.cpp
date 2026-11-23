@@ -182,10 +182,10 @@ void MI_PRESET_FIELD::update_label() {
 }
 
 // Vaut tout de suite pour la suite (préchauffage, chargement, impression suivante) ; une valeur en cours ne change pas
-void MI_PRESET_FIELD::click(IWindowMenu &) {
+void MI_PRESET_FIELD::click(IWindowMenu &menu) {
     const fp::Values now = current_values();
     const NumericInputConfig config = field_config(field, now);
-    const auto v = ValueEditor::exec(_(field_names[field]), now[field] == fp::none ? 0 : now[field], config);
+    const auto v = ValueEditor::exec(_(field_names[field]), now[field] == fp::none ? 0 : now[field], config, nullptr, nullptr, ValueEditor::row(menu, *this));
     if (!v) {
         return;
     }

@@ -9,6 +9,9 @@
 #include <numeric_input_config.hpp>
 #include <optional>
 
+class IWindowMenu;
+class IWindowMenuItem;
+
 namespace od3d {
 
 /// Molette : un pas par cran, clic = OK, appui long = Annuler. Toucher : −, +, la barre (valeur sous le doigt, qui peut
@@ -26,6 +29,9 @@ public:
     ///             le centre, sauf si l'appelant donne le rect de sa ligne)
     /// @returns la valeur choisie, ou nullopt si l'éditeur a été fermé sans OK
     static std::optional<float> exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply = nullptr, const char *unit = nullptr, Rect16 from = {});
+
+    /// Rect de la ligne de item dans menu (le from d'exec : la feuille s'ouvre depuis elle) ; vide hors de l'écran
+    static Rect16 row(const IWindowMenu &menu, const IWindowMenuItem &item);
 
 private:
     ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit, Rect16 from);

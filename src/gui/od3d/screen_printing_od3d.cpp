@@ -151,13 +151,11 @@ void PrintingButton::show_value(const string_view_utf8 &caption, const char *val
 }
 
 void PrintingButton::unconditionalDraw() {
-    if (!face.danger) {
-        Card::unconditionalDraw();
+    if (face.danger && !HasValidBackground()) {
+        draw_card(style::danger, 2); // bouton danger (§1.5) : contour 2 px #E74626 autour du corps, d'une passe
         return;
     }
-    // Bouton danger (§1.5) : contour 2 px #E74626 autour du corps, d'une passe
-    draw_frame(GetRect(), back, style::danger, fill(), radius, 2);
-    draw_content(body());
+    Card::unconditionalDraw();
 }
 
 void PrintingButton::draw_content(Rect16 body) {
@@ -172,10 +170,10 @@ void PrintingButton::draw_content(Rect16 body) {
         draw_icon({ int16_t(body.Left() + (body.Width() - face.icon->w) / 2), int16_t(top.Top()) }, *face.icon, fill(), face.active ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
     } else if (face.glyph) {
         draw_text(top, string_view_utf8::MakeCPUFLASH(face.glyph), Font::small, fg, fill(), Align_t::Center());
-    } else if (face.danger) {
-        display::draw_rounded_rect(Rect16(body.Left() + (body.Width() - 14) / 2, top.Top() + 1, 14, 14), fill(), style::danger, 3, MIC_ALL_CORNERS);
+    } else if (const Rect16 square(body.Left() + (body.Width() - 14) / 2, top.Top() + 1, 14, 14); face.danger && !noted(square)) {
+        display::draw_rounded_rect(square, fill(), style::danger, 3, MIC_ALL_CORNERS);
     }
-    const Color label_fg = !face.active ? style::text_faint : (face.danger ? Color::from_raw(0xFF8A73) : style::text);
+    const Color label_fg = !face.active ? style::text_faint : (face.danger ? style::text_danger : style::text);
     draw_text(Rect16(top.Left(), body.Top() + 33, top.Width(), height(Font::small)), face.text, Font::small, label_fg, fill(), Align_t::Center());
 }
 

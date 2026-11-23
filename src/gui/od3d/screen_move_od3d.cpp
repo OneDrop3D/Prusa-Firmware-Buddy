@@ -107,10 +107,10 @@ namespace {
     }
 
     constexpr Color map_back = style::thumb_back; ///< #22252A de la maquette : même ton que le fond des vignettes
-    constexpr Color map_grid = Color::from_raw(0x2C3036);
-    constexpr Color crosshair_color = Color::from_raw(0x824223); ///< #F8651B à 45 % sur le fond de la carte
-    constexpr Color hint_color = Color::from_raw(0x7D8188);
-    constexpr Color selected_back = Color::from_raw(0x3A2618); ///< choix sélectionné (SPEC_G.md §1.1)
+    constexpr Color map_grid = style::grid;
+    constexpr Color crosshair_color = style::crosshair; ///< #F8651B à 45 % sur le fond de la carte
+    constexpr Color hint_color = style::text_tertiary;
+    constexpr Color selected_back = style::choice; ///< choix sélectionné (SPEC_G.md §1.1)
 
     // ---- Pas ----
 
@@ -341,15 +341,22 @@ void MoveKey::draw_content(Rect16 body) {
         draw_icon({ int16_t(cx - 8), int16_t(body.Top() + (body.Height() - 16) / 2) }, img::home_full_16x16, fill());
         return;
     }
+    // Le chevron (des traits) avec le carré de son fond : un morceau du contenu, le corps est peint autour (draw_card)
+    const auto chevron = [&](point_i16_t c) {
+        if (const Rect16 box(c.x - 7, c.y - 7, 15, 15); !noted(box)) {
+            display::fill_rect(box, fill());
+            draw_chevron(c, arrow, dimmed ? style::text_faint : arrow_color);
+        }
+    };
     if (arrow >= Arrow::up_left) {
-        draw_chevron({ cx, int16_t(body.Top() + body.Height() / 2) }, arrow, dimmed ? style::text_faint : arrow_color);
+        chevron({ cx, int16_t(body.Top() + body.Height() / 2) });
         return;
     }
     // Chevron (18 px) et libellé (16 px) centrés ensemble, 4 px entre eux
     const int16_t top = body.Top() + (body.Height() - 38) / 2;
     const int16_t arrow_top = arrow_below ? top + 20 : top;
     const int16_t label_top = arrow_below ? top : top + 22;
-    draw_chevron({ cx, int16_t(arrow_top + 9) }, arrow, dimmed ? style::text_faint : arrow_color);
+    chevron({ cx, int16_t(arrow_top + 9) });
     draw_text(Rect16(body.Left() + 1, label_top, body.Width() - 2, height(Font::small)), label, Font::small, dimmed ? style::text_faint : style::text_strong, fill(), Align_t::Center());
 }
 
@@ -362,9 +369,10 @@ void StepChip::unconditionalDraw() {
     const bool chosen = index == step_index;
     const Color base = chosen ? selected_back : style::surface;
     const Color bg = IsFocused() ? style::focused(base) : base;
-    draw_frame(GetRect(), back, style::accent, bg, radius, chosen ? 2 : 0);
     const Rect16 b = body();
-    draw_text(Rect16(b.Left() + 2, b.Top() + (b.Height() - height(Font::small)) / 2, b.Width() - 4, height(Font::small)), string_view_utf8::MakeCPUFLASH(step_labels[index]), Font::small, style::text_strong, bg, Align_t::Center());
+    const Rect16 text(b.Left() + 2, b.Top() + (b.Height() - height(Font::small)) / 2, b.Width() - 4, height(Font::small));
+    draw_frame(GetRect(), back, style::accent, bg, radius, chosen ? 2 : 0, std::span<const Rect16>(&text, 1)); // autour du libellé
+    draw_text(text, string_view_utf8::MakeCPUFLASH(step_labels[index]), Font::small, style::text_strong, bg, Align_t::Center());
 }
 
 // ---- Textes ----

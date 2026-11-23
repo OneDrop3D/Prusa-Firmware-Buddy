@@ -55,7 +55,13 @@ void WiSpin::event(WindowMenuItemEventContext &ctx) {
 #if HAS_TOUCH()
     if (ctx.event.value_maybe<gui_event::TouchEvent>()) {
         // Toute la ligne ouvre l'éditeur (chez Prusa, la valeur seule : toucher le libellé ne faisait rien)
-        if (const auto r = NumericEditor::exec(GetLabel(), value(), config_)) {
+    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+        // OneDrop3D : la feuille s'ouvre depuis la ligne touchée
+        const auto r = NumericEditor::exec(GetLabel(), value(), config_, nullptr, nullptr, ctx.menu ? NumericEditor::row(*ctx.menu, *this) : Rect16());
+    #else
+        const auto r = NumericEditor::exec(GetLabel(), value(), config_);
+    #endif
+        if (r) {
             set_value(*r);
             OnClick();
         }

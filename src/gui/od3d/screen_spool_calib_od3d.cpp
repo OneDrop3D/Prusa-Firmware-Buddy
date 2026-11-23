@@ -42,7 +42,7 @@ namespace {
     };
 
     constexpr Color color_points = style::text_soft;
-    constexpr Color color_reference = Color::from_raw(0x8A8E94);
+    constexpr Color color_reference = style::curve_grey;
     constexpr Color color_result = style::accent;
     constexpr Color color_threshold = style::danger;
 

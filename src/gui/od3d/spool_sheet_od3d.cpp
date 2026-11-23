@@ -95,7 +95,7 @@ namespace {
         return Rect16(222, y + 6, 36, 4);
     }
     void draw_handle(int16_t y) {
-        display::draw_rounded_rect(handle_rect(y), style::surface, Color::from_raw(0x5B5B5B), 2, MIC_ALL_CORNERS);
+        display::draw_rounded_rect(handle_rect(y), style::surface, style::handle, 2, MIC_ALL_CORNERS);
     }
 
     /// Haut de la fiche : poignée, bobine, « Emplacement n · matière », état ; rien d'actif

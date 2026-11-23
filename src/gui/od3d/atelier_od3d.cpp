@@ -2,6 +2,7 @@
 #include "atelier_od3d.hpp"
 
 #include <algorithm>
+#include <utility>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <cstdio>
@@ -56,7 +57,7 @@ void Button::enable(bool set) {
 
 Button::Colors Button::colors() const {
     // Couleurs de la maquette (SPEC_G.md §1.5)
-    static constexpr Color brown = Color::from_raw(0x3A2618);
+    static constexpr Color brown = style::choice;
     Colors c { back, back, style::text_soft, 0 };
     switch (look) {
     case Look::primary:
@@ -93,9 +94,36 @@ Button::Colors Button::colors() const {
 }
 
 Rect16 Button::draw_frame(Rect16 b, const Colors &c) {
-    // Corps et contour d'une passe, marge comprise (le rect englobe la marge)
-    od3d::draw_frame(style::with_ring(b), back, c.border, c.fill, radius, c.border_w);
+    // Corps et contour d'une passe, marge comprise (le rect englobe la marge), autour du contenu ; rien pendant le relevé
+    // (noted() d'un rect vide : vrai pendant un Record)
+    if (!noted(Rect16())) {
+        od3d::draw_frame(style::with_ring(b), back, c.border, c.fill, radius, c.border_w, around());
+    }
     return Rect16(b.Left() + c.border_w, b.Top() + c.border_w, b.Width() - 2 * c.border_w, b.Height() - 2 * c.border_w);
+}
+
+namespace {
+    const Parts *button_parts = nullptr; ///< contenu du bouton qui se dessine, relevé par Button::draw()
+} // namespace
+
+void Button::draw() {
+    if (!IsInvalid() || !IsVisible() || GetRect().IsEmpty()) {
+        return;
+    }
+    // Deux passes : le relevé de ce que le contenu peint lui-même (draw_frame ne peint rien), puis le corps autour de lui
+    // et le contenu. Chaque pixel une fois : le texte ne clignote plus au focus.
+    Parts parts;
+    {
+        Record record(parts);
+        unconditionalDraw();
+    }
+    const Parts *was = std::exchange(button_parts, &parts);
+    unconditionalDraw();
+    button_parts = was;
+}
+
+std::span<const Rect16> Button::around() {
+    return button_parts ? button_parts->span() : std::span<const Rect16>();
 }
 
 void Button::unconditionalDraw() {
@@ -142,8 +170,9 @@ void draw_label(Rect16 area, const string_view_utf8 &label, const img::Resource 
         x += icon_w;
     }
     const uint16_t h = std::min<uint16_t>(area.Height(), 2 * f.h);
-    render_text_align(Rect16(x, area.Top() + (area.Height() - h) / 2, area.Left() + area.Width() - x, h), label, font, bg, fg, { 0, 0, 0, 0 },
-        text_flags(icon ? Align_t::LeftCenter() : Align_t::Center(), is_multiline::yes, check_overflow::no));
+    if (const Rect16 text(x, area.Top() + (area.Height() - h) / 2, area.Left() + area.Width() - x, h); !noted(text)) {
+        render_text_align(text, label, font, bg, fg, { 0, 0, 0, 0 }, text_flags(icon ? Align_t::LeftCenter() : Align_t::Center(), is_multiline::yes, check_overflow::no));
+    }
 }
 
 namespace atelier {
@@ -156,7 +185,7 @@ namespace atelier {
         { Color::from_raw(0xD7263D), N_("red %s") },
         { Color::from_raw(0xF8651B), N_("orange %s") },
         { Color::from_raw(0xF2C14E), N_("yellow %s") },
-        { Color::from_raw(0x2E9E5B), N_("green %s") },
+        { style::filament_green, N_("green %s") },
         { Color::from_raw(0x2F6FD6), N_("blue %s") },
     } };
 

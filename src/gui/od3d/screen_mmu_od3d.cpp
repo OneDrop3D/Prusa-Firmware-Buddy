@@ -160,10 +160,12 @@ void ShelfSpool::unconditionalDraw() {
     const Rect16 b = shelf_card(r, slot.loaded);
     const uint16_t card_h = b.Height(); // 130 sur une rangée, ~60 sur deux
     const Rect16 outer = style::with_ring(b);
-    display::fill_rect(slot.loaded ? Rect16(r.Left(), outer.Bottom() + 1, r.Width(), lift) : Rect16(r.Left(), r.Top(), r.Width(), lift), style::screen);
     const Color base = slot.loaded ? style::secondary : style::surface;
     const Color fill = IsFocused() ? style::focused(base) : base;
-    draw_body(outer, fill, style::screen, radius);
+    if (!noted(Rect16())) { // pas pendant le relevé du contenu (Button::draw)
+        display::fill_rect(slot.loaded ? Rect16(r.Left(), outer.Bottom() + 1, r.Width(), lift) : Rect16(r.Left(), r.Top(), r.Width(), lift), style::screen);
+        od3d::draw_frame(outer, style::screen, fill, fill, radius, 0, around());
+    }
 
     const bool enabled = IsEnabled();
     // 2e ligne : « Chargé » en orange, « Vide », le reste, ou le nom de la couleur choisie dans l'assistant
@@ -197,8 +199,8 @@ void ShelfSpool::unconditionalDraw() {
         enabled ? style::text_strong : style::text_faint, fill, Align_t::Center());
     draw_text(Rect16(b.Left(), b.Top() + 94, b.Width(), height(Font::small)), state, Font::small, enabled ? state_color : style::text_faint, fill, Align_t::Center());
 
-    if (slot.loaded) {
-        display::draw_rounded_rect(Rect16(b.Left() + (b.Width() - 36) / 2, b.Top() + shelf_card_h - 4, 36, 3), fill, style::accent, 2, MIC_ALL_CORNERS);
+    if (const Rect16 bar(b.Left() + (b.Width() - 36) / 2, b.Top() + shelf_card_h - 4, 36, 3); slot.loaded && !noted(bar)) {
+        display::draw_rounded_rect(bar, fill, style::accent, 2, MIC_ALL_CORNERS);
     }
 }
 
@@ -219,8 +221,9 @@ void Shortcut::unconditionalDraw() {
     draw_frame(b, c);
     const bool enabled = IsEnabled() && !greyed;
     const Rect16 t(b.Left() + 8, b.Top() + 8, 24, 24);
-    display::draw_rounded_rect(t, c.fill, tile, style::radius_small, MIC_ALL_CORNERS);
-    draw_icon({ int16_t(t.Left() + 4), int16_t(t.Top() + 4) }, *icon, tile, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+    const Rect16 glyph(t.Left() + 4, t.Top() + 4, icon->w, icon->h);
+    draw_rounded_frame(t, c.fill, tile, tile, style::radius_small, 0, std::span<const Rect16>(&glyph, 1)); // la tuile autour de l'icône
+    draw_icon({ glyph.Left(), glyph.Top() }, *icon, tile, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
     const int16_t x = b.Left() + 40;
     const uint16_t w = b.Left() + b.Width() - 4 - x;
     draw_text(Rect16(x, b.Top() + 4, w, height(Font::small)), label, Font::small, enabled ? style::text : style::text_faint, c.fill);

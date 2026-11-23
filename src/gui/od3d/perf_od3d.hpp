@@ -67,6 +67,9 @@ inline bool merge(Row &last, const Row &next, uint32_t end_ms) {
 /// Entrée reçue (molette ou toucher) : la latence court jusqu'à la fin du prochain dessin
 void input(Cause cause);
 
+/// Entrées reçues depuis le démarrage : une animation qui en voit une de plus se termine aussitôt
+uint32_t inputs();
+
 /// L'entrée n'a rien demandé à redessiner : pas de latence à mesurer
 void drop_input();
 

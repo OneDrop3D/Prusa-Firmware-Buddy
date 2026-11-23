@@ -46,10 +46,10 @@ namespace {
         tag_calib,
     };
 
-    constexpr Color color_low = Color::from_raw(0x4FA3F7); ///< K le plus bas : le bleu des autres courbes (amortissement, courroies, dilatation)
+    constexpr Color color_low = style::curve_blue; ///< K le plus bas : le bleu des autres courbes (amortissement, courroies, dilatation)
     constexpr Color color_best = style::accent;
     constexpr Color color_high = style::danger;
-    constexpr Color color_command = Color::from_raw(0x8A8E94);
+    constexpr Color color_command = style::curve_grey;
 
     /// Courbes exportées sur la clé : choix gardé jusqu'au redémarrage (réglé sur l'écran Débit/T°)
     bool csv_on = true;

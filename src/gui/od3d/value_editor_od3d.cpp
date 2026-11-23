@@ -13,6 +13,7 @@
 #include <cstring>
 #include <display.hpp>
 #include <event/knob_event.hpp>
+#include <i_window_menu.hpp>
 #include <dialog_numeric_input.hpp>
 #include <ScreenHandler.hpp>
 #include <option/has_touch.h>
@@ -66,6 +67,10 @@ namespace {
 // Ouvert au bout d'une longue chaîne d'événements (toucher d'une ligne WiSpin, pile de l'interface : 6 Ko) : il ne doit
 // pas prendre plus de pile que le clavier numérique de Prusa qu'il remplace (UI-15)
 static_assert(sizeof(ValueEditor) <= sizeof(DialogNumericInput));
+
+Rect16 ValueEditor::row(const IWindowMenu &menu, const IWindowMenuItem &item) {
+    return menu.slot_rect(menu.index_to_slot(menu.item_index(&item)).value_or(-1));
+}
 
 std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit, Rect16 from) {
     std::optional<float> chosen;

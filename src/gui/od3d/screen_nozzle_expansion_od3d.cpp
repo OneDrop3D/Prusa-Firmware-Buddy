@@ -70,7 +70,7 @@ namespace {
     static_assert(style::inside(style::content, style::with_ring(button_body(1))));
     static_assert(chart_rect.Height() <= INT8_MAX);
 
-    constexpr Color back_color = Color::from_raw(0x4FA3F7); ///< retour (comme Y dans l'amortissement)
+    constexpr Color back_color = style::curve_blue; ///< retour (comme Y dans l'amortissement)
     constexpr float chart_t0 = 160.f, chart_t1 = 270.f; ///< axe des températures du graphique [°C]
     constexpr float at_c = 250.f; ///< écart montré à cette température (PETG, ABS)
 

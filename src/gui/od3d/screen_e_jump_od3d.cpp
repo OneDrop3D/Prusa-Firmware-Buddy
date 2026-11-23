@@ -35,7 +35,7 @@ namespace {
         tag_clear,
     };
 
-    constexpr Color ok_green = Color::from_raw(0x5FBF6A);
+    constexpr Color ok_green = style::curve_green;
 
     bool loaded(uint8_t slot) {
         return Slot::read(slot).loaded;

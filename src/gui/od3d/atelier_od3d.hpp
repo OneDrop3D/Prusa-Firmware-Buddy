@@ -38,8 +38,12 @@ public:
     const uint8_t tag;
 
 protected:
+    void draw() override; ///< unconditionalDraw() deux fois : le relevé du contenu, puis le corps autour et le contenu
     void unconditionalDraw() override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+
+    /// Ce que le contenu peint lui-même (relevé par draw()) : le corps se peint autour
+    static std::span<const Rect16> around();
 
     /// Couleurs du corps et du texte selon l'aspect et l'état (inactif : texte éteint)
     struct Colors {
@@ -50,7 +54,8 @@ protected:
     };
     Colors colors() const;
 
-    /// Corps (plus clair avec le focus) et contour aux couleurs de l'aspect, marge comprise ; rend l'intérieur du contour
+    /// Corps (plus clair avec le focus) et contour aux couleurs de l'aspect, marge comprise, autour du contenu ; rend
+    /// l'intérieur du contour
     Rect16 draw_frame(Rect16 body, const Colors &c);
 
     string_view_utf8 label;

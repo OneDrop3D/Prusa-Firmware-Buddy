@@ -40,7 +40,7 @@ namespace {
     static_assert(info_rect.Top() > curves_back_rect.Bottom() && style::with_ring(button_body(0)).Top() > info_rect.Bottom());
     static_assert(style::inside(style::content, style::with_ring(button_body(2))));
 
-    constexpr Color curve_y = Color::from_raw(0x4FA3F7);
+    constexpr Color curve_y = style::curve_blue;
     constexpr Color curve_colors[damping::axis_count] = { style::accent, curve_y };
 
     constexpr uint8_t tag_action = 0;

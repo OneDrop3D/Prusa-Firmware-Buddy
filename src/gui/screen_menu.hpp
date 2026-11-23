@@ -45,7 +45,7 @@ protected:
     void unconditionalDraw() override; ///< le fond entre eux d'abord, pour les écrans qui appellent window_frame_t::draw()
 
 protected:
-    /// OneDrop3D (interface G) : en-tête G, sans retour (c'est la ligne « Retour » de la liste) ; la barre d'onglets
+    /// OneDrop3D (interface G) : en-tête G, avec son retour et la ligne « Retour » de la liste ; la barre d'onglets
     /// remplace le pied de page
     od3d::MenuHeader header;
 

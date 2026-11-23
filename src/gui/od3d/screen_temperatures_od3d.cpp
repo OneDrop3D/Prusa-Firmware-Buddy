@@ -48,8 +48,6 @@ namespace {
     static_assert(heater_body(0).Bottom() + 2 * style::ring < fan_body(0).Top() && fan_body(0).Bottom() + 2 * style::ring < preheat_body.Top());
     static_assert(preheat_body.Right() + 1 + 6 == presets_body.Left() && presets_body.Right() + 1 + 6 == cooldown_body.Left() && cooldown_body.Right() + 1 == style::screen_w - style::margin);
 
-    constexpr Color text_dim = Color::from_raw(0x7D8188); ///< « stable »
-    constexpr Color target_line = Color::from_raw(0x5B5F66); ///< cible en pointillés sur les courbes
     constexpr uint32_t sample_ms = 2000;
 
     const img::Resource *const heater_icons[] = { &img::nozzle_16x16, &img::heatbed_16x16, &img::enclosure_16x16 };
@@ -165,6 +163,9 @@ namespace {
     /// Courbe de la dernière minute : trait orange 2 px, cible en pointillés. Une image d'une passe : la courbe ne
     /// s'efface pas avant d'être redessinée (elle clignotait toutes les 2 s)
     void draw_graph(Rect16 r, const int16_t *values, size_t count, int16_t target, Color bg) {
+        if (noted(r)) {
+            return; // relevé de la carte (Card::draw_card)
+        }
         int16_t lo = *std::min_element(values, values + count);
         int16_t hi = *std::max_element(values, values + count);
         if (target > 0) {
@@ -201,7 +202,7 @@ namespace {
             if (x < max_w && y >= spans[x].first && y <= spans[x].second + 1) {
                 return style::accent; // 2 px d'épaisseur
             }
-            return (y == target_y && x % 4 < 2) ? target_line : bg;
+            return (y == target_y && x % 4 < 2) ? style::target : bg;
         });
     }
 
@@ -222,17 +223,15 @@ HeaterCard::Reading HeaterCard::read(Heater heater) {
     Reading r;
     switch (heater) {
     case Heater::nozzle:
-        r.current = static_cast<int16_t>(std::lround(marlin_vars().active_hotend().temp_nozzle.get()));
+        r.current = Temps::read().nozzle; // l'arrondi à hystérésis de l'en-tête : les mêmes chiffres, sans sautiller
         r.target = marlin_vars().active_hotend().target_nozzle.get();
         break;
     case Heater::bed:
-        r.current = static_cast<int16_t>(std::lround(marlin_vars().temp_bed.get()));
+        r.current = Temps::read().bed;
         r.target = static_cast<int16_t>(marlin_vars().target_bed.get());
         break;
     case Heater::chamber:
-        if (const auto t = buddy::chamber().current_temperature()) {
-            r.current = static_cast<int16_t>(std::lround(static_cast<float>(*t)));
-        }
+        r.current = Temps::read().chamber;
         r.target = static_cast<int16_t>(std::lround(static_cast<float>(buddy::chamber().effective_target_temperature().value_or(0))));
         break;
     }
@@ -270,7 +269,7 @@ void HeaterCard::draw_content(Rect16 body) {
     if (reading.current >= 0 && reading.target > 0) {
         if (std::abs(reading.current - reading.target) <= 1) {
             state = _("stable");
-            state_color = text_dim;
+            state_color = style::text_tertiary;
         } else {
             state = reading.current < reading.target ? _("heating") : _("cooling");
         }

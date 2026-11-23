@@ -30,6 +30,7 @@ namespace {
     uint32_t begin_ms = 0;
     Cause input_cause = Cause::none;
     uint32_t input_us = 0;
+    uint32_t input_count = 0;
 
     uint16_t sat16(uint32_t v) {
         return uint16_t(std::min<uint32_t>(v, UINT16_MAX));
@@ -41,7 +42,12 @@ namespace {
 
 } // namespace
 
+uint32_t inputs() {
+    return input_count;
+}
+
 void input(Cause cause) {
+    ++input_count;
     if (input_cause == Cause::none) { // la première entrée pas encore dessinée : la latence part d'elle
         input_cause = cause;
         input_us = ticks_us();

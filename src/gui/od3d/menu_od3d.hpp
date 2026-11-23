@@ -24,17 +24,15 @@ inline constexpr Rect16 list_rect = { style::margin, style::top, 470, 5 * 40 + l
 static_assert(style::inside(style::content, list_rect));
 
 /// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible.
-/// Sans retour (retour de l'utilisateur, 23/11 : « dans les menus, en ligne ») : le retour est la ligne « Retour » de
-/// la liste, que le balayage touche aussi (WindowMenu). has_back : l'appui long ferme l'écran (ScreenMenuBase_) ; false
-/// dans un dialogue et au 1er démarrage (langue, configuration de l'imprimante).
+/// Deux façons de revenir (décision du 23/11) : le retour de l'en-tête, au style de la ligne « ‹ Retour » de la liste,
+/// et cette ligne, que le balayage touche aussi (WindowMenu). has_back : le retour de l'en-tête, et l'appui long ferme
+/// l'écran (ScreenMenuBase_) ; false dans un dialogue et au 1er démarrage (langue, configuration de l'imprimante).
 class MenuHeader {
 public:
     MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back = true, bool compact = false);
 
     void SetText(const string_view_utf8 &title);
-    void show_back(bool show) {
-        back = show;
-    }
+    void show_back(bool show);
     bool back_shown() const {
         return back;
     }

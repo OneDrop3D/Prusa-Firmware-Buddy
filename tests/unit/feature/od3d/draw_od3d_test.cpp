@@ -499,3 +499,101 @@ TEST_CASE("dessin d'une passe : de haut en bas, chaque élément avec le fond à
         }
     }
 }
+
+TEST_CASE("dessin en onde : depuis l'élément touché, chaque élément et chaque pixel du fond une fois") {
+    constexpr Rect16 area = { 0, 0, 100, 60 };
+    const std::array<Rect16, 5> rects { {
+        { 0, 0, 100, 10 }, // en-tête
+        { 10, 30, 30, 20 },
+        { 10, 14, 30, 12 }, // le plus loin du point
+        { 50, 12, 40, 40 }, // contient le point
+        { 52, 10, 10, 10 }, // chevauche le précédent, plus récent : peint après lui
+    } };
+    constexpr point_i16_t from { 80, 50 };
+    std::vector<int> order;
+    std::vector<int> fill_dist; // distance² de chaque bande du fond, dans l'ordre
+    std::array<std::array<int, 100>, 60> painted {};
+    style::paint_from(
+        area, rects, from, [&](size_t i) { order.push_back(int(i)); },
+        [&](Rect16 r) {
+            fill_dist.push_back(style::distance2(r, from));
+            for (int y = r.Top(); y <= r.Bottom(); ++y) {
+                for (int x = r.Left(); x <= r.Right(); ++x) {
+                    ++painted[y][x];
+                }
+            }
+        });
+
+    // L'élément touché d'abord, puis anneau par anneau ; 4, qui chevauche 3, après lui ; le plus loin en dernier
+    CHECK(order == std::vector<int> { 3, 0, 1, 4, 2 });
+    // Les bandes du fond partent du point : anneau après anneau, jamais un plus proche après un plus loin
+    const auto ring = [](int d2) {
+        int k = 0;
+        while (d2 > k * style::wave_step * k * style::wave_step) {
+            ++k;
+        }
+        return k;
+    };
+    for (size_t i = 1; i < fill_dist.size(); ++i) {
+        CHECK(ring(fill_dist[i]) >= ring(fill_dist[i - 1]));
+    }
+    for (int y = 0; y < 60; ++y) {
+        for (int x = 0; x < 100; ++x) {
+            bool covered = false;
+            for (const Rect16 &r : rects) {
+                covered = covered || (x >= r.Left() && x <= r.Right() && y >= r.Top() && y <= r.Bottom());
+            }
+            INFO("x " << x << " y " << y);
+            CHECK(painted[y][x] == (covered ? 0 : 1));
+        }
+    }
+}
+
+TEST_CASE("carte peinte autour de son contenu : chaque pixel hors du contenu une fois, coins seulement dans leurs carrés") {
+    for (const uint8_t bw : { uint8_t(0), uint8_t(2) }) {
+        constexpr Rect16 card = { 10, 20, 60, 40 };
+        constexpr uint8_t r = 12;
+        const std::array<Rect16, 3> parts { {
+            { 16, 25, 22, 22 }, // tuile
+            { 40, 27, 28, 16 }, // titre, jusqu'au bord droit moins le contour
+            { 14, 50, 50, 16 }, // déborde sous la carte : coupé
+        } };
+        std::array<std::array<int, 80>, 70> painted {};
+        std::array<std::array<char, 80>, 70> kind {};
+        const auto mark = [&](Rect16 p, char k) {
+            for (int y = p.Top(); y <= p.Bottom(); ++y) {
+                for (int x = p.Left(); x <= p.Right(); ++x) {
+                    ++painted[y][x];
+                    kind[y][x] = k;
+                }
+            }
+        };
+        style::for_each_frame_piece(card, r, bw, parts, [&](Rect16 p, bool inside) { mark(p, inside ? 'f' : 'b'); }, [&](Rect16 p) { mark(p, 'c'); });
+        for (int y = 0; y < 70; ++y) {
+            for (int x = 0; x < 80; ++x) {
+                const bool in_card = x >= card.Left() && x <= card.Right() && y >= card.Top() && y <= card.Bottom();
+                bool in_part = false;
+                for (const Rect16 &p : parts) {
+                    in_part = in_part || (x >= p.Left() && x <= p.Right() && y >= p.Top() && y <= p.Bottom());
+                }
+                INFO("bw " << int(bw) << " x " << x << " y " << y);
+                CHECK(painted[y][x] == (in_card && !in_part ? 1 : 0));
+                if (painted[y][x]) {
+                    const int cx = std::min(x - card.Left(), card.Right() - x), cy = std::min(y - card.Top(), card.Bottom() - y);
+                    CHECK((kind[y][x] == 'c') == (cx < r && cy < r)); // coins lissés : seulement leurs carrés
+                    CHECK((kind[y][x] == 'b') == (kind[y][x] != 'c' && (cx < bw || cy < bw))); // contour droit
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("températures : l'arrondi ne bouge qu'au-delà de 0,7 °C d'écart") {
+    CHECK(style::held_degrees(215.4f, 215) == 215);
+    CHECK(style::held_degrees(215.6f, 215) == 215); // oscillation autour de x,5 : rien ne change
+    CHECK(style::held_degrees(214.4f, 215) == 215);
+    CHECK(style::held_degrees(215.8f, 215) == 216);
+    CHECK(style::held_degrees(214.2f, 215) == 214);
+    CHECK(style::held_degrees(23.4f, 0) == 23); // première mesure
+    CHECK(style::held_degrees(-1.0f, 23) == -1); // plus de mesure
+}

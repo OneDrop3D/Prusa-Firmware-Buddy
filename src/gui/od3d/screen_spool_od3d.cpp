@@ -176,7 +176,7 @@ void SpoolPicture::unconditionalDraw() {
 
     // Case « MMU n » (contour 2 px, d'une passe : les coins suivent l'arrondi)
     const Rect16 box(274, r.Top() + 18, 96, 56);
-    static constexpr Color box_line = Color::from_raw(0x5B5B5B);
+    static constexpr Color box_line = style::handle;
     draw_frame(style::with_ring(box), style::surface, box_line, style::surface, 10, 2);
     draw_text(Rect16(box.Left() + 4, box.Top() + 6, box.Width() - 8, height(Font::small)), string_view_utf8::MakeCPUFLASH("MMU"), Font::small, style::text_muted, style::surface, Align_t::Center());
     const char number[2] = { char('1' + wizard.slot), '\0' };
@@ -190,6 +190,9 @@ void PaintButton::unconditionalDraw() {
     // 50 × 50 : bobine Ø40, anneau orange du choix jusqu'à Ø46, et au focus un disque plus clair derrière (plus d'anneau
     // blanc) ; une image d'une passe
     const Rect16 r = GetRect();
+    if (noted(r)) {
+        return; // une image d'une passe : un seul morceau (Button::draw)
+    }
     const uint8_t index = tag - tag_paint;
     const Color halo = IsFocused() ? style::focused(style::surface) : style::screen;
     const Color ring = index == wizard.paint ? style::accent : halo;

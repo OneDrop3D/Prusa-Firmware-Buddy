@@ -80,9 +80,9 @@ MI_SKEW_LENGTH::MI_SKEW_LENGTH(uint8_t which)
     SetIconId(&img::move_16x16);
 }
 
-void MI_SKEW_LENGTH::click(IWindowMenu &) {
+void MI_SKEW_LENGTH::click(IWindowMenu &menu) {
     const NumericInputConfig &config = which == 2 ? side_config : diagonal_config;
-    if (const auto value = ValueEditor::exec(_(length_labels[which]), measures[which], config)) {
+    if (const auto value = ValueEditor::exec(_(length_labels[which]), measures[which], config, nullptr, nullptr, ValueEditor::row(menu, *this))) {
         measures[which] = *value;
         ++measures_revision;
         InValidateExtension();

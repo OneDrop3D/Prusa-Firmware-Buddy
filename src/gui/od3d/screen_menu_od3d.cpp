@@ -110,8 +110,8 @@ MI_FAN_LEAD::MI_FAN_LEAD()
     SetIconId(&img::fan_16x16);
 }
 
-void MI_FAN_LEAD::click(IWindowMenu &) {
-    if (const auto v = ValueEditor::exec(_("Fan lead"), lookahead::fan_lead_ds() / 10.0f, fan_lead_config)) {
+void MI_FAN_LEAD::click(IWindowMenu &menu) {
+    if (const auto v = ValueEditor::exec(_("Fan lead"), lookahead::fan_lead_ds() / 10.0f, fan_lead_config, nullptr, nullptr, ValueEditor::row(menu, *this))) {
         lookahead::set_fan_lead_ds(static_cast<uint8_t>(std::lround(*v * 10)));
         InValidateExtension();
     }

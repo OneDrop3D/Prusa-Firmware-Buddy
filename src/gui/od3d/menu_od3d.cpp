@@ -28,14 +28,12 @@ namespace od3d {
 
 namespace {
 
-    constexpr Color tile_network = Color::from_raw(0x1F4436);
     // Indicateur de défilement (retour du 22/11 : « ce qui dit s'il y a du texte en dessous est trop petit ») : piste
     // visible de 4 px, à 2 px des lignes, et curseur clair d'au moins 24 px (3 px gris foncé avant)
     constexpr Color scroll_track = style::line;
     constexpr Color scroll_thumb = style::text_muted;
     constexpr int16_t scroll_gap = 2, scroll_w = 4, scroll_min = 24;
     constexpr uint8_t scroll_radius = 2;
-    constexpr Color edited_row = Color::from_raw(0x3A2618); ///< valeur réglée à la molette : fond du choix sélectionné (SPEC_G.md §1.5)
     constexpr uint16_t row_w = 464; ///< le cadre : x 8 à 472
     constexpr int16_t tile_x = 12, tile_size = 26, label_x = 48, value_right = 12;
 
@@ -61,7 +59,7 @@ namespace {
         static constexpr const img::Resource *motion[] = { &img::calibrate_white_16x16, &img::selftest_16x16, &img::wizard_16x16, &img::z_axis_16x16, &img::move_16x16, &img::speed_16x16, &img::cycle_16x16 };
         const auto in = [icon](const auto &family) { return std::find(std::begin(family), std::end(family), icon) != std::end(family); };
         return in(heat) ? style::tile_heat : in(filament) ? style::tile_filament
-            : in(network)                                ? tile_network
+            : in(network)                                ? style::tile_network
             : in(motion)                                 ? style::tile_motion
                                                          : style::tile;
     }
@@ -140,7 +138,7 @@ namespace {
         // Réglage à la molette (WiSpin) : la molette change la valeur au lieu de passer à la ligne suivante, et la ligne
         // le dit (avant, seule la valeur passait à l'orange : on croyait l'écran figé, BUG-6)
         const bool edited = item.is_edited();
-        const Color bg = edited ? edited_row : focused ? style::focused(style::surface) : style::surface;
+        const Color bg = edited ? style::choice : focused ? style::focused(style::surface) : style::surface; // réglée : le fond du choix sélectionné
 
         // Contenu entre l'anneau (2 px en haut et en bas) et les marges de 12 px
         const Rect16 content(row.Left() + label_x, row.Top() + 2, row.Width() - label_x - value_right, row.Height() - 4);
@@ -198,9 +196,10 @@ namespace {
                 draw_label_cut(label_rect, item.GetLabel(), fg, bg, shown.Top() + shown.Height());
                 return;
             }
-            display::draw_rounded_rect(tile_rect, bg, tile, style::radius_small, MIC_ALL_CORNERS);
-            draw_icon({ int16_t(tile_rect.Left() + (tile_size - icon->w) / 2), int16_t(tile_rect.Top() + (tile_size - icon->h) / 2) }, *icon, tile,
-                enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+            // La tuile autour de l'icône, puis l'icône : chaque pixel une fois
+            const Rect16 glyph(tile_rect.Left() + (tile_size - icon->w) / 2, tile_rect.Top() + (tile_size - icon->h) / 2, icon->w, icon->h);
+            draw_rounded_frame(tile_rect, bg, tile, tile, style::radius_small, 0, std::span<const Rect16>(&glyph, 1));
+            draw_icon({ glyph.Left(), glyph.Top() }, *icon, tile, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
             draw_label(label_rect, item.GetLabel(), fg, bg,
                 edited ? _("Knob: adjust, click: OK") : string_view_utf8::MakeNULLSTR());
         }
@@ -244,17 +243,20 @@ static_assert(row_w + scroll_gap + scroll_w <= list_rect.Width(), "l'indicateur 
 // ---- En-tête ----
 
 MenuHeader::MenuHeader(window_t *parent, const string_view_utf8 &title, bool has_back, bool compact)
-    : header(parent, string_view_utf8::MakeRAM(title_text.data()), false, nullptr, compact)
+    : header(parent, string_view_utf8::MakeRAM(title_text.data()), has_back, menu_back, compact)
     , back(has_back) {
     SetText(title);
+}
+
+void MenuHeader::show_back(bool show) {
+    back = show;
+    header.show_back(show);
 }
 
 void MenuHeader::SetText(const string_view_utf8 &title) {
     title.copyToRAM(title_text.data(), title_text.size());
     text::title_case(title_text.data());
-    // Sans le disque du retour, le titre part de la marge : 36 px de plus que Header::title_chars() (disque 32, écarts
-    // 6 + 6, moins la marge de 8), soit 4 caractères (« Température de la buse » était coupé à 19)
-    text::ellipsize(title_text.data(), Header::title_chars() + 36 / width(Font::small));
+    // Coupé à sa place par le titre lui-même (« ... ») : 16 caractères en police normale à côté du retour, 19 sans
     header.set_title(string_view_utf8::MakeRAM(title_text.data()));
 }
 

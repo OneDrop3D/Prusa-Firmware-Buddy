@@ -10,6 +10,7 @@
 
 #include <array>
 #include <optional>
+#include <span>
 #include <raster_opfn.hpp>
 #include <ScreenFactory.hpp>
 #include <ScreenHandler.hpp>
@@ -36,18 +37,41 @@ struct Slot {
 // Chaque pixel est peint une fois, sans effacement préalable : c'est ce qui évite les clignotements, et l'écran (SPI à
 // 3 octets par pixel) est lent. Un élément repeint tout son rect ; l'écran ne peint que ce qui reste entre eux.
 
-/// La marge de 2 px autour du corps (ancienne place de l'anneau de focus), au fond back, sans toucher au corps
-void draw_margin(Rect16 outer, Color back);
+/// Rects qu'un contenu peint lui-même en entier, relevés sans rien peindre : un corps n'est alors peint qu'autour d'eux,
+/// et chaque pixel une fois (au focus, une carte repeinte unie puis son contenu faisait clignoter le texte)
+struct Parts {
+    std::array<Rect16, 12> rects;
+    uint8_t n = 0;
+    bool full = false; ///< trop de morceaux : le corps entier, puis le contenu par-dessus (comme avant)
 
-/// Corps arrondi dans outer moins la marge de 2 px, marge comprise, au fond back
-void draw_body(Rect16 outer, Color body, Color back, uint8_t radius);
+    std::span<const Rect16> span() const {
+        return full ? std::span<const Rect16>() : std::span<const Rect16>(rects.data(), n);
+    }
+};
+
+/// Tant qu'il existe, draw_text, draw_icon, draw_spool, draw_temps et noted() notent leur rect dans parts au lieu de peindre
+class Record {
+public:
+    explicit Record(Parts &parts);
+    ~Record();
+
+private:
+    Parts *was;
+};
+
+/// rect qu'un contenu va peindre en entier : noté pendant un Record (true : ne rien peindre), false sinon
+bool noted(Rect16 rect);
+
+/// La marge de 2 px autour du corps (ancienne place de l'anneau de focus), au fond back, sans toucher au corps ni à parts
+void draw_margin(Rect16 outer, Color back, std::span<const Rect16> parts = {});
 
 /// Rectangle arrondi avec un contour de border_w px, d'une seule passe : les coins du contour suivent l'arrondi (deux
-/// rectangles arrondis emboîtés débordaient aux coins) ; hors de l'arrondi, la couleur back
-void draw_rounded_frame(Rect16 rect, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w);
+/// rectangles arrondis emboîtés débordaient aux coins) ; hors de l'arrondi, la couleur back. Rien sous parts, que le
+/// contenu peint lui-même (style::for_each_frame_piece).
+void draw_rounded_frame(Rect16 rect, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w, std::span<const Rect16> parts = {});
 
 /// draw_rounded_frame() d'un élément (puces, choix, danger) : outer comprend sa marge de 2 px, peinte au fond back
-void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w);
+void draw_frame(Rect16 outer, Color back, Color border, Color fill, uint8_t radius, uint8_t border_w, std::span<const Rect16> parts = {});
 
 /// Une ligne de texte dans rect, fond repeint ; ce qui dépasse est coupé
 void draw_text(Rect16 rect, const string_view_utf8 &text, Font font, Color fg, Color bg, Align_t align = Align_t::LeftCenter());
@@ -117,7 +141,8 @@ namespace chrome {
         back,
         temps,
         tab0, ///< puis un par onglet
-        count = tab0 + 4,
+        marker = tab0 + 4, ///< trait et repère de la barre d'onglets
+        count,
     };
 
     /// Un écran (pas un dialogue) qui ne peint que le fond entre ses éléments s'annonce à sa construction : seuls ses
@@ -127,6 +152,13 @@ namespace chrome {
     /// À chaque dessin d'un élément fixe (parent : son écran) : true si c'est son premier dessin et que l'écran le montre
     /// déjà tel quel (clé identique) : rien à peindre. Note ce qui est à l'écran.
     bool kept(Slot slot, uint64_t key, bool first, const window_t *parent);
+
+    /// Clé de ce que l'écran montre à la place de slot, 0 : inconnu
+    uint64_t shown(Slot slot);
+
+    /// Rect de l'élément cliqué ou touché qui a changé d'écran (moins d'une seconde avant), vide sinon ; une seule fois.
+    /// Le nouvel écran se peint en onde depuis lui (style::paint_from).
+    Rect16 take_origin();
 
     /// L'élément va être repeint, caché ou couvert : l'écran ne le montre plus de façon sûre
     void forget(Slot slot);
@@ -194,8 +226,12 @@ protected:
     /// Redessine le contenu seul, sans repeindre le corps (une valeur a changé : pas de clignotement)
     void invalidate_content();
 
-    /// Contenu, dessiné sur le corps après lui (ou seul après invalidate_content) : il repeint tout ce qu'il occupe
+    /// Contenu, dessiné après le corps (ou seul après invalidate_content) : il repeint tout ce qu'il occupe. Il passe par
+    /// draw_text, draw_icon, draw_spool, draw_temps ou noted() : le corps est peint autour (draw_card).
     virtual void draw_content([[maybe_unused]] Rect16 body) {}
+
+    /// Corps (contour de border_w px) et contenu d'une passe : le contenu relevé d'abord (Record), le corps peint autour
+    void draw_card(Color border, uint8_t border_w);
 
     void unconditionalDraw() override;
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
@@ -237,7 +273,8 @@ private:
     string_view_utf8 subtitle;
 };
 
-/// Températures actuelles en °C entiers (chambre sans capteur : -1)
+/// Températures actuelles en °C entiers (chambre sans capteur : -1), arrondies avec une hystérésis (style::held_degrees)
+/// commune à tous les écrans : l'en-tête ne change pas d'un écran à l'autre pour une oscillation de la mesure
 struct Temps {
     int16_t nozzle = 0;
     int16_t bed = 0;
@@ -301,7 +338,8 @@ protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
 };
 
-/// Retour de l'en-tête : disque de 32 px, zone tactile style::back_touch (46 × 44). Un balayage horizontal
+/// Retour de l'en-tête : tuile de 26 px comme la ligne « ‹ Retour » des listes, zone tactile style::back_touch (46 × 44).
+/// Un balayage horizontal
 /// (gesture_od3d.hpp : 60 px en moins de 600 ms, dans un sens ou dans l'autre) fait la même chose, s'il est visible : sous un dialogue (éditeur de valeur, question, dialogue
 /// d'une machine à états), le balayage ne va qu'au dialogue et ne l'atteint pas.
 class BackButton : public IconButton {
@@ -346,7 +384,7 @@ private:
 /// du premier titre qui peut l'écrire en entier (la pastille raccourcit le titre). Une nouvelle alerte remplace l'ancienne.
 void show_notice(const string_view_utf8 &text);
 
-/// Titre de l'en-tête, qui cède sa place à l'alerte de show_notice()
+/// Titre de l'en-tête, en police normale, coupé avec « ... » à sa place ; il cède sa place à l'alerte de show_notice()
 class HeaderTitle : public window_text_t {
 public:
     using window_text_t::window_text_t;
@@ -363,8 +401,9 @@ private:
 /// températures, réseau, heure, trait
 class Header {
 public:
-    /// back_action : action du retour à la place de la fermeture de l'écran. compact : 31 px et sans retour, pour les
-    /// écrans de Prusa (machines à états) dont le contenu commence à 32 px
+    /// back_action : action du retour à la place de la fermeture de l'écran (menu_back : un menu, dont la ligne « Retour »
+    /// prend le balayage). compact : 31 px et sans retour, pour les écrans de Prusa (machines à états) dont le contenu
+    /// commence à 32 px ; ses éléments ont la même hauteur que dans l'en-tête de 40 px
     Header(window_t *parent, const string_view_utf8 &title, bool has_back, Card::Action back_action = nullptr, bool compact = false);
 
     /// Montre ou cache le retour
@@ -372,9 +411,6 @@ public:
 
     /// Change le titre, même s'il est dans le même tampon (menus Prusa)
     void set_title(const string_view_utf8 &text);
-
-    /// Caractères du titre à la police small (heure sur 5 ou 8 caractères)
-    static uint8_t title_chars();
 
 private:
     BackButton back; ///< caché et inactif sur l'accueil
@@ -386,7 +422,11 @@ private:
     BasicWindow line;
 };
 
-/// Barre d'onglets du bas : Accueil, Imprimer, Atelier, Réglages
+/// Retour de l'en-tête d'un menu Prusa : ferme l'écran, comme sa ligne « ‹ Retour » ; le balayage va à la liste
+void menu_back();
+
+/// Barre d'onglets du bas : Accueil, Imprimer, Atelier, Réglages. Le repère orange de l'onglet actif glisse de l'onglet
+/// d'avant au nouveau (4 à 6 images de 480 × 3 px) ; une entrée pendant le glissement le termine aussitôt.
 class TabBar {
 public:
     enum class Tab : uint8_t {
@@ -414,7 +454,22 @@ private:
         bool active;
     };
 
-    BasicWindow line;
+    /// Trait au-dessus de la barre et bande du repère (3 px du haut des onglets, qui ne la peignent pas)
+    class Marker : public window_t {
+    public:
+        Marker(window_t *parent, Tab active);
+
+    protected:
+        void unconditionalDraw() override;
+        void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
+        void invalidate(Rect16 rect) override; ///< chrome::forget()
+
+    private:
+        int16_t x; ///< repère de l'onglet actif
+        bool first_draw = true;
+    };
+
+    Marker line;
     Button buttons[4];
 };
 

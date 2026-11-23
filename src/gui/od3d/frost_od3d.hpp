@@ -11,8 +11,7 @@
 /// fois, à sa place, à l'image où le corps l'atteint : rien ne bouge, rien n'est peint deux fois. Les images se suivent
 /// sans attente (l'ouverture dure le temps du dessin), et la molette tournée pendant ce temps saute à la dernière.
 ///
-/// Le nom (frost) reste : ScreenHandler appelle forget(). Partie pure (start, step, plan) testée seule ; l'afficheur
-/// est dans frost_od3d.cpp.
+/// Partie pure (start, step, plan) testée seule ; l'afficheur est dans frost_od3d.cpp.
 #pragma once
 
 #include "style_od3d.hpp"
@@ -79,9 +78,5 @@ void close();
 /// L'élément ciblé à la dernière fermeture (la bobine dont la fiche lance un chargement), s'il date de moins de 3 s ;
 /// vide sinon. Une seule fois.
 Rect16 take_closed_origin();
-
-/// ScreenHandler : l'écran entier se repeint. Plus rien à oublier (la fenêtre repeint son voile avec lui) ; à retirer
-/// avec cet appel.
-inline void forget() {}
 
 } // namespace od3d::frost

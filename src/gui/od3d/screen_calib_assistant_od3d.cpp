@@ -439,7 +439,7 @@ namespace {
 
     /// Ce que montre une tuile
     /// Pastilles d'état (le mot est au détail, au toucher)
-    constexpr Color dot_ok = Color::from_raw(0x2E9E5B); ///< vert de l'atelier
+    constexpr Color dot_ok = style::filament_green; ///< vert de l'atelier
     struct TileView {
         std::optional<Color> dot; ///< pas de pastille : test sans objet ici
         Button::Look look = Button::Look::card; ///< alert : échec ; secondary : en cours

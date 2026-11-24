@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 
 namespace od3d::pa {
 
@@ -166,6 +167,29 @@ inline constexpr uint16_t k_none = 0xFFFF;
 uint16_t k_to_e4(float k);
 float k_from_e4(uint16_t e4);
 
+/// M-02 : clé de validité d'une mesure par emplacement (K, débit maximal, température minimale) : la buse (diamètre en
+/// µm, haut débit) et la matière (son nom). 7 bits, jamais 0 : 0 est une mesure d'avant la clé, à refaire.
+/// shortcut: empreinte de 7 bits (deux contextes sur 127 se confondent) ; une vraie clé demande de la place dans le
+/// config_store, plein
+constexpr uint8_t make_key(uint16_t nozzle_um, bool high_flow, std::string_view material) {
+    uint32_t h = 2166136261u; // FNV-1a
+    const auto mix = [&h](uint8_t byte) { h = (h ^ byte) * 16777619u; };
+    mix(uint8_t(nozzle_um));
+    mix(uint8_t(nozzle_um >> 8));
+    mix(high_flow ? 1 : 0);
+    for (const char c : material) {
+        mix(uint8_t(c));
+    }
+    return uint8_t(h % 127u + 1u);
+}
+
+/// M-02 : r s'il a été mesuré avec la clé key, sinon un enregistrement vide : la valeur ne sert pas (pa::Record,
+/// calib::Record)
+template <class R>
+constexpr R if_key(const R &r, uint8_t key) {
+    return r.key == key ? r : R {};
+}
+
 /// Ce qui est gardé par emplacement (config_store, « OD3D PA Slot »). Taille fixe : pour changer la structure, créer
 /// un nouvel élément (nouveau nom) sans réutiliser celui-ci.
 struct Record {
@@ -176,7 +200,8 @@ struct Record {
 
     uint16_t k_e4 = k_none; ///< K mesuré [1e-4 s] ; k_none : à mesurer
     uint8_t confidence = 0; ///< confiance de la mesure, 0 à 100 (100 pour une ligne choisie)
-    uint8_t source = measured; ///< ancien octet de réserve, à 0 dans les mémoires d'avant : « mesuré »
+    uint8_t source : 1 = measured; ///< bit 0 de l'ancien octet de réserve, à 0 dans les mémoires d'avant : « mesuré »
+    uint8_t key : 7 = 0; ///< M-02 : make_key() de la mesure (bits libres du même octet) ; 0 : d'avant la clé
 
     bool has_k() const { return k_e4 != k_none; }
     bool operator==(const Record &) const = default;

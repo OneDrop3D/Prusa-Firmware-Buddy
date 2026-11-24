@@ -33,7 +33,10 @@ inline constexpr float flow_ceiling = 40.f;
 
 // ---- Mémoire ----
 
+/// Ce qui est gardé pour l'emplacement ; vide s'il a été mesuré avec une autre buse ou une autre matière (M-02, même clé
+/// que le K : pa::key_for_slot) : la limite de débit et la purge reprennent alors les valeurs de Prusa
 Record record(uint8_t slot);
+/// Enregistre r avec la clé de maintenant
 void set_record(uint8_t slot, const Record &r);
 
 /// Efface débit maximal et température minimale (bobine changée)

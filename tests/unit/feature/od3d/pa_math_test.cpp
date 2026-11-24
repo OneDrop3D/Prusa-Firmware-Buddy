@@ -13,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <string>
@@ -1065,6 +1066,39 @@ TEST_CASE("pa: nozzle kept hot after the automatic measurement, filament retract
     hold = {};
     CHECK(request(170) == 170);
     CHECK(moved == 0.f);
+}
+
+TEST_CASE("pa: validity key of a slot measurement, nozzle and material (M-02)") {
+    const uint8_t pla = pa::make_key(400, false, "PLA");
+    CHECK(pla == pa::make_key(400, false, "PLA"));
+    CHECK(pla != pa::make_key(600, false, "PLA")); // buse 0,6 : pas le K de la 0,4
+    CHECK(pla != pa::make_key(400, true, "PLA")); // High Flow
+    CHECK(pla != pa::make_key(400, false, "PETG")); // PETG chargé par le menu de Prusa : pas le K du PLA
+    for (const uint16_t um : { 250, 300, 400, 500, 600, 800 }) {
+        for (const bool hf : { false, true }) {
+            for (const char *material : { "PLA", "PETG", "ASA", "PC", "FLEX", "PA", "---", "" }) {
+                const uint8_t key = pa::make_key(um, hf, material);
+                CHECK(key >= 1); // jamais 0 : la clé des mémoires d'avant
+                CHECK(key <= 127); // 7 bits
+            }
+        }
+    }
+
+    // Mémoire d'avant la clé (octet de source à 0 ou 1) : lue comme avant, clé 0, jamais valable
+    const std::array<uint8_t, 4> legacy { 0x90, 0x01, 80, pa::Record::chosen }; // K = 0,0400, confiance 80, ligne choisie
+    pa::Record r;
+    std::memcpy(&r, legacy.data(), sizeof(r));
+    CHECK(r.k_e4 == 400);
+    CHECK(r.confidence == 80);
+    CHECK(r.source == pa::Record::chosen);
+    CHECK(r.key == 0);
+    CHECK_FALSE(pa::if_key(r, pla).has_k());
+
+    // Clé dans les 7 bits libres du même octet : la source ne change pas
+    r.key = pla;
+    CHECK(r.source == pa::Record::chosen);
+    CHECK(pa::if_key(r, pla) == r);
+    CHECK_FALSE(pa::if_key(r, pa::make_key(400, false, "PETG")).has_k());
 }
 
 TEST_CASE("motif : lignes alternées, chaque ligne part de la fin de la précédente") {

@@ -5,7 +5,7 @@
 #include "flow_limit_od3d.hpp"
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
-#include "pa_math_od3d.hpp"
+#include "pa_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -41,12 +41,16 @@ Record record(uint8_t slot) {
     if (slot >= VirtualToolIndex::count) {
         return {};
     }
-    return config_store().od3d_spool_calib.get(slot);
+    return pa::if_key(config_store().od3d_spool_calib.get(slot), pa::key_for_slot(slot)); // M-02 : autre buse ou matière : rien
 }
 
 void set_record(uint8_t slot, const Record &r) {
-    if (slot < VirtualToolIndex::count && config_store().od3d_spool_calib.get(slot) != r) {
-        config_store().od3d_spool_calib.set(slot, r);
+    if (slot < VirtualToolIndex::count) {
+        Record stamped = r;
+        stamped.key = pa::key_for_slot(slot); // M-02 : lu par record(), une valeur d'une autre clé n'est jamais gardée
+        if (config_store().od3d_spool_calib.get(slot) != stamped) {
+            config_store().od3d_spool_calib.set(slot, stamped);
+        }
     }
     refresh_flow_limit();
 }

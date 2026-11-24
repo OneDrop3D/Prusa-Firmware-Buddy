@@ -53,11 +53,17 @@ namespace od3d::pa {
 
 // ---- Mémoire ----
 
+uint8_t key_for_slot(uint8_t slot) {
+    const PhysicalToolIndex tool = PhysicalToolIndex::from_raw(0);
+    const auto nozzle_um = uint16_t(std::lround(std::clamp(config_store().get_nozzle_diameter(tool), 0.f, 5.f) * 1000.f));
+    return make_key(nozzle_um, config_store().get_nozzle_is_high_flow(tool), FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot)).parameters().name);
+}
+
 Record record(uint8_t slot) {
     if (slot >= VirtualToolIndex::count) {
         return {};
     }
-    return config_store().od3d_pa.get(slot);
+    return if_key(config_store().od3d_pa.get(slot), key_for_slot(slot)); // M-02 : autre buse ou autre matière : rien
 }
 
 std::optional<float> k_for_slot(uint8_t slot) {
@@ -69,13 +75,22 @@ std::optional<float> k_for_slot(uint8_t slot) {
 }
 
 void set_record(uint8_t slot, const Record &r) {
-    if (slot < VirtualToolIndex::count && config_store().od3d_pa.get(slot) != r) {
-        config_store().od3d_pa.set(slot, r);
+    if (slot >= VirtualToolIndex::count) {
+        return;
+    }
+    Record stamped = r;
+    stamped.key = key_for_slot(slot); // M-02 : valable pour la buse et la matière de maintenant
+    if (config_store().od3d_pa.get(slot) != stamped) {
+        config_store().od3d_pa.set(slot, stamped);
     }
 }
 
 void clear(uint8_t slot) {
     set_record(slot, Record {});
+}
+
+bool stale(uint8_t slot) {
+    return slot < VirtualToolIndex::count && config_store().od3d_pa.get(slot).has_k() && !k_for_slot(slot);
 }
 
 bool printer_wins() {

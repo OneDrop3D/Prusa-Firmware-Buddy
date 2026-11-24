@@ -120,7 +120,7 @@ struct Record {
     int16_t flow_temperature = 0; ///< consigne de la buse pendant la mesure du débit [°C]
     int16_t min_temperature = 0; ///< température minimale [°C] ; 0 : pas mesurée
     uint8_t flags = 0;
-    uint8_t reserved = 0;
+    uint8_t key = 0; ///< M-02 : pa::make_key() des mesures (ancien octet de réserve) ; 0 : d'avant la clé
 
     bool has_flow() const { return max_flow_e1 != flow_none; }
     bool has_min_temperature() const { return min_temperature > 0; }

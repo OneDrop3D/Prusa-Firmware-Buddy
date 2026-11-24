@@ -47,15 +47,24 @@ namespace od3d::pa {
 
 // ---- Mémoire ----
 
+/// M-02 : clé de validité (make_key) de l'emplacement maintenant : buse de l'imprimante, matière de la bobine (celle de
+/// l'imprimante, sinon celle du fichier pendant une impression). Sert aussi au débit et à la température (calib::Record)
+uint8_t key_for_slot(uint8_t slot);
+
+/// Ce qui est gardé pour l'emplacement ; vide s'il a été mesuré avec une autre buse ou une autre matière (M-02)
 Record record(uint8_t slot);
 
 /// K mesuré de l'emplacement, s'il y en a un
 std::optional<float> k_for_slot(uint8_t slot);
 
+/// Enregistre r avec la clé de maintenant
 void set_record(uint8_t slot, const Record &r);
 
 /// Efface le K (bobine changée)
 void clear(uint8_t slot);
+
+/// Un K est gardé mais ne sert pas : mesuré avec une autre buse ou une autre matière (M-02) ; à remesurer
+bool stale(uint8_t slot);
 
 /// « Le PA de l'imprimante prime »
 bool printer_wins();

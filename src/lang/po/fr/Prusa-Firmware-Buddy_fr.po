@@ -12956,3 +12956,7 @@ msgstr "Vibrations des ventilateurs : arrêtées avant la fin."
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "No force: the nozzle did not touch the bed."
 msgstr "Aucune force : la buse n'a pas touché le plateau."
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Remeasure PA"
+msgstr "Remesurer le PA"

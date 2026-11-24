@@ -190,10 +190,11 @@ namespace {
         return sequence[0] == '\0' || marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(sequence) });
     }
 
-    /// Paramètre S de M701 pour la matière de l'emplacement, comme le menu « Charger dans la buse » de Prusa
+    /// Paramètre S de M701 pour la matière de l'emplacement, comme le menu « Charger dans la buse » de Prusa ; pendant
+    /// l'impression, celle du fichier si l'imprimante ne la connaît pas (heuristique de Prusa, comme auto_type())
     const char *filament_param(uint8_t slot, std::span<char> out) {
         StringBuilder sb(out);
-        FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).build_encoded_gcode_param(sb);
+        FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot)).build_encoded_gcode_param(sb);
         return sb.str();
     }
 
@@ -254,8 +255,8 @@ namespace {
         }
         // Buse au départ de la ligne, posée à hauteur de couche (déplacement levé, rétraction), puis filament remis tête
         // arrêtée, comme le trancheur : la pression se rétablit avant l'enregistrement de la force (400 ms plus loin),
-        // jamais pendant un créneau mesuré
-        if (!session.travel_to(lines.x_start(index), y, z)) {
+        // jamais pendant un créneau mesuré. Motif tourné : lines.at() donne le point du plateau
+        if (const pattern::Point p = lines.at(lines.x_start(index), y); !session.travel_to(p.x, p.y, z)) {
             return false;
         }
         session.deretract();
@@ -271,7 +272,7 @@ namespace {
             if (!wait_ms(250)) {
                 return false;
             }
-            force_probe::start();
+            force_probe::start(lines.along_y); // vitesse lue le long des lignes
             ScopeGuard stop_probe = [] { force_probe::stop(); };
             if (!wait_ms(150)) { // tête arrêtée : zéro de la force
                 return false;
@@ -279,7 +280,8 @@ namespace {
             float x = lines.x_start(index);
             const auto segment = [&](float length, float speed) {
                 x += dir * length;
-                return session.print_to(x, y, e_mm, speed);
+                const pattern::Point p = lines.at(x, y);
+                return session.print_to(p.x, p.y, e_mm, speed);
             };
             if (!segment(ls, prof.v_lo)) {
                 return false;
@@ -434,7 +436,7 @@ namespace {
         if (const auto k = k_for_slot(slot)) {
             return *k;
         }
-        const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+        const FilamentType type = FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot));
         for (uint8_t other = 0; other < VirtualToolIndex::count; ++other) {
             if (other != slot && FilamentType::for_tool(VirtualToolIndex::from_raw(other)) == type) {
                 if (const auto k = k_for_slot(other)) {
@@ -606,11 +608,11 @@ namespace {
     }
 
     /// Buse à sa consigne : au-dessus du départ de la purge pendant la montée, purge dès purge_below °C sous la
-    /// consigne, puis attente d'une température stable avant les lignes
-    Error heat_and_purge(session::Session &session, int16_t nozzle, float x, float y, float dir) {
+    /// consigne, puis attente d'une température stable avant les lignes ; along_y : purge le long de Y
+    Error heat_and_purge(session::Session &session, int16_t nozzle, float x, float y, float dir, bool along_y = false) {
         st_phase = Phase::heating;
         Hotend::for_tool(PhysicalToolIndex::from_raw(0)).set_nozzle_target_temp(nozzle); // la montée commence pendant le déplacement
-        if (const session::Result r = session.go_to_purge(x, y, dir); r != session::Result::ok) {
+        if (const session::Result r = session.go_to_purge(x, y, dir, along_y); r != session::Result::ok) {
             return error_of(r);
         }
         // Jamais sous la limite d'extrusion à froid de Prusa (consigne bornée à EXTRUDE_MINTEMP + 10 au moins)
@@ -619,7 +621,7 @@ namespace {
             return error_of(r);
         }
         st_phase = Phase::priming;
-        if (!session.purge(x, dir)) {
+        if (!session.purge(along_y ? y : x, dir, along_y)) {
             return Error::stopped;
         }
         // Buse levée, filament rétracté pendant l'attente : pas de goutte au bout de la purge
@@ -777,16 +779,29 @@ void calibrate(const Request &rq, bool load_tried) {
 
 namespace {
 
-    // Motif compact (F4-b) : par emplacement, une ligne de purge puis la place de compact_cap lignes
+    // Motif compact (F4-b) : par emplacement, un bloc : une ligne de purge puis la place de compact_cap lignes (blocs à
+    // 5 mm au moins l'un de l'autre, auto_spot())
     constexpr float auto_purge_half = 3.f; ///< demi-largeur de la purge (cordon épais de Prusa)
     constexpr float auto_purge_gap = 6.f; ///< de la purge à la 1re ligne
-    constexpr float auto_spacing = 3.f; ///< entre deux emplacements
+    constexpr float auto_lead = auto_purge_half + auto_purge_gap; ///< du bord du bloc à la 1re ligne
 
     Request auto_request(uint8_t slot) {
         Request rq;
         rq.slot = slot;
         make_compact(rq);
         return rq;
+    }
+
+    /// Matière de l'emplacement pour la mesure automatique : celle de l'imprimante, sinon (bobine jamais chargée par
+    /// l'écran : retour du 24/11, « calibrer pour les différents filaments ») celle que le fichier donne à cet outil
+    /// (heuristique de Prusa, la même que pour ses propres décisions pendant l'impression)
+    FilamentType auto_type(uint8_t slot) {
+        return FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot));
+    }
+
+    /// Bloc droit d'un emplacement, en (0, 0) : lignes depuis (0, auto_lead) ; la purge est sous les lignes
+    pattern::Rect auto_block(uint8_t slot) {
+        return lines_for(auto_request(slot), compact_cap, 0.f, auto_lead).area();
     }
 
     METRIC_DEF(metric_od3d_pa_auto, "od3d_pa_auto", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
@@ -865,7 +880,9 @@ namespace {
         uint8_t count = 0;
         uint8_t next = 0; ///< prochaine étape
         std::optional<uint8_t> initial; ///< filament dans la buse au départ, remis à la fin
-        pattern::Rect block {}; ///< zone des motifs
+        std::array<pattern::Rect, VirtualToolIndex::count> blocks {}; ///< place du bloc de chaque étape
+        uint8_t along_y = 0; ///< bit i : bloc de l'étape i tourné de 90° (lignes parallèles à Y)
+        pattern::Rect area {}; ///< rectangle qui contient tous les blocs : palpé une fois
         int16_t bed = 0;
         int16_t nozzle = 0; ///< buse : première couche du fichier pour une impression d'une seule matière ; 0 : celle de la matière
         int16_t probe = 0; ///< buse pendant le palpage
@@ -874,11 +891,16 @@ namespace {
     };
     AutoPlan plan;
 
-    /// Lignes de l'étape i (un bloc par emplacement : purge, puis lignes)
+    /// Lignes de l'étape i (un bloc par emplacement : purge, puis lignes), dans son bloc ; tourné : X et Y échangés
+    /// autour du départ des lignes (pattern::Lines::at())
     pattern::Lines auto_lines_of(size_t i, uint8_t slot) {
-        const pattern::Rect one = lines_for(auto_request(slot), compact_cap, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
-        const float y = plan.block.y0 + float(i) * (one.y1 + auto_spacing);
-        return lines_for(auto_request(slot), compact_cap, plan.block.x0 - one.x0, y + auto_purge_half + auto_purge_gap);
+        const pattern::Rect one = auto_block(slot);
+        const pattern::Rect &b = plan.blocks[i];
+        const bool along_y = plan.along_y & (1u << i);
+        pattern::Lines lines = along_y ? lines_for(auto_request(slot), compact_cap, b.x0 + auto_lead, b.y0 - one.x0)
+                                       : lines_for(auto_request(slot), compact_cap, b.x0 - one.x0, b.y0 + auto_lead);
+        lines.along_y = along_y;
+        return lines;
     }
 
     /// L'impression continue (pas d'arrêt en cours) : la mesure automatique peut mettre la suite en file
@@ -907,7 +929,7 @@ namespace {
     Error measure_auto_slot(uint8_t slot, size_t i, bool &stopped) {
         const Request rq = auto_request(slot);
         const pattern::Lines lines = auto_lines_of(i, slot);
-        Temperatures t = temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).parameters(), plan.nozzle, plan.bed);
+        Temperatures t = temperatures_for(auto_type(slot).parameters(), plan.nozzle, plan.bed);
         t.probe = plan.probe;
         st_temperature = t.nozzle;
 
@@ -927,13 +949,15 @@ namespace {
             }
         }
         if (e == Error::none && !reuse) {
-            e = prepare_bed(session, plan.block, t);
+            e = prepare_bed(session, plan.area, t);
             plan.leveled = e == Error::none;
         }
 
-        // Comme le G-code de départ du MMU : au-dessus du début de la purge, purge pendant la montée de la buse
+        // Comme le G-code de départ du MMU : au-dessus du début de la purge, purge pendant la montée de la buse ; purge
+        // sous les lignes, dans leur sens (le long de Y pour un bloc tourné)
         if (e == Error::none) {
-            e = heat_and_purge(session, t.nozzle, lines.x0, lines.y0 - auto_purge_gap, 1.f);
+            const pattern::Point purge = lines.at(lines.x0, lines.y0 - auto_purge_gap);
+            e = heat_and_purge(session, t.nozzle, purge.x, purge.y, 1.f, lines.along_y);
             if (e != Error::none && must_stop()) {
                 e = Error::stopped;
             }
@@ -974,12 +998,18 @@ void calibrate_auto() {
     used = scan.used;
     const bool single_material = scan.single_material;
     for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-        const VirtualToolIndex tool = VirtualToolIndex::from_raw(slot);
-        if (tool.is_enabled() && FilamentType::for_tool(tool)) {
+        if (VirtualToolIndex::from_raw(slot).is_enabled() && auto_type(slot)) {
             known |= uint8_t(1u << slot);
         }
         if (record(slot).has_k()) {
             has_k |= uint8_t(1u << slot);
+        }
+    }
+    // Matière inconnue même du fichier : pas de température sûre, pas de mesure ; on le dit
+    const uint8_t unknown = uint8_t(slots_to_measure(mode, used, 0xff, has_k) & ~known);
+    for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
+        if (unknown & (1u << slot)) {
+            report_slot(slot, Error::not_loaded);
         }
     }
     const uint8_t todo = slots_to_measure(mode, used, known, has_k);
@@ -1017,43 +1047,39 @@ void calibrate_auto() {
         order[count++] = *initial;
     }
 
-    // Place : un bloc par emplacement (purge, puis lignes), autant d'emplacements qu'il en tient à côté de la pièce
-    const pattern::Rect one = lines_for(auto_request(order[0]), compact_cap, 0.f, auto_purge_half + auto_purge_gap).area(); // bloc en (0, 0)
-    const float block_w = one.width();
-    const float block_h = one.y1;
+    // Place : un bloc par emplacement (purge, puis lignes), chacun à sa place libre autour de la pièce (tourné de 90°
+    // s'il ne tient pas droit), autant d'emplacements qu'il en tient (demande du 24/11)
+    const pattern::Rect one = auto_block(order[0]);
     std::array<float, 2 * GRID_MAX_POINTS_X> xs; // M1994 A n'attend rien : pas besoin de mémoire statique
     std::array<float, 2 * GRID_MAX_POINTS_Y> ys;
     const size_t nx = major_points(xs, GRID_MAX_POINTS_X, unified_bed_leveling::mesh_index_to_xpos);
     const size_t ny = major_points(ys, GRID_MAX_POINTS_Y, unified_bed_leveling::mesh_index_to_ypos);
     const pattern::Rect print { area->a.x, area->a.y, area->b.x, area->b.y };
-    std::optional<pattern::Rect> spot;
-    size_t fitting = count;
-    for (; fitting > 0 && !spot; --fitting) {
-        spot = auto_spot(session::printable_zone(), print, block_w, float(fitting) * (block_h + auto_spacing) - auto_spacing, std::span(xs.data(), nx),
-            std::span(ys.data(), ny), MESH_X_DIST * GRID_MAJOR_STEP, MESH_Y_DIST * GRID_MAJOR_STEP);
-    }
-    if (!spot) {
+    const size_t fitting = auto_spots(std::span(plan.blocks.data(), count), plan.along_y, session::printable_zone(), print, one.width(), one.y1,
+        std::span(xs.data(), nx), std::span(ys.data(), ny), MESH_X_DIST * GRID_MAJOR_STEP, MESH_Y_DIST * GRID_MAJOR_STEP);
+    if (fitting == 0) {
         skip_all(Error::no_room, _("PA not measured: no room beside the print"));
         return;
     }
-    ++fitting; // la boucle a compté un de trop
     for (size_t i = fitting; i < count; ++i) {
         report_slot(order[i], Error::no_room); // pas la place pour tous : à la prochaine impression
     }
 
     // Températures de l'impression : plateau du fichier (M140), buse du fichier pour une seule matière (sinon celle de
-    // chaque matière), buse de palpage la plus basse
+    // chaque matière), buse de palpage la plus basse ; un seul palpage pour tous les blocs
     plan.probe = session::max_temperature;
+    plan.area = plan.blocks[0];
     for (size_t i = 0; i < fitting; ++i) {
         plan.order[i] = order[i];
-        plan.probe = std::min(plan.probe, temperatures_for(FilamentType::for_tool(VirtualToolIndex::from_raw(order[i])).parameters(), 0, 0).probe);
+        plan.probe = std::min(plan.probe, temperatures_for(auto_type(order[i]).parameters(), 0, 0).probe);
+        const pattern::Rect &b = plan.blocks[i];
+        plan.area = { std::min(plan.area.x0, b.x0), std::min(plan.area.y0, b.y0), std::max(plan.area.x1, b.x1), std::max(plan.area.y1, b.y1) };
     }
-    const FilamentTypeParameters first_material = FilamentType::for_tool(VirtualToolIndex::from_raw(order[0])).parameters();
+    const FilamentTypeParameters first_material = auto_type(order[0]).parameters();
     plan.bed = temperatures_for(first_material, 0, int16_t(GCodeInfo::getInstance().get_bed_preheat_temp().value_or(0))).bed;
     plan.nozzle = single_material ? int16_t(GCodeInfo::getInstance().get_hotend_preheat_temp().value_or(0)) : 0;
     plan.count = uint8_t(fitting);
     plan.initial = initial;
-    plan.block = *spot;
     plan.active = true;
     thermalManager.setTargetBed(plan.bed); // chaud entre les étapes : chacune remet cette consigne à sa fin
     auto_next();

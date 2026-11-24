@@ -43,7 +43,8 @@ Rect Lines::area() const {
     const float half = bead.width / 2.f;
     // Les traits partent de la ligne vers l'arrière (y croissant)
     const float top = y(uint8_t(count - 1)) + (marks > 0 ? std::max(tick_long, half) : half);
-    return { x0 - half, y0 - half, x0 + length + marks + half, top };
+    const Rect r { x0 - half, y0 - half, x0 + length + marks + half, top };
+    return along_y ? Rect { x0 + (r.y0 - y0), y0 + (r.x0 - x0), x0 + (r.y1 - y0), y0 + (r.x1 - x0) } : r;
 }
 
 Rect probe_rect(const Rect &pattern, float grow_x, float grow_y, const Rect &bed) {

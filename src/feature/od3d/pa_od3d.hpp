@@ -19,8 +19,9 @@
 ///   J1, et rend la main : le MMU n'est jamais piloté depuis la pile de M1994 (débordement de la pile de Marlin en
 ///   8.0.2.23). Le filament reste chargé à la fin.
 /// - Automatique (réglage « PA automatique », comme la calibration de la dynamique du débit des Bambu) : M1994 A, mis
-///   en file au départ de l'impression (PrintInit), choisit les emplacements utilisés sans K (ou tous) et une bande libre
-///   à côté de la pièce (auto_spot()) ; puis, une étape à la fois par la file d'injection (avant les lignes du fichier) :
+///   en file au départ de l'impression (PrintInit), choisit les emplacements utilisés sans K (ou tous ; matière de
+///   l'imprimante, sinon celle du fichier) et la place libre du bloc de chacun autour de la pièce, tourné de 90° s'il
+///   ne tient pas droit (auto_spots()) ; puis, une étape à la fois par la file d'injection (avant les lignes du fichier) :
 ///   « Charger dans la buse » de Prusa, M1994 P<n> A1 (mesure courte, 5 lignes) ; enfin le filament remis comme avant
 ///   (M702 W2 en général). Le G-code de départ fait ensuite tout comme d'habitude. Un échec ou un « Passer » ne bloque
 ///   jamais l'impression : le PA du trancheur reste, et un message le dit.

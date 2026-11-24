@@ -99,9 +99,8 @@ void request_skip(uint8_t index);
 /// - fan_response : [0] temps de montée (ms), [1] avance de F26 (dixièmes de s), [2], [3] références des vibrations
 ///   des ventilateurs (deux codes de 7 bits chacun, vibration_math_od3d.hpp, écrits par M2001 V et gardées) ; avant :
 ///   le temps de montée du dernier succès et l'avance réglée ;
-/// - accel_limit : [0], [1] accélération max utile de X, Y à proposer pour M201 (mm/s², no_value : non concluant),
-///   [2], [3] plafond de M201 en vigueur (accel_cap_od3d.hpp, gardé : ≤ 0 aucun) ; avant : [0], [1] M201 X, Y de la
-///   machine ;
+/// - accel_limit : [0], [1] accélération max utile de X, Y (mm/s², no_value : non concluant), une information : rien
+///   n'est appliqué (V-01) ; avant : [0], [1] M201 X, Y de la machine ;
 /// - nozzle_expansion : [0] pente (nm/°C ; avant : no_value pour le modèle de Prusa), après : [1] pente de Prusa
 ///   (nm/°C), [2] écart avec Prusa à 250 °C (0,1 µm), [3] retour − aller (0,1 µm) ;
 /// - mmu_speed : [0] vitesse de la poulie (mm/s) ; après : [1], [2] durée mesurée d'un cycle chargement + déchargement

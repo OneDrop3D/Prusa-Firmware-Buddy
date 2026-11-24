@@ -1,7 +1,6 @@
 /// @file
 #include "calib_assistant_od3d.hpp"
 
-#include "accel_cap_od3d.hpp"
 #include "accelerometer_od3d.hpp"
 #include "belt_tension_od3d.hpp"
 #include "damping_od3d.hpp"
@@ -193,9 +192,7 @@ namespace {
             }
             break;
         case Test::accel_limit: {
-            const auto cap = accel_cap::get(); // gardé tel quel : « Appliquer » le change après la série
             for (uint8_t a = 0; a < accel_limit::axis_count; ++a) {
-                n[2 + a] = cap[a];
                 if (!after) { // M201 de la machine
                     n[a] = int16_t(std::min<uint32_t>(planner.user_settings.max_acceleration_mm_per_s2[a], INT16_MAX));
                 } else {

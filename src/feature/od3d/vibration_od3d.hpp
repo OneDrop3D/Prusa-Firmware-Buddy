@@ -7,9 +7,8 @@
 /// - M2004, accélération max utile : à la position de l'assistant input shaper de Prusa (M1959 : centre du plateau,
 ///   mi-hauteur), X puis Y font quatre déplacements courts (aller, retour, aller, retour) à chaque palier de 2 000 à
 ///   10 000 mm/s², input shaper en place, mode furtif coupé ; le résidu est mesuré dans les 250 ms qui suivent l'arrêt.
-///   Rien n'est appliqué : l'assistant propose ensuite d'en faire le plafond de M201 (accel_cap_od3d.hpp), gardé et
-///   appliqué au démarrage comme à chaque M201 (celui du départ de PrusaSlicer compris), si l'utilisateur l'accepte.
-///   /usb/OD3D_ACCEL.CSV.
+///   Une information, montrée au bilan de l'assistant : rien n'est appliqué, ni M201 ni plafond (V-01 : le plafond
+///   d'avant limitait chaque M201 des impressions sur une mesure non validée). /usb/OD3D_ACCEL.CSV.
 /// - M2001 V, vibrations des ventilateurs (après le temps de montée de M2001) : chaque ventilateur seul (les autres
 ///   arrêtés par les commandes du test des ventilateurs de Prusa, M1978), à 50, 75 et 100 %, moteurs à l'arrêt ;
 ///   régime lu au tachymètre, amplitude à la fréquence de rotation par la transformée en un point de M958

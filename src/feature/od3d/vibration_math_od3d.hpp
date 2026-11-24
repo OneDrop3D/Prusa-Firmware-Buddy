@@ -64,12 +64,6 @@ struct Limit {
 /// non plus) ; noise : variance au repos. Au premier palier qui dépasse le seuil, on s'arrête (le plus prudent).
 Limit find_limit(std::span<const float> residual, std::span<const uint16_t> accel, float noise);
 
-/// M201 X/Y avec le plafond accepté (accel_cap_od3d.hpp) : la valeur demandée, au plus cap ; cap ≤ 0 (0 : « Conserver »,
-/// no_value : jamais mesuré) : sans effet
-constexpr float capped(float requested, int16_t cap) {
-    return cap > 0 && requested > float(cap) ? float(cap) : requested;
-}
-
 // ---- Ventilateurs (M2001 V) ----
 
 inline constexpr std::array<uint8_t, 3> fan_pwm { 128, 191, 255 }; ///< 50, 75, 100 %

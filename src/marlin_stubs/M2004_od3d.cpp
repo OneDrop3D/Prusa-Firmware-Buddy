@@ -20,8 +20,8 @@
  * L'accéléromètre doit être fixé sur la buse et branché : il est vérifié avant tout mouvement, sinon rien ne bouge.
  * Refusé pendant une impression, si la buse dépasse 50 °C ou sans origine. Au centre du plateau à mi-hauteur (comme
  * M1959), X puis Y font des déplacements courts de 2 000 à 10 000 mm/s², input shaper en place ; les vibrations qui
- * restent après l'arrêt donnent la plus haute accélération où elles ne remontent pas. Rien n'est appliqué : l'assistant
- * propose d'en faire le plafond de M201 (feature/od3d/accel_cap_od3d.hpp). Mesures brutes dans /usb/OD3D_ACCEL.CSV.
+ * restent après l'arrêt donnent la plus haute accélération où elles ne remontent pas. Une information, montrée au bilan
+ * de l'assistant : rien n'est appliqué, ni M201 ni plafond (V-01). Mesures brutes dans /usb/OD3D_ACCEL.CSV.
  */
 void PrusaGcodeSuite::M2004() {
     od3d::accel_limit::run();

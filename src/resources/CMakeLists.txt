@@ -173,8 +173,8 @@ if(HAS_MMU2)
   endif()
   # OneDrop3D : ce firmware est écrit dans le MMU par l'imprimante, on vérifie qu'il est bien celui de la release
   file(SHA256 "${mmu_fw_hex_file}" mmu_fw_sha256)
-  if(NOT mmu_fw_sha256 STREQUAL "9099ff9e6b89536b9b2c5ec22d9f0dee1057f472fad66105cbb360b3cdd5bd0e")
-    message(FATAL_ERROR "MMU FW ${mmu_fw_hex_file} does not match the od3d-3.0.4.941 release (${mmu_fw_sha256})")
+  if(NOT mmu_fw_sha256 STREQUAL "9d66948598518a4e66eb5c9ceedbb437f14f01277484813092f16d9f6b75c347")
+    message(FATAL_ERROR "MMU FW ${mmu_fw_hex_file} does not match the od3d-3.0.4.943 release (${mmu_fw_sha256})")
   endif()
 
   set(mmu_fw_file_base "${CMAKE_CURRENT_BINARY_DIR}/mmu_fw_${mmu_fw_version}")

@@ -19,7 +19,7 @@
 #include "mmu2_progress_converter.h"
 #include "mmu2_reporting.h"
 #include "../e-stall_detector.h"
-#include <feature/od3d/filament_memory_od3d.hpp> // OneDrop3D (F43)
+#include "../../../../../../../src/feature/od3d/filament_memory_od3d.hpp" // OneDrop3D (F43) ; chemin relatif comme mmu2_bootloader : la cible de test du MMU n'a pas src/
 #include <printers.h>
 #include <option/has_mmu2_over_uart.h>
 #if not HAS_MMU2_OVER_UART()

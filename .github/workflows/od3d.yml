@@ -41,10 +41,13 @@ jobs:
       - run: sudo apt-get install -y gettext  # msgfmt, pour les traductions
       - name: Compiler coreone_release_boot
         # Comme les versions publiées de Prusa (utils/holly/build-pr.jenkins, branches RELEASE-*) : sans les menus de développement.
-        # Français et anglais seulement. Le tag od3d-8.0.2.N s'affiche « 8.0.2-OD3D.N » ; l'en-tête du .bbf ne garde que 5 caractères (« OD3D »).
+        # Français et anglais seulement. Le tag od3d-8.0.3.N s'affiche « 8.0.3-OD3D.N+<build> » ; l'en-tête du .bbf ne garde que 5 caractères (« OD3D »).
+        # « +<build> » comme toutes les versions de Prusa (-BETA+17094, -RC+…, +….LOCAL ; pack_fw.py : MAJOR.MINOR.PATCH[-RELEASE]+BUILD) :
+        # sans lui, Prusa Connect ne reconnaissait plus l'imprimante (retour du 24/11 : « The  does not support files transfer »)
         run: |
-          case "$GITHUB_REF_NAME" in od3d-*.*.*.*) suffixe="-OD3D.${GITHUB_REF_NAME##*.}" ;; *) suffixe=-OD3D ;; esac
-          python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix=$suffixe --version-suffix-short=-OD3D --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
+          build=$(git rev-list --count HEAD)  # le BUILD_NUMBER de cmake/ProjectVersion.cmake
+          case "$GITHUB_REF_NAME" in od3d-*.*.*.*) suffixe="-OD3D.${GITHUB_REF_NAME##*.}+$build" ;; *) suffixe="-OD3D+$build" ;; esac
+          python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix=$suffixe --version-suffix-short=-OD3D+$build --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
       - uses: actions/upload-artifact@v4
         with:
           name: firmware

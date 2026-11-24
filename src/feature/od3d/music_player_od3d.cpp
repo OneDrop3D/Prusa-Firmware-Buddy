@@ -51,6 +51,9 @@ namespace {
             : file(f) {}
 
         size_t read(uint32_t offset, uint8_t *buf, size_t len) override {
+            // V-04 : un long passage sans note (percussions) se lit d'un trait dans Reader::next() ; sans idle(), le
+            // chien de garde (4 s) redémarrait l'imprimante
+            idle(true);
             if (fseek(file, long(offset), SEEK_SET) != 0) {
                 return 0;
             }

@@ -12932,3 +12932,23 @@ msgstr "Axe %c : le filtre retire %d %% des vibrations"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "New in this firmware: %d tests, ~%d min"
 msgstr "Nouveau dans ce firmware : %d tests, ~%d min"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fans:"
+msgstr "Ventilateurs :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Part fan: no speed read at 100%% (%d RPM). Check that it spins and its cable."
+msgstr "Ventilateur de pièce : aucun régime lu à 100 %% (%d tr/min). Vérifiez qu'il tourne et son câble."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Part fan rise time: stopped before the end."
+msgstr "Temps de montée du ventilateur : arrêté avant la fin."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fan vibration: the accelerometer stopped answering or lost samples. Check its cable, then redo Fans."
+msgstr "Vibrations des ventilateurs : l'accéléromètre ne répond plus ou perd des mesures. Vérifiez son câble, puis refaites Ventilateurs."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fan vibration: stopped before the end."
+msgstr "Vibrations des ventilateurs : arrêtées avant la fin."

@@ -675,6 +675,44 @@ namespace {
         return written;
     }
 
+    /// Ventilateurs (M2001 V) en échec (retour du 24/11 : « le test n'est pas allé au bout », sans dire pourquoi) : la
+    /// partie qui a échoué et sa raison ; false sans raison connue
+    bool fan_reason(Writer &w) {
+        bool written = false;
+        const auto line = [&](const char *msgid) {
+            if (written) {
+                w.add("\n");
+            }
+            w.text(msgid);
+            written = true;
+        };
+        switch (fan_response::status()) {
+        case fan_response::Status::no_signal: {
+            char format[160];
+            _("Part fan: no speed read at 100%% (%d RPM). Check that it spins and its cable.").copyToRAM(format, sizeof(format));
+            w.add(format, int(std::lround(fan_response::result().rise.rpm)));
+            written = true;
+            break;
+        }
+        case fan_response::Status::stopped:
+            line(N_("Part fan rise time: stopped before the end."));
+            break;
+        default:
+            break;
+        }
+        switch (fan_vibration::status()) {
+        case vibration::Status::failed:
+            line(N_("Fan vibration: the accelerometer stopped answering or lost samples. Check its cable, then redo Fans."));
+            break;
+        case vibration::Status::stopped:
+            line(N_("Fan vibration: stopped before the end."));
+            break;
+        default:
+            break;
+        }
+        return written;
+    }
+
     /// Détail d'un test du bilan : ses chiffres, d'avant et d'après
     void build_details(Test test, Writer &w) {
         const calib_registry::Numbers &a = assistant::numbers_after(test);
@@ -685,7 +723,8 @@ namespace {
             w.text(N_("Skipped: still to do next time."));
             return;
         }
-        if (assistant::result(test) == Result::failed && ((test == Test::accel_mount && mount_reason(w)) || (test == Test::shaper_check && shaper_reason(w)))) {
+        if (assistant::result(test) == Result::failed
+            && ((test == Test::accel_mount && mount_reason(w)) || (test == Test::shaper_check && shaper_reason(w)) || (test == Test::fan_response && fan_reason(w)))) {
             return;
         }
         if (!shown) {
@@ -1051,6 +1090,12 @@ namespace {
         if ((flow.started & test_bit(Test::shaper_check)) && assistant::result(Test::shaper_check) == Result::failed) {
             w.label(N_("Filter check:"));
             if (!shaper_reason(w)) {
+                w.text(N_("not measured"));
+            }
+        }
+        if ((flow.started & test_bit(Test::fan_response)) && assistant::result(Test::fan_response) == Result::failed) {
+            w.label(N_("Fans:"));
+            if (!fan_reason(w)) {
                 w.text(N_("not measured"));
             }
         }

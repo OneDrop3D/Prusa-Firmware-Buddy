@@ -131,7 +131,7 @@ namespace {
     }
 
     /// Une ligne de la liste (SPEC_G.md §1.7) ; extension_only : seule la valeur a changé. visible < row.Height() :
-    /// demi-ligne, seul son haut est peint (fond, haut de la tuile sans l'icône, haut du libellé, pas de valeur)
+    /// demi-ligne, seul son haut est peint (fond, tuile coupée et son icône, haut du libellé, pas de valeur)
     void draw_row(IWindowMenuItem &item, Rect16 row, bool first, bool last, bool extension_only, uint16_t visible) {
         const bool focused = item.is_focused();
         const bool enabled = item.IsEnabled();
@@ -188,17 +188,26 @@ namespace {
             });
 
             const Color fg = enabled ? style::text : style::text_faint;
+            const Rect16 glyph(tile_rect.Left() + (tile_size - icon->w) / 2, tile_rect.Top() + (tile_size - icon->h) / 2, icon->w, icon->h);
             if (cut) {
-                // Sans la tuile : son haut sans icône (lue d'un bloc) se voyait comme une pastille de couleur vide
-                // (photos du 24/11) ; le libellé coupé suffit à dire qu'il y a une suite
-                if (!tile_shown.IsEmpty()) {
+                // L'icône (lue d'un bloc) quand elle tient entière (listes G : 29 px visibles, icône de 12 à 27), dans sa
+                // tuile coupée net en bas comme le libellé (retour du 24/11 : « dnas le demi menu qui est affiché en bas
+                // l'icone n'est pas afficher ») ; sinon pas de tuile : son haut seul se voyait comme une pastille vide
+                const int16_t shown_end = shown.Top() + shown.Height();
+                if (glyph.Bottom() < shown_end) {
+                    // Coins du bas descendus sous la coupe (cachés) : côtés droits jusqu'à elle
+                    const int16_t seen = shown_end - tile_rect.Top();
+                    const Rect16 frame(tile_rect.Left(), tile_rect.Top(), tile_size, seen >= tile_size ? tile_size : seen + style::radius_small);
+                    const std::array<Rect16, 2> painted_apart { glyph, Rect16(frame.Left(), shown_end, tile_size, std::max(frame.Top() + frame.Height() - shown_end, 0)) };
+                    draw_rounded_frame(frame, bg, tile, tile, style::radius_small, 0, painted_apart);
+                    draw_icon({ glyph.Left(), glyph.Top() }, *icon, tile, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
+                } else if (!tile_shown.IsEmpty()) {
                     display::fill_rect(tile_shown, bg);
                 }
-                draw_label_cut(label_rect, item.GetLabel(), fg, bg, shown.Top() + shown.Height());
+                draw_label_cut(label_rect, item.GetLabel(), fg, bg, shown_end);
                 return;
             }
             // La tuile autour de l'icône, puis l'icône : chaque pixel une fois
-            const Rect16 glyph(tile_rect.Left() + (tile_size - icon->w) / 2, tile_rect.Top() + (tile_size - icon->h) / 2, icon->w, icon->h);
             draw_rounded_frame(tile_rect, bg, tile, tile, style::radius_small, 0, std::span<const Rect16>(&glyph, 1));
             draw_icon({ glyph.Left(), glyph.Top() }, *icon, tile, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
             draw_label(label_rect, item.GetLabel(), fg, bg,

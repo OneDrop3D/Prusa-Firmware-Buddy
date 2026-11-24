@@ -61,6 +61,14 @@ using ScreenMenuTune__ = ScreenMenu<EFooter::On, MI_RETURN,
     MI_SPEED,
     MI_NOZZLE_TARGET_TEMP,
     MI_HEATBED,
+#if HAS_CHAMBER_API()
+    // OneDrop3D : la chambre avec la buse et le plateau, plus seulement dans « Température & ventilateurs » (retour du
+    // 24/11 : « dans une impression on peut pas géérer la température de la chambre ») ; M141, comme ce sous-menu
+    MI_CHAMBER_TARGET_TEMP,
+#endif
+#if XBUDDY_EXTENSION_VARIANT_IS_STANDARD()
+    MI_XBUDDY_EXTENSION_COOLING_FANS, // la consigne de chambre n'agit (et ne se règle) que ventilateurs en Auto
+#endif
     MI_PRINTFAN,
     MI_TEMPERATURE_AND_FANS,
 #if HAS_CHAMBER_FILTRATION_API()

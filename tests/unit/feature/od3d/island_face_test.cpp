@@ -13,8 +13,6 @@ TEST_CASE("island: rien à montrer") {
 TEST_CASE("island: priorité processus > impression > chargement > attente > préchauffage") {
     Inputs in;
     in.process = Face { .kind = Kind::process, .slot = 2, .process = Process::pa, .stage = Stage::heating };
-    in.print_fsm = true;
-    in.print_percent = 60;
     in.filament_minimized = true;
     in.filament_percent = 45;
     in.wait_minimized = true;
@@ -27,6 +25,8 @@ TEST_CASE("island: priorité processus > impression > chargement > attente > pr�
     CHECK(f.slot == 2);
 
     in.process = {};
+    in.print_fsm = true;
+    in.print_percent = 60;
     CHECK(choose(in).kind == Kind::print);
 
     in.print_fsm = false;
@@ -54,12 +54,21 @@ TEST_CASE("island: processus") {
         in.on_process_screen = true;
         CHECK(choose(in).kind == Kind::none);
     }
-    SECTION("pendant une impression (PA automatique) : le processus d'abord") {
+    SECTION("pendant une impression (PA automatique) : l'impression, qui mène à son « Arrêter » (retour du 24/11)") {
         in.print_fsm = true;
         in.print_percent = 3;
-        CHECK(choose(in).kind == Kind::process);
-        in.on_process_screen = true;
+        CHECK(choose(in).kind == Kind::print);
+        in.on_process_screen = true; // l'écran PA n'arrête pas l'impression
+        CHECK(choose(in).kind == Kind::print);
+        in.on_process_screen = false;
+        in.on_print_screen = true; // sa ligne du bas montre l'étape de la mesure
+        in.wait_minimized = true; // le « Patientez » réduit de son palpage n'y apparaît pas
         CHECK(choose(in).kind == Kind::none);
+    }
+    SECTION("après l'impression (finie : pas de pastille d'impression), le processus revient") {
+        in.print_fsm = true;
+        in.print_not_started = true;
+        CHECK(choose(in) == in.process);
     }
 }
 
@@ -92,12 +101,7 @@ TEST_CASE("island: impression en cours hors de l'écran Impression") {
         in.on_print_screen = true;
         CHECK(choose(in).kind == Kind::none);
     }
-    SECTION("grise à la fin, jusqu'à « Accueil » : elle ramène à l'écran de fin") {
-        in.print_tone = Tone::ended;
-        CHECK(choose(in).kind == Kind::print);
-        CHECK(choose(in).tone == Tone::ended);
-    }
-    SECTION("cachée avant le départ (aperçu, questions)") {
+    SECTION("cachée avant le départ (aperçu, questions) et après la fin") {
         in.print_not_started = true;
         CHECK(choose(in).kind == Kind::none);
     }
@@ -176,7 +180,6 @@ TEST_CASE("island: texte de la pastille") {
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::paused, .percent = 47, .minutes = 83 }) == "II 47%");
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::waiting, .percent = 47, .minutes = 83 }) == "47%");
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::error, .percent = 47, .minutes = 83 }) == "! 47%");
-        CHECK(text_of({ .kind = Kind::print, .tone = Tone::ended, .percent = 100, .minutes = 0 }) == "100%");
     }
     SECTION("12 caractères au plus (la place de la pastille, l'heure sur 12 h)") {
         for (uint16_t m : { 0, 1, 59, 60, 61, 599, 600, 5999, 6000, 65000 }) {

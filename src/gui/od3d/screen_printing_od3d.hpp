@@ -16,7 +16,11 @@ namespace od3d {
 /// Une impression est ouverte, de son départ jusqu'à « Accueil » après la fin (FSM Printing)
 bool print_active();
 
-/// Onglet Imprimer : l'écran Impression pendant une impression, sinon les fichiers (la pile redevient [accueil, écran])
+/// L'impression est terminée ou arrêtée : son écran de fin ne vit que tant qu'il est sur la pile (DialogHandler)
+bool print_ended();
+
+/// Onglet Imprimer : l'écran Impression pendant une impression, sinon les fichiers, aussi après la fin (la pile redevient
+/// [accueil, écran])
 void open_print_tab();
 
 class ScreenPrinting;

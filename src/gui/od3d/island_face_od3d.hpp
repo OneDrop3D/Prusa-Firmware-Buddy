@@ -1,9 +1,12 @@
 /// @file
 /// OneDrop3D (F1, interface G, UI-10) : ce que montre la pastille « Dynamic Island » de l'en-tête, sans affichage ni
 /// lecture de l'imprimante (testé dans tests/unit/feature/od3d). Une seule pastille à la fois, par priorité :
-/// 1. un de nos processus (mesure du PA, courroies...), hors de son écran : sa chauffe, son chargement et son palpage
-///    sont les siens (retour de l'utilisateur, 22/11 : la pastille menait aux températures pendant la mesure du PA) ;
-/// 2. l'impression en cours, hors de l'écran Impression ;
+/// 1. un de nos processus (mesure du PA, courroies...), hors de son écran et hors impression : sa chauffe, son
+///    chargement et son palpage sont les siens (retour de l'utilisateur, 22/11 : la pastille menait aux températures
+///    pendant la mesure du PA) ;
+/// 2. l'impression en cours, hors de l'écran Impression : la mesure automatique du PA en fait partie, la pastille mène
+///    à l'écran Impression (« Passer », « Arrêter ») et pas à l'écran PA, qui n'arrête pas l'impression (retour du
+///    24/11 : « quand il fait le PA (le palpage du PA) on a plus accès au menu pour quitter l'impression ») ;
 /// 3. le chargement ou déchargement réduit par la flèche de son écran ;
 /// 4. le « Patientez » de Prusa (origine, palpage) réduit ;
 /// 5. la buse qui chauffe hors impression et hors machine à états (préchauffage), hors de l'aperçu des températures.
@@ -59,14 +62,13 @@ enum class Stage : uint8_t {
     percent, ///< « 45% »
 };
 
-/// État de l'impression, en couleur : orange (en cours), jaune (pause), gris (attente : reprise, chauffe, question ;
-/// fin : terminée ou arrêtée, jusqu'à « Accueil » sur l'écran Impression), rouge (erreur)
+/// État de l'impression, en couleur : orange (en cours), jaune (pause), gris (attente : reprise, chauffe, question),
+/// rouge (erreur). Finie ou arrêtée : pas de pastille, elle se ferme dès qu'on quitte son écran (DialogHandler)
 enum class Tone : uint8_t {
     normal,
     paused,
     waiting,
     error,
-    ended,
 };
 
 inline constexpr uint8_t no_slot = 0xff;
@@ -98,7 +100,7 @@ struct Inputs {
     uint8_t filament_slot = no_slot;
 
     bool print_fsm = false; ///< machine Printing ouverte (du départ à « Accueil » après la fin)
-    bool print_not_started = false; ///< aperçu, questions avant le départ : pas encore de pastille
+    bool print_not_started = false; ///< aperçu, questions avant le départ, ou déjà finie : pas de pastille
     bool print_hidden_by_fsm = false; ///< une autre machine à états s'affiche par-dessus (son écran est la priorité)
     bool on_print_screen = false;
     Tone print_tone = Tone::normal;
@@ -115,11 +117,15 @@ struct Inputs {
 };
 
 constexpr Face choose(const Inputs &in) {
-    if (in.process.kind == Kind::process) {
+    const bool in_print = in.print_fsm && !in.print_not_started;
+    if (in.process.kind == Kind::process && !in_print) {
         return in.on_process_screen ? Face {} : in.process;
     }
-    if (in.print_fsm && !in.print_not_started && !in.print_hidden_by_fsm && !in.on_print_screen) {
+    if (in_print && !in.print_hidden_by_fsm && !in.on_print_screen) {
         return Face { .kind = Kind::print, .tone = in.print_tone, .percent = in.print_percent > 100 ? uint8_t(100) : in.print_percent, .minutes = in.print_minutes };
+    }
+    if (in.process.kind == Kind::process) {
+        return {}; // mesure de l'impression, sur l'écran Impression (sa ligne du bas montre l'étape) ou sous une autre machine
     }
     if (in.filament_minimized) {
         return Face { .kind = Kind::filament, .percent = in.filament_percent, .slot = in.filament_slot };

@@ -41,13 +41,18 @@ jobs:
       - run: sudo apt-get install -y gettext  # msgfmt, pour les traductions
       - name: Compiler coreone_release_boot
         # Comme les versions publiées de Prusa (utils/holly/build-pr.jenkins, branches RELEASE-*) : sans les menus de développement.
-        # Français et anglais seulement. Le tag od3d-8.0.3.N s'affiche « 8.0.3-OD3D.N+<build> » ; l'en-tête du .bbf ne garde que 5 caractères (« OD3D »).
-        # « +<build> » comme toutes les versions de Prusa (-BETA+17094, -RC+…, +….LOCAL ; pack_fw.py : MAJOR.MINOR.PATCH[-RELEASE]+BUILD) :
-        # sans lui, Prusa Connect ne reconnaissait plus l'imprimante (retour du 24/11 : « The  does not support files transfer »)
+        # Français et anglais seulement. Le tag od3d-8.0.3.N donne la version « 8.0.3+<build>.OD3D.N », la forme des builds locaux de
+        # Prusa (« +1035.LOCAL ») : envoyée à Prusa Connect (INFO, User-Agent-Version), elle se lit comme une version semver ET
+        # PEP 440. « 8.0.3-OD3D.37 », sans numéro de build et avec une étiquette inconnue, faisait refuser les envois de PrusaSlicer
+        # par Connect (retour du 24/11 : « The  does not support files transfer »). L'en-tête du .bbf garde « OD3D » (5 caractères).
         run: |
           build=$(git rev-list --count HEAD)  # le BUILD_NUMBER de cmake/ProjectVersion.cmake
-          case "$GITHUB_REF_NAME" in od3d-*.*.*.*) suffixe="-OD3D.${GITHUB_REF_NAME##*.}+$build" ;; *) suffixe="-OD3D+$build" ;; esac
-          python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix=$suffixe --version-suffix-short=-OD3D+$build --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
+          case "$GITHUB_REF_NAME" in od3d-*.*.*.*) n=".${GITHUB_REF_NAME##*.}" ;; *) n="" ;; esac
+          python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix="+$build.OD3D$n" --version-suffix-short="-OD3D+$build" --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
+          # Le nom du fichier reste « coreone_release_boot_8.0.3-OD3D.N.bbf » : PrintForge, OneDrop3D et les notes de release y cherchent « -OD3D »
+          bbf=(build/products/*.bbf)
+          [ ${#bbf[@]} -eq 1 ] || { echo "::error::un seul .bbf attendu : ${bbf[*]}"; exit 1; }
+          mv "${bbf[0]}" "build/products/coreone_release_boot_$(cat version.txt)-OD3D$n.bbf"
       - uses: actions/upload-artifact@v4
         with:
           name: firmware

@@ -346,6 +346,9 @@ void ScreenPa::show_note() {
         case pa::Error::load_failed:
             text = _("Spool not loaded: nothing measured.");
             break;
+        case pa::Error::no_force:
+            text = _("No force: the nozzle did not touch the bed.");
+            break;
         default:
             text = _("Invalid request.");
             break;

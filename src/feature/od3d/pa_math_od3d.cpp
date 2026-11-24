@@ -263,6 +263,12 @@ float parabola_vertex(float x0, float y0, float x1, float y1, float x2, float y2
     return 0.5f * (x0 + x1) - d01 / (2.f * d2);
 }
 
+bool in_air(std::span<const SweepPoint> done, const Thresholds &th) {
+    return done.size() >= air_lines && std::none_of(done.begin(), done.end(), [&th](const SweepPoint &p) {
+        return p.r.valid() && std::fabs(p.r.amplitude_g) >= th.min_amplitude_g;
+    });
+}
+
 // Jamais incorporée au balayage, pour la même raison (~0,7 Ko)
 [[gnu::noinline]] Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, float k_step, const Thresholds &th) {
     Choice c;

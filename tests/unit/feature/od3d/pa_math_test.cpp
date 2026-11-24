@@ -915,6 +915,23 @@ TEST_CASE("PA compact : K retrouvé sur lignes imprimées simulées, en 4 à 6 l
     }
 }
 
+TEST_CASE("PA : buse en l'air vue dès la 2e ligne (retour du 24/11 : origine Z fausse)") {
+    pa::Request rq;
+    pa::make_compact(rq);
+    const pa::Profile p = pa::profile(rq.params);
+    Nozzle air; // dans le vide : la poussée de l'extrudeur et la contre-pression de la buse se compensent
+    air.gain_g = 0.f;
+    air.squish_g = 0.f;
+    const pa::SweepPoint in_air_1 { 0.04f, pa::analyse_block(simulate(rq.params, air, 0.04f, dt, 1), dt, p) };
+    const pa::SweepPoint in_air_2 { 0.06f, pa::analyse_block(simulate(rq.params, air, 0.06f, dt, 2, -1.f), dt, p) };
+    const pa::SweepPoint on_bed { 0.04f, pa::analyse_block(simulate(rq.params, Nozzle {}, 0.04f, dt, 3), dt, p) };
+    CHECK_FALSE(pa::in_air(std::vector { in_air_1 })); // une seule ligne : pas encore
+    CHECK(pa::in_air(std::vector { in_air_1, in_air_2 }));
+    CHECK_FALSE(pa::in_air(std::vector { on_bed, in_air_2 })); // la buse a touché : la suite décide (choose_k)
+    CHECK_FALSE(pa::in_air(std::vector { on_bed, on_bed }));
+    CHECK_FALSE(pa::in_air({}));
+}
+
 // ---- Lignes dans les deux sens (demande du 22/11 : plus de retour à gauche entre deux lignes) ----
 
 TEST_CASE("PA : ligne vers −X analysée comme vers +X") {

@@ -112,6 +112,7 @@ enum class Error : uint8_t {
     mmu, ///< le MMU n'est pas prêt (absent ou en erreur)
     no_area, ///< mesure automatique : l'impression ne déclare pas sa zone (M555)
     load_failed, ///< le chargement de Prusa n'a pas mis la bobine dans la buse (pas de seconde tentative)
+    no_force, ///< aucune force dès les premières lignes : la buse ne touche pas le plateau (pa::in_air)
 };
 
 struct Status {

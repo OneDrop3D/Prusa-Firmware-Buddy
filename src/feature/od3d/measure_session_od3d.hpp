@@ -147,8 +147,9 @@ public:
     /// Plateau à bed (et buse à nozzle_probe en même temps, sans l'attendre), puis attente du plateau
     Result heat_bed(int16_t bed, int16_t nozzle_probe);
 
-    /// Buse à nozzle_probe (attendue), puis origine si nécessaire : peut se faire pendant que le plateau chauffe, comme
-    /// le G-code de départ de la CORE One (M140, M109 R170, G28, puis M190)
+    /// Buse à nozzle_probe (attendue), puis origine : Z refaite au premier appel de la session (jamais celle d'avant,
+    /// peut-être fausse), X et Y si nécessaire ; peut se faire pendant que le plateau chauffe, comme le G-code de départ
+    /// de la CORE One (M140, M109 R170, G28, puis M190)
     Result home(int16_t nozzle_probe);
 
     /// home(), puis nettoyage de la buse, nivellement local de area et de la zone de purge, maillage activé (G-code de

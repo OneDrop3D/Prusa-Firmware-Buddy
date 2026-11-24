@@ -12952,3 +12952,7 @@ msgstr "Vibrations des ventilateurs : l'accéléromètre ne répond plus ou perd
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Fan vibration: stopped before the end."
 msgstr "Vibrations des ventilateurs : arrêtées avant la fin."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "No force: the nozzle did not touch the bed."
+msgstr "Aucune force : la buse n'a pas touché le plateau."

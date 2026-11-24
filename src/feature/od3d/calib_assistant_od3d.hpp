@@ -30,9 +30,10 @@ Context context();
 Record record(Test test);
 std::array<Record, calib_registry::max_tests> records();
 
-/// Mémoire d'un test, indice = Test : les base_tests premiers dans « OD3D Calib Done » / « OD3D Calib Values », les
-/// suivants dans leurs extensions « … Ext ». Seuls accès par un Test quelconque (les tests à indice fixe sous
-/// base_tests peuvent lire leur case directement)
+/// Mémoire d'un test, indice = Test : les base_tests premiers dans « OD3D Calib Done » / « OD3D Calib Values » ; les
+/// suivants n'ont que leur version et leur résultat, dans le champ reserved d'un enregistrement de base (config_store
+/// plein), et pas de chiffres gardés. Seuls accès par un Test quelconque (les tests à indice fixe sous base_tests
+/// peuvent lire leur case directement)
 Record stored_record(size_t i);
 void store_record(size_t i, const Record &r);
 calib_registry::Values stored_values(size_t i);

@@ -537,11 +537,6 @@ struct CurrentStore
     /// OneDrop3D (N4) : vitesse de la poulie du MMU mesurée par M2002 et durée d'un cycle avant / après
     /// (od3d::mmu_speed::Saved), renvoyée au MMU à chaque démarrage
     StoreItem<od3d::mmu_speed::Saved, od3d::mmu_speed::Saved {}, ItemFlag::calibrations, journal::hash("OD3D MMU Speeds")> od3d_mmu_speeds;
-    /// OneDrop3D (assistant de calibration) : tests base_tests et suivants du registre (pose de l'accéléromètre,
-    /// vérification de l'input shaper...), « OD3D Calib Done » et « OD3D Calib Values » étant pleins (16 places, à ne
-    /// jamais renommer : les calibrations faites seraient perdues) ; indice = Test − base_tests
-    StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done Ext"), 8, od3d::calib_registry::max_tests - od3d::calib_registry::base_tests> od3d_calib_done_ext;
-    StoreItemArray<od3d::calib_registry::Values, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Values Ext"), 8, od3d::calib_registry::max_tests - od3d::calib_registry::base_tests> od3d_calib_values_ext;
     /// OneDrop3D (F10) : pointe du filament par emplacement (od3d::tip::Stats), écrite à la fin de chaque impression
     StoreItemArray<od3d::tip::Stats, AnyDefaultConstructor {}, ItemFlag::stats, journal::hash("OD3D Tip Stats"), 8, VirtualToolIndex::count> od3d_tip_stats;
     // Should we verify gcode (CRC & similar)?

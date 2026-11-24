@@ -486,33 +486,52 @@ Context context() {
     return ctx;
 }
 
+namespace {
+    /// Tests base_tests et suivants : le config_store n'a plus la place d'un tableau (CS-1 : 2 570 octets pour 2 550
+    /// permis avec deux tableaux de plus). Seule leur version est relue (outdated()) : version (6 bits) et résultat
+    /// (2 bits) d'un test dans un octet du champ reserved d'un enregistrement de base, deux tests par enregistrement.
+    /// Ni date, ni chiffres « avant » pour eux.
+    constexpr size_t host_of(size_t i) {
+        return (i - base_tests) / 2;
+    }
+    constexpr unsigned shift_of(size_t i) {
+        return 8 * ((i - base_tests) % 2);
+    }
+    static_assert(host_of(max_tests - 1) < base_tests, "un enregistrement de base pour chaque test en plus");
+} // namespace
+
 Record stored_record(size_t i) {
     if (i < base_tests) {
         return config_store().od3d_calib_done.get(i);
     }
-    return i < max_tests ? config_store().od3d_calib_done_ext.get(i - base_tests) : Record {};
+    if (i >= max_tests) {
+        return Record {};
+    }
+    const uint8_t byte = uint8_t(config_store().od3d_calib_done.get(host_of(i)).reserved >> shift_of(i));
+    return Record { .version = uint8_t(byte & 0x3f), .result = Result(byte >> 6) };
 }
 
 void store_record(size_t i, const Record &r) {
     if (i < base_tests) {
         config_store().od3d_calib_done.set(i, r);
-    } else if (i < max_tests) {
-        config_store().od3d_calib_done_ext.set(i - base_tests, r);
+        return;
     }
+    if (i >= max_tests) {
+        return;
+    }
+    Record host = config_store().od3d_calib_done.get(host_of(i));
+    const uint8_t byte = uint8_t(std::min<uint8_t>(r.version, 0x3f) | (uint8_t(r.result) & 3) << 6);
+    host.reserved = uint16_t((host.reserved & ~(0xffu << shift_of(i))) | unsigned(byte) << shift_of(i));
+    config_store().od3d_calib_done.set(host_of(i), host);
 }
 
 Values stored_values(size_t i) {
-    if (i < base_tests) {
-        return config_store().od3d_calib_values.get(i);
-    }
-    return i < max_tests ? config_store().od3d_calib_values_ext.get(i - base_tests) : Values {};
+    return i < base_tests ? config_store().od3d_calib_values.get(i) : Values {};
 }
 
 void store_values(size_t i, const Values &v) {
     if (i < base_tests) {
         config_store().od3d_calib_values.set(i, v);
-    } else if (i < max_tests) {
-        config_store().od3d_calib_values_ext.set(i - base_tests, v);
     }
 }
 

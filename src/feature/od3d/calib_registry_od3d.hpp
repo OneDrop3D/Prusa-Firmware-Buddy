@@ -50,9 +50,9 @@ enum class Test : uint8_t {
     count,
 };
 
-/// Places des tests : les 16 premières dans « OD3D Calib Done » / « OD3D Calib Values » (pleins), les suivantes dans
-/// leurs extensions « … Ext » (config_store, calib_assistant::stored_record() et stored_values()). 18 : la grille de
-/// l'assistant (3 × 6 tuiles)
+/// Places des tests : les 16 premières dans « OD3D Calib Done » / « OD3D Calib Values » ; le config_store est plein
+/// (CS-1) : les suivantes n'ont que leur version et leur résultat, rangés dans Record::reserved des premières
+/// (calib_assistant::stored_record()). 18 : la grille de l'assistant (3 × 6 tuiles)
 inline constexpr size_t base_tests = 16;
 inline constexpr size_t max_tests = 18;
 static_assert(size_t(Test::count) <= max_tests && max_tests >= base_tests);
@@ -141,7 +141,7 @@ enum class Result : uint8_t {
 struct Record {
     uint8_t version = 0; ///< dernière version menée à bien (0 : jamais)
     Result result = Result::none; ///< dernier essai
-    uint16_t reserved = 0;
+    uint16_t reserved = 0; ///< enregistrements 0 et suivants : version et résultat des tests base_tests et suivants (un octet chacun)
     uint32_t date = 0; ///< dernier essai [s depuis 1970], 0 si l'heure n'était pas connue
 
     constexpr bool operator==(const Record &) const = default;

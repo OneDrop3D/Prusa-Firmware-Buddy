@@ -604,7 +604,8 @@ Result<ResponseSample> measure(const MeasureParams &args, float requested_freque
         // And then finally do the measurement
         accelerometer.clear();
 
-        uint32_t max_duration_ms = 2 * 1000 * static_cast<uint32_t>(samples_to_collect * accelerometer_sample_period);
+        // OneDrop3D (V-06) : la durée (~0,2 s) tronquée à 0 avant le produit ne laissait aucun délai (M1992 R)
+        uint32_t max_duration_ms = static_cast<uint32_t>(2 * 1000 * samples_to_collect * accelerometer_sample_period);
         const uint32_t start_time = millis();
         uint32_t duration_ms = 0;
 

@@ -137,13 +137,14 @@ public:
     Result heat(int16_t temperature, float tolerance = 2.f, uint32_t hold_ms = 3000, uint32_t timeout_ms = heat_timeout_ms, bool extrude = true);
 
     /// Va au-dessus du départ de la ligne de purge (bord avant droit par défaut), à purge_z du plateau ; dir : sens de
-    /// la purge qui suivra (sa fin doit rester dans la course)
-    Result go_to_purge(float x = purge_x, float y = purge_y, float dir = -1.f);
+    /// la purge qui suivra (sa fin doit rester dans la course) ; along_y : purge le long de Y
+    Result go_to_purge(float x = purge_x, float y = purge_y, float dir = -1.f, bool along_y = false);
 
     /// Ligne de purge du G-code de départ de la CORE One depuis le départ x (à l'Y actuel), le long de X dans le sens
     /// dir (-1 : vers la gauche, comme Prusa au bord avant) ; false s'il faut s'arrêter. Série : sa place est libérée
-    /// de la réservation (la suivante en prendra une autre)
-    bool purge(float x = purge_x, float dir = -1.f);
+    /// de la réservation (la suivante en prendra une autre). along_y (motif tourné de la mesure automatique) : départ
+    /// y = x à l'X actuel, le long de Y
+    bool purge(float x = purge_x, float dir = -1.f, bool along_y = false);
 
     /// Déplacement au-dessus du motif : rétraction, levée de hop au-dessus de z, (x, y), puis descente à z si lower
     bool travel_to(float x, float y, float z, bool lower = true);

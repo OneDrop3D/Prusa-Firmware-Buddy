@@ -445,9 +445,11 @@ Result Session::heat(int16_t temperature, float tolerance, uint32_t hold_ms, uin
     return extrude && !hot() ? Result::heating : Result::ok;
 }
 
-Result Session::go_to_purge(float x, float y, float dir) {
-    const float x_end = x + dir * purge_length;
-    if (std::max(x, x_end) > soft_endstop.max.x || std::min(x, x_end) < soft_endstop.min.x || y < soft_endstop.min.y || y > soft_endstop.max.y) {
+Result Session::go_to_purge(float x, float y, float dir, bool along_y) {
+    const float x_end = along_y ? x : x + dir * purge_length;
+    const float y_end = along_y ? y + dir * purge_length : y;
+    if (std::max(x, x_end) > soft_endstop.max.x || std::min(x, x_end) < soft_endstop.min.x || std::max(y, y_end) > soft_endstop.max.y
+        || std::min(y, y_end) < soft_endstop.min.y) {
         return Result::no_room;
     }
     if (current_position.z < purge_z) {
@@ -457,7 +459,7 @@ Result Session::go_to_purge(float x, float y, float dir) {
     return must_stop() ? Result::stopped : Result::ok;
 }
 
-bool Session::purge(float x, float dir) {
+bool Session::purge(float x, float dir, bool along_y) {
     live::set(N_("Purge line"));
     deretract();
     // Depuis X249 : G0 E5 X235 Z0.2 F500, X225 E4 F500, X215 E4 F650, X205 E4 F800, puis essuyage X202 Z0.05 et
@@ -478,7 +480,7 @@ bool Session::purge(float x, float dir) {
             return false;
         }
         xyze_pos_t target = current_position;
-        target.x = x + dir * s.dx;
+        (along_y ? target.y : target.x) = x + dir * s.dx;
         target.z = s.z;
         target.e += s.e;
         queue_to(target, s.feedrate_mm_min / 60.f);

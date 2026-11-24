@@ -4,7 +4,8 @@
 /// Enregistre la force de la cellule de charge pendant une séquence (lignes imprimées, balayage de température…) dans une
 /// trace en mémoire (force_trace_od3d.hpp) : chaque échantillon de la cellule (320 Hz sur la CORE One en haute
 /// précision) arrive par Loadcell::ProcessSample(), dans une interruption ; deux échantillons sont moyennés (160 Hz)
-/// avec la position X de la tête au même instant (positionLookback de Prusa). Rien n'est fait hors enregistrement.
+/// avec la position X (ou Y, lignes parallèles à Y) de la tête au même instant (positionLookback de Prusa). Rien n'est
+/// fait hors enregistrement.
 ///
 /// L'enregistrement peut être exporté en CSV sur la clé USB pour régler les seuils d'après de vraies courbes.
 /// Les metrics de Prusa restent disponibles en parallèle (M334 hôte, M331 loadcell_value, pos_x : comme PrusaPATuner).
@@ -21,12 +22,13 @@ inline constexpr size_t capacity = 1536; ///< points (6 Ko) : 9,6 s à 160 Hz
 inline constexpr uint8_t decimation = 2; ///< échantillons de la cellule moyennés par point
 
 /// Appelée par Loadcell::ProcessSample (interruption) avec la charge tarée [g] (négative quand la buse appuie, comme au
-/// palpage) et la position X [mm] à l'instant de l'échantillon ; ne fait rien hors enregistrement. La trace garde la
+/// palpage) et la position X et Y [mm] à l'instant de l'échantillon ; ne fait rien hors enregistrement. La trace garde la
 /// force **vers le haut positive** (plateau ou plastique écrasé qui repousse la buse).
-void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm);
+void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float y_mm);
 
-/// Efface la trace et commence l'enregistrement (fil de Marlin) ; le premier échantillon sert de zéro (force et X)
-void start();
+/// Efface la trace et commence l'enregistrement (fil de Marlin) ; le premier échantillon sert de zéro (force et
+/// position). La trace garde la position X, ou Y si along_y (lignes parallèles à Y : motif tourné de la mesure automatique)
+void start(bool along_y = false);
 
 /// Arrête l'enregistrement ; la trace reste lisible jusqu'au prochain start()
 void stop();

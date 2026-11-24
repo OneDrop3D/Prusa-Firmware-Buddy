@@ -23,6 +23,7 @@ namespace {
     float last_x = 0;
     float sum_force = 0;
     float sum_x = 0;
+    bool use_y = false; ///< position le long de Y plutôt que X
     uint8_t summed = 0;
     uint32_t first_us = 0;
     std::atomic<uint32_t> last_us = 0;
@@ -36,9 +37,12 @@ namespace {
 
 } // namespace
 
-void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm) {
+void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float y_mm) {
     if (!armed.load(std::memory_order_acquire)) {
         return;
+    }
+    if (use_y) {
+        x_mm = y_mm; // la trace garde la position le long des lignes
     }
     if (!std::isfinite(force_g)) {
         return;
@@ -85,10 +89,11 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm) {
     summed = 0;
 }
 
-void start() {
+void start(bool along_y) {
     armed.store(false, std::memory_order_release);
     window_on.store(false, std::memory_order_release);
     // L'interruption ne touche plus à son état (armed faux) : on peut le remettre à zéro
+    use_y = along_y;
     have_base = false;
     sum_force = 0;
     sum_x = 0;

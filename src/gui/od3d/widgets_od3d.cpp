@@ -930,7 +930,7 @@ void IslandPill::draw_content(Rect16 body) {
         break;
     }
     case Kind::print: {
-        // Anneau de progression : orange en cours, jaune en pause, gris en attente ou à la fin, rouge en erreur
+        // Anneau de progression : orange en cours, jaune en pause, gris en attente, rouge en erreur
         Color arc = style::accent;
         switch (f.tone) {
         case Tone::normal:
@@ -939,7 +939,6 @@ void IslandPill::draw_content(Rect16 body) {
             arc = fg = style::warning;
             break;
         case Tone::waiting:
-        case Tone::ended:
             arc = fg = style::text_muted;
             break;
         case Tone::error:

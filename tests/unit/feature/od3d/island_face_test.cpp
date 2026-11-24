@@ -65,7 +65,7 @@ TEST_CASE("island: processus") {
         in.wait_minimized = true; // le « Patientez » réduit de son palpage n'y apparaît pas
         CHECK(choose(in).kind == Kind::none);
     }
-    SECTION("après l'impression (pastille d'impression cachée), le processus revient") {
+    SECTION("après l'impression (finie : pas de pastille d'impression), le processus revient") {
         in.print_fsm = true;
         in.print_not_started = true;
         CHECK(choose(in) == in.process);
@@ -101,12 +101,7 @@ TEST_CASE("island: impression en cours hors de l'écran Impression") {
         in.on_print_screen = true;
         CHECK(choose(in).kind == Kind::none);
     }
-    SECTION("grise à la fin, jusqu'à « Accueil » : elle ramène à l'écran de fin") {
-        in.print_tone = Tone::ended;
-        CHECK(choose(in).kind == Kind::print);
-        CHECK(choose(in).tone == Tone::ended);
-    }
-    SECTION("cachée avant le départ (aperçu, questions)") {
+    SECTION("cachée avant le départ (aperçu, questions) et après la fin") {
         in.print_not_started = true;
         CHECK(choose(in).kind == Kind::none);
     }
@@ -185,7 +180,6 @@ TEST_CASE("island: texte de la pastille") {
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::paused, .percent = 47, .minutes = 83 }) == "II 47%");
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::waiting, .percent = 47, .minutes = 83 }) == "47%");
         CHECK(text_of({ .kind = Kind::print, .tone = Tone::error, .percent = 47, .minutes = 83 }) == "! 47%");
-        CHECK(text_of({ .kind = Kind::print, .tone = Tone::ended, .percent = 100, .minutes = 0 }) == "100%");
     }
     SECTION("12 caractères au plus (la place de la pastille, l'heure sur 12 h)") {
         for (uint16_t m : { 0, 1, 59, 60, 61, 599, 600, 5999, 6000, 65000 }) {

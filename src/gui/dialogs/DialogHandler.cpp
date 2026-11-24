@@ -28,6 +28,7 @@
 #include <option/has_nozzle_thermal_compensation.h>
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     #include <gui/od3d/screen_printing_od3d.hpp> // OneDrop3D : interface G
+    #include <marlin_client.hpp>
     #include <gui/od3d/screen_progress_od3d.hpp>
     #include <gui/od3d/island_od3d.hpp>
     #include <gui/od3d/dialog_wait_od3d.hpp>
@@ -293,6 +294,10 @@ struct FSMPrintDef {
                 return;
             }
             shown = false;
+            // Écran Impression déjà quitté (fin laissée par un onglet, voir update_screen) : on reste où on est
+            if (!Screens::Access()->IsScreenOnStack<od3d::ScreenPrinting>()) {
+                return;
+            }
         }
 #endif
         Screens::Access()->CloseAll();
@@ -599,6 +604,13 @@ void DialogHandler::update_screen() {
     // suivante doit rouvrir l'écran Impression
     if (FSMPrintDef<ClientFSM::Printing>::shown && !marlin_vars().peek_fsm_states([](const auto &states) { return states.is_active(ClientFSM::Printing); })) {
         FSMPrintDef<ClientFSM::Printing>::shown = false;
+    }
+
+    // OneDrop3D : impression terminée ou arrêtée dont l'écran n'est plus sur la pile (onglet, retour, fin pendant qu'on
+    // était ailleurs) : fermée comme par son « Accueil », plus de pastille ni d'écran de fin qui revient (retour du
+    // 24/11 : « aprés un aret ou la fin d'une impression si on a pas cliquer sur accueil on a toujour le pop up »)
+    if (FSMPrintDef<ClientFSM::Printing>::shown && od3d::print_ended() && !Screens::Access()->IsScreenOnStack<od3d::ScreenPrinting>()) {
+        marlin_client::print_exit(); // sans effet hors de Finished / Aborted
     }
 
     // OneDrop3D : écran de la machine à états fermé par nos onglets alors qu'elle continue (voir reopen_if_lost)

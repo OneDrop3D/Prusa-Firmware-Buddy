@@ -62,14 +62,13 @@ enum class Stage : uint8_t {
     percent, ///< « 45% »
 };
 
-/// État de l'impression, en couleur : orange (en cours), jaune (pause), gris (attente : reprise, chauffe, question ;
-/// fin : terminée ou arrêtée, jusqu'à « Accueil » sur l'écran Impression), rouge (erreur)
+/// État de l'impression, en couleur : orange (en cours), jaune (pause), gris (attente : reprise, chauffe, question),
+/// rouge (erreur). Finie ou arrêtée : pas de pastille, elle se ferme dès qu'on quitte son écran (DialogHandler)
 enum class Tone : uint8_t {
     normal,
     paused,
     waiting,
     error,
-    ended,
 };
 
 inline constexpr uint8_t no_slot = 0xff;
@@ -101,7 +100,7 @@ struct Inputs {
     uint8_t filament_slot = no_slot;
 
     bool print_fsm = false; ///< machine Printing ouverte (du départ à « Accueil » après la fin)
-    bool print_not_started = false; ///< aperçu, questions avant le départ : pas encore de pastille
+    bool print_not_started = false; ///< aperçu, questions avant le départ, ou déjà finie : pas de pastille
     bool print_hidden_by_fsm = false; ///< une autre machine à états s'affiche par-dessus (son écran est la priorité)
     bool on_print_screen = false;
     Tone print_tone = Tone::normal;

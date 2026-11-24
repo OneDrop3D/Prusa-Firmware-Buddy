@@ -113,9 +113,14 @@ bool print_active() {
     return marlin_vars().peek_fsm_states([](const auto &states) { return states.is_active(ClientFSM::Printing); });
 }
 
+bool print_ended() {
+    const marlin_server::State s = marlin_vars().print_state;
+    return s == marlin_server::State::Finished || s == marlin_server::State::Aborted || s == marlin_server::State::Exit;
+}
+
 void open_print_tab() {
     Screens::Access()->CloseAll(); // avant Open(), qui serait sinon oublié
-    if (print_active()) {
+    if (print_active() && !print_ended()) {
         open_screen<ScreenPrinting>();
     } else {
         open_screen<ScreenFiles>();

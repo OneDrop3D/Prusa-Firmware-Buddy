@@ -276,8 +276,8 @@ namespace {
         }
     }
 
-    /// Couleur de l'état de l'impression ; nullopt : pas encore commencée (pas de pastille). Terminée ou arrêtée : grise,
-    /// pour retrouver l'écran de fin si on était ailleurs (Prusa n'y ramène pas). Même découpage que
+    /// Couleur de l'état de l'impression ; nullopt : pas de pastille, pas encore commencée ou déjà finie (terminée ou
+    /// arrêtée : elle se ferme dès qu'on quitte l'écran de fin, DialogHandler, retour du 24/11). Même découpage que
     /// ScreenPrinting::update_state().
     std::optional<Tone> print_tone(marlin_server::State state) {
         using marlin_server::State;
@@ -290,11 +290,10 @@ namespace {
 #if HAS_TOOL_MAPPING()
         case State::PrintPreviewToolsMapping:
 #endif
-            return std::nullopt;
         case State::Aborted:
         case State::Finished:
         case State::Exit:
-            return Tone::ended;
+            return std::nullopt;
         case State::Pausing_Begin:
         case State::Pausing_WaitIdle:
         case State::Pausing_ParkHead:

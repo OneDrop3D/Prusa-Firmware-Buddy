@@ -50,6 +50,8 @@ namespace {
         bool printed = false; ///< une purge au moins faite depuis series_begin() : plus de palpage du plateau entier
         pattern::Shelf shelf;
         std::optional<PurgeStart> purge; ///< ligne de purge réservée, pas encore imprimée
+        int16_t bed_target = 0; ///< consigne du plateau suivie par step()
+        std::optional<uint32_t> bed_since; ///< plateau à bed_target ±2 °C sans interruption depuis [ms]
     };
     Series series;
 
@@ -226,6 +228,26 @@ std::optional<PurgeStart> load_spot() {
 
 bool mesh_ready() {
     return series.active && series.mesh && !axes_need_homing();
+}
+
+void step() {
+    if (!series.active) {
+        return;
+    }
+    const int16_t target = thermalManager.degTargetBed();
+    const bool inside = target > 0 && std::fabs(thermalManager.degBed() - float(target)) <= 2.f; // la bande de heat_bed()
+    if (!inside || target != series.bed_target) {
+        series.bed_target = target;
+        series.bed_since.reset();
+    }
+    if (inside && !series.bed_since) {
+        series.bed_since = ticks_ms();
+    }
+}
+
+uint32_t bed_steady_ms() {
+    const bool steady = series.active && series.bed_since && thermalManager.degTargetBed() == series.bed_target;
+    return steady ? ticks_ms() - *series.bed_since : 0;
 }
 
 Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {

@@ -111,6 +111,17 @@ bool numbers_shown(const Entry &e, Result result, std::span<const int16_t> after
     return any && (result == Result::ok || (e.needs & filament));
 }
 
+uint16_t signature(std::span<const Entry> list) {
+    uint32_t h = 2166136261u; // FNV-1a sur (test, version)
+    for (const Entry &e : list) {
+        for (const uint8_t byte : { uint8_t(e.test), e.version }) {
+            h = (h ^ byte) * 16777619u;
+        }
+    }
+    const uint16_t folded = uint16_t(h ^ (h >> 16));
+    return folded ? folded : 1;
+}
+
 uint16_t minutes(uint32_t mask, const Context &ctx, uint32_t redo) {
     unsigned total = 0;
     for (const Entry &e : entries) {

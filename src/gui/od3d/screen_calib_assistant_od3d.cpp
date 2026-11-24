@@ -98,7 +98,7 @@ namespace {
 
     enum class Stage : uint8_t {
         idle,
-        propose, ///< calibrations à faire, durée (depuis le menu)
+        propose, ///< calibrations à faire, durée (depuis le menu, ou une fois au démarrage : flow.boot)
         ask_accel, ///< « Avez-vous un accéléromètre ? »
         cooling, ///< buse sous 40 °C (ventilateur), origine, buse au centre (M1989 H)
         sock_off, ///< « Retirez la chaussette en silicone » (buse avec chaussette seulement)
@@ -118,6 +118,7 @@ namespace {
     /// L'assistant, gardé hors de l'écran : il survit à sa fermeture (sous-écran, onglet, pastille)
     struct Flow {
         Stage stage = Stage::idle;
+        bool boot = false; ///< ouvert seul au premier démarrage d'un firmware aux calibrations nouvelles : sa ligne de texte
         bool cancelled = false;
         bool check_failed = false; ///< l'accéléromètre n'a pas répondu à la dernière vérification
         uint32_t session = 0; ///< tests de cette session (affichés au bilan ; décochés : « passé »)
@@ -546,11 +547,12 @@ namespace {
             n = w > 0 ? std::min(out.size() - 1, n + size_t(w)) : n;
         }
 
-        /// Texte traduit tel quel
+        /// Texte traduit tel quel, copié directement dans la place qui reste (un tampon de 96 coupait les phrases
+        /// françaises longues : « … comme le montre Pru », photo du 24/11)
         void text(const char *msgid) {
-            char t[96];
-            _(msgid).copyToRAM(t, sizeof(t));
-            add("%s", t);
+            if (n + 1 < out.size()) {
+                n += _(msgid).copyToRAM(out.data() + n, out.size() - n);
+            }
         }
 
         /// Libellé traduit en tête de ligne
@@ -634,9 +636,6 @@ namespace {
         }
         char format[112];
         switch (m.verdict) {
-        case vibration::Mount::crossed:
-            w.text(N_("The accelerometer is turned: its axes do not follow X and Y. Clip it the way Prusa shows."));
-            break;
         case vibration::Mount::tilted:
             _("The accelerometer is clipped askew (tilt %d deg). Clip it flat on the nozzle.").copyToRAM(format, sizeof(format));
             w.add(format, std::isfinite(m.tilt_deg) ? int(std::lround(m.tilt_deg)) : 90);
@@ -1242,6 +1241,20 @@ namespace {
 
 } // namespace
 
+bool calibration_prompt_at_boot() {
+    const uint16_t signature = calib_registry::signature();
+    if (assistant::offered_signature() == signature) {
+        return false; // déjà proposée pour ces versions : plus jamais avant la prochaine mise à jour qui en change une
+    }
+    const uint32_t mask = calib_registry::proposed(assistant::context(), assistant::records());
+    if (!mask) {
+        return false;
+    }
+    assistant::set_offered_signature(signature); // une seule fois, quoi qu'on réponde (« Fermer » : plus tard, depuis Réglages)
+    flow = Flow { .stage = Stage::propose, .boot = true, .mask = mask, .offered = mask };
+    return true;
+}
+
 bool calibration_assistant_active() {
     return flow.stage != Stage::idle && flow.stage != Stage::propose && flow.stage != Stage::summary;
 }
@@ -1475,6 +1488,7 @@ void ScreenCalibAssistant::show() {
         // plafond de M201 à celui de « Accél. max »
         const uint32_t cold = flow.mask & cold_tests(), heat = flow.mask & heat_tests();
         text = !flow.mask ? _("Nothing to calibrate. Touch a test to add it.")
+            : flow.boot   ? _("New in this firmware: %d tests, ~%d min").formatted(info_params, std::popcount(flow.mask), int(calib_registry::minutes(flow.mask, ctx, redo_tests())))
                           : _("Accel. %d tests ~%d min \xC2\xB7 Heating %d tests ~%d min")
                                 .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
         break;

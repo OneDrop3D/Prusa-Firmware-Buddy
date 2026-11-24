@@ -127,31 +127,30 @@ std::array<uint8_t, 4> unpack_references(int16_t v2, int16_t v3);
 // ---- Pose de l'accéléromètre (M2005, retour du 24/11 : « calibration automatique » de l'accéléromètre) ----
 // Au repos, la moyenne des échantillons est la pesanteur : son angle avec l'axe Z de l'imprimante dit si l'accéléromètre
 // est clipsé à plat. Pendant un aller-retour sur X (puis Y), la somme des |a| de chaque axe (pesanteur retirée) dit
-// quel axe de l'accéléromètre voit le mouvement : un autre que celui du mouvement veut dire qu'il est tourné (axes
-// croisés), une part faible qu'il bouge sur la buse (mal fixé). Échantillons déjà dans les axes de l'imprimante.
+// quelle part du mouvement reste dans le plan horizontal : une part faible veut dire qu'il bouge sur la buse (mal fixé).
+// Son orientation dans le plan n'est pas jugée (photo du 24/11 : « tourné » alors qu'il était clipsé comme Prusa le
+// montre) : sur la CORE One, Prusa le pose à ~45° et n'a jamais vérifié son passage aux axes X/Y (to_printer_coords),
+// car son input shaper additionne les trois axes (gain_square) ; aucune calibration n'en dépend.
 
 inline constexpr float mount_tilt_max_deg = 10.f; ///< au-delà : clipsé de travers
-inline constexpr float mount_share_min = 0.6f; ///< part de l'axe du mouvement dans la somme des trois axes
+inline constexpr float mount_share_min = 0.6f; ///< part du plan horizontal dans la somme des trois axes
 inline constexpr uint16_t mount_accel = 2000; ///< mm/s², comme le premier palier de M2004
 
 /// Angle [°] entre la pesanteur mesurée et l'axe Z de l'imprimante, quel que soit son sens ; NAN sans pesanteur
 float tilt_degrees(float gx, float gy, float gz);
 
-/// Part de l'axe axis (0 X, 1 Y, 2 Z) dans la somme des trois sommes de |a| ; NAN si elles sont toutes nulles
-float axis_share(std::span<const float, 3> sums, uint8_t axis);
-
-/// L'axe de plus grande somme
-uint8_t dominant_axis(std::span<const float, 3> sums);
+/// Part du plan horizontal (X + Y) dans la somme des trois sommes de |a|, quelle que soit l'orientation de
+/// l'accéléromètre dans ce plan ; NAN si elles sont toutes nulles
+float plane_share(std::span<const float, 3> sums);
 
 enum class Mount : uint8_t {
     ok,
-    crossed, ///< un autre axe que celui du mouvement domine : accéléromètre tourné
     tilted, ///< inclinaison au-delà de mount_tilt_max_deg : clipsé de travers
-    loose, ///< le bon axe domine mais trop peu : il bouge sur la buse, mal fixé
+    loose, ///< le mouvement passe trop peu dans le plan horizontal : il bouge sur la buse, mal fixé
 };
 
-/// dominant_x, dominant_y : l'axe qui domine pendant le mouvement sur X, sur Y. Le plus grave d'abord.
-Mount mount_verdict(float tilt_deg, float share_x, float share_y, uint8_t dominant_x, uint8_t dominant_y);
+/// share_x, share_y : plane_share() pendant le mouvement sur X, sur Y. Le plus grave d'abord.
+Mount mount_verdict(float tilt_deg, float share_x, float share_y);
 
 // ---- Vérification de l'input shaper (M2006) ----
 // À la même accélération, le résidu après l'arrêt avec le filtre de l'axe, puis sans : la part des vibrations que le

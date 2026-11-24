@@ -100,6 +100,17 @@ TEST_CASE("calib_registry: first install proposes everything automatic") {
     CHECK(proposed(full(), none) != 0);
 }
 
+TEST_CASE("calib_registry: the boot prompt signature changes with any version, never 0") {
+    // Une seule proposition au démarrage par signature (demande du 24/11) : une mise à jour qui monte une version ou
+    // ajoute un test doit la changer
+    CHECK(signature() != 0);
+    CHECK(signature() == signature(entries));
+    auto bumped = entries;
+    bumped[3].version = uint8_t(bumped[3].version + 1);
+    CHECK(signature(bumped) != signature());
+    CHECK(signature(std::span(entries).first(entries.size() - 1)) != signature()); // un test de plus
+}
+
 TEST_CASE("calib_registry: manual tests are never checked by default") {
     Records r = all_done();
     r[size_t(Test::skew)] = {};

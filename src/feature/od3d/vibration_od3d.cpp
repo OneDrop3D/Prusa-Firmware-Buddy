@@ -771,6 +771,7 @@ namespace {
     }
 
     /// Allers-retours sur l'axe a (0 X, 1 Y) : somme des |a − pesanteur| de chaque axe pendant le mouvement, bruit retiré
+    /// (gardées dans le CSV : elles montrent comment l'accéléromètre est tourné, sans le juger)
     Status sweep(PrusaAccelerometer &accelerometer, uint8_t a) {
         const AxisEnum axis = a == 0 ? X_AXIS : Y_AXIS;
         const float centre = current_position[axis];
@@ -808,8 +809,7 @@ namespace {
         for (int i = 0; i < 3; ++i) {
             measurement.sums[a][i] = float(std::max(sums[i] - double(rest_mad[i]) * n, 0.0));
         }
-        measurement.share[a] = axis_share(measurement.sums[a], a);
-        measurement.dominant[a] = dominant_axis(measurement.sums[a]);
+        measurement.share[a] = plane_share(measurement.sums[a]);
         return Status::done;
     }
 
@@ -855,7 +855,7 @@ namespace {
             }
             progress = uint8_t(30 + 35 * (a + 1));
         }
-        measurement.verdict = mount_verdict(measurement.tilt_deg, measurement.share[0], measurement.share[1], measurement.dominant[0], measurement.dominant[1]);
+        measurement.verdict = mount_verdict(measurement.tilt_deg, measurement.share[0], measurement.share[1]);
         write_csv();
         const auto whole = [](float v) { // NAN : -1 à l'écran plutôt qu'un nombre au hasard
             return std::isfinite(v) ? int(std::lround(v)) : -1;

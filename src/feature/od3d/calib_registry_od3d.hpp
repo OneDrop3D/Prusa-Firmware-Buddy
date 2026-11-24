@@ -6,8 +6,10 @@
 /// RÈGLE POUR LES AGENTS — la version d'une entrée (Entry::version) est la seule source de vérité :
 /// - un commit qui change ce que mesure une calibration (algorithme, paramètres, format ou usage du résultat), au point
 ///   qu'il faille la refaire pour en profiter, augmente sa version de 1 dans `entries` ;
-/// - l'assistant (ouvert depuis le menu, jamais proposé au démarrage) compare avec la version enregistrée
-///   (config_store « OD3D Calib Done ») et coche d'office seulement les calibrations dont la version a augmenté ;
+/// - l'assistant compare avec la version enregistrée (config_store « OD3D Calib Done ») et coche d'office seulement les
+///   calibrations dont la version a augmenté ; il s'ouvre seul **une fois** au premier démarrage d'un firmware dont
+///   signature() a changé (demande du 24/11 : « au premier démarrage sur ce nouveau firmware il doit proposer les
+///   nouvelles calibrations » ; le 23/11, la question à chaque démarrage avait été retirée) ;
 /// - ne jamais baisser une version ni réutiliser la valeur d'un Test retiré ; une nouvelle calibration = une nouvelle
 ///   valeur de Test juste avant `count` (16 au plus), son entrée dans `entries` à sa place dans l'ordre d'exécution,
 ///   version 1, et son G-code dans step_gcode().
@@ -94,11 +96,11 @@ struct Entry {
 ///   chaud est partagé avec la dilatation de la buse), dilatation de la buse, puis les mesures par bobine.
 inline constexpr std::array entries {
     // La pose de l'accéléromètre avant tout : tourné, de travers ou mal fixé, il fausserait toutes les mesures qui suivent
-    Entry { Test::accel_mount, accelerometer | cold_nozzle, 1, 1, true },
+    Entry { Test::accel_mount, accelerometer | cold_nozzle, 1, 2, true }, // v2 : orientation à plat plus jugée
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
-    Entry { Test::damping, accelerometer | cold_nozzle, 4, 1, true },
+    Entry { Test::damping, accelerometer | cold_nozzle, 4, 2, true }, // v2 : gain du plan horizontal
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
     Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 1, true }, // après l'input shaper : avec le filtre en place
     Entry { Test::shaper_check, accelerometer | cold_nozzle, 1, 1, true }, // le filtre choisi, vérifié sur la machine
@@ -212,6 +214,10 @@ uint32_t proposed(const Context &ctx, std::span<const Record> records);
 /// minutes) : plateau, puis buse, de la plus froide à la plus chaude ; à égalité, la bobine déjà dans la buse d'abord.
 /// bed, nozzle : consignes de la matière de chaque emplacement
 std::array<uint8_t, 8> spool_order(std::span<const int16_t> bed, std::span<const int16_t> nozzle, std::optional<uint8_t> loaded);
+
+/// Empreinte des versions du registre sur 16 bits, jamais 0 (0 : jamais proposée) : elle change dès qu'une version
+/// change ou qu'un test arrive
+uint16_t signature(std::span<const Entry> list = entries);
 
 /// Durée estimée des tests automatiques de mask [min] ; redo : tests par bobine à refaire sur toutes les bobines
 uint16_t minutes(uint32_t mask, const Context &ctx, uint32_t redo = 0);

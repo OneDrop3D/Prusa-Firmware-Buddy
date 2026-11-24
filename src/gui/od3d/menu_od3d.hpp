@@ -16,11 +16,11 @@
 
 namespace od3d {
 
-/// Liste G : 5 lignes de 40 px sous l'en-tête, puis la moitié haute de la 6e (retour du 23/11 : la bande vide de 29 px
-/// ne disait pas qu'il y avait d'autres lignes) ; la barre de défilement est dans les 6 px de droite.
-/// Le menu Prusa compte 5 lignes (220 / 40) : le focus qui arrive sur la demi-ligne fait défiler d'une ligne.
-inline constexpr uint16_t list_peek = 40 / 2;
-inline constexpr Rect16 list_rect = { style::margin, style::top, 470, 5 * 40 + list_peek };
+/// Liste G : 5 lignes de 40 px sous l'en-tête, puis le haut de la 6e jusqu'à la ligne des onglets (retour du 23/11 : la
+/// bande vide de 29 px ne disait pas qu'il y avait d'autres lignes ; photo du 24/11 : la demi-ligne laissait encore une
+/// bande vide de 9 px au-dessus des onglets) ; la barre de défilement est dans les 6 px de droite.
+/// Le menu Prusa compte 5 lignes (229 / 40) : le focus qui arrive sur la ligne coupée fait défiler d'une ligne.
+inline constexpr Rect16 list_rect = Rect16::fromLTRB(style::margin, style::top, style::margin + 470, style::tab_line.Top());
 static_assert(style::inside(style::content, list_rect));
 
 /// En-tête G d'un menu Prusa : leur titre en capitales prend la casse de la maquette, coupé à la place disponible.

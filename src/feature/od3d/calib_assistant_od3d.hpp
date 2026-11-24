@@ -46,6 +46,10 @@ void set_accelerometer(Accelerometer value);
 /// Calibration faite hors de l'assistant (équerrage, manuel)
 void record_done(Test test);
 
+/// calib_registry::signature() déjà proposée au démarrage (0 : jamais), et l'enregistrer
+uint16_t offered_signature();
+void set_offered_signature(uint16_t signature);
+
 // ---- Série en cours ----
 
 struct Progress {

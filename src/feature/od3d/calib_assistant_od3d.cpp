@@ -498,7 +498,22 @@ namespace {
         return 8 * ((i - base_tests) % 2);
     }
     static_assert(host_of(max_tests - 1) < base_tests, "un enregistrement de base pour chaque test en plus");
+
+    /// Empreinte proposée au démarrage : champ reserved du dernier enregistrement de base, libre (pas de place pour un
+    /// élément de plus dans le config_store, CS-1) ; after_run() garde reserved
+    constexpr size_t signature_host = base_tests - 1;
+    static_assert(host_of(max_tests - 1) < signature_host, "l'empreinte ne partage pas un enregistrement des tests en plus");
 } // namespace
+
+uint16_t offered_signature() {
+    return config_store().od3d_calib_done.get(signature_host).reserved;
+}
+
+void set_offered_signature(uint16_t signature) {
+    Record host = config_store().od3d_calib_done.get(signature_host);
+    host.reserved = signature;
+    config_store().od3d_calib_done.set(signature_host, host);
+}
 
 Record stored_record(size_t i) {
     if (i < base_tests) {

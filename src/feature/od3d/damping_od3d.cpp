@@ -68,7 +68,6 @@ namespace {
 
     Status sweep(uint8_t axis_index, vibrate_measure::MeasureParams &args, const vibrate_measure::MicrostepRestorer &restorer) {
         using namespace vibrate_measure;
-        const AxisEnum axis = axis_index == 0 ? X_AXIS : Y_AXIS;
         // CoreXY : les deux moteurs, comme M1959
         args.axis_flag = setup_steppers(axis_index == 0 ? StepEventFlag::STEP_EVENT_FLAG_STEP_X : StepEventFlag::STEP_EVENT_FLAG_STEP_Y);
         if (!args.setup(restorer)) {
@@ -97,8 +96,9 @@ namespace {
             if (!result.has_value()) {
                 return result.error() == Error::aborted ? Status::stopped : Status::failed;
             }
-            // Gain de l'axe excité seul : la courbe de résonance de l'axe (M1959 y ajoute les deux autres axes)
-            measurement.psd[axis_index][i] = sq(result->gain[axis]);
+            // Gain dans le plan horizontal (M1959 y ajoute Z) : pas l'axe excité seul, car le passage des axes de
+            // l'accéléromètre à X/Y sur la CORE One n'est pas vérifié par Prusa (vibration_math_od3d.hpp, pose M2005)
+            measurement.psd[axis_index][i] = sq(result->gain[X_AXIS]) + sq(result->gain[Y_AXIS]);
             measurement.points[axis_index] = uint8_t(i + 1);
             progress = uint8_t((axis_index * sweep_points + i + 1) * 100 / (axis_count * sweep_points));
             ++revisions;

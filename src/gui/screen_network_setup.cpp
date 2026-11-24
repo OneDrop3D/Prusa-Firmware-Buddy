@@ -28,9 +28,9 @@ LOG_COMPONENT_REF(GUI);
 
 namespace network_wizard {
 
-/// OneDrop3D (interface G) : listes G sous l'en-tête compact, sans onglets : 6 lignes, la demi-ligne, et la ligne
+/// OneDrop3D (interface G) : listes G sous l'en-tête compact, sans onglets : 6 lignes, le haut de la 7e jusqu'au bas de l'écran, et la ligne
 /// « Retour » comme dans tous les menus (dessinées avant par Prusa : autre hauteur, autre style)
-static constexpr Rect16 g_list_rect { od3d::list_rect.Left(), GuiDefaults::RectScreenNoHeader.Top() + 2, od3d::list_rect.Width(), 6 * 40 + od3d::list_peek };
+static constexpr Rect16 g_list_rect = Rect16::fromLTRB(od3d::list_rect.Left(), GuiDefaults::RectScreenNoHeader.Top() + 2, od3d::list_rect.Right() + 1, GuiDefaults::ScreenHeight);
 static_assert(od3d::style::inside(GuiDefaults::RectScreenNoHeader, g_list_rect));
 
 using Phase = PhaseNetworkSetup;

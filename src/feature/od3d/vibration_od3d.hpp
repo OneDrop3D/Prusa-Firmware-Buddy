@@ -109,9 +109,10 @@ std::array<int16_t, 2> stored_references();
 
 /// M2005, pose de l'accéléromètre (série « Accéléromètre », en premier ; retour du 24/11 : « calibration automatique »
 /// de l'accéléromètre) : au centre du plateau à mi-hauteur, tête au repos, la pesanteur donne l'inclinaison et le
-/// bruit ; puis un aller-retour court sur X et sur Y (mount_accel) : l'axe qui voit le mouvement et sa part. Un
-/// accéléromètre tourné, clipsé de travers ou qui bouge sur la buse fausserait toutes les mesures qui suivent : le test
-/// échoue alors avec la raison. Rien n'est réglé. /usb/OD3D_MOUNT.CSV.
+/// bruit ; puis un aller-retour court sur X et sur Y (mount_accel) : la part du mouvement dans le plan horizontal. Un
+/// accéléromètre clipsé de travers ou qui bouge sur la buse fausserait toutes les mesures qui suivent : le test échoue
+/// alors avec la raison. Son orientation à plat n'est pas jugée (vibration_math_od3d.hpp). Rien n'est réglé.
+/// /usb/OD3D_MOUNT.CSV.
 namespace od3d::accel_mount {
 
 using vibration::Status;
@@ -121,8 +122,7 @@ struct Measurement {
     float tilt_deg = NAN;
     float noise_rms = NAN; ///< m/s², au repos
     std::array<std::array<float, 3>, 2> sums {}; ///< somme des |a| par axe pendant le mouvement sur X, sur Y
-    std::array<float, 2> share { NAN, NAN }; ///< part de l'axe du mouvement
-    std::array<uint8_t, 2> dominant { 0, 1 };
+    std::array<float, 2> share { NAN, NAN }; ///< part du plan horizontal pendant le mouvement sur X, sur Y
     vibration::Mount verdict = vibration::Mount::ok;
 };
 

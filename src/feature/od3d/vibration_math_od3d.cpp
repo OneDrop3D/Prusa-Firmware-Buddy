@@ -151,22 +151,12 @@ float tilt_degrees(float gx, float gy, float gz) {
     return std::acos(std::clamp(std::abs(gz) / norm, 0.f, 1.f)) * 180.f / 3.14159265f;
 }
 
-float axis_share(std::span<const float, 3> sums, uint8_t axis) {
+float plane_share(std::span<const float, 3> sums) {
     const float total = sums[0] + sums[1] + sums[2];
-    if (!(total > 0.f) || axis > 2) {
-        return NAN;
-    }
-    return sums[axis] / total;
+    return total > 0.f ? (sums[0] + sums[1]) / total : NAN;
 }
 
-uint8_t dominant_axis(std::span<const float, 3> sums) {
-    return uint8_t(std::max_element(sums.begin(), sums.end()) - sums.begin());
-}
-
-Mount mount_verdict(float tilt_deg, float share_x, float share_y, uint8_t dominant_x, uint8_t dominant_y) {
-    if (dominant_x != 0 || dominant_y != 1) {
-        return Mount::crossed;
-    }
+Mount mount_verdict(float tilt_deg, float share_x, float share_y) {
     if (!(tilt_deg <= mount_tilt_max_deg)) { // NAN : pas de pesanteur, compté de travers
         return Mount::tilted;
     }

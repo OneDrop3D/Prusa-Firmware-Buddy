@@ -201,22 +201,25 @@ TEST_CASE("od3d accel mount: tilt of the gravity vector, either way up") {
     CHECK(std::isnan(tilt_degrees(0.f, 0.f, 0.f)));
 }
 
-TEST_CASE("od3d accel mount: share and dominant axis of a move") {
+TEST_CASE("od3d accel mount: share of the horizontal plane, whatever the turn in it") {
     const std::array<float, 3> x_move { 8.f, 1.f, 1.f };
-    CHECK(axis_share(x_move, 0) == Approx(0.8f));
-    CHECK(dominant_axis(x_move) == 0);
+    CHECK(plane_share(x_move) == Approx(0.9f));
+    // Le même mouvement vu par un accéléromètre tourné d'un quart de tour (photo du 24/11) : même verdict
+    const std::array<float, 3> turned { 1.f, 8.f, 1.f };
+    CHECK(plane_share(turned) == Approx(plane_share(x_move)));
+    const std::array<float, 3> wobbling { 2.f, 1.f, 6.f }; // il bouge sur la buse : surtout en Z
+    CHECK(plane_share(wobbling) == Approx(1.f / 3.f));
     const std::array<float, 3> zero { 0.f, 0.f, 0.f };
-    CHECK(std::isnan(axis_share(zero, 0)));
+    CHECK(std::isnan(plane_share(zero)));
 }
 
 TEST_CASE("od3d accel mount: verdict, most serious first") {
-    CHECK(mount_verdict(2.f, 0.8f, 0.85f, 0, 1) == Mount::ok);
-    CHECK(mount_verdict(2.f, 0.8f, 0.85f, 1, 0) == Mount::crossed); // tourné d'un quart de tour
-    CHECK(mount_verdict(25.f, 0.8f, 0.85f, 1, 0) == Mount::crossed);
-    CHECK(mount_verdict(12.f, 0.8f, 0.85f, 0, 1) == Mount::tilted);
-    CHECK(mount_verdict(NAN, 0.8f, 0.85f, 0, 1) == Mount::tilted);
-    CHECK(mount_verdict(3.f, 0.5f, 0.85f, 0, 1) == Mount::loose);
-    CHECK(mount_verdict(3.f, 0.8f, NAN, 0, 1) == Mount::loose);
+    CHECK(mount_verdict(2.f, 0.8f, 0.85f) == Mount::ok);
+    CHECK(mount_verdict(12.f, 0.8f, 0.85f) == Mount::tilted);
+    CHECK(mount_verdict(12.f, 0.3f, 0.85f) == Mount::tilted);
+    CHECK(mount_verdict(NAN, 0.8f, 0.85f) == Mount::tilted);
+    CHECK(mount_verdict(3.f, 0.5f, 0.85f) == Mount::loose);
+    CHECK(mount_verdict(3.f, 0.8f, NAN) == Mount::loose);
 }
 
 TEST_CASE("od3d shaper check: reduction with the noise removed") {

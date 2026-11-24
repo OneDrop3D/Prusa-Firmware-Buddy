@@ -12846,10 +12846,6 @@ msgid "Shaper check"
 msgstr "Vérif. IS"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
-msgid "The accelerometer is turned: its axes do not follow X and Y. Clip it the way Prusa shows."
-msgstr "L'accéléromètre est tourné : ses axes ne suivent pas X et Y. Clipsez-le comme le montre Prusa."
-
-#: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "The accelerometer is clipped askew (tilt %d deg). Clip it flat on the nozzle."
 msgstr "L'accéléromètre est clipsé de travers (inclinaison %d°). Clipsez-le à plat sur la buse."
 
@@ -12932,3 +12928,7 @@ msgstr "Axe %c : mêmes mouvements sans son filtre"
 #: src/feature/od3d/live_od3d.hpp
 msgid "Axis %c: the filter removes %d%% of the ringing"
 msgstr "Axe %c : le filtre retire %d %% des vibrations"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "New in this firmware: %d tests, ~%d min"
+msgstr "Nouveau dans ce firmware : %d tests, ~%d min"

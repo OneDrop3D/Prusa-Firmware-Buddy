@@ -318,8 +318,8 @@ void WindowMenuPreheat::screenEvent(window_t *sender, GUI_event_t event, void *p
 // * Frames
 using Phase = PhasesPreheat;
 
-/// OneDrop3D (interface G) : pas d'onglets ici, 6 lignes entières puis la demi-ligne des listes G
-constexpr Rect16 preheat_list_rect { od3d::list_rect.Left(), od3d::list_rect.Top(), od3d::list_rect.Width(), 6 * 40 + od3d::list_peek };
+/// OneDrop3D (interface G) : pas d'onglets ici, 6 lignes entières puis le haut de la 7e jusqu'au bas de l'écran
+constexpr Rect16 preheat_list_rect = Rect16::fromLTRB(od3d::list_rect.Left(), od3d::list_rect.Top(), od3d::list_rect.Right() + 1, GuiDefaults::ScreenHeight);
 
 struct FrameFilamentSelection {
     od3d::MenuList<WindowMenuPreheat> menu; ///< OneDrop3D (interface G) : liste G, 6 lignes et demie sous l'en-tête G

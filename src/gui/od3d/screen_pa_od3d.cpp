@@ -172,7 +172,8 @@ void PaValueCard::unconditionalDraw() {
     draw_text(Rect16(x, r.Top() + 82, w, height(Font::small)), string_view_utf8::MakeRAM(name), Font::small, style::text_muted, style::surface);
 
     if (pa::needs_measure(slot)) {
-        draw_text(Rect16(x, r.Top() + 104, w, height(Font::small)), _("PA to measure"), Font::small, style::warning, style::surface);
+        // M-10 : un K trop peu sûr reste montré, celui du trancheur sert
+        draw_text(Rect16(x, r.Top() + 104, w, height(Font::small)), rec.has_k() ? _("Unsure: slicer PA used") : _("PA to measure"), Font::small, style::warning, style::surface);
     }
 }
 

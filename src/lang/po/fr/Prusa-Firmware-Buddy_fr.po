@@ -12960,3 +12960,12 @@ msgstr "Aucune force : la buse n'a pas touché le plateau."
 #: src/gui/od3d/spool_sheet_od3d.cpp
 msgid "Remeasure PA"
 msgstr "Remesurer le PA"
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "Slot %d PA unsure (K = %s), slicer PA kept"
+msgstr "PA de l'emplacement %d incertain (K = %s), PA du trancheur gardé"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Unsure: slicer PA used"
+msgstr "Incertain : PA du trancheur utilisé"

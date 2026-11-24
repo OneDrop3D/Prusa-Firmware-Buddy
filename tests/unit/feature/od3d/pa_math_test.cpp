@@ -1101,6 +1101,16 @@ TEST_CASE("pa: validity key of a slot measurement, nozzle and material (M-02)") 
     CHECK_FALSE(pa::if_key(r, pa::make_key(400, false, "PETG")).has_k());
 }
 
+TEST_CASE("pa: only a confident K replaces the slicer PA (M-10)") {
+    pa::Record r { .k_e4 = 400, .confidence = 59 };
+    CHECK(r.has_k()); // enregistré (dès une confiance de 30), montré « incertain »
+    CHECK_FALSE(r.applies());
+    r.confidence = pa::apply_confidence;
+    CHECK(r.applies());
+    CHECK(pa::Record { .k_e4 = 400, .confidence = 100, .source = pa::Record::chosen }.applies()); // ligne choisie à l'œil
+    CHECK_FALSE(pa::Record {}.applies());
+}
+
 TEST_CASE("motif : lignes alternées, chaque ligne part de la fin de la précédente") {
     for (const bool compact : { true, false }) {
         pa::Request rq;

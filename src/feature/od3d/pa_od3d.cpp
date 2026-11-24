@@ -68,8 +68,8 @@ Record record(uint8_t slot) {
 
 std::optional<float> k_for_slot(uint8_t slot) {
     const Record r = record(slot);
-    if (!r.has_k()) {
-        return std::nullopt;
+    if (!r.applies()) {
+        return std::nullopt; // pas de K, ou trop peu sûr (M-10) : le PA du trancheur sert
     }
     return k_from_e4(r.k_e4);
 }
@@ -102,7 +102,7 @@ void set_printer_wins(bool set) {
 }
 
 bool needs_measure(uint8_t slot) {
-    return printer_wins() && !record(slot).has_k();
+    return printer_wins() && !k_for_slot(slot);
 }
 
 // ---- Application ----
@@ -902,7 +902,8 @@ namespace {
         if (e == Error::none) {
             char k[12];
             snprintf(k, sizeof(k), "%.3f", double(k_from_e4(record(slot).k_e4)));
-            tell(_("Slot %d PA measured: K = %s").formatted(params, int(slot + 1), k));
+            tell(k_for_slot(slot) ? _("Slot %d PA measured: K = %s").formatted(params, int(slot + 1), k)
+                                  : _("Slot %d PA unsure (K = %s), slicer PA kept").formatted(params, int(slot + 1), k)); // M-10
         } else {
             tell(_("Slot %d PA not measured, slicer PA kept").formatted(params, int(slot + 1)));
         }

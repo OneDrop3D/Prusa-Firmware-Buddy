@@ -190,6 +190,10 @@ constexpr R if_key(const R &r, uint8_t key) {
     return r.key == key ? r : R {};
 }
 
+/// M-10 : un K ne remplace le PA du trancheur qu'à partir de cette confiance ; il est enregistré dès 30 (mesure validée
+/// le 22/11) et montré « peu sûr » en dessous. shortcut: seuil à régler sur des mesures réelles (CSV)
+inline constexpr uint8_t apply_confidence = 60;
+
 /// Ce qui est gardé par emplacement (config_store, « OD3D PA Slot »). Taille fixe : pour changer la structure, créer
 /// un nouvel élément (nouveau nom) sans réutiliser celui-ci.
 struct Record {
@@ -204,6 +208,8 @@ struct Record {
     uint8_t key : 7 = 0; ///< M-02 : make_key() de la mesure (bits libres du même octet) ; 0 : d'avant la clé
 
     bool has_k() const { return k_e4 != k_none; }
+    /// Le K remplace celui du trancheur (une ligne choisie à l'œil a la confiance 100)
+    bool applies() const { return has_k() && confidence >= apply_confidence; }
     bool operator==(const Record &) const = default;
 };
 static_assert(sizeof(Record) == 4);

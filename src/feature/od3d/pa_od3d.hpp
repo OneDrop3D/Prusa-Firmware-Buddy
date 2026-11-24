@@ -54,7 +54,7 @@ uint8_t key_for_slot(uint8_t slot);
 /// Ce qui est gardé pour l'emplacement ; vide s'il a été mesuré avec une autre buse ou une autre matière (M-02)
 Record record(uint8_t slot);
 
-/// K mesuré de l'emplacement, s'il y en a un
+/// K mesuré de l'emplacement, s'il y en a un assez sûr pour remplacer celui du trancheur (M-10)
 std::optional<float> k_for_slot(uint8_t slot);
 
 /// Enregistre r avec la clé de maintenant
@@ -63,14 +63,15 @@ void set_record(uint8_t slot, const Record &r);
 /// Efface le K (bobine changée)
 void clear(uint8_t slot);
 
-/// Un K est gardé mais ne sert pas : mesuré avec une autre buse ou une autre matière (M-02) ; à remesurer
+/// Un K est gardé mais ne sert pas : mesuré avec une autre buse ou une autre matière (M-02), ou trop peu sûr (M-10) ;
+/// à remesurer
 bool stale(uint8_t slot);
 
 /// « Le PA de l'imprimante prime »
 bool printer_wins();
 void set_printer_wins(bool set);
 
-/// Le réglage est actif et l'emplacement n'a pas de K : « PA à mesurer »
+/// Le réglage est actif et l'emplacement n'a pas de K qui serve (k_for_slot) : « PA à mesurer »
 bool needs_measure(uint8_t slot);
 
 // ---- Application (fil de Marlin) ----

@@ -26,6 +26,10 @@ namespace {
     uint32_t last_step_ms = 0;
     bool print_wants_soft_cooldown = false; ///< une matière de l'impression en cours demande la descente
     int16_t print_bed_target = 0; ///< consigne la plus haute du plateau pendant l'impression
+    /// Plafond posé une fois pour cette impression : ensuite la consigne choisie à l'écran est respectée, « Arrêt »
+    /// compris (retour du 24/11 : « dans une impression on peut pas gérer la température de la chambre »).
+    /// shortcut: le maximum de la première matière ; à reposer au changement de matière si un mélange le demande
+    bool print_ceiling_done = false;
 
     // Lus par l'interface
     std::atomic<bool> stop_requested { false };
@@ -91,8 +95,12 @@ namespace {
         }
         auto &chamber = buddy::chamber();
         const auto max_c = type.parameters().chamber_max_temperature;
+        if (print_ceiling_done) {
+            return;
+        }
         if (const auto target = ceiling_target(recipe, max_c, chamber.target_temperature().has_value(), chamber.capabilities().cooling)) {
             chamber.set_target_temperature(buddy::Temperature(*target));
+            print_ceiling_done = true;
         }
     }
 
@@ -175,6 +183,7 @@ void on_print_start() {
     stop_requested = false;
     print_wants_soft_cooldown = false;
     print_bed_target = 0;
+    print_ceiling_done = false;
     publish_status(ticks_ms());
 }
 

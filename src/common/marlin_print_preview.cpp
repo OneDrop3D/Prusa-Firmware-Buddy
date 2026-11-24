@@ -62,6 +62,12 @@
 #include <common/gcode/gcode_info_scan.hpp>
 #include <utils/variant_utils.hpp>
 #include <feature/compatibility_checks/filament_compatibility.hpp>
+#include <feature/od3d/print_start_od3d.hpp>
+
+namespace {
+/// OneDrop3D : ce départ vient de « Imprimer maintenant » (print_start_od3d.hpp), lu au début de l'aperçu
+bool od3d_auto_unload = false;
+} // namespace
 
 namespace {
 
@@ -412,6 +418,7 @@ PrintPreview::Result PrintPreview::Loop() {
         return Result::Inactive;
 
     case State::init:
+        od3d_auto_unload = od3d::print_start::take_auto_unload(); // OneDrop3D : pour ce départ seulement
         gcode_info_scan::start_scan();
 
         // Reset print progress to 0. Need to be at this point because Connect is already starting to snitch the info.
@@ -697,10 +704,11 @@ PrintPreview::Result PrintPreview::Loop() {
 
 #if HAS_MMU2()
     case State::mmu_filament_inserted_wait_user:
-        // OneDrop3D (retour du 24/11, « optimise le menu imprimer ») : lancée par « Imprimer maintenant » (aperçu et
-        // association sautés si possible), l'impression décharge le filament détecté sans poser la question : c'est la
-        // réponse « Oui », celle qui ne risque pas un chargement sur un filament resté dans l'extrudeur
-        switch (skip_if_able >= marlin_server::PreviewSkipIfAble::tool_mapping ? Response::Yes : response) {
+        // OneDrop3D (retour du 24/11, « optimise le menu imprimer ») : lancée par « Imprimer maintenant » de notre écran
+        // (feature/od3d/print_start_od3d.hpp), l'impression décharge le filament détecté sans poser la question : c'est la
+        // réponse « Oui », celle qui ne risque pas un chargement sur un filament resté dans l'extrudeur. Jamais pour une
+        // reprise après coupure, Connect ou AUTO.GCO (même PreviewSkipIfAble) : la question reste.
+        switch (od3d_auto_unload ? Response::Yes : response) {
 
         case Response::No:
             ChangeState(State::inactive);

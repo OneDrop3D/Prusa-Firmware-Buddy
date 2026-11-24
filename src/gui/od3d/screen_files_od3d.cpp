@@ -15,6 +15,7 @@
 #include <display.hpp>
 #include <display_helper.h>
 #include <FreeRTOS.h>
+#include <feature/od3d/print_start_od3d.hpp>
 #include <feature/od3d/mesh_memory_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
@@ -169,7 +170,11 @@ namespace {
     }
 
     void print_now() {
-        // Notre écran remplace l'aperçu Prusa ; l'association des outils ne s'affiche que si Prusa trouve un écart
+        // Notre écran remplace l'aperçu Prusa ; l'association des outils ne s'affiche que si Prusa trouve un écart. Un
+        // filament détecté que le MMU ne sait pas placer est déchargé sans « Décharger maintenant ? » (24/11)
+        if (can_print()) {
+            od3d::print_start::request_auto_unload();
+        }
         start_print(marlin_client::PreviewSkipIfAble::tool_mapping);
     }
 

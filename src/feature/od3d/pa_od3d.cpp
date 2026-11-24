@@ -464,6 +464,7 @@ namespace {
         last.compact = rq.compact;
         size_t n = 0;
         float best_cost = INFINITY;
+        Error stop = Error::stopped; ///< raison d'un run_line() à false
         const auto run_line = [&](float k) -> bool {
             st_step = uint8_t(n + 1);
             st_k = k_to_e4(k);
@@ -495,6 +496,11 @@ namespace {
                     last.k_best = k;
                 }
             }
+            // Pas de force dès les premières lignes : la buse ne touche pas le plateau, on s'arrête (retour du 24/11)
+            if (in_air(std::span(points.data(), n))) {
+                stop = Error::no_force;
+                return false;
+            }
             return true;
         };
         Choice choice;
@@ -502,7 +508,7 @@ namespace {
             const Search search { .prior = prior_k(rq.slot), .k_min = rq.k_min, .k_max = rq.k_max, .step = rq.k_step, .cap = lines.count, .min_confidence = min_confidence };
             while (const auto k = next_k(std::span(points.data(), n), search)) {
                 if (!run_line(*k)) {
-                    return Error::stopped;
+                    return stop;
                 }
             }
             choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
@@ -510,7 +516,7 @@ namespace {
             const size_t coarse = sweep_values(rq.k_min, rq.k_max, rq.k_step, std::span(ks.data(), ks.size() - 8));
             for (size_t i = 0; i < coarse; ++i) {
                 if (!run_line(ks[i])) {
-                    return Error::stopped;
+                    return stop;
                 }
             }
             choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);
@@ -519,7 +525,7 @@ namespace {
                 st_steps = uint8_t(coarse + m);
                 for (size_t i = 0; i < m && n < lines.count; ++i) {
                     if (!run_line(fine[i])) {
-                        return Error::stopped;
+                        return stop;
                     }
                 }
                 choice = choose_k(std::span(points.data(), n), rq.k_min, rq.k_max, rq.k_step);

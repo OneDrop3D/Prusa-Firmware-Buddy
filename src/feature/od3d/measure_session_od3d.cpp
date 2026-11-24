@@ -69,6 +69,7 @@ namespace {
     Hotend::TargetTemperature saved_target = 0;
     int16_t saved_bed = 0;
     bool saved_leveling = false;
+    bool z_homed = false; ///< origine Z refaite par home() dans cette session
     bool retracted = false;
     std::optional<BlockEStallDetection> block_estall; ///< la détection de filament coincé lirait nos paliers comme des à-coups
     std::optional<SkippableGCode::Guard> skip_guard; ///< en impression : « Passer » sur l'écran Impression
@@ -272,6 +273,7 @@ Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {
     saved_target = hotend().nozzle_target_temp();
     saved_bed = thermalManager.degTargetBed();
     saved_leveling = planner.leveling_active;
+    z_homed = false;
     retracted = false;
     const auto tool = VirtualToolIndex::currently_selected_opt();
     retract_mm = pattern::retract_mm(tool && FilamentType::for_tool(*tool).parameters().is_flexible);
@@ -357,9 +359,17 @@ Result Session::home(int16_t nozzle_probe) {
     if (const Result r = heat(nozzle_probe, 3.f, 1000, heat_timeout_ms, false); r != Result::ok) {
         return r;
     }
-    if (axes_need_homing()) {
+    // Origine Z toujours refaite (une fois par session), comme le G28 du G-code de départ de PrusaSlicer, plaque
+    // vérifiée comme lui ; X et Y seulement s'il le faut. G28 O garderait une origine fausse que Prusa tient pour
+    // bonne : prise sur un objet posé sur le plateau, la buse restait au-dessus du plateau pendant toute la mesure
+    // (retour du 24/11 : PA « en l'air »)
+    if (!z_homed || axes_need_homing()) {
         live::set(N_("Homing"));
-        GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
+        G28Flags flags { .precise = false };
+#if HAS_PRINT_SHEET_DETECTION()
+        flags.check_sheet = true;
+#endif
+        z_homed = GcodeSuite::G28_no_parser(false, false, true, flags);
     }
     if (interrupted()) {
         return Result::stopped;

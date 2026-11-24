@@ -127,6 +127,13 @@ struct Choice {
     uint8_t used = 0; ///< blocs retenus
 };
 
+inline constexpr size_t air_lines = 2; ///< lignes sans force avant de conclure que la buse imprime en l'air
+
+/// La buse imprime en l'air (retour du 24/11 : origine Z fausse, la mesure continuait sans toucher le plateau) : au
+/// moins air_lines lignes, aucune avec un créneau de force (min_amplitude_g) ; dans le vide, la poussée de l'extrudeur
+/// et la contre-pression de la buse se compensent
+bool in_air(std::span<const SweepPoint> done, const Thresholds &th = {});
+
 /// Choix de K d'après les blocs d'un balayage (dans n'importe quel ordre)
 Choice choose_k(std::span<const SweepPoint> sweep, float k_min, float k_max, float k_step, const Thresholds &th = {});
 

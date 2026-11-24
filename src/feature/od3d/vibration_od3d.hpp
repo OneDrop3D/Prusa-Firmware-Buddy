@@ -106,3 +106,69 @@ const Measurement &last();
 std::array<int16_t, 2> stored_references();
 
 } // namespace od3d::fan_vibration
+
+/// M2005, pose de l'accéléromètre (série « Accéléromètre », en premier ; retour du 24/11 : « calibration automatique »
+/// de l'accéléromètre) : au centre du plateau à mi-hauteur, tête au repos, la pesanteur donne l'inclinaison et le
+/// bruit ; puis un aller-retour court sur X et sur Y (mount_accel) : l'axe qui voit le mouvement et sa part. Un
+/// accéléromètre tourné, clipsé de travers ou qui bouge sur la buse fausserait toutes les mesures qui suivent : le test
+/// échoue alors avec la raison. Rien n'est réglé. /usb/OD3D_MOUNT.CSV.
+namespace od3d::accel_mount {
+
+using vibration::Status;
+
+struct Measurement {
+    std::array<float, 3> gravity { NAN, NAN, NAN }; ///< m/s², moyenne au repos (axes de l'imprimante)
+    float tilt_deg = NAN;
+    float noise_rms = NAN; ///< m/s², au repos
+    std::array<std::array<float, 3>, 2> sums {}; ///< somme des |a| par axe pendant le mouvement sur X, sur Y
+    std::array<float, 2> share { NAN, NAN }; ///< part de l'axe du mouvement
+    std::array<uint8_t, 2> dominant { 0, 1 };
+    vibration::Mount verdict = vibration::Mount::ok;
+};
+
+/// Corps de M2005 : bloque jusqu'à la fin (~20 s) ou request_stop()
+void run();
+void request_stop();
+bool is_running();
+Status status();
+uint8_t progress_percent();
+const Measurement &last();
+
+/// Le test est réussi (mesure finie et pose correcte)
+bool passed();
+
+} // namespace od3d::accel_mount
+
+/// M2006, vérification de l'input shaper (série « Accéléromètre », après l'accélération max utile) : à la position de
+/// M1959, à check_accel (bornée par la limite matérielle), X puis Y font quatre déplacements courts avec le filtre de
+/// l'axe en place, puis quatre sans (filtre coupé le temps de la mesure, toujours remis) : la part des vibrations après
+/// l'arrêt que le filtre retire. Sous check_min_reduction sur un axe : à refaire. Rien n'est réglé.
+/// /usb/OD3D_SHAPER.CSV.
+namespace od3d::shaper_check {
+
+using vibration::Status;
+
+inline constexpr uint8_t axis_count = 2;
+
+struct Measurement {
+    float noise = NAN; ///< variance au repos (m²/s⁴)
+    uint16_t accel = 0; ///< mm/s² utilisée
+    std::array<bool, axis_count> has_filter {};
+    std::array<float, axis_count> with_filter { NAN, NAN }; ///< variance moyenne après l'arrêt
+    std::array<float, axis_count> without_filter { NAN, NAN };
+    std::array<float, axis_count> reduction { NAN, NAN }; ///< 0 à 1 (négatif : le filtre empire)
+    std::array<vibration::ShaperCheck, axis_count> verdict { vibration::ShaperCheck::no_filter, vibration::ShaperCheck::no_filter };
+};
+
+/// Corps de M2006 : bloque jusqu'à la fin (~1 min) ou request_stop()
+void run();
+void request_stop();
+bool is_running();
+Status status();
+uint8_t progress_percent();
+const Measurement &last();
+
+/// Le test est réussi (mesure finie, au moins un axe filtré, aucun axe filtré faible)
+bool passed();
+
+} // namespace od3d::shaper_check

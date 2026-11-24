@@ -210,6 +210,8 @@ void M2003(); //< OneDrop3D : dilatation de la buse mesurée (cellule de charge)
 void M2000(); //< OneDrop3D : saut de vitesse de l'extrudeur d'un emplacement, accélération max du filament (cellule de charge)
 void M2010(); //< OneDrop3D (lot UI-0) : mesure de l'écran ajoutée à /usb/OD3D_UI.CSV
 void M2004(); //< OneDrop3D : accélération max utile de X et Y (accéléromètre), proposée pour M201
+void M2005(); //< OneDrop3D : pose de l'accéléromètre (inclinaison, axes, fixation)
+void M2006(); //< OneDrop3D : vérification de l'input shaper (vibrations avec et sans filtre)
 void M306(); //< OneDrop3D (F7) : régulation MPC de la buse, calibration (T), mode (M), paramètres
 void M9140(); //< Set normal (non-stealth) mode
 void M9141(); //< Get stealth mode status

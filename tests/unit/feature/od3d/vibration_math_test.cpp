@@ -191,3 +191,58 @@ TEST_CASE("vibration: reference codes packed in the calibration values") {
     CHECK(chamber != od3d::calib_registry::no_value);
     CHECK(unpack_references(p, chamber) == std::array<uint8_t, 4> { encode(0.05f), encode(30.f), 0, 0 });
 }
+
+TEST_CASE("od3d accel mount: tilt of the gravity vector, either way up") {
+    CHECK(tilt_degrees(0.f, 0.f, 9.81f) == Approx(0.f).margin(0.01f));
+    CHECK(tilt_degrees(0.f, 0.f, -9.81f) == Approx(0.f).margin(0.01f)); // à l'envers : même inclinaison
+    const float a = 15.f * pi / 180.f;
+    CHECK(tilt_degrees(9.81f * std::sin(a), 0.f, 9.81f * std::cos(a)) == Approx(15.f).margin(0.05f));
+    CHECK(tilt_degrees(9.81f, 0.f, 0.f) == Approx(90.f).margin(0.05f));
+    CHECK(std::isnan(tilt_degrees(0.f, 0.f, 0.f)));
+}
+
+TEST_CASE("od3d accel mount: share and dominant axis of a move") {
+    const std::array<float, 3> x_move { 8.f, 1.f, 1.f };
+    CHECK(axis_share(x_move, 0) == Approx(0.8f));
+    CHECK(dominant_axis(x_move) == 0);
+    const std::array<float, 3> zero { 0.f, 0.f, 0.f };
+    CHECK(std::isnan(axis_share(zero, 0)));
+}
+
+TEST_CASE("od3d accel mount: verdict, most serious first") {
+    CHECK(mount_verdict(2.f, 0.8f, 0.85f, 0, 1) == Mount::ok);
+    CHECK(mount_verdict(2.f, 0.8f, 0.85f, 1, 0) == Mount::crossed); // tourné d'un quart de tour
+    CHECK(mount_verdict(25.f, 0.8f, 0.85f, 1, 0) == Mount::crossed);
+    CHECK(mount_verdict(12.f, 0.8f, 0.85f, 0, 1) == Mount::tilted);
+    CHECK(mount_verdict(NAN, 0.8f, 0.85f, 0, 1) == Mount::tilted);
+    CHECK(mount_verdict(3.f, 0.5f, 0.85f, 0, 1) == Mount::loose);
+    CHECK(mount_verdict(3.f, 0.8f, NAN, 0, 1) == Mount::loose);
+}
+
+TEST_CASE("od3d shaper check: reduction with the noise removed") {
+    // Bruit 1, sans filtre 11, avec 3 : 1 − 2/10 = 80 % retirés
+    CHECK(shaper_reduction(3.f, 11.f, 1.f) == Approx(0.8f));
+    // Avec le filtre dans le bruit : tout retiré
+    CHECK(shaper_reduction(0.5f, 11.f, 1.f) == Approx(1.f));
+    // Le filtre empire : borné à −100 %
+    CHECK(shaper_reduction(40.f, 11.f, 1.f) == Approx(-1.f));
+    // Même sans filtre dans le bruit : rien à juger
+    CHECK(std::isnan(shaper_reduction(1.f, 1.5f, 1.f)));
+    CHECK(std::isnan(shaper_reduction(NAN, 11.f, 1.f)));
+}
+
+TEST_CASE("od3d shaper check: verdict per axis and overall") {
+    CHECK(shaper_check(true, 0.8f) == ShaperCheck::ok);
+    CHECK(shaper_check(true, 0.1f) == ShaperCheck::weak);
+    CHECK(shaper_check(true, NAN) == ShaperCheck::quiet);
+    CHECK(shaper_check(false, 0.8f) == ShaperCheck::no_filter);
+
+    const std::array both_ok { ShaperCheck::ok, ShaperCheck::quiet };
+    CHECK(shaper_check_passed(both_ok));
+    const std::array one_weak { ShaperCheck::ok, ShaperCheck::weak };
+    CHECK_FALSE(shaper_check_passed(one_weak));
+    const std::array no_filter { ShaperCheck::no_filter, ShaperCheck::no_filter };
+    CHECK_FALSE(shaper_check_passed(no_filter)); // l'input shaper d'abord
+    const std::array y_only { ShaperCheck::no_filter, ShaperCheck::ok };
+    CHECK(shaper_check_passed(y_only));
+}

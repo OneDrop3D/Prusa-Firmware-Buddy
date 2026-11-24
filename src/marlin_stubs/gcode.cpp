@@ -387,6 +387,12 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 2004: // OneDrop3D : accélération max utile
             PrusaGcodeSuite::M2004();
             break;
+        case 2005: // OneDrop3D : pose de l'accéléromètre
+            PrusaGcodeSuite::M2005();
+            break;
+        case 2006: // OneDrop3D : vérification de l'input shaper
+            PrusaGcodeSuite::M2006();
+            break;
     #if HAS_LOADCELL() && HAS_MMU2()
         case 1989: // OneDrop3D : assistant de calibration
             PrusaGcodeSuite::M1989();

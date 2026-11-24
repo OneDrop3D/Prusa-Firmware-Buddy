@@ -210,6 +210,10 @@ bool step_gcode(const Step &step, std::span<char> out) {
         return write(out, "M2001 V"); // V : puis les vibrations des ventilateurs, si l'accéléromètre répond
     case Test::accel_limit:
         return write(out, "M2004");
+    case Test::accel_mount:
+        return write(out, "M2005");
+    case Test::shaper_check:
+        return write(out, "M2006");
     case Test::nozzle_expansion:
         return write(out, "M2003");
     case Test::e_jump:

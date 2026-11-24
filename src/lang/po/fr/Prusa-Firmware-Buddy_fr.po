@@ -12812,3 +12812,99 @@ msgstr "aucun"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Remove the acceleration cap? Prints get their own M201 again."
 msgstr "Retirer le plafond d'accélération ? Les impressions retrouvent leur propre M201."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accel. mount"
+msgstr "Pose accél."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Shaper check"
+msgstr "Vérif. IS"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "The accelerometer is turned: its axes do not follow X and Y. Clip it the way Prusa shows."
+msgstr "L'accéléromètre est tourné : ses axes ne suivent pas X et Y. Clipsez-le comme le montre Prusa."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "The accelerometer is clipped askew (tilt %d deg). Clip it flat on the nozzle."
+msgstr "L'accéléromètre est clipsé de travers (inclinaison %d°). Clipsez-le à plat sur la buse."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "The accelerometer moves on the nozzle: it barely follows the moves. Clip it firmly."
+msgstr "L'accéléromètre bouge sur la buse : il suit mal les mouvements. Clipsez-le fermement."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Axis %c: the filter removes only %d%% of the ringing. Redo the input shaper."
+msgstr "Axe %c : le filtre ne retire que %d %% des vibrations. Refaites l'input shaper."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "No input shaper filter set: do the input shaper first."
+msgstr "Aucun filtre d'input shaper : faites d'abord l'input shaper."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Tilt:"
+msgstr "Inclinaison :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Share of the moved axis:"
+msgstr "Part de l'axe déplacé :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Noise at rest:"
+msgstr "Bruit au repos :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Ringing removed by the filter:"
+msgstr "Vibrations retirées par le filtre :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "--: no filter on this axis, or no ringing even without it."
+msgstr "-- : pas de filtre sur cet axe, ou pas de vibrations même sans lui."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed, %d skipped."
+msgstr "Terminé : %d OK, %d en échec, %d passés."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "filter removes"
+msgstr "le filtre retire"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accelerometer:"
+msgstr "Accéléromètre :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Filter check:"
+msgstr "Vérif. du filtre :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accel. %d tests ~%d min · Heating %d tests ~%d min"
+msgstr "Accél. %d tests ~%d min · Chauffe %d tests ~%d min"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Summary"
+msgstr "Bilan"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Head still: gravity and noise of the accelerometer"
+msgstr "Tête immobile : pesanteur et bruit de l'accéléromètre"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: short moves, which accelerometer axis sees them"
+msgstr "Axe %c : mouvements courts, quel axe de l'accéléromètre les voit"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Tilt %d deg, X %d%%, Y %d%%"
+msgstr "Inclinaison %d°, X %d %%, Y %d %%"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: short moves with its filter"
+msgstr "Axe %c : mouvements courts avec son filtre"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: same moves without its filter"
+msgstr "Axe %c : mêmes mouvements sans son filtre"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: the filter removes %d%% of the ringing"
+msgstr "Axe %c : le filtre retire %d %% des vibrations"

@@ -16,6 +16,7 @@
 #include <i18n.h>
 #include <selftest_fans.hpp>
 #include <selftest_fans_config.hpp>
+#include <Marlin/src/feature/input_shaper/input_shaper_config.hpp>
 #include <Marlin/src/gcode/calibrate/M958.hpp>
 #include <Marlin/src/Marlin.h>
 #include <Marlin/src/module/motion.h>
@@ -616,3 +617,468 @@ std::array<int16_t, 2> stored_references() {
 }
 
 } // namespace od3d::fan_vibration
+
+// ---- Réglages de mouvement des mesures M2005 et M2006 ----
+
+namespace od3d::vibration {
+
+namespace {
+
+    /// Comme M2004 : mode furtif coupé, accélération de la mesure ; tout est remis à la fin
+    class MotionSettings {
+    public:
+        MotionSettings()
+            : saved(planner.user_settings)
+            , stealth(config_store().stealth_mode.get()) {
+            planner.set_stealth_mode(false);
+        }
+        ~MotionSettings() {
+            if (!planner.draining()) {
+                planner.synchronize();
+            }
+            planner.apply_settings(saved);
+            planner.set_stealth_mode(stealth);
+        }
+        MotionSettings(const MotionSettings &) = delete;
+        MotionSettings &operator=(const MotionSettings &) = delete;
+
+        /// Accélération de X et Y pour les déplacements qui suivent, bornée par les limites matérielles de Prusa ;
+        /// rend celle qui s'applique vraiment
+        uint16_t accelerate(uint16_t accel, float speed) {
+            auto s = planner.user_settings;
+            for (const AxisEnum axis : { X_AXIS, Y_AXIS }) {
+                s.max_acceleration_mm_per_s2[axis] = std::max<uint32_t>(s.max_acceleration_mm_per_s2[axis], accel);
+                s.max_feedrate_mm_s[axis] = std::max(s.max_feedrate_mm_s[axis], speed);
+            }
+            planner.apply_settings(s);
+            const uint16_t real = uint16_t(std::min<uint32_t>({ uint32_t(accel), planner.settings.max_acceleration_mm_per_s2[X_AXIS], planner.settings.max_acceleration_mm_per_s2[Y_AXIS] }));
+            s = planner.user_settings;
+            s.travel_acceleration = s.acceleration = real;
+            planner.apply_settings(s);
+            return real;
+        }
+
+    private:
+        user_planner_settings_t saved; ///< une copie : planner.user_settings est une référence aux réglages vivants
+        bool stealth;
+    };
+
+} // namespace
+
+} // namespace od3d::vibration
+
+// ---- Pose de l'accéléromètre (M2005) ----
+
+namespace od3d::accel_mount {
+
+using namespace vibration;
+
+namespace {
+
+    std::atomic<bool> stop_requested = false;
+    std::atomic<bool> running = false;
+    std::atomic<Status> last_status = Status::idle;
+    std::atomic<uint8_t> progress = 0;
+    Measurement measurement;
+
+    constexpr const char *csv_path = "/usb/OD3D_MOUNT.CSV";
+    constexpr uint32_t settle_ms = 500; ///< le déplacement jusqu'au centre a fini de vibrer
+    constexpr uint32_t rest_ms = 1000; ///< moyenne au repos : pesanteur et bruit
+    constexpr uint32_t after_ms = 150; ///< après la fin du mouvement : le retard des échantillons et le freinage
+    constexpr uint32_t sample_timeout_ms = 1000;
+    constexpr float sweep_mm = 20.f; ///< aller-retour : 20 mm à 100 mm/s, rampes de 50 ms à mount_accel
+    constexpr float sweep_speed = 100.f;
+    constexpr uint8_t sweeps = 2; ///< allers-retours par axe
+
+    /// Écart moyen |a − pesanteur| de chaque axe au repos : retiré des sommes du mouvement (bruit)
+    std::array<float, 3> rest_mad {};
+
+    bool must_stop() {
+        return stop_requested.load() || planner.draining() || !marlin_server::printer_idle();
+    }
+
+    /// Lit tous les échantillons disponibles ; add(a) pour chacun. false : l'accéléromètre ne répond plus (ou plus
+    /// d'échantillon depuis sample_timeout_ms)
+    template <class Add>
+    bool drain(PrusaAccelerometer &accelerometer, uint32_t &last_sample, Add &&add) {
+        accelerometer::Acceleration a;
+        for (Read r; (r = read(accelerometer, a)) != Read::empty;) {
+            if (r == Read::failed) {
+                return false;
+            }
+            if (r == Read::sample) {
+                add(a);
+                last_sample = ticks_ms();
+            }
+        }
+        return ticks_ms() - last_sample <= sample_timeout_ms;
+    }
+
+    /// Au repos pendant rest_ms : pesanteur (moyenne), bruit (écart type) et écart moyen par axe
+    Status rest(PrusaAccelerometer &accelerometer) {
+        double sum[3] = { 0, 0, 0 }, sq[3] = { 0, 0, 0 };
+        uint32_t n = 0;
+        // Deux passes : la moyenne d'abord (pesanteur), puis l'écart moyen autour d'elle
+        std::array<float, 3> mean {};
+        for (uint8_t pass = 0; pass < 2; ++pass) {
+            double mad[3] = { 0, 0, 0 };
+            uint32_t m = 0;
+            accelerometer.clear();
+            uint32_t last_sample = ticks_ms();
+            for (const uint32_t start = ticks_ms(); ticks_ms() - start < rest_ms;) {
+                if (must_stop()) {
+                    return Status::stopped;
+                }
+                const bool alive = drain(accelerometer, last_sample, [&](const accelerometer::Acceleration &a) {
+                    for (int i = 0; i < 3; ++i) {
+                        if (pass == 0) {
+                            sum[i] += a.val[i];
+                            sq[i] += double(a.val[i]) * a.val[i];
+                        } else {
+                            mad[i] += std::abs(a.val[i] - mean[i]);
+                        }
+                    }
+                    if (pass == 0) {
+                        ++n;
+                    } else {
+                        ++m;
+                    }
+                });
+                if (!alive) {
+                    return Status::failed;
+                }
+                idle(true);
+            }
+            if (pass == 0) {
+                if (n < 100) {
+                    return Status::failed; // pas assez d'échantillons en 1 s (1 344 attendus)
+                }
+                double var = 0;
+                for (int i = 0; i < 3; ++i) {
+                    mean[i] = float(sum[i] / n);
+                    var += sq[i] / n - double(mean[i]) * mean[i];
+                }
+                measurement.gravity = mean;
+                measurement.noise_rms = float(std::sqrt(std::max(var, 0.0)));
+            } else if (m > 0) {
+                for (int i = 0; i < 3; ++i) {
+                    rest_mad[i] = float(mad[i] / m);
+                }
+            }
+        }
+        measurement.tilt_deg = tilt_degrees(mean[0], mean[1], mean[2]);
+        return Status::done;
+    }
+
+    /// Allers-retours sur l'axe a (0 X, 1 Y) : somme des |a − pesanteur| de chaque axe pendant le mouvement, bruit retiré
+    Status sweep(PrusaAccelerometer &accelerometer, uint8_t a) {
+        const AxisEnum axis = a == 0 ? X_AXIS : Y_AXIS;
+        const float centre = current_position[axis];
+        std::array<double, 3> sums { 0, 0, 0 };
+        uint32_t n = 0;
+        for (uint8_t s = 0; s < 2 * sweeps; ++s) {
+            if (must_stop()) {
+                return Status::stopped;
+            }
+            planner.synchronize();
+            accelerometer.clear();
+            uint32_t last_sample = ticks_ms();
+            current_position[axis] = centre + (s % 2 ? 0.f : sweep_mm);
+            line_to_current_position(sweep_speed);
+            const auto add = [&](const accelerometer::Acceleration &v) {
+                for (int i = 0; i < 3; ++i) {
+                    sums[i] += std::abs(v.val[i] - measurement.gravity[i]);
+                }
+                ++n;
+            };
+            while (planner.processing()) {
+                if (!drain(accelerometer, last_sample, add)) {
+                    planner.synchronize();
+                    return Status::failed;
+                }
+                idle(true);
+            }
+            for (const uint32_t end = ticks_ms(); ticks_ms() - end < after_ms;) {
+                if (!drain(accelerometer, last_sample, add)) {
+                    return Status::failed;
+                }
+                idle(true);
+            }
+        }
+        for (int i = 0; i < 3; ++i) {
+            measurement.sums[a][i] = float(std::max(sums[i] - double(rest_mad[i]) * n, 0.0));
+        }
+        measurement.share[a] = axis_share(measurement.sums[a], a);
+        measurement.dominant[a] = dominant_axis(measurement.sums[a]);
+        return Status::done;
+    }
+
+    void write_csv() {
+        FILE *f = fopen(csv_path, "a");
+        if (!f) {
+            return; // pas de clé
+        }
+        const Measurement &m = measurement;
+        force_probe::csv_printf(f, "# OneDrop3D M2005 accelerometer mount at X%.1f Y%.1f Z%.1f: %d mm moves at %d mm/s2\n", double(current_position.x),
+            double(current_position.y), double(current_position.z), int(sweep_mm), int(mount_accel));
+        force_probe::csv_printf(f, "gravity_x,gravity_y,gravity_z,tilt_deg,noise_rms,x_move_x,x_move_y,x_move_z,y_move_x,y_move_y,y_move_z,share_x,share_y,verdict\n");
+        force_probe::csv_printf(f, "%.3f,%.3f,%.3f,%.2f,%.4f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,%d\n", double(m.gravity[0]), double(m.gravity[1]),
+            double(m.gravity[2]), double(m.tilt_deg), double(m.noise_rms), double(m.sums[0][0]), double(m.sums[0][1]), double(m.sums[0][2]),
+            double(m.sums[1][0]), double(m.sums[1][1]), double(m.sums[1][2]), double(m.share[0]), double(m.share[1]), int(m.verdict));
+        fclose(f);
+    }
+
+    Status measure() {
+        if (const auto r = refused(stop_requested)) {
+            return *r;
+        }
+        planner.synchronize();
+        MotionSettings settings;
+        if (!accel_limit::prepare()) {
+            return must_stop() ? Status::stopped : Status::not_homed;
+        }
+        settings.accelerate(mount_accel, sweep_speed);
+
+        PrusaAccelerometer accelerometer;
+        live::set(N_("Head still: gravity and noise of the accelerometer"));
+        for (const uint32_t start = ticks_ms(); ticks_ms() - start < settle_ms;) {
+            idle(true);
+        }
+        if (const Status s = rest(accelerometer); s != Status::done) {
+            return s;
+        }
+        progress = 30;
+        for (uint8_t a = 0; a < 2; ++a) {
+            live::set(N_("Axis %c: short moves, which accelerometer axis sees them"), 'X' + a);
+            if (const Status s = sweep(accelerometer, a); s != Status::done) {
+                return s;
+            }
+            progress = uint8_t(30 + 35 * (a + 1));
+        }
+        measurement.verdict = mount_verdict(measurement.tilt_deg, measurement.share[0], measurement.share[1], measurement.dominant[0], measurement.dominant[1]);
+        write_csv();
+        const auto whole = [](float v) { // NAN : -1 à l'écran plutôt qu'un nombre au hasard
+            return std::isfinite(v) ? int(std::lround(v)) : -1;
+        };
+        live::set_value(N_("Tilt %d deg, X %d%%, Y %d%%"), whole(measurement.tilt_deg), whole(100.f * measurement.share[0]), whole(100.f * measurement.share[1]));
+        return Status::done;
+    }
+
+} // namespace
+
+void run() {
+    if (running.exchange(true)) {
+        return;
+    }
+    ScopeGuard not_running = [] {
+        stop_requested = false;
+        running = false;
+    };
+    measurement = {};
+    rest_mad = {};
+    progress = 0;
+    last_status = Status::running;
+    last_status = measure();
+    progress = 100;
+}
+
+void request_stop() {
+    stop_requested = true;
+}
+
+bool is_running() {
+    return running.load();
+}
+
+Status status() {
+    return last_status.load();
+}
+
+uint8_t progress_percent() {
+    return progress.load();
+}
+
+const Measurement &last() {
+    return measurement;
+}
+
+bool passed() {
+    return status() == Status::done && measurement.verdict == Mount::ok;
+}
+
+} // namespace od3d::accel_mount
+
+// ---- Vérification de l'input shaper (M2006) ----
+
+namespace od3d::shaper_check {
+
+using namespace vibration;
+
+namespace {
+
+    std::atomic<bool> stop_requested = false;
+    std::atomic<bool> running = false;
+    std::atomic<Status> last_status = Status::idle;
+    std::atomic<uint8_t> progress = 0;
+    Measurement measurement;
+
+    constexpr const char *csv_path = "/usb/OD3D_SHAPER.CSV";
+    constexpr uint8_t moves = 4; ///< aller, retour, aller, retour (moyenne), comme M2004
+
+    bool must_stop() {
+        return stop_requested.load() || planner.draining() || !marlin_server::printer_idle();
+    }
+
+    /// Résidu moyen (variance) de moves déplacements courts de length mm sur axis autour de centre
+    Status ringing(PrusaAccelerometer &accelerometer, float period, AxisEnum axis, float centre, float length, float speed, float &out) {
+        float sum = 0.f;
+        for (uint8_t m = 0; m < moves; ++m) {
+            if (must_stop()) {
+                return Status::stopped;
+            }
+            current_position[axis] = centre + (m % 2 ? 0.f : length);
+            line_to_current_position(speed);
+            float r;
+            if (const Status s = accel_limit::residual(accelerometer, period, r); s != Status::done) {
+                return s;
+            }
+            sum += r;
+        }
+        out = sum / moves;
+        return Status::done;
+    }
+
+    /// Remet le filtre d'un axe. Mesure annulée (vidage du planificateur) : set_axis_config n'agit pas pendant
+    /// l'annulation, alors la file vidée, la configuration enregistrée de l'input shaper (M1959) est remise telle quelle
+    void put_back(AxisEnum axis, const std::optional<input_shaper::AxisConfig> &config) {
+        planner.synchronize();
+        if (!planner.draining()) {
+            input_shaper::set_axis_config(axis, config);
+            return;
+        }
+        while (planner.processing()) {
+            idle(true);
+        }
+        input_shaper::init();
+    }
+
+    void write_csv() {
+        FILE *f = fopen(csv_path, "a");
+        if (!f) {
+            return;
+        }
+        const Measurement &m = measurement;
+        force_probe::csv_printf(f, "# OneDrop3D M2006 input shaper check at X%.1f Y%.1f Z%.1f: %d mm/s2, %d moves, noise rms %.5f m/s2\n",
+            double(current_position.x), double(current_position.y), double(current_position.z), int(m.accel), int(moves), double(std::sqrt(m.noise)));
+        force_probe::csv_printf(f, "axis,filter,with_rms_m_s2,without_rms_m_s2,reduction,verdict\n");
+        for (uint8_t a = 0; a < axis_count; ++a) {
+            force_probe::csv_printf(f, "%c,%d,%.5f,%.5f,%.3f,%d\n", 'X' + a, int(m.has_filter[a]), double(std::sqrt(m.with_filter[a])),
+                double(std::sqrt(m.without_filter[a])), double(m.reduction[a]), int(m.verdict[a]));
+        }
+        fclose(f);
+    }
+
+    Status measure() {
+        if (const auto r = refused(stop_requested)) {
+            return *r;
+        }
+        planner.synchronize();
+        MotionSettings settings;
+        if (!accel_limit::prepare()) {
+            return must_stop() ? Status::stopped : Status::not_homed;
+        }
+        measurement.accel = settings.accelerate(check_accel, check_accel * ramp_s);
+        // Triangle de rampes ramp_s, comme un palier de M2004
+        const float speed = measurement.accel * ramp_s;
+        const float length = speed * ramp_s;
+
+        PrusaAccelerometer accelerometer;
+        const float period = sample_period(accelerometer);
+        live::set(N_("Head still: accelerometer noise"));
+        for (const uint32_t start = ticks_ms(); ticks_ms() - start < 500;) {
+            idle(true);
+        }
+        accelerometer.clear();
+        float sum = 0.f;
+        for (uint8_t m = 0; m < moves; ++m) {
+            float r;
+            if (const Status s = accel_limit::residual(accelerometer, period, r); s != Status::done) {
+                return s;
+            }
+            sum += r;
+        }
+        measurement.noise = sum / moves;
+        progress = 10;
+
+        for (uint8_t a = 0; a < axis_count; ++a) {
+            const AxisEnum axis = a == 0 ? X_AXIS : Y_AXIS;
+            const float centre = current_position[axis];
+            const std::optional<input_shaper::AxisConfig> config = input_shaper::get_axis_config(axis);
+            measurement.has_filter[a] = config.has_value();
+            live::set(N_("Axis %c: short moves with its filter"), 'X' + a);
+            if (const Status s = ringing(accelerometer, period, axis, centre, length, speed, measurement.with_filter[a]); s != Status::done) {
+                return s;
+            }
+            progress = uint8_t(10 + 45 * a + 20);
+            if (config) {
+                live::set(N_("Axis %c: same moves without its filter"), 'X' + a);
+                planner.synchronize();
+                input_shaper::set_axis_config(axis, std::nullopt);
+                ScopeGuard restore = [&] { put_back(axis, config); }; // toujours remis, même arrêté ou en échec
+                if (const Status s = ringing(accelerometer, period, axis, centre, length, speed, measurement.without_filter[a]); s != Status::done) {
+                    return s;
+                }
+            }
+            measurement.reduction[a] = config ? shaper_reduction(measurement.with_filter[a], measurement.without_filter[a], measurement.noise) : NAN;
+            measurement.verdict[a] = vibration::shaper_check(measurement.has_filter[a], measurement.reduction[a]);
+            if (std::isfinite(measurement.reduction[a])) {
+                live::set_value(N_("Axis %c: the filter removes %d%% of the ringing"), 'X' + a, int(std::lround(100.f * measurement.reduction[a])));
+            }
+            progress = uint8_t(10 + 45 * (a + 1));
+        }
+        write_csv();
+        return Status::done;
+    }
+
+} // namespace
+
+void run() {
+    if (running.exchange(true)) {
+        return;
+    }
+    ScopeGuard not_running = [] {
+        stop_requested = false;
+        running = false;
+    };
+    measurement = {};
+    progress = 0;
+    last_status = Status::running;
+    last_status = measure();
+    progress = 100;
+}
+
+void request_stop() {
+    stop_requested = true;
+}
+
+bool is_running() {
+    return running.load();
+}
+
+Status status() {
+    return last_status.load();
+}
+
+uint8_t progress_percent() {
+    return progress.load();
+}
+
+const Measurement &last() {
+    return measurement;
+}
+
+bool passed() {
+    return status() == Status::done && shaper_check_passed(measurement.verdict);
+}
+
+} // namespace od3d::shaper_check

@@ -81,6 +81,9 @@ private:
     uint8_t buttons_stage = 0xff; ///< étape dont les boutons portent les libellés
     uint8_t focus_stage = 0xff; ///< étape dont le focus a été posé
     bool motors_held = false; ///< od3d::sleep::hold_motors : de la buse qui refroidit à la fin des tests à l'accéléromètre
+    /// Texte sur toute la hauteur, tuiles masquées : les consignes (fixer l'accéléromètre, refroidir, plateau…) ; sinon
+    /// une ligne au-dessus des tuiles (proposition, série en cours, bilan)
+    bool info_wide = false;
 };
 
 /// Réglages › Fonctions OneDrop3D › « Assistant de calibration »

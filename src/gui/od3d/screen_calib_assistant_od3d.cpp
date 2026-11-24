@@ -62,21 +62,25 @@ using calib_registry::entries;
 
 namespace {
 
-    // Géométrie (contenu de y 46 à 272) : texte sur 3 lignes, 3 colonnes de 6 tuiles alignées sur les 3 boutons, de
-    // quoi loger tous les tests possibles du registre (calib_registry::max_tests). Tuile : corps 148 × 19, marges de
-    // 2 px jointives (aucun pixel entre deux tuiles n'est à personne), nom à gauche et pastille d'état à droite, tous
-    // deux hors des coins arrondis : 13 caractères au plus pour le nom (« Équerrage XY », « Accél. fil. »)
+    // Géométrie (contenu de y 44 à 274) : texte sur une ligne, 3 colonnes de 6 tuiles alignées sur les 3 boutons, de
+    // quoi loger tous les tests possibles du registre (calib_registry::max_tests). Retour du 24/11 (« pas pratique à
+    // cliquer au doigt ») : l'intro tient en une ligne (le bilan complet passe par « Bilan »), les tuiles prennent la
+    // place (corps 148 × 24 au lieu de 19) et les boutons font 40 px. Marges de 2 px jointives (aucun pixel entre deux
+    // tuiles n'est à personne : la zone de toucher fait 152 × 28), nom à gauche et pastille d'état à droite, tous deux
+    // hors des coins arrondis : 13 caractères au plus pour le nom (« Équerrage XY », « Accél. fil. »)
     constexpr size_t tile_columns = 3;
     constexpr size_t max_tiles = 18;
     constexpr uint8_t tile_radius = style::radius_small;
     constexpr int16_t tile_dot = 8; ///< diamètre de la pastille d'état
-    constexpr Rect16 info_rect = Rect16(style::margin, style::top, 464, 48);
+    constexpr Rect16 info_rect = Rect16(style::margin, style::content.Top(), 464, height(Font::small));
     constexpr Rect16 tile_body(size_t i) {
-        return Rect16(10 + 156 * int(i % tile_columns), 96 + 23 * int(i / tile_columns), 148, 19);
+        return Rect16(10 + 156 * int(i % tile_columns), 62 + 28 * int(i / tile_columns), 148, 24);
     }
     constexpr Rect16 button_body(int i) {
-        return Rect16(10 + 156 * i, 236, 148, 36); // deux lignes de police small
+        return Rect16(10 + 156 * i, 232, 148, 40);
     }
+    /// Consignes (fixer l'accéléromètre, refroidir, plateau…) : le texte prend la place des tuiles, masquées
+    constexpr Rect16 info_wide_rect = Rect16::fromLTRB(style::margin, style::content.Top(), style::margin + 464, style::with_ring(button_body(0)).Top() - 2);
     static_assert(max_tiles >= calib_registry::max_tests, "une tuile pour chaque test possible du registre");
     static_assert(entries.size() <= max_tiles);
     static_assert(style::with_ring(tile_body(0)).Top() > info_rect.Bottom());
@@ -86,6 +90,7 @@ namespace {
     static_assert(style::inside(style::content, style::with_ring(tile_body(max_tiles - 1))));
     static_assert(style::with_ring(button_body(0)).Top() > style::with_ring(tile_body(max_tiles - 1)).Bottom());
     static_assert(style::inside(style::content, style::with_ring(button_body(2))));
+    static_assert(info_wide_rect.Bottom() < style::with_ring(button_body(0)).Top() && info_wide_rect.Height() >= 8 * height(Font::small));
 
     constexpr uint8_t tag_a = 100;
     constexpr uint8_t tag_b = 101;
@@ -190,6 +195,10 @@ namespace {
             return N_("MMU speed");
         case Test::accel_limit:
             return N_("Max accel.");
+        case Test::accel_mount:
+            return N_("Accel. mount");
+        case Test::shaper_check:
+            return N_("Shaper check");
         case Test::count:
             break;
         }
@@ -617,6 +626,56 @@ namespace {
         }
     }
 
+    /// Pose de l'accéléromètre (M2005) jugée mauvaise : la raison et ce qu'il faut faire ; false sans mesure finie
+    bool mount_reason(Writer &w) {
+        const accel_mount::Measurement &m = accel_mount::last();
+        if (accel_mount::status() != vibration::Status::done || m.verdict == vibration::Mount::ok) {
+            return false;
+        }
+        char format[112];
+        switch (m.verdict) {
+        case vibration::Mount::crossed:
+            w.text(N_("The accelerometer is turned: its axes do not follow X and Y. Clip it the way Prusa shows."));
+            break;
+        case vibration::Mount::tilted:
+            _("The accelerometer is clipped askew (tilt %d deg). Clip it flat on the nozzle.").copyToRAM(format, sizeof(format));
+            w.add(format, std::isfinite(m.tilt_deg) ? int(std::lround(m.tilt_deg)) : 90);
+            break;
+        case vibration::Mount::loose:
+            w.text(N_("The accelerometer moves on the nozzle: it barely follows the moves. Clip it firmly."));
+            break;
+        case vibration::Mount::ok:
+            break;
+        }
+        return true;
+    }
+
+    /// Vérification de l'input shaper (M2006) en échec : l'axe dont le filtre ne retire presque plus rien
+    bool shaper_reason(Writer &w) {
+        const shaper_check::Measurement &m = shaper_check::last();
+        if (shaper_check::status() != vibration::Status::done) {
+            return false;
+        }
+        bool any_filter = false, written = false;
+        char format[112];
+        for (uint8_t i = 0; i < shaper_check::axis_count; ++i) {
+            any_filter = any_filter || m.has_filter[i];
+            if (m.verdict[i] == vibration::ShaperCheck::weak) {
+                _("Axis %c: the filter removes only %d%% of the ringing. Redo the input shaper.").copyToRAM(format, sizeof(format));
+                if (written) {
+                    w.add("\n");
+                }
+                w.add(format, 'X' + i, int(std::lround(100.f * m.reduction[i])));
+                written = true;
+            }
+        }
+        if (!any_filter) {
+            w.text(N_("No input shaper filter set: do the input shaper first."));
+            written = true;
+        }
+        return written;
+    }
+
     /// Détail d'un test du bilan : ses chiffres, d'avant et d'après
     void build_details(Test test, Writer &w) {
         const calib_registry::Numbers &a = assistant::numbers_after(test);
@@ -625,6 +684,9 @@ namespace {
         const bool shown = calib_registry::numbers_shown(calib_registry::entry(test), assistant::result(test), a);
         if (!(flow.started & test_bit(test)) || (assistant::result(test) == Result::skipped && !shown)) {
             w.text(N_("Skipped: still to do next time."));
+            return;
+        }
+        if (assistant::result(test) == Result::failed && ((test == Test::accel_mount && mount_reason(w)) || (test == Test::shaper_check && shaper_reason(w)))) {
             return;
         }
         if (!shown) {
@@ -791,6 +853,40 @@ namespace {
             w.text(N_("+: no rise up to the top level. --: in the noise, nothing to change."));
             break;
         }
+        case Test::accel_mount:
+            w.label(N_("Tilt:"));
+            w.scaled(a[0], 10, "\xC2\xB0");
+            w.label(N_("Share of the moved axis:"));
+            for (uint8_t i = 0; i < 2; ++i) {
+                w.add(i ? ", %c " : "%c ", "XY"[i]);
+                w.scaled(a[1 + i], 1, " %");
+            }
+            w.label(N_("Noise at rest:"));
+            w.scaled(a[3], 1000, " m/s2");
+            if (b[0] != none) {
+                w.label(N_("Before:"));
+                w.scaled(b[0], 10, "\xC2\xB0");
+            }
+            break;
+        case Test::shaper_check:
+            w.label(N_("Ringing removed by the filter:"));
+            for (uint8_t i = 0; i < 2; ++i) {
+                w.add(i ? ", %c " : "%c ", "XY"[i]);
+                w.scaled(a[i], 1, " %");
+            }
+            if (a[2] != none) {
+                w.add(" (%d mm/s2)", int(a[2]));
+            }
+            if (any(b, 0, 2)) {
+                w.label(N_("Before:"));
+                for (uint8_t i = 0; i < 2; ++i) {
+                    w.add(i ? ", %c " : "%c ", "XY"[i]);
+                    w.scaled(b[i], 1, " %");
+                }
+            }
+            w.add("\n");
+            w.text(N_("--: no filter on this axis, or no ringing even without it."));
+            break;
         case Test::nozzle_expansion: {
             constexpr const char *unit = " um/\xC2\xB0""C";
             w.label(N_("Measured slope:"));
@@ -877,8 +973,9 @@ namespace {
         }
     }
 
-    /// Bilan : réussites, échecs, puis les gains principaux en une ligne
-    void build_summary(Writer &w) {
+    /// Bilan : réussites, échecs, puis les gains principaux en une ligne. brief : la seule ligne de compte, pour la
+    /// ligne de texte de l'écran ; le bilan complet s'ouvre par « Bilan »
+    void build_summary(Writer &w, bool brief = false) {
         int ok = 0, failed = 0, skipped = 0;
         for (const Entry &e : entries) {
             if (!(flow.session & test_bit(e.test)) || !e.automatic) {
@@ -890,6 +987,11 @@ namespace {
             skipped += r == Result::skipped || r == Result::none;
         }
         char format[96];
+        if (brief) {
+            _("Finished: %d OK, %d failed, %d skipped.").copyToRAM(format, sizeof(format));
+            w.add(format, ok, failed, skipped);
+            return;
+        }
         _("Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers.").copyToRAM(format, sizeof(format));
         w.add(format, ok, failed, skipped);
         bool first = true;
@@ -932,6 +1034,26 @@ namespace {
             next(N_("max accel."));
             w.add(" X %d, Y %d mm/s2", int(a[0] == none ? assistant::numbers_before(Test::accel_limit)[0] : a[0]),
                 int(a[1] == none ? assistant::numbers_before(Test::accel_limit)[1] : a[1]));
+        }
+        if (const auto &a = assistant::numbers_after(Test::shaper_check); done(Test::shaper_check) && (a[0] != none || a[1] != none)) {
+            next(N_("filter removes"));
+            for (uint8_t i = 0; i < 2; ++i) {
+                w.add(i ? ", %c " : " %c ", "XY"[i]);
+                w.scaled(a[i], 1, " %");
+            }
+        }
+        // Pose de l'accéléromètre, vérification du filtre : la raison d'un échec, jamais un « échec » seul
+        if ((flow.started & test_bit(Test::accel_mount)) && assistant::result(Test::accel_mount) == Result::failed) {
+            w.label(N_("Accelerometer:"));
+            if (!mount_reason(w)) {
+                w.text(N_("not measured"));
+            }
+        }
+        if ((flow.started & test_bit(Test::shaper_check)) && assistant::result(Test::shaper_check) == Result::failed) {
+            w.label(N_("Filter check:"));
+            if (!shaper_reason(w)) {
+                w.text(N_("not measured"));
+            }
         }
         if (done(Test::fan_response)
             && std::any_of(fan_vibration::last().fans.begin(), fan_vibration::last().fans.end(), [](const auto &f) { return f.verdict == vibration::Verdict::worse; })) {
@@ -1012,6 +1134,10 @@ namespace {
             return fan_response::is_running() ? std::optional<uint8_t>(fan_response::progress_percent()) : std::nullopt;
         case Test::accel_limit:
             return accel_limit::is_running() ? std::optional<uint8_t>(accel_limit::progress_percent()) : std::nullopt;
+        case Test::accel_mount:
+            return accel_mount::is_running() ? std::optional<uint8_t>(accel_mount::progress_percent()) : std::nullopt;
+        case Test::shaper_check:
+            return shaper_check::is_running() ? std::optional<uint8_t>(shaper_check::progress_percent()) : std::nullopt;
         case Test::mpc:
             if (const mpc::TuneStatus st = mpc::tune_status(); st.running) {
                 return st.progress;
@@ -1050,20 +1176,16 @@ namespace {
     /// Pendant la série (retour du 23/11 : « voir plus en détail ce que l'imprimante fait ») : l'étape et son
     /// avancement, ce que fait l'imprimante en clair, puis la valeur mesurée dès qu'elle existe
     void build_running(const assistant::Progress &p, Writer &w) {
-        char format[48];
-        _("Step %d/%d:").copyToRAM(format, sizeof(format));
-        w.add(format, p.index + 1, int(p.count));
-        w.add(" ");
+        // Une ligne (retour du 24/11 : les tuiles ont pris la place) : « 3/8 Courroies 45 % · ce qu'il fait · valeur »
+        w.add("%d/%d ", p.index + 1, int(p.count));
         w.text(name_of(p.step.test));
         if (calib_registry::entry(p.step.test).needs & (calib_registry::filament | calib_registry::one_spool)) {
-            _("slot %d").copyToRAM(format, sizeof(format));
-            w.add(", ");
-            w.add(format, p.step.slot + 1);
+            w.add(" %d", p.step.slot + 1); // l'emplacement
         }
         if (const auto percent = step_percent(p.step)) {
-            w.add(" - %d%%", int(*percent));
+            w.add(" %d%%", int(*percent));
         }
-        w.add("\n");
+        w.add(" \xC2\xB7 ");
         char wizard[32];
         prusa_live(wizard, sizeof(wizard)); // input shaper, phase stepping : l'assistant de Prusa
         if (wizard[0]) {
@@ -1074,7 +1196,7 @@ namespace {
             w.text(N_("You may leave this screen: the pill shows the progress."));
         }
         if (const live::Line v = live::value(); v.msgid) {
-            w.add("\n");
+            w.add(" \xC2\xB7 ");
             add_line(w, v);
         }
     }
@@ -1324,6 +1446,19 @@ void ScreenCalibAssistant::show() {
     const calib_registry::Context ctx = assistant::context();
     const auto records = assistant::records();
 
+    // Une ligne au-dessus des tuiles pour la proposition, la série et le bilan ; les consignes, sur toute la hauteur
+    const bool wide = !(flow.stage == Stage::idle || flow.stage == Stage::propose || flow.stage == Stage::accel_run || flow.stage == Stage::cell_run
+        || flow.stage == Stage::summary);
+    if (wide != info_wide) {
+        info_wide = wide;
+        info.SetRect(wide ? info_wide_rect : info_rect);
+        info.SetAlignment(wide ? Align_t::LeftTop() : Align_t::LeftCenter());
+        for (CalibTile &tile : tiles) {
+            tile.set_visible(!wide);
+        }
+        Invalidate(); // tout l'écran se repeint d'une passe (le fond entre les éléments)
+    }
+
     // Tuiles
     for (size_t i = 0; i < entries.size(); ++i) {
         const Entry &e = entries[i];
@@ -1336,32 +1471,12 @@ void ScreenCalibAssistant::show() {
     switch (flow.stage) {
     case Stage::idle:
     case Stage::propose: {
+        // Une ligne (retour du 24/11) : les deux séries et leur durée ; les K déjà mesurés sont au détail du PA, le
+        // plafond de M201 à celui de « Accél. max »
         const uint32_t cold = flow.mask & cold_tests(), heat = flow.mask & heat_tests();
-        const string_view_utf8 head = !flow.mask ? _("Nothing to calibrate. Touch a test to add it.")
-                                                 : _("Accelerometer series, cold: %d tests, about %d min. Heating series: %d tests, about %d min. Touch a test to add or skip it.")
-                                                       .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
-        // Bobines dont le PA est déjà mesuré (vert, pas refait) : leur K (retour du 23/11)
-        static char propose[360]; // la fenêtre de texte le lit jusqu'au prochain show() ; + le plafond de M201
-        char first[200];
-        head.copyToRAM(first, sizeof(first));
-        Writer w(propose);
-        w.add("%s", first);
-        bool listed = false;
-        for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-            if (const auto k = pa::k_for_slot(slot); k && (ctx.spools & (1u << slot))) {
-                if (!listed) {
-                    w.label(N_("PA already measured, kept:"));
-                }
-                w.add(listed ? ", %d: %.3f" : "%d: %.3f", slot + 1, double(*k));
-                listed = true;
-            }
-        }
-        if (accel_capped()) { // plafond de M201 accepté une fois (le retirer : bilan, tuile « Accél. max »)
-            const auto c = accel_cap::get();
-            w.label(N_("M201 cap in force, prints included:"));
-            w.add("X %d, Y %d mm/s2", int(std::max<int16_t>(c[0], 0)), int(std::max<int16_t>(c[1], 0)));
-        }
-        text = string_view_utf8::MakeRAM(propose);
+        text = !flow.mask ? _("Nothing to calibrate. Touch a test to add it.")
+                          : _("Accel. %d tests ~%d min \xC2\xB7 Heating %d tests ~%d min")
+                                .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
         break;
     }
     case Stage::ask_accel:
@@ -1427,10 +1542,10 @@ void ScreenCalibAssistant::show() {
         text = _("The bed is full of test prints. Remove them and put the clean sheet back, then Continue.");
         break;
     case Stage::summary: {
-        static char summary[448]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse, l'alerte des ventilateurs
-        Writer w(summary);
-        build_summary(w);
-        text = string_view_utf8::MakeRAM(summary);
+        static char brief[112]; // la ligne de texte le lit jusqu'au prochain show() ; le bilan complet : « Bilan »
+        Writer w(brief);
+        build_summary(w, true);
+        text = string_view_utf8::MakeRAM(brief);
         break;
     }
     }
@@ -1486,7 +1601,7 @@ void ScreenCalibAssistant::show() {
         s = { N_("It's done") };
         break;
     case Stage::summary:
-        s = { N_("Close") };
+        s = { N_("Close"), N_("Summary") };
         break;
     }
     // Libellés posés au changement d'étape seulement (set() redessine le bouton)
@@ -1657,8 +1772,16 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
         }
         break;
     case Stage::summary:
-        flow.stage = Stage::idle;
-        Screens::Access()->close_screen();
+        if (tag == tag_b) {
+            // Le bilan complet : gains, raisons des échecs, alertes (la ligne de l'écran n'en montre que le compte)
+            static char summary[448]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse, l'alerte des ventilateurs
+            Writer w(summary);
+            build_summary(w);
+            MsgBoxInfo(string_view_utf8::MakeRAM(summary), Responses_Ok);
+        } else {
+            flow.stage = Stage::idle;
+            Screens::Access()->close_screen();
+        }
         break;
     }
 }

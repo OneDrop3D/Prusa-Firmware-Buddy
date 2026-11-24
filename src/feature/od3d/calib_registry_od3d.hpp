@@ -43,11 +43,19 @@ enum class Test : uint8_t {
     e_jump, ///< M2000 par emplacement : saut de vitesse de l'extrudeur, accélération max du filament
     mmu_speed, ///< N4, M2002 P : vitesse de la poulie du MMU (une bobine préchargée, rien dans l'extrudeur)
     accel_limit, ///< M2004 : accélération max utile de X et Y (accéléromètre), proposée comme plafond de M201
+    /// M2005 : pose de l'accéléromètre (inclinaison, axes, fixation), en premier de la série « Accéléromètre » (retour
+    /// du 24/11 : « encore plus de calibrations avec l'accéléromètre »)
+    accel_mount,
+    shaper_check, ///< M2006 : vérification de l'input shaper (vibrations avec et sans filtre), après accel_limit
     count,
 };
 
-inline constexpr size_t max_tests = 16; ///< places réservées dans le config_store
-static_assert(size_t(Test::count) <= max_tests);
+/// Places des tests : les 16 premières dans « OD3D Calib Done » / « OD3D Calib Values » ; le config_store est plein
+/// (CS-1) : les suivantes n'ont que leur version et leur résultat, rangés dans Record::reserved des premières
+/// (calib_assistant::stored_record()). 18 : la grille de l'assistant (3 × 6 tuiles)
+inline constexpr size_t base_tests = 16;
+inline constexpr size_t max_tests = 18;
+static_assert(size_t(Test::count) <= max_tests && max_tests >= base_tests);
 
 /// Besoins d'une calibration (bits)
 enum Need : uint8_t {
@@ -78,18 +86,22 @@ struct Entry {
 /// puis par emplacement PA, débit, température minimale, accélération du filament (un seul chargement par bobine,
 /// chauffe gardée ; l'ordre par emplacement est celui de cette liste ; build_steps() fait d'abord tous les tests sans
 /// Need::filament). Deux séries lancées séparément (Need::heated, series_tests()) :
-/// - « Accéléromètre », à froid : courroies, phase stepping, input shaper, amortissement, vitesses critiques,
-///   accélération max utile (après l'input shaper : mesurée avec le filtre en place), et les ventilateurs (temps de
-///   montée sans accéléromètre, vibrations avec lui s'il répond : rien n'y chauffe) ;
+/// - « Accéléromètre », à froid : pose de l'accéléromètre (d'abord), courroies, phase stepping, input shaper,
+///   amortissement, vitesses critiques, accélération max utile (après l'input shaper : mesurée avec le filtre en place),
+///   vérification de l'input shaper, et les ventilateurs (temps de montée sans accéléromètre, vibrations avec lui s'il
+///   répond : rien n'y chauffe) ;
 /// - « Chauffe » : MPC, tube PTFE et vitesse de la poulie (à froid, mais l'extrudeur doit être vide : le déchargement à
 ///   chaud est partagé avec la dilatation de la buse), dilatation de la buse, puis les mesures par bobine.
 inline constexpr std::array entries {
+    // La pose de l'accéléromètre avant tout : tourné, de travers ou mal fixé, il fausserait toutes les mesures qui suivent
+    Entry { Test::accel_mount, accelerometer | cold_nozzle, 1, 1, true },
     Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 1, true },
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
     Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 1, true }, // après l'input shaper : avec le filtre en place
+    Entry { Test::shaper_check, accelerometer | cold_nozzle, 1, 1, true }, // le filtre choisi, vérifié sur la machine
     Entry { Test::mpc, heated, 12, 1, true },
     Entry { Test::mmu_ptfe, mmu | one_spool | heated, 3, 1, true },
     Entry { Test::nozzle_expansion, empty_bed | heated, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
@@ -129,7 +141,7 @@ enum class Result : uint8_t {
 struct Record {
     uint8_t version = 0; ///< dernière version menée à bien (0 : jamais)
     Result result = Result::none; ///< dernier essai
-    uint16_t reserved = 0;
+    uint16_t reserved = 0; ///< enregistrements 0 et suivants : version et résultat des tests base_tests et suivants (un octet chacun)
     uint32_t date = 0; ///< dernier essai [s depuis 1970], 0 si l'heure n'était pas connue
 
     constexpr bool operator==(const Record &) const = default;

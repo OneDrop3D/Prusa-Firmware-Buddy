@@ -141,4 +141,74 @@ std::array<uint8_t, 4> unpack_references(int16_t v2, int16_t v3) {
     return { unpack(v2, false), unpack(v2, true), unpack(v3, false), unpack(v3, true) };
 }
 
+// ---- Pose de l'accéléromètre (M2005) ----
+
+float tilt_degrees(float gx, float gy, float gz) {
+    const float norm = std::sqrt(gx * gx + gy * gy + gz * gz);
+    if (!(norm > 0.f)) {
+        return NAN;
+    }
+    return std::acos(std::clamp(std::abs(gz) / norm, 0.f, 1.f)) * 180.f / 3.14159265f;
+}
+
+float axis_share(std::span<const float, 3> sums, uint8_t axis) {
+    const float total = sums[0] + sums[1] + sums[2];
+    if (!(total > 0.f) || axis > 2) {
+        return NAN;
+    }
+    return sums[axis] / total;
+}
+
+uint8_t dominant_axis(std::span<const float, 3> sums) {
+    return uint8_t(std::max_element(sums.begin(), sums.end()) - sums.begin());
+}
+
+Mount mount_verdict(float tilt_deg, float share_x, float share_y, uint8_t dominant_x, uint8_t dominant_y) {
+    if (dominant_x != 0 || dominant_y != 1) {
+        return Mount::crossed;
+    }
+    if (!(tilt_deg <= mount_tilt_max_deg)) { // NAN : pas de pesanteur, compté de travers
+        return Mount::tilted;
+    }
+    if (!(share_x >= mount_share_min) || !(share_y >= mount_share_min)) {
+        return Mount::loose;
+    }
+    return Mount::ok;
+}
+
+// ---- Vérification de l'input shaper (M2006) ----
+
+float shaper_reduction(float with_filter, float without_filter, float noise) {
+    if (!std::isfinite(with_filter) || !std::isfinite(without_filter) || !std::isfinite(noise) || noise < 0.f) {
+        return NAN;
+    }
+    if (without_filter < reference_ratio * noise || !(without_filter > noise)) {
+        return NAN; // même sans filtre, dans le bruit
+    }
+    const float net_with = std::max(with_filter - noise, 0.f);
+    const float net_without = without_filter - noise;
+    return std::clamp(1.f - net_with / net_without, -1.f, 1.f);
+}
+
+ShaperCheck shaper_check(bool has_filter, float reduction) {
+    if (!has_filter) {
+        return ShaperCheck::no_filter;
+    }
+    if (std::isnan(reduction)) {
+        return ShaperCheck::quiet;
+    }
+    return reduction >= check_min_reduction ? ShaperCheck::ok : ShaperCheck::weak;
+}
+
+bool shaper_check_passed(std::span<const ShaperCheck> axes) {
+    bool filtered = false;
+    for (const ShaperCheck c : axes) {
+        if (c == ShaperCheck::weak) {
+            return false;
+        }
+        filtered = filtered || c != ShaperCheck::no_filter;
+    }
+    return filtered;
+}
+
 } // namespace od3d::vibration

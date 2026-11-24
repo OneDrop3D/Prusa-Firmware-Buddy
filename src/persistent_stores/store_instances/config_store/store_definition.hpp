@@ -528,14 +528,14 @@ struct CurrentStore
     StoreItem<uint8_t, od3d::sleep::default_z_hold, ItemFlag::user_interface, journal::hash("OD3D Sleep Z Hold")> od3d_sleep_z_hold;
     /// OneDrop3D (assistant de calibration) : par calibration du registre (indice = od3d::calib_registry::Test), dernière
     /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible »
-    StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::max_tests> od3d_calib_done;
+    StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::base_tests> od3d_calib_done;
     StoreItem<od3d::calib_registry::Accelerometer, od3d::calib_registry::Accelerometer::unknown, ItemFlag::features, journal::hash("OD3D Accelerometer")> od3d_accelerometer;
     /// OneDrop3D (F43) : emplacement chargé jusqu'à la buse, sa matière et la date (filament_memory_od3d.hpp), repris
     /// au démarrage du MMU si les capteurs sont d'accord
     StoreItem<od3d::filament_memory::Record, od3d::filament_memory::Record {}, ItemFlag::printer_state, journal::hash("OD3D Loaded Filament")> od3d_loaded_filament;
     /// OneDrop3D (assistant de calibration, bilan chiffré) : chiffres du dernier succès de chaque test (indice = Test),
     /// le « avant » de la fois suivante (od3d::calib_registry::Values)
-    StoreItemArray<od3d::calib_registry::Values, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Values"), 16, od3d::calib_registry::max_tests> od3d_calib_values;
+    StoreItemArray<od3d::calib_registry::Values, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Values"), 16, od3d::calib_registry::base_tests> od3d_calib_values;
     /// OneDrop3D (N4) : vitesse de la poulie du MMU mesurée par M2002 et durée d'un cycle avant / après
     /// (od3d::mmu_speed::Saved), renvoyée au MMU à chaque démarrage
     StoreItem<od3d::mmu_speed::Saved, od3d::mmu_speed::Saved {}, ItemFlag::calibrations, journal::hash("OD3D MMU Speeds")> od3d_mmu_speeds;

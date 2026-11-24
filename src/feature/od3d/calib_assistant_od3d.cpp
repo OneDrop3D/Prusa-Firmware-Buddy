@@ -139,6 +139,10 @@ namespace {
         }
         case Test::accel_limit:
             return accel_limit::status() == accel_limit::Status::done;
+        case Test::accel_mount: // pose correcte : tourné, de travers ou mal fixé, c'est un échec avec sa raison au bilan
+            return accel_mount::passed();
+        case Test::shaper_check: // un axe filtré au moins, aucun dont le filtre ne retire presque plus rien
+            return shaper_check::passed();
         case Test::nozzle_expansion:
             return nozzle_expansion::status() == nozzle_expansion::Status::saved;
         case Test::e_jump: {
@@ -166,7 +170,7 @@ namespace {
 
     /// Chiffres du test (voir numbers_before()) : avant son étape, ou après son succès
     void capture(const Step &s, Numbers &n, bool after) {
-        const Values stored = config_store().od3d_calib_values.get(size_t(s.test));
+        const Values stored = stored_values(size_t(s.test));
         switch (s.test) {
         case Test::input_shaper:
             break; // M1959 A, qui a le spectre
@@ -201,6 +205,27 @@ namespace {
             }
             break;
         }
+        case Test::accel_mount:
+            if (!after) {
+                std::copy(stored.v.begin(), stored.v.end(), n.begin());
+            } else {
+                const accel_mount::Measurement &m = accel_mount::last();
+                n[0] = scaled(m.tilt_deg, 10.f); // 0,1°
+                n[1] = scaled(m.share[0], 100.f); // %
+                n[2] = scaled(m.share[1], 100.f);
+                n[3] = scaled(m.noise_rms, 1000.f); // mm/s²
+            }
+            break;
+        case Test::shaper_check:
+            if (!after) {
+                std::copy(stored.v.begin(), stored.v.end(), n.begin());
+            } else {
+                const shaper_check::Measurement &m = shaper_check::last();
+                n[0] = scaled(m.reduction[0], 100.f); // % des vibrations retirées par le filtre
+                n[1] = scaled(m.reduction[1], 100.f);
+                n[2] = m.accel ? int16_t(m.accel) : no_value;
+            }
+            break;
         case Test::belts:
         case Test::damping:
         case Test::speed_map:
@@ -300,11 +325,11 @@ namespace {
         for (const Entry &e : entries) {
             if (run_mask & test_bit(e.test)) {
                 const size_t i = size_t(e.test);
-                config_store().od3d_calib_done.set(i, after_run(config_store().od3d_calib_done.get(i), e, results[i].load(), date));
+                store_record(i, after_run(stored_record(i), e, results[i].load(), date));
                 if (results[i].load() == Result::ok && !(e.needs & filament)) {
                     Values kept;
                     std::copy_n(after_numbers[i].begin(), kept.v.size(), kept.v.begin());
-                    config_store().od3d_calib_values.set(i, kept); // le « avant » de la fois suivante
+                    store_values(i, kept); // le « avant » de la fois suivante
                 }
             }
         }
@@ -461,14 +486,63 @@ Context context() {
     return ctx;
 }
 
+namespace {
+    /// Tests base_tests et suivants : le config_store n'a plus la place d'un tableau (CS-1 : 2 570 octets pour 2 550
+    /// permis avec deux tableaux de plus). Seule leur version est relue (outdated()) : version (6 bits) et résultat
+    /// (2 bits) d'un test dans un octet du champ reserved d'un enregistrement de base, deux tests par enregistrement.
+    /// Ni date, ni chiffres « avant » pour eux.
+    constexpr size_t host_of(size_t i) {
+        return (i - base_tests) / 2;
+    }
+    constexpr unsigned shift_of(size_t i) {
+        return 8 * ((i - base_tests) % 2);
+    }
+    static_assert(host_of(max_tests - 1) < base_tests, "un enregistrement de base pour chaque test en plus");
+} // namespace
+
+Record stored_record(size_t i) {
+    if (i < base_tests) {
+        return config_store().od3d_calib_done.get(i);
+    }
+    if (i >= max_tests) {
+        return Record {};
+    }
+    const uint8_t byte = uint8_t(config_store().od3d_calib_done.get(host_of(i)).reserved >> shift_of(i));
+    return Record { .version = uint8_t(byte & 0x3f), .result = Result(byte >> 6) };
+}
+
+void store_record(size_t i, const Record &r) {
+    if (i < base_tests) {
+        config_store().od3d_calib_done.set(i, r);
+        return;
+    }
+    if (i >= max_tests) {
+        return;
+    }
+    Record host = config_store().od3d_calib_done.get(host_of(i));
+    const uint8_t byte = uint8_t(std::min<uint8_t>(r.version, 0x3f) | (uint8_t(r.result) & 3) << 6);
+    host.reserved = uint16_t((host.reserved & ~(0xffu << shift_of(i))) | unsigned(byte) << shift_of(i));
+    config_store().od3d_calib_done.set(host_of(i), host);
+}
+
+Values stored_values(size_t i) {
+    return i < base_tests ? config_store().od3d_calib_values.get(i) : Values {};
+}
+
+void store_values(size_t i, const Values &v) {
+    if (i < base_tests) {
+        config_store().od3d_calib_values.set(i, v);
+    }
+}
+
 Record record(Test test) {
-    return config_store().od3d_calib_done.get(size_t(test));
+    return stored_record(size_t(test));
 }
 
 std::array<Record, max_tests> records() {
     std::array<Record, max_tests> out;
     for (size_t i = 0; i < max_tests; ++i) {
-        out[i] = config_store().od3d_calib_done.get(i);
+        out[i] = stored_record(i);
     }
     return out;
 }
@@ -483,7 +557,7 @@ void set_accelerometer(Accelerometer value) {
 
 void record_done(Test test) {
     const size_t i = size_t(test);
-    config_store().od3d_calib_done.set(i, after_run(config_store().od3d_calib_done.get(i), entry(test), Result::ok, now()));
+    store_record(i, after_run(stored_record(i), entry(test), Result::ok, now()));
 }
 
 // ---- Série en cours ----
@@ -509,7 +583,7 @@ void recapture(Test test) {
     capture(Step { test }, after_numbers[i], true);
     Values kept;
     std::copy_n(after_numbers[i].begin(), kept.v.size(), kept.v.begin());
-    config_store().od3d_calib_values.set(i, kept); // le « avant » de la fois suivante
+    store_values(i, kept); // le « avant » de la fois suivante
 }
 
 bool mmu_in_use() {
@@ -567,6 +641,16 @@ namespace {
         case Test::accel_limit:
             if (accel_limit::is_running()) {
                 accel_limit::request_stop();
+            }
+            break;
+        case Test::accel_mount:
+            if (accel_mount::is_running()) {
+                accel_mount::request_stop();
+            }
+            break;
+        case Test::shaper_check:
+            if (shaper_check::is_running()) {
+                shaper_check::request_stop();
             }
             break;
         case Test::e_jump:

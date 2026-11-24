@@ -65,8 +65,9 @@ namespace {
         if (const session::Result r = s.heat_bed(bed_temperature, temperatures[0]); r != session::Result::ok) {
             return from(r);
         }
-        // Le plateau se stabilise pendant l'origine, le nettoyage et la 1re chauffe (avant : attendus après les 2 min)
-        const uint32_t bed_ready_ms = ticks_ms();
+        // Le plateau se stabilise pendant l'origine, le nettoyage et la 1re chauffe (avant : attendus après les 2 min) ;
+        // en série, depuis qu'il tient vraiment sa consigne (préchauffé pendant les tests du MMU : pas de seconde attente)
+        const uint32_t bed_ready_ms = ticks_ms() - session::bed_steady_ms();
         if (const session::Result r = s.home(temperatures[0]); r != session::Result::ok) {
             return from(r);
         }

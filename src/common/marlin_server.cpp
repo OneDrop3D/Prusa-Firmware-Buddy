@@ -245,6 +245,7 @@
 #if HAS_LOADCELL() && HAS_MMU2()
     #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4)
     #include <feature/od3d/collision_od3d.hpp> // OneDrop3D (F38)
+    #include <feature/od3d/measure_session_od3d.hpp> // OneDrop3D : séries de l'assistant de calibration
 #endif
 #if HAS_CHAMBER_API()
     #include <feature/od3d/chamber_climate_od3d.hpp> // OneDrop3D (F29)
@@ -984,6 +985,7 @@ static void cycle() {
 #endif
 #if HAS_LOADCELL() && HAS_MMU2()
     od3d::collision::step(); // OneDrop3D (F38) : sécurité collision pendant l'impression
+    od3d::session::step(); // OneDrop3D : depuis quand le plateau tient sa consigne pendant une série de l'assistant
 #endif
 #if HAS_MMU2()
     od3d::ptfe::step(); // OneDrop3D (F41) : position de la poulie quand le capteur de l'extrudeur voit le filament

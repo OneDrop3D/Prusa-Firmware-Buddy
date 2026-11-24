@@ -93,7 +93,8 @@ struct Entry {
 ///   vérification de l'input shaper, et les ventilateurs (temps de montée sans accéléromètre, vibrations avec lui s'il
 ///   répond : rien n'y chauffe) ;
 /// - « Chauffe » : MPC, tube PTFE et vitesse de la poulie (à froid, mais l'extrudeur doit être vide : le déchargement à
-///   chaud est partagé avec la dilatation de la buse), dilatation de la buse, puis les mesures par bobine.
+///   chaud est partagé avec la dilatation de la buse ; build_steps() les groupe avant elle, quel que soit leur ordre
+///   ici, et le plateau chauffe pour elle pendant ce temps), dilatation de la buse, puis les mesures par bobine.
 inline constexpr std::array entries {
     // La pose de l'accéléromètre avant tout : tourné, de travers ou mal fixé, il fausserait toutes les mesures qui suivent
     Entry { Test::accel_mount, accelerometer | cold_nozzle, 1, 2, true }, // v2 : orientation à plat plus jugée
@@ -234,11 +235,27 @@ struct Step {
 /// à refaire) au lieu d'un échec.
 void defer(std::span<Step> steps, size_t i);
 
-/// Étapes des tests automatiques de mask, dans l'ordre de `entries`, les tests par emplacement groupés par bobine (un
-/// chargement par bobine, bobines dans ctx.order), la température minimale en dernier pour chaque bobine (elle finit
-/// sous la température de la matière : rien ne remonte après elle) ; par bobine, seulement les emplacements sans
-/// valeur, sauf pour les tests de redo (spools_to_measure()). Nombre d'étapes écrites (out trop court : coupé)
+/// Étapes des tests automatiques de mask, dans l'ordre de `entries` (qui est aussi celui de la grille de l'assistant),
+/// sauf les tests du MMU à froid (bed_free()), groupés juste avant la dilatation de la buse ; les tests par emplacement
+/// groupés par bobine (un chargement par bobine, bobines dans ctx.order), la température minimale en dernier pour
+/// chaque bobine (elle finit sous la température de la matière : rien ne remonte après elle) ; par bobine, seulement
+/// les emplacements sans valeur, sauf pour les tests de redo (spools_to_measure()). Nombre d'étapes écrites (out trop
+/// court : coupé)
 size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out, uint32_t redo = 0);
+
+/// Le test ne dépend ni du plateau ni de l'air de la chambre : le plateau peut chauffer pendant lui pour un test suivant
+/// (tests du MMU à froid : une longueur et des vitesses de la poulie, que la chambre qui tiédit ne change pas). Pas le
+/// MPC : il mesure les pertes de la buse dans l'air de la chambre
+constexpr bool bed_free(Test test) {
+    return (entry(test).needs & mmu) != 0;
+}
+
+/// Étape dont la consigne du plateau est posée dès le lancement de l'étape i (retour du 24/11 : « optimise la vitesse
+/// de test ») : i elle-même si un chargement ou un déchargement la précède (loading : rien n'est mesuré pendant ce temps),
+/// sinon, si i laisse le plateau libre (bed_free()), la prochaine étape qui ne l'est pas. Seulement une étape qui
+/// imprime ou palpe (Need::empty_bed) : elle attend toujours son plateau elle-même, qui est simplement déjà chaud.
+/// nullopt : rien à préchauffer
+std::optional<size_t> bed_step(std::span<const Step> steps, size_t i, bool loading);
 
 /// G-code de l'étape (une ligne) ; false pour un test manuel ou out trop court
 bool step_gcode(const Step &step, std::span<char> out);

@@ -315,6 +315,16 @@ namespace {
         }
     }
 
+    /// Consigne du plateau qu'attendra une étape qui imprime ou palpe : celle de la dilatation, sinon celle de la matière
+    /// (M1994, M1995 et M1996 sans B, comme level_bed())
+    int16_t bed_for(const Step &s) {
+        if (s.test == Test::nozzle_expansion) {
+            return nozzle_expansion::bed_temperature;
+        }
+        const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(s.slot));
+        return std::clamp<int16_t>(type.parameters().heatbed_temperature, 0, session::max_bed_temperature);
+    }
+
     void add_result(Test test, Result r) {
         auto &slot = results[size_t(test)];
         slot = fold(slot.load(), r);
@@ -395,6 +405,10 @@ namespace {
         }
         if (!marlin_server::enqueue_gcode_try(gcode) || !marlin_server::enqueue_gcode_try(marker)) {
             return false;
+        }
+        // Le plateau chauffe pendant ce qui ne le mesure pas (chargement, tests du MMU à froid) pour l'étape qui l'attendra
+        if (const auto j = bed_step(std::span<const Step>(steps.data(), size_t(step_count)), i, needs_load || needs_unload)) {
+            thermalManager.setTargetBed(bed_for(steps[*j]));
         }
         capture(s, before_numbers[size_t(s.test)], false);
         // Rien ne tourne avant le retour de M1989 : le résultat lu à la fin sera celui de cette étape, pas d'avant

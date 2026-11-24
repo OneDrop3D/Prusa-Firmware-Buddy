@@ -108,6 +108,14 @@ std::optional<PurgeStart> load_spot();
 /// d'impression (pas de palpage, donc pas de descente à la température de palpage)
 bool mesh_ready();
 
+/// Fil de Marlin, à chaque tour (marlin_server, aussi pendant un G-code) : en série, suit le plateau (bed_steady_ms())
+void step();
+
+/// Série : depuis combien de temps le plateau tient sa consigne actuelle à ±2 °C, sans interruption [ms] ; 0 : pas
+/// encore, ou hors série. La dilatation de la buse compte son repos du plateau depuis là (préchauffé pendant les tests
+/// du MMU, calib_registry::bed_step() : rien à réattendre)
+uint32_t bed_steady_ms();
+
 class Session {
 public:
     /// stop_requested : drapeau d'arrêt de la mesure (posé par l'interface) ; in_print : au départ d'une impression

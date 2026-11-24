@@ -7749,7 +7749,7 @@ msgstr "PROBLÈME DE TAG"
 
 #: src/gui/screen_menu_temperature_and_fans.cpp:15
 msgid "TEMPERATURE & FANS"
-msgstr "TEMPERATURE & VENTILATEURS"
+msgstr "TEMPÉRATURE & VENTILATEURS"
 
 #: src/gui/screen_menu_error_test.hpp:70
 msgid "TEST ERROR"

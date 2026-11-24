@@ -5,6 +5,8 @@
 /// dans Contrôle (carte de l'accueil).
 #pragma once
 
+#include "screen_mpc_od3d.hpp" // MI_OD3D_NUMBER
+
 #include <feature/od3d/sleep_math_od3d.hpp>
 
 #include <basic_screen_menu.hpp>
@@ -37,25 +39,13 @@ private:
     bool sleep::Settings::*field;
 };
 
-/// Délai en minutes (sleep::delays_min, et « Tout de suite » si with_zero)
-class MI_SLEEP_MINUTES : public MenuItemSwitch {
-public:
-    MI_SLEEP_MINUTES(uint8_t sleep::Settings::*field, const char *label, const img::Resource *icon, bool with_zero);
-
-protected:
-    bool on_item_selected(const OnItemSelectedArgs &args) override;
-
-private:
-    uint8_t sleep::Settings::*field;
-    bool with_zero;
-};
-
 class MI_SLEEP_ENABLE final : public MI_SLEEP_SWITCH {
 public:
     MI_SLEEP_ENABLE();
 };
 
-class MI_SLEEP_DELAY final : public MI_SLEEP_MINUTES {
+/// Délai de la veille, à la minute près (1 à 240 min) : l'éditeur de valeur (− / +, curseur)
+class MI_SLEEP_DELAY final : public MI_OD3D_NUMBER {
 public:
     MI_SLEEP_DELAY();
 };
@@ -75,7 +65,8 @@ public:
     MI_SLEEP_HEATERS();
 };
 
-class MI_SLEEP_HEATERS_DELAY final : public MI_SLEEP_MINUTES {
+/// Délai des chauffes après l'endormissement, à la minute près (0 : tout de suite, jusqu'à 240 min)
+class MI_SLEEP_HEATERS_DELAY final : public MI_OD3D_NUMBER {
 public:
     MI_SLEEP_HEATERS_DELAY();
 };
@@ -85,13 +76,22 @@ public:
     MI_SLEEP_MOTORS();
 };
 
+/// Maintien du moteur Z en veille (sleep::z_hold_levels) : 100 %, 50 %, 25 % ou coupé
+class MI_SLEEP_Z_HOLD final : public MenuItemSwitch {
+public:
+    MI_SLEEP_Z_HOLD();
+
+protected:
+    bool on_item_selected(const OnItemSelectedArgs &args) override;
+};
+
 class MI_SLEEP_FANS final : public MI_SLEEP_SWITCH {
 public:
     MI_SLEEP_FANS();
 };
 
 class ScreenSleep final : public BasicScreenMenu<MI_SLEEP_ENABLE, MI_SLEEP_DELAY, MI_SLEEP_SCREEN, MI_SLEEP_LIGHT, MI_SLEEP_HEATERS,
-                              MI_SLEEP_HEATERS_DELAY, MI_SLEEP_MOTORS, MI_SLEEP_FANS, MI_SLEEP_NOW> {
+                              MI_SLEEP_HEATERS_DELAY, MI_SLEEP_MOTORS, MI_SLEEP_Z_HOLD, MI_SLEEP_FANS, MI_SLEEP_NOW> {
 public:
     ScreenSleep();
 };

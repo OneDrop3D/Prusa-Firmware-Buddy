@@ -22,6 +22,26 @@ namespace od3d::sleep {
 /// Délais proposés [min], pour la mise en veille et pour les chauffes (qui ont aussi 0 : dès l'endormissement)
 inline constexpr uint8_t delays_min[] = { 1, 2, 5, 10, 15, 30, 60 };
 
+/// Délais réglables à la minute près (retour du 24/11 : « une durée personnalisée ») : veille de 1 à 240 min, chauffes
+/// de 0 (dès l'endormissement) à 240 min après l'endormissement
+inline constexpr uint8_t delay_max_min = 240;
+
+/// Maintien du moteur Z en veille, en % de son courant de maintien normal (config_store « OD3D Sleep Z Hold »).
+/// Prusa garde Z alimenté à plein courant, sans jamais le couper : à l'arrêt, son hacheur siffle (le « léger bruit »
+/// entendu en veille, retour du 24/11). 100 : comme Prusa ; 0 : Z coupé (le plateau peut descendre, l'origine Z est
+/// perdue). Rétabli au réveil et avant tout travail.
+inline constexpr uint8_t z_hold_levels[] = { 100, 50, 25, 0 };
+inline constexpr uint8_t default_z_hold = 50;
+
+/// Courant de maintien réduit au pourcentage pct (au moins 1 pas de 32 si pct > 0 : un IHOLD nul serait une coupure)
+constexpr uint8_t reduced_ihold(uint8_t ihold, uint8_t pct) {
+    if (pct >= 100) {
+        return ihold;
+    }
+    const unsigned v = (unsigned(ihold) * pct + 50) / 100;
+    return uint8_t(pct && v == 0 ? 1 : v);
+}
+
 /// Réglages (config_store, « OD3D Sleep Settings »). Pour changer la structure, prendre un autre nom d'élément.
 struct Settings {
     bool enabled = true; ///< mise en veille automatique

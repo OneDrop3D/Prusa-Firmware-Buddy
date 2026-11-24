@@ -524,6 +524,8 @@ struct CurrentStore
     /// OneDrop3D (F39) : mode veille (od3d::sleep::Settings : actif, délai, écran, lumières, chauffes et leur délai,
     /// moteurs, ventilateurs), à la place de l'atténuation des lumières de Prusa
     StoreItem<od3d::sleep::Settings, od3d::sleep::Settings {}, ItemFlag::user_interface, journal::hash("OD3D Sleep Settings")> od3d_sleep;
+    /// OneDrop3D (F39) : maintien du moteur Z en veille [% du courant de maintien], 0 = Z coupé (od3d::sleep::z_hold_levels)
+    StoreItem<uint8_t, od3d::sleep::default_z_hold, ItemFlag::user_interface, journal::hash("OD3D Sleep Z Hold")> od3d_sleep_z_hold;
     /// OneDrop3D (assistant de calibration) : par calibration du registre (indice = od3d::calib_registry::Test), dernière
     /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible »
     StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::max_tests> od3d_calib_done;

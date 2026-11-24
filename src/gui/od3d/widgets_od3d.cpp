@@ -239,10 +239,10 @@ bool draw_whole(window_frame_t &frame, window_t *first, window_t *last, void (*o
     const auto draw = [&](size_t i) { wins[i]->Draw(); };
     const auto fill = [&](Rect16 r) { display::fill_rect(r, frame.GetBackColor()); };
     const std::span<const Rect16> elements(rects.data(), n);
+    // De haut en bas, sans onde depuis l'élément touché : la page arrive d'un coup (retour de l'utilisateur, 24/11)
+    (void)chrome::take_origin();
     if (n == wins.size()) {
         fill_background(frame, first, last); // trop d'éléments : comme avant, le fond puis les éléments
-    } else if (const Rect16 from = chrome::take_origin(); !from.IsEmpty()) {
-        style::paint_from(frame.GetRect(), elements, { int16_t(from.Left() + from.Width() / 2), int16_t(from.Top() + from.Height() / 2) }, draw, fill);
     } else {
         style::paint_top_down(frame.GetRect(), elements, draw, fill);
     }
@@ -1195,12 +1195,8 @@ void TabBar::Marker::unconditionalDraw() {
     if (chrome::kept(chrome::Slot::marker, uint64_t(x) + 1, first, GetParent())) {
         return; // trait et repère déjà là
     }
-    if (first && was && chrome::shown(chrome::Slot::marker)) {
-        // Le repère de l'écran d'avant est encore là, à un autre onglet : il glisse jusqu'ici (TEXT_ROLL)
-        glide = { .from = int16_t(was - 1), .start_ms = ticks_ms(), .inputs = perf::inputs(), .on = true };
-        glide_tick.emplace();
-        return;
-    }
+    // Le repère saute directement au nouvel onglet (le glissement en 5 images retardait le changement d'onglet, 24/11)
+    (void)was;
     int16_t at = x;
     if (glide.on) {
         const int k = perf::inputs() != glide.inputs ? glide_frames : int(ticks_diff(ticks_ms(), glide.start_ms) / glide_frame_ms);

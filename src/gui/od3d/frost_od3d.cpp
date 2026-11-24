@@ -69,7 +69,10 @@ Rect16 origin() {
 
 void open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, PaintPart paint, void *ctx, bool veil) {
     Display painter(paint, ctx);
-    plan(rect, corners, from, parts, painter, veil);
+    // Ouverture instantanée (retour de l'utilisateur, 24/11 : « des animations de changement de page qui ne sont pas
+    // instantanées ») : la fenêtre se peint d'une seule image, à sa place, au lieu de grandir depuis l'élément touché
+    (void)from;
+    plan(rect, corners, rect, parts, painter, veil);
 }
 
 void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, bool veil) {

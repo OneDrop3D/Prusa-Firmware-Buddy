@@ -17,18 +17,34 @@ namespace {
 
     namespace sl = sleep;
 
-    // Les minutes s'écrivent pareil en français : pas de traduction (_() rend le texte tel quel)
-    constexpr const char *delay_items[] = { "1 min", "2 min", "5 min", "10 min", "15 min", "30 min", "60 min" };
-    constexpr const char *heaters_delay_items[] = { N_("Immediately"), "1 min", "2 min", "5 min", "10 min", "15 min", "30 min", "60 min" };
-    static_assert(std::size(delay_items) == std::size(sl::delays_min) && std::size(heaters_delay_items) == std::size(sl::delays_min) + 1);
+    // Délais à la minute près (retour du 24/11 : « une durée personnalisée »), dans l'éditeur de valeur
+    constexpr NumericInputConfig delay_config { .min_value = 1, .max_value = sl::delay_max_min };
+    constexpr NumericInputConfig heaters_delay_config { .min_value = 0, .max_value = sl::delay_max_min };
 
-    size_t index_of(uint8_t minutes, bool with_zero) {
-        if (with_zero && minutes == 0) {
-            return 0;
-        }
-        const auto it = std::ranges::find(sl::delays_min, minutes);
-        const size_t i = it == std::end(sl::delays_min) ? 3 : size_t(it - std::begin(sl::delays_min)); // inconnu : 10 min
-        return i + with_zero;
+    uint8_t get_delay() {
+        return sl::settings().delay_min;
+    }
+    void set_delay(uint8_t v) {
+        sl::Settings s = sl::settings();
+        s.delay_min = std::clamp<uint8_t>(v, 1, sl::delay_max_min);
+        sl::set_settings(s);
+    }
+    uint8_t get_heaters_delay() {
+        return sl::settings().heaters_delay_min;
+    }
+    void set_heaters_delay(uint8_t v) {
+        sl::Settings s = sl::settings();
+        s.heaters_delay_min = std::min(v, sl::delay_max_min);
+        sl::set_settings(s);
+    }
+
+    // Les pourcentages s'écrivent pareil en français
+    constexpr const char *z_hold_items[] = { "100 %", "50 %", "25 %", N_("Off") };
+    static_assert(std::size(z_hold_items) == std::size(sl::z_hold_levels));
+
+    size_t z_hold_index() {
+        const auto it = std::ranges::find(sl::z_hold_levels, sl::z_hold());
+        return it == std::end(sl::z_hold_levels) ? 1 : size_t(it - std::begin(sl::z_hold_levels));
     }
 
 } // namespace
@@ -59,27 +75,13 @@ void MI_SLEEP_SWITCH::OnChange(size_t) {
     sl::set_settings(s);
 }
 
-MI_SLEEP_MINUTES::MI_SLEEP_MINUTES(uint8_t sl::Settings::*field, const char *label, const img::Resource *icon, bool with_zero)
-    : MenuItemSwitch(_(label), with_zero ? std::span<const char *const>(heaters_delay_items) : std::span<const char *const>(delay_items),
-        index_of(sl::settings().*field, with_zero))
-    , field(field)
-    , with_zero(with_zero) {
-    SetIconId(icon);
-}
-
-bool MI_SLEEP_MINUTES::on_item_selected(const OnItemSelectedArgs &args) {
-    sl::Settings s = sl::settings();
-    s.*field = (with_zero && args.new_index == 0) ? 0 : sl::delays_min[args.new_index - with_zero];
-    sl::set_settings(s);
-    return MenuItemSwitch::on_item_selected(args);
-}
-
 // Chaque réglage vaut dès la prochaine mise en veille
 MI_SLEEP_ENABLE::MI_SLEEP_ENABLE()
     : MI_SLEEP_SWITCH(&sl::Settings::enabled, N_("Automatic sleep\nAfter the delay without use"), &img::settings_16x16) {}
 
 MI_SLEEP_DELAY::MI_SLEEP_DELAY()
-    : MI_SLEEP_MINUTES(&sl::Settings::delay_min, N_("Delay\nWithout touch, knob or job"), &img::speed_16x16, false) {}
+    : MI_OD3D_NUMBER(_("Delay\nWithout touch, knob or job, 1 to 240 min"), &img::speed_16x16, N_("Sleep delay"), delay_config, "min",
+        get_delay, set_delay) {}
 
 MI_SLEEP_SCREEN::MI_SLEEP_SCREEN()
     : MI_SLEEP_SWITCH(&sl::Settings::screen, N_("Screen off\nBacklight off, black screen"), &img::info_16x16) {}
@@ -91,10 +93,21 @@ MI_SLEEP_HEATERS::MI_SLEEP_HEATERS()
     : MI_SLEEP_SWITCH(&sl::Settings::heaters, N_("Heaters off\nNozzle and bed, never while printing"), &img::temperature_16x16) {}
 
 MI_SLEEP_HEATERS_DELAY::MI_SLEEP_HEATERS_DELAY()
-    : MI_SLEEP_MINUTES(&sl::Settings::heaters_delay_min, N_("Heaters delay\nAfter falling asleep"), &img::heatbed_16x16, true) {}
+    : MI_OD3D_NUMBER(_("Heaters delay\nAfter falling asleep, 0: immediately"), &img::heatbed_16x16, N_("Heaters delay"), heaters_delay_config, "min",
+        get_heaters_delay, set_heaters_delay) {}
 
 MI_SLEEP_MOTORS::MI_SLEEP_MOTORS()
     : MI_SLEEP_SWITCH(&sl::Settings::motors, N_("Motors off\nX, Y and extruder: homing is lost"), &img::move_16x16) {}
+
+MI_SLEEP_Z_HOLD::MI_SLEEP_Z_HOLD()
+    : MenuItemSwitch(_("Z motor hold\nLower is quieter; Off: the bed may drop"), z_hold_items, z_hold_index()) {
+    SetIconId(&img::move_16x16);
+}
+
+bool MI_SLEEP_Z_HOLD::on_item_selected(const OnItemSelectedArgs &args) {
+    sl::set_z_hold(sl::z_hold_levels[args.new_index]);
+    return MenuItemSwitch::on_item_selected(args);
+}
 
 MI_SLEEP_FANS::MI_SLEEP_FANS()
     : MI_SLEEP_SWITCH(&sl::Settings::fans, N_("Fans off\nChamber fans and filtration"), &img::turbine_16x16) {}

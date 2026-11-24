@@ -169,6 +169,10 @@ void ScreenMmuUsb::front_state(Text &text, bool &busy) {
         case Error::no_bootloader:
             return put(text, _("The MMU did not enter its bootloader."));
         case Error::no_answer:
+            if (st.command == 'S') {
+                // Pas de réponse au premier échange : la lettre seule (« : S ») ne disait rien (photo du 24/11)
+                return put(text, _("The MMU bootloader did not answer. Unplug and replug its micro-USB, press its reset button, then Retry."));
+            }
             return compose(text, _("MMU bootloader not answering:"), "%c", st.command);
         case Error::refused:
             return compose(text, _("Command refused by the MMU:"), "%c", st.command);

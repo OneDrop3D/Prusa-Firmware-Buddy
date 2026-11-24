@@ -23,9 +23,14 @@ void set_settings(const Settings &s);
 
 // ---- Publié par l'interface ----
 
+/// Maintien du moteur Z en veille [%] (z_hold_levels), fil de l'interface
+uint8_t z_hold();
+void set_z_hold(uint8_t pct);
+
 /// @param takeover mode veille actif : la coupure des moteurs de Prusa n'agit plus
 /// @param lights_off lumières éteintes ; @param fans_off ventilateurs de la chambre et filtration coupés
-void publish(bool takeover, bool lights_off, bool fans_off);
+/// @param asleep en veille : le fil de Marlin baisse le maintien de Z (z_hold), et le rétablit au réveil
+void publish(bool takeover, bool lights_off, bool fans_off, bool asleep);
 
 /// Coupures à faire par le fil de Marlin (abandonnées s'il est occupé)
 void request(Due due);

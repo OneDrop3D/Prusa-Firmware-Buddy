@@ -70,7 +70,7 @@ namespace {
         if (dark && ili9488_brightness_get() != 0) { // à l'endormissement, ou l'écran a été réinitialisé
             set_backlight(0);
         }
-        publish(s.enabled, idle.asleep() && s.light, idle.asleep() && s.fans);
+        publish(s.enabled, idle.asleep() && s.light, idle.asleep() && s.fans, idle.asleep());
     }
 
 } // namespace

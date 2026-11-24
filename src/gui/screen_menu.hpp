@@ -3,6 +3,7 @@
 #include <window_header.hpp>
 #include <status_footer.hpp>
 #include <WinMenuContainer.hpp>
+#include <WindowMenuItems.hpp>
 #include <window_menu.hpp>
 #include <screen.hpp>
 #include <gui/od3d/menu_od3d.hpp>
@@ -86,6 +87,12 @@ public:
 
     ScreenMenu(const string_view_utf8 &label, window_t *parent = nullptr)
         : ScreenMenuBase(parent, label, FOOTER) {
+        // OneDrop3D (interface G) : un seul retour, la flèche de l'en-tête (avec l'appui long et le glissement). La ligne
+        // « Retour » le doublait (retour de l'utilisateur, 24/11 : « des menus en double ») et prenait une ligne de la liste.
+        // Les écrans sans retour dans l'en-tête (langue au 1er démarrage) cachent déjà la leur.
+        if constexpr (has_item<MI_RETURN>) {
+            Item<MI_RETURN>().hide();
+        }
         menu.menu.BindContainer(container);
     }
 

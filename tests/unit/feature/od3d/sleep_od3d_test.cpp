@@ -235,3 +235,23 @@ TEST_CASE("sleep: tick wrap-around") {
     idle.step(start + min_ms, s, w);
     CHECK(idle.asleep());
 }
+
+TEST_CASE("od3d sleep: Z hold current reduced, never zero unless cut") {
+    CHECK(reduced_ihold(19, 100) == 19); // comme Prusa
+    CHECK(reduced_ihold(19, 50) == 10); // arrondi
+    CHECK(reduced_ihold(19, 25) == 5);
+    CHECK(reduced_ihold(2, 25) == 1); // au moins 1 pas : 0 serait une coupure
+    CHECK(reduced_ihold(19, 0) == 0); // coupé (géré à part : disable_Z)
+    CHECK(reduced_ihold(31, 120) == 31);
+}
+
+TEST_CASE("od3d sleep: custom delays up to 240 min") {
+    Idle idle;
+    Settings s = settings_with(240);
+    Watch w;
+    idle.step(0, s, w);
+    idle.step(239 * min_ms, s, w);
+    CHECK_FALSE(idle.asleep());
+    idle.step(240 * min_ms, s, w);
+    CHECK(idle.asleep());
+}

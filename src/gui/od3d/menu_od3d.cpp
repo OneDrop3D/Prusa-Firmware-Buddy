@@ -189,9 +189,10 @@ namespace {
 
             const Color fg = enabled ? style::text : style::text_faint;
             if (cut) {
-                // Le haut de la tuile, arrondi en haut seulement ; l'icône (lue d'un bloc) n'y est pas
+                // Sans la tuile : son haut sans icône (lue d'un bloc) se voyait comme une pastille de couleur vide
+                // (photos du 24/11) ; le libellé coupé suffit à dire qu'il y a une suite
                 if (!tile_shown.IsEmpty()) {
-                    display::draw_rounded_rect(tile_shown, bg, tile, style::radius_small, tile_shown.Height() < tile_size ? MIC_TOP_LEFT | MIC_TOP_RIGHT : MIC_ALL_CORNERS);
+                    display::fill_rect(tile_shown, bg);
                 }
                 draw_label_cut(label_rect, item.GetLabel(), fg, bg, shown.Top() + shown.Height());
                 return;

@@ -123,12 +123,27 @@ TEST_CASE("vibration: all in the noise or nothing measured is not conclusive") {
     CHECK(l.last_ok == 2);
 }
 
-TEST_CASE("vibration: M201 capped by the accepted limit") {
-    CHECK(capped(10000.f, 7000) == 7000.f); // départ de PrusaSlicer ou valeur de Prusa au démarrage : plafonnés
-    CHECK(capped(5000.f, 7000) == 5000.f); // plus bas : tel quel
-    CHECK(capped(7000.f, 7000) == 7000.f);
-    CHECK(capped(10000.f, 0) == 10000.f); // « Conserver » ou retiré : sans effet
-    CHECK(capped(10000.f, od3d::calib_registry::no_value) == 10000.f); // jamais mesuré
+TEST_CASE("vibration (V-05): ramps of half a period of the axis resonance") {
+    CHECK(ramp_for(50.f) == Approx(0.01f));
+    CHECK(ramp_for(60.f) * 60.f == Approx(0.5f));
+    CHECK(ramp_for(100.f) == Approx(0.005f));
+    // Sans filtre sur l'axe : 30 ms, comme avant ; jamais plus long (vitesse et longueur bornées)
+    CHECK(ramp_for(NAN) == ramp_s);
+    CHECK(ramp_for(0.f) == ramp_s);
+    CHECK(ramp_for(-5.f) == ramp_s);
+    CHECK(ramp_for(INFINITY) == ramp_s);
+    CHECK(ramp_for(10.f) == ramp_s);
+
+    // Triangle +a pendant T puis −a pendant T : la résonance f en reçoit sin²(π f T)
+    const auto excitation = [](float f, float t) {
+        const float s = std::sin(pi * f * t);
+        return s * s;
+    };
+    for (const float f : { 100.f / 3.f, 200.f / 3.f, 100.f }) {
+        CAPTURE(f);
+        CHECK(excitation(f, ramp_s) < 1e-3f); // 30 ms fixes : rien à 33, 67 et 100 Hz
+        CHECK(excitation(f, ramp_for(f)) == Approx(1.f)); // la rampe de l'axe : le plus
+    }
 }
 
 TEST_CASE("vibration: fan peak at the rotation speed") {
@@ -224,9 +239,27 @@ TEST_CASE("vibration: reference codes packed in the calibration values") {
     // Version 1 du test : [2] gardait le régime (5 500 tr/min), [3] jamais écrit : pas pris pour des références
     CHECK(unpack_references(5500, od3d::calib_registry::no_value) == std::array<uint8_t, 4> {});
     // Écrites par M2001 V : [3] jamais no_value, même sans ventilateur de chambre
-    const int16_t chamber = pack(0, 0);
+    const int16_t chamber = int16_t(pack(0, 0) | calibrated_mark);
     CHECK(chamber != od3d::calib_registry::no_value);
     CHECK(unpack_references(p, chamber) == std::array<uint8_t, 4> { encode(0.05f), encode(30.f), 0, 0 });
+    // La marque n'entre pas dans les codes de la chambre
+    const int16_t both = int16_t(pack(encode(0.2f), encode(1.f)) | calibrated_mark);
+    CHECK(unpack_references(p, both) == std::array<uint8_t, 4> { encode(0.05f), encode(30.f), encode(0.2f), encode(1.f) });
+}
+
+TEST_CASE("vibration (V-08): references taken before the calibrated period are dropped") {
+    // Version 2 : [3] sans la marque, références prises à la période supposée (1/1 344 s) : ignorées, la prochaine
+    // mesure captée devient la référence, à la période étalonnée
+    const int16_t fans = pack(encode(0.05f), encode(30.f));
+    CHECK(unpack_references(fans, pack(encode(0.2f), encode(1.f))) == std::array<uint8_t, 4> {});
+    CHECK(unpack_references(fans, pack(0, 0)) == std::array<uint8_t, 4> {});
+    // Gardées telles quelles d'un démarrage à l'autre (config_store) : relues à l'identique
+    const int16_t chamber = int16_t(pack(encode(0.2f), 0) | calibrated_mark);
+    const auto refs = unpack_references(fans, chamber);
+    REQUIRE(decode(refs[0]));
+    CHECK(*decode(refs[0]) == Approx(0.05f).epsilon(0.05));
+    CHECK(compare(FanLevel { 0.05f, true }, decode(refs[0])) == Verdict::ok);
+    CHECK(refs[3] == 0); // second ventilateur de la chambre absent : pas de référence
 }
 
 TEST_CASE("od3d accel mount: tilt of the gravity vector, either way up") {

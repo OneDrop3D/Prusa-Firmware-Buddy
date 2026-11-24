@@ -14,6 +14,7 @@
 /// une résonance de la tête, qui ne dépend pas de la tension, et non la corde de la courroie que Prusa regarde au
 /// stroboscope ; masse de la courroie (~2 g) contre tête (~0,7 kg). Diagnostic : le spectre brut par axe va dans
 /// /usb/OD3D_BELTS.CSV à chaque mesure ; M1992 P (excitation de M961) et M1992 R (mesure après l'arrêt des moteurs).
+/// M1992 C (V-03) enchaîne tous ces modes et garde tous leurs pics, à comparer d'un coup avec l'appli de Prusa.
 /// En attendant, verdict et conseil sont masqués (advice_validated) : l'écran ne montre que les fréquences.
 ///
 /// Les résultats restent en mémoire jusqu'au redémarrage ; l'interface les lit pendant la mesure (courbe en direct).
@@ -71,13 +72,37 @@ struct Measurement {
     bool ringing = false; ///< M1992 R : réponse mesurée après l'arrêt des moteurs (la tête amortie s'est tue)
 };
 
+/// Passage de comparaison (M1992 C, V-03) : les modes de mesure enchaînés, chacun sur les deux courroies, dans cet ordre :
+/// après l'arrêt des moteurs (R), excitation de Prusa (P), 2e harmonique (I2), puis la mesure habituelle, en dernier
+/// (jauges, bilan et réglage en direct la reprennent). Aucune physique nouvelle : les modes de diagnostic existants.
+struct CompareMode {
+    uint8_t harmonic;
+    bool prusa_excitation;
+    bool ringing;
+};
+inline constexpr std::array<CompareMode, 4> compare_modes { { { 1, false, true }, { 1, true, false }, { 2, false, false }, { 1, false, false } } };
+inline constexpr size_t compare_peaks = 3; ///< pics gardés par mode et par courroie
+
+/// Fréquences des pics (Hz, find_peaks() : du plus proéminent au moins ; NAN : aucun), par mode de compare_modes et par
+/// courroie, de la dernière comparaison
+using Comparison = std::array<std::array<std::array<float, compare_peaks>, belt_count>, compare_modes.size()>;
+const Comparison &comparison();
+
+/// Modes menés au bout par la comparaison en cours ou la dernière (0 : la dernière mesure n'en était pas une) ; pendant
+/// une comparaison, aussi l'indice du mode en cours
+uint8_t compared();
+
+/// La mesure en cours est une comparaison (M1992 C)
+bool comparing();
+
 /// Corps de M1992 : bloque jusqu'à la fin de la mesure ou jusqu'à request_stop(). harmonic : 1 ou 2.
 /// live (M1992 L, retour du 23/11) : réglage en direct, sans balayage complet ni étalonnage de l'accéléromètre (faits
 /// par la mesure d'avant) : les deux courroies remesurées en boucle sur live_points points autour de leur dernier pic
 /// (pics et spectre mis à jour à chaque tour), jusqu'à request_stop() (« Terminé » : les dernières valeurs, Status::done)
 /// ou live_ok_rounds tours de suite dans la plage de Prusa
 /// prusa_excitation, ringing : variantes de diagnostic (voir Measurement), reprises par le réglage en direct
-void run(uint8_t harmonic = 1, bool live = false, bool prusa_excitation = false, bool ringing = false);
+/// compare (M1992 C) : passage de comparaison (compare_modes) ; harmonic, prusa_excitation et ringing sont ignorés
+void run(uint8_t harmonic = 1, bool live = false, bool prusa_excitation = false, bool ringing = false, bool compare = false);
 
 /// Le réglage en direct tourne, et ses tours de suite dans la plage (0 à live_ok_rounds)
 bool live();

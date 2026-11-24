@@ -12960,3 +12960,55 @@ msgid ""
 msgstr ""
 "Impression\n"
 "arrêtée"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Attach the accelerometer to the extruder, then Start (X and Y, about 1 min)."
+msgstr "Fixez l'accéléromètre sur l'extrudeur, puis Démarrer (X et Y, 1 min env.)."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Orange bars: speeds to avoid. Measured up to %d mm/s, the limit of the accelerometer."
+msgstr "Barres orange : vitesses à éviter. Mesurées jusqu'à %d mm/s, la limite de l'accéléromètre."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "No critical speed up to %d mm/s, the limit of the accelerometer."
+msgstr "Aucune vitesse critique jusqu'à %d mm/s, la limite de l'accéléromètre."
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Comparison %d/4: belt %c at %d Hz"
+msgstr "Comparaison %d/4 : courroie %c à %d Hz"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Comparison %d/%d, belt %c: %d%%"
+msgstr "Comparaison %d/%d, courroie %c : %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min."
+msgstr "Fixez l'accéléromètre sur l'extrudeur, puis Démarrer : 4 façons de mesurer, 5 min env."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Peaks in Hz, to compare with the Prusa app:"
+msgstr "Pics en Hz, à comparer avec l'appli Prusa :"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "After the stop (R):"
+msgstr "Après l'arrêt (R) :"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Prusa excitation (P):"
+msgstr "Excitation de Prusa (P) :"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "2nd harmonic (I2):"
+msgstr "2e harmonique (I2) :"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Usual measurement:"
+msgstr "Mesure habituelle :"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%d measured, not validated."
+msgstr "%d mesurés, non validés."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "(not validated)"
+msgstr "(non validé)"

@@ -44,7 +44,7 @@ enum class Test : uint8_t {
     nozzle_expansion, ///< M2003 : dilatation de la buse palpée de 170 à 260 °C (buse vide)
     e_jump, ///< M2000 par emplacement : saut de vitesse de l'extrudeur, accélération max du filament
     mmu_speed, ///< N4, M2002 P : vitesse de la poulie du MMU (une bobine préchargée, rien dans l'extrudeur)
-    accel_limit, ///< M2004 : accélération max utile de X et Y (accéléromètre), proposée comme plafond de M201
+    accel_limit, ///< M2004 : accélération max utile de X et Y (accéléromètre), une information (rien n'est appliqué)
     /// M2005 : pose de l'accéléromètre (inclinaison, axes, fixation), en premier de la série « Accéléromètre » (retour
     /// du 24/11 : « encore plus de calibrations avec l'accéléromètre »)
     accel_mount,
@@ -98,13 +98,13 @@ struct Entry {
 inline constexpr std::array entries {
     // La pose de l'accéléromètre avant tout : tourné, de travers ou mal fixé, il fausserait toutes les mesures qui suivent
     Entry { Test::accel_mount, accelerometer | cold_nozzle, 1, 2, true }, // v2 : orientation à plat plus jugée
-    Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
+    Entry { Test::belts, accelerometer | cold_nozzle, 5, 2, true }, // courroies d'abord : elles changent les résonances ; v2 : comparaison des modes (V-03)
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 2, true }, // v2 : gain du plan horizontal
-    Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
-    Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 1, true }, // après l'input shaper : avec le filtre en place
-    Entry { Test::shaper_check, accelerometer | cold_nozzle, 1, 1, true }, // le filtre choisi, vérifié sur la machine
+    Entry { Test::speed_map, accelerometer | cold_nozzle, 2, 2, true }, // après le phase stepping (F34) ; v2 : 20 à 80 mm/s, base locale (V-07)
+    Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 2, true }, // après l'input shaper : avec le filtre en place ; v2 : rampe de l'axe (V-05)
+    Entry { Test::shaper_check, accelerometer | cold_nozzle, 1, 2, true }, // le filtre choisi, vérifié sur la machine ; v2 : rampe de l'axe (V-05)
     Entry { Test::mpc, heated, 12, 1, true },
     Entry { Test::mmu_ptfe, mmu | one_spool | heated, 3, 1, true },
     Entry { Test::nozzle_expansion, empty_bed | heated, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide
@@ -112,7 +112,7 @@ inline constexpr std::array entries {
     Entry { Test::max_flow, filament | empty_bed | flow_limit | heated, 3, 1, true },
     Entry { Test::min_temp, filament | empty_bed | heated, 7, 1, true },
     Entry { Test::skew, empty_bed | heated, 0, 1, false },
-    Entry { Test::fan_response, 0, 2, 2, true }, // à froid, sans besoin : série « Accéléromètre » ; v2 : vibrations
+    Entry { Test::fan_response, 0, 2, 3, true }, // à froid, sans besoin : série « Accéléromètre » ; v2 : vibrations ; v3 : période étalonnée (V-08)
     Entry { Test::e_jump, filament | heated, 1, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
     Entry { Test::mmu_speed, mmu | one_spool | heated, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
 };

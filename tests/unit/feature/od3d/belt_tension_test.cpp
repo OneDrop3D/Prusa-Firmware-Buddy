@@ -1,6 +1,7 @@
 // OneDrop3D (F14) : tension des courroies — pic du spectre, conseil de réglage (logique de Prusa), jauges et courbe.
 #include <feature/od3d/belt_tension_math_od3d.hpp>
 
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
@@ -300,6 +301,37 @@ TEST_CASE("courroies : la fenêtre du réglage en direct suit une courroie qui d
         centre = live_peak(w, start, 1.f);
         CHECK_THAT(centre, WithinAbs(f, 0.6f));
     }
+}
+
+TEST_CASE("courroies (V-03) : tous les pics, à comparer avec l'appli de Prusa") {
+    // Deux résonances : la plus forte vers 78 Hz, l'autre vers 98 Hz (23/11 : 78 Hz lus, 98 Hz à l'appli de Prusa)
+    std::vector<float> v = wide_spectrum(78.f, 40.f);
+    const std::vector<float> second = wide_spectrum(98.f, 15.f);
+    const std::vector<float> slope = wide_spectrum(98.f, 0.f);
+    for (size_t i = 0; i < v.size(); ++i) {
+        v[i] += second[i] - slope[i];
+    }
+    std::array<Peak, 3> out;
+    REQUIRE(find_peaks(v, 60.f, 1.f, out) == 2);
+    CHECK(out[0].found);
+    CHECK(out[1].found);
+    CHECK_THAT(out[0].frequency, WithinAbs(78.f, 0.3f));
+    CHECK_THAT(out[1].frequency, WithinAbs(98.f, 0.3f));
+    // Le premier est celui de la mesure habituelle, qui ne montrait que lui
+    CHECK_THAT(belt_peak(v, 60.f, 1.f).frequency, WithinAbs(out[0].frequency, 1e-4f));
+
+    // Au plus out.size() : les plus proéminents
+    std::array<Peak, 1> one;
+    REQUIRE(find_peaks(v, 60.f, 1.f, one) == 1);
+    CHECK_THAT(one[0].frequency, WithinAbs(78.f, 0.3f));
+
+    // Collé à un bord, trop peu marqué, plat, trop court : écarté, comme par belt_peak()
+    std::array<Peak, 3> none;
+    CHECK(find_peaks(wide_spectrum(61.f, 40.f), 60.f, 1.f, none) == 0);
+    CHECK(find_peaks(wide_spectrum(149.f, 40.f), 60.f, 1.f, none) == 0);
+    CHECK(find_peaks(wide_spectrum(100.f, 0.05f), 60.f, 1.f, none) == 0);
+    CHECK(find_peaks(std::vector<float>(91, 1.f), 60.f, 1.f, none) == 0);
+    CHECK(find_peaks(std::vector<float> { 1, 2 }, 60.f, 1.f, none) == 0);
 }
 
 TEST_CASE("courroies : tant que la mesure n'est pas validée, l'assistant ne la met jamais en échec") {

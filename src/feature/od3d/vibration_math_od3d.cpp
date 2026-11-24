@@ -1,6 +1,5 @@
 /// @file
 #include "vibration_math_od3d.hpp"
-#include "calib_registry_od3d.hpp" // no_value
 #include "speed_map_math_od3d.hpp" // median
 
 #include <algorithm>
@@ -28,6 +27,10 @@ float WindowMeter::variance() const {
         var += std::max(0.0, sum_sq[i] / n - mean * mean);
     }
     return float(var);
+}
+
+float ramp_for(float frequency) {
+    return std::isfinite(frequency) && frequency > 0.f ? std::min(0.5f / frequency, ramp_s) : ramp_s;
 }
 
 Limit find_limit(std::span<const float> residual, std::span<const uint16_t> accel, float noise) {
@@ -172,7 +175,7 @@ uint8_t unpack(int16_t packed, bool high) {
 }
 
 std::array<uint8_t, 4> unpack_references(int16_t v2, int16_t v3) {
-    if (v3 == calib_registry::no_value) {
+    if (!(v3 & calibrated_mark)) { // no_value (0x8000) n'a pas la marque
         return {};
     }
     return { unpack(v2, false), unpack(v2, true), unpack(v3, false), unpack(v3, true) };

@@ -2,8 +2,8 @@
 /// OneDrop3D : accélération max utile (M2004) et vibrations des ventilateurs (M2001 V), calculs purs — sans Marlin ni
 /// affichage, testés dans tests/unit/feature/od3d/vibration_math_test.cpp sur des signaux synthétiques.
 ///
-/// Accélération max utile : à chaque palier a, un déplacement court en triangle (rampes de ramp_s, donc vitesse
-/// a × ramp_s et longueur a × ramp_s²) : la forme de l'excitation est la même à tous les paliers, seul a la met à
+/// Accélération max utile : à chaque palier a, un déplacement court en triangle (rampes de T = ramp_for() de l'axe,
+/// donc vitesse a × T et longueur a × T²) : la forme de l'excitation est la même à tous les paliers, seul a la met à
 /// l'échelle. Dans un système linéaire, l'input shaper en place laisse alors un résidu (vibrations après l'arrêt, dans
 /// une fenêtre fixe) proportionnel à a : le résidu par unité d'accélération reste constant. Il remonte quand la machine
 /// ne suit plus (moteurs à la limite du couple, courroies, cadre) : la limite retenue est le plus haut palier où il reste
@@ -27,7 +27,7 @@ namespace od3d::vibration {
 inline constexpr uint16_t accel_first = 2000; ///< mm/s², premier palier
 inline constexpr uint16_t accel_step = 1000;
 inline constexpr size_t accel_levels = 9; ///< jusqu'à 10 000 (limite matérielle de Prusa en X/Y sur la CORE One)
-inline constexpr float ramp_s = 0.03f; ///< durée de chaque rampe : 300 mm/s et 9 mm au dernier palier
+inline constexpr float ramp_s = 0.03f; ///< rampe sans input shaper sur l'axe, et la plus longue : 300 mm/s et 9 mm au dernier palier
 inline constexpr float rise_ratio = 1.5f; ///< résidu par unité d'accélération : +50 % sur la référence = remontée
 /// Référence : premier palier dont le résidu vaut au moins deux fois le bruit au repos (vibrations au moins égales au
 /// bruit, qui est retiré : en dessous, le résidu par unité d'accélération ne serait que du bruit)
@@ -37,6 +37,13 @@ constexpr uint16_t level_accel(size_t i) {
     return uint16_t(accel_first + i * accel_step);
 }
 static_assert(level_accel(accel_levels - 1) == 10000);
+
+/// Durée de chaque rampe sur un axe dont l'input shaper est réglé à frequency Hz (V-05, M2004 et M2006) : 1 / (2 f).
+/// Le triangle de rampes T (+a puis −a) excite la résonance f en proportion de sin²(π f T) : rien aux fréquences k / T
+/// (30 ms fixes : 33, 67, 100 Hz, où M2006 « réussissait » sans rien vérifier), le plus à f T = 1/2. Sans fréquence
+/// (pas de filtre, NAN) : ramp_s ; jamais plus long (f sous 16,7 Hz). Au-delà de ~90 Hz, le palier de 2 000 mm/s² fait
+/// moins de 6 pas et Marlin le saute : il reste dans le bruit, la référence prend le suivant.
+float ramp_for(float frequency);
 
 /// Variance d'une fenêtre d'échantillons (m/s²) : moyenne de chaque axe retirée (pesanteur), somme des trois axes.
 /// Pas de passe-haut : son régime transitoire après le freinage (1 g) noierait le résidu.
@@ -63,12 +70,6 @@ struct Limit {
 /// residual[i] : résidu moyen (variance, m²/s⁴) au palier i (accel[i] mm/s², croissantes), NAN : pas mesuré (la suite
 /// non plus) ; noise : variance au repos. Au premier palier qui dépasse le seuil, on s'arrête (le plus prudent).
 Limit find_limit(std::span<const float> residual, std::span<const uint16_t> accel, float noise);
-
-/// M201 X/Y avec le plafond accepté (accel_cap_od3d.hpp) : la valeur demandée, au plus cap ; cap ≤ 0 (0 : « Conserver »,
-/// no_value : jamais mesuré) : sans effet
-constexpr float capped(float requested, int16_t cap) {
-    return cap > 0 && requested > float(cap) ? float(cap) : requested;
-}
 
 // ---- Ventilateurs (M2001 V) ----
 
@@ -144,8 +145,13 @@ std::optional<float> decode(uint8_t code);
 int16_t pack(uint8_t low, uint8_t high);
 uint8_t unpack(int16_t packed, bool high);
 
-/// Les codes des quatre ventilateurs depuis [2] et [3] de la case du ventilateur : M2001 V écrit toujours [3] (jamais
-/// no_value). [3] à no_value : version 1 du test, dont [2] gardait le régime : aucune référence
+/// Marque de [3] : références prises à la période d'échantillonnage étalonnée (V-08, version 3 du test) ; le bit 7 de
+/// l'octet bas, libre (codes sur 7 bits). M2001 V écrit toujours [3] avec elle.
+inline constexpr int16_t calibrated_mark = 0x80;
+
+/// Les codes des quatre ventilateurs depuis [2] et [3] de la case du ventilateur. [3] sans calibrated_mark : aucune
+/// référence (no_value : version 1, dont [2] gardait le régime ; sans la marque : version 2, à la période supposée,
+/// décalée de quelques %) ; la prochaine mesure captée la reprend
 std::array<uint8_t, 4> unpack_references(int16_t v2, int16_t v3);
 
 // ---- Pose de l'accéléromètre (M2005, retour du 24/11 : « calibration automatique » de l'accéléromètre) ----

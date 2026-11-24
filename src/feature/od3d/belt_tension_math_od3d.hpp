@@ -40,6 +40,11 @@ inline constexpr float edge_guard_hz = 3.f;
 inline constexpr float min_peak_relative = 0.25f;
 Peak belt_peak(std::span<const float> values, float start_hz, float step_hz);
 
+/// Tous les pics du spectre (passage de comparaison, M1992 C, V-03), pas seulement le plus proéminent : ceux que
+/// belt_peak() accepterait (hors des bords, assez marqués), du plus proéminent au moins, au plus out.size() (le
+/// premier est celui de belt_peak()). Rend leur nombre.
+size_t find_peaks(std::span<const float> values, float start_hz, float step_hz, std::span<Peak> out);
+
 /// Cibles de Prusa (manual_belt_tuning_config.hpp ; CORE One : 95,5 et 92 Hz, plage 89 à 98 Hz, écart 8 Hz,
 /// 15 et 12 Hz par tour de vis)
 struct Targets {

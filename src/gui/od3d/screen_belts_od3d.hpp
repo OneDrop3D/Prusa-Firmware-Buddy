@@ -53,6 +53,10 @@ protected:
 /// Ouvre l'écran des courroies et lance le réglage en direct (assistant de calibration, courroies hors de la plage)
 void open_belts_live();
 
+/// Pics de la dernière comparaison (M1992 C, V-03), traduits : un titre, puis une ligne par mode ; vide sans comparaison.
+/// Écran des courroies à la fin de la mesure, détail « Courroies » du bilan de l'assistant
+void belt_peaks_text(std::span<char> out);
+
 class ScreenBelts final : public Screen {
 public:
     ScreenBelts();

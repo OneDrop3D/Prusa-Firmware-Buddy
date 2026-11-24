@@ -178,13 +178,16 @@ void ScreenSpeedMap::show_info() {
         switch (shown_status) {
         case Status::idle:
         case Status::running:
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (X and Y, about 3 min).");
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (X and Y, about 1 min).");
             break;
         case Status::done: {
             const speed_map::Map &m = speed_map::last();
             std::array<uint8_t, speed_map::max_critical> idx;
             const bool any = speed_map::critical(m, 0, idx) > 0 || speed_map::critical(m, 1, idx) > 0;
-            text = any ? _("Orange bars: speeds to avoid (strong vibration).") : _("No speed stands out: no critical speed found.");
+            // V-07 : la plage s'arrête où l'accéléromètre ne capte plus les vibrations des moteurs (speed_map_od3d.hpp)
+            text = (any ? _("Orange bars: speeds to avoid. Measured up to %d mm/s, the limit of the accelerometer.")
+                        : _("No critical speed up to %d mm/s, the limit of the accelerometer."))
+                       .formatted(info_params, int(speed_map::speed_end));
             break;
         }
         case Status::stopped:
@@ -203,7 +206,7 @@ void ScreenSpeedMap::show_info() {
             text = _("Measurement failed.");
             break;
         case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (X and Y, about 3 min).");
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (X and Y, about 1 min).");
             break;
         case Status::no_room:
             text = _("No room on this axis");

@@ -5,7 +5,7 @@
 /// - énergie vibratoire pendant un mouvement à vitesse constante : moyenne quadratique de l'accélération après un
 ///   passe-haut (la pesanteur et le mouvement lui-même disparaissent, restent les vibrations) ;
 /// - longueur d'un passage pour avoir assez de mesure à vitesse constante ;
-/// - vitesses critiques : sommets nets de l'énergie en fonction de la vitesse.
+/// - vitesses critiques : sommets nets de l'énergie en fonction de la vitesse, par rapport à leurs voisines.
 #pragma once
 
 #include <cstddef>
@@ -64,8 +64,14 @@ float sweep_from(float centre, float top_length);
 /// Médiane des valeurs finies (0 sans valeur)
 float median(std::span<const float> values);
 
-/// Vitesses critiques : indices des sommets (plus hauts que leurs voisins, un bord compte) dont la valeur dépasse
-/// factor × la médiane et min_value, du plus fort au plus faible, au plus out.size() (64 valeurs lues au plus). Rend leur nombre.
+/// Base locale d'une vitesse (V-07) : médiane de ses local_neighbours voisines de chaque côté, elle-même exclue
+inline constexpr size_t local_neighbours = 2;
+
+/// Vitesses critiques (V-07) : indices des sommets (plus hauts que la voisine de gauche, au moins autant que celle de
+/// droite : un plateau compte une fois ; jamais un bord, qui n'a pas de voisine des deux côtés) dont la valeur dépasse
+/// min_value et factor × leur base locale, du plus fort au plus faible, au plus out.size() (64 valeurs lues au plus).
+/// Rend leur nombre. Une énergie qui croît avec la vitesse n'a pas de sommet : avec la médiane de tout l'axe, la vitesse
+/// la plus haute en ressortait toujours, « critique ».
 size_t find_critical(std::span<const float> values, float factor, float min_value, std::span<uint8_t> out);
 
 /// « 60, 120, 250 » : vitesses (start + index × step) dans l'ordre croissant ; ASCII

@@ -254,6 +254,11 @@ void ScreenBelts::show_info() {
             break;
         case Stage::belt_a:
         case Stage::belt_b:
+            if (belts::comparing()) { // V-03 : le mode en cours sur les quatre, l'avancement de toute la comparaison
+                text = _("Comparison %d/%d, belt %c: %d%%")
+                           .formatted(info_params, int(belts::compared()) + 1, int(belts::compare_modes.size()), shown_stage == Stage::belt_a ? 'A' : 'B', int(shown_progress));
+                break;
+            }
             if (live_requested) {
                 // Réglage en direct : le conseil suit chaque tour ; il change de sens dès qu'on dépasse la cible
                 const belts::Advice advice = current_advice();
@@ -276,7 +281,7 @@ void ScreenBelts::show_info() {
         switch (shown_status) {
         case Status::idle:
         case Status::running:
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min.");
             break;
         case Status::done: {
             if (!belts::advice_validated) { // seulement les fréquences (jauges) ; le réglage chez Prusa
@@ -322,7 +327,7 @@ void ScreenBelts::show_info() {
             text = _("Measurement failed.");
             break;
         case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start (about 1.5 min).");
+            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min.");
             break;
         }
     }
@@ -376,6 +381,12 @@ void ScreenBelts::update() {
         if (busy != was_busy) {
             action.set(busy ? Button::Look::outline : Button::Look::primary, busy ? (live_requested ? _("Done") : _("Cancel")) : _("Start"), busy ? &img::cancel_16x16 : &img::print_16x16);
         }
+        // V-03 : la comparaison finie, tous ses pics, à confronter à l'appli de Prusa (aussi au bilan de l'assistant)
+        if (full_done && belts::compared() == belts::compare_modes.size() && !HasDialog() && !calibration_series_running()) {
+            static char peaks[320]; // la boîte le lit tant qu'elle est ouverte
+            belt_peaks_text(peaks);
+            MsgBoxInfo(string_view_utf8::MakeRAM(peaks), Responses_Ok);
+        }
         // Hors de la plage après une mesure complète : le réglage en direct est proposé (retour du 23/11)
         const belts::Measurement &m = belts::last();
         if (belts::advice_validated && full_done && !HasDialog() && m.peaks[0].found && m.peaks[1].found && current_advice().verdict == belts::Verdict::adjust && !calibration_series_running()
@@ -412,9 +423,10 @@ void ScreenBelts::start() {
     if (!accelerometer_homed_or_home()) {
         return; // origine d'abord, accéléromètre pas encore fixé : l'écran demande ensuite de le fixer
     }
-    // ACC-1 : M1992 vérifie l'accéléromètre avant tout mouvement ; s'il ne répond pas, update() guide l'utilisateur
+    // ACC-1 : M1992 vérifie l'accéléromètre avant tout mouvement ; s'il ne répond pas, update() guide l'utilisateur.
+    // V-03 : tant que la mesure n'est pas validée (advice_validated), la comparaison de tous les modes
     const uint16_t before = belts::run_count();
-    if (marlin_client::gcode_try("M1992") == marlin_client::GcodeTryResult::Submitted) {
+    if (marlin_client::gcode_try("M1992 C") == marlin_client::GcodeTryResult::Submitted) {
         runs_at_request = before;
         pending = true;
         warned_accelerometer = false;
@@ -437,6 +449,40 @@ void ScreenBelts::start_live() {
 void open_belts_live() {
     live_on_open = true;
     Screens::Access()->Open(ScreenFactory::Screen<ScreenBelts>);
+}
+
+void belt_peaks_text(std::span<char> out) {
+    // Ordre de compare_modes ; deux pics par courroie, du plus proéminent au moins, tient sur une ligne (le CSV a les trois)
+    static constexpr const char *labels[belts::compare_modes.size()] = { N_("After the stop (R):"), N_("Prusa excitation (P):"), N_("2nd harmonic (I2):"), N_("Usual measurement:") };
+    constexpr size_t shown = 2;
+    size_t n = 0;
+    const auto put = [&](const char *s) { // coupé à la fin du tampon
+        n = std::min(n + strlcpy(out.data() + n, s, out.size() - n), out.size() - 1);
+    };
+    out[0] = '\0';
+    if (belts::compared() == 0) {
+        return;
+    }
+    char text[64];
+    _("Peaks in Hz, to compare with the Prusa app:").copyToRAM(text, sizeof(text));
+    put(text);
+    const belts::Comparison &c = belts::comparison();
+    for (uint8_t k = 0; k < belts::compared(); ++k) {
+        put("\n");
+        _(labels[k]).copyToRAM(text, sizeof(text));
+        put(text);
+        for (uint8_t b = 0; b < belts::belt_count; ++b) {
+            snprintf(text, sizeof(text), b ? ", %c" : " %c", 'A' + b);
+            put(text);
+            if (!std::isfinite(c[k][b][0])) {
+                put(" --");
+            }
+            for (size_t i = 0; i < shown && std::isfinite(c[k][b][i]); ++i) {
+                snprintf(text, sizeof(text), " %.1f", double(c[k][b][i]));
+                put(text);
+            }
+        }
+    }
 }
 
 void ScreenBelts::windowEvent(window_t *sender, GUI_event_t event, void *param) {

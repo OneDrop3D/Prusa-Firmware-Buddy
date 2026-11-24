@@ -1,6 +1,6 @@
 /// @file
 /// OneDrop3D (F22) : écran « Vitesses critiques », ouvert depuis Réglages › Fonctions OneDrop3D.
-/// Pour X et Y, une barre par vitesse (20 à 300 mm/s) : énergie vibratoire mesurée à vitesse constante, en orange les
+/// Pour X et Y, une barre par vitesse (20 à 80 mm/s) : énergie vibratoire mesurée à vitesse constante, en orange les
 /// vitesses à éviter, listées au-dessus ; Démarrer / Annuler. La mesure est faite par M1993
 /// (feature/od3d/speed_map_od3d.hpp) ; l'écran la lance, l'annule et montre ses résultats.
 #pragma once

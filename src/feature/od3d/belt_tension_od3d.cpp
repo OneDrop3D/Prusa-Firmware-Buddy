@@ -37,8 +37,11 @@ namespace {
     std::atomic<uint16_t> revisions = 0;
     std::atomic<bool> live_on = false; ///< M1992 L
     std::atomic<uint8_t> live_ok = 0; ///< réglage en direct : tours de suite dans la plage
+    std::atomic<bool> compare_on = false; ///< M1992 C
+    std::atomic<uint8_t> modes_done = 0; ///< comparaison : modes menés au bout
 
     Measurement measurement; ///< ~770 octets en mémoire statique, lue par l'interface
+    Comparison compared_peaks; ///< 96 octets, lus par l'interface
 
     /// Spectre brut (diagnostic du 23/11 : 78 Hz mesurés, 98 Hz à l'appli de Prusa), ajouté à chaque mesure
     constexpr const char *csv_path = "/usb/OD3D_BELTS.CSV";
@@ -59,7 +62,8 @@ namespace {
         }
     }
 
-    void write_csv_rows(Belt belt) {
+    /// complete : balayage complet fini, ses pics sont tous écrits (V-03)
+    void write_csv_rows(Belt belt, bool complete) {
         FILE *f = fopen(csv_path, "a");
         if (!f) {
             return; // pas de clé
@@ -74,6 +78,43 @@ namespace {
         }
         const Peak &p = measurement.peaks[uint8_t(belt)];
         force_probe::csv_printf(f, "# peak %c: %.2f Hz, found %d, prominence %.2f\n", belt == Belt::a ? 'A' : 'B', double(p.frequency), int(p.found), double(p.relative_prominence));
+        if (complete) {
+            std::array<Peak, compare_peaks> all;
+            const size_t n = find_peaks(spectrum, sweep_start_hz, sweep_step_hz, all);
+            force_probe::csv_printf(f, "# all peaks %c (Hz, prominence):", belt == Belt::a ? 'A' : 'B');
+            for (size_t i = 0; i < n; ++i) {
+                force_probe::csv_printf(f, " %.2f (%.2f)", double(all[i].frequency), double(all[i].relative_prominence));
+            }
+            force_probe::csv_printf(f, "\n");
+        }
+        fclose(f);
+    }
+
+    /// Lettres du mode d'une mesure, comme les paramètres de M1992 : R, P, I2 ou I1
+    const char *mode_code(const CompareMode &m) {
+        return m.ringing ? "R" : (m.prusa_excitation ? "P" : (m.harmonic == 2 ? "I2" : "I1"));
+    }
+
+    /// Fin d'une comparaison : tous les pics, mode par mode, à comparer avec l'appli de Prusa (V-03)
+    void write_csv_comparison() {
+        FILE *f = fopen(csv_path, "a");
+        if (!f) {
+            return;
+        }
+        force_probe::csv_printf(f, "# OneDrop3D belts comparison M1992 C: peaks in Hz, most prominent first, to compare with the Prusa app\nmode,belt,peak1_hz,peak2_hz,peak3_hz\n");
+        for (uint8_t k = 0; k < modes_done; ++k) {
+            for (uint8_t b = 0; b < belt_count; ++b) {
+                force_probe::csv_printf(f, "%s,%c", mode_code(compare_modes[k]), 'A' + b);
+                for (const float hz : compared_peaks[k][b]) {
+                    if (std::isfinite(hz)) {
+                        force_probe::csv_printf(f, ",%.2f", double(hz));
+                    } else {
+                        force_probe::csv_printf(f, ",");
+                    }
+                }
+                force_probe::csv_printf(f, "\n");
+            }
+        }
         fclose(f);
     }
 
@@ -110,7 +151,8 @@ namespace {
 
     void set_progress(uint8_t belt_index, float point_progress) {
         const float done = float(belt_index) * sweep_points + point_progress;
-        progress = uint8_t(std::clamp(done * 100.f / float(belt_count * sweep_points), 0.f, 100.f));
+        const float mode = std::clamp(done * 100.f / float(belt_count * sweep_points), 0.f, 100.f);
+        progress = uint8_t(compare_on ? (float(modes_done) * 100.f + mode) / float(compare_modes.size()) : mode); // comparaison : sur tous les modes
     }
 
     /// Balaye une courroie (count points du spectre depuis from ; par défaut tout) ; Status::done si tout est mesuré.
@@ -129,7 +171,8 @@ namespace {
         for (auto &g : axis_gains) {
             g[0] = NAN;
         }
-        ScopeGuard csv = [belt] { write_csv_rows(belt); }; // aussi après un arrêt : les points déjà mesurés
+        bool complete = false;
+        ScopeGuard csv = [belt, &complete] { write_csv_rows(belt, complete); }; // aussi après un arrêt : les points déjà mesurés
 
         const auto progress_hook = [&](const ProgressHookParams &params) -> Result<void> {
             if (must_stop()) {
@@ -154,7 +197,12 @@ namespace {
             const float frequency = sweep_start_hz + float(i) * sweep_step_hz;
             // Le bruit des moteurs est l'excitation elle-même (retour du 23/11 : « un drôle de bruit au début ») : à
             // 70 Hz, 7,5 m/s² font ±39 µm, deux fois l'amplitude de 120 Hz (calculé d'après calc_accel de Prusa)
-            live::set(N_("Belt %c ringing at %d Hz: the motor hum is normal"), belt == Belt::a ? 'A' : 'B', int(std::lround(frequency)));
+            static_assert(compare_modes.size() == 4, "« /4 » du texte de la comparaison");
+            if (compare_on) {
+                live::set(N_("Comparison %d/4: belt %c at %d Hz"), modes_done + 1, belt == Belt::a ? 'A' : 'B', int(std::lround(frequency)));
+            } else {
+                live::set(N_("Belt %c ringing at %d Hz: the motor hum is normal"), belt == Belt::a ? 'A' : 'B', int(std::lround(frequency)));
+            }
             // Accélération de Prusa pour cette fréquence (7 à 10,5 m/s² entre 60 et 130 Hz : quelques dizaines de µm),
             // celle de 130 Hz au-delà (M961 ne va pas plus haut)
             args.excitation_acceleration = std::fabs(manual_belt_tuning::calc_accel(std::min(frequency, float(manual_belt_tuning::freq_max))) * 0.001f);
@@ -210,11 +258,49 @@ namespace {
             const int tenths = int(std::lround(p.frequency * 10.f));
             live::set_value(N_("Measured: belt %c at %d.%d Hz"), belt == Belt::a ? 'A' : 'B', tenths / 10, tenths % 10);
         }
+        complete = true;
         ++revisions;
         return Status::done;
     }
 
-    Status measure_belts(uint8_t harmonic) {
+    /// Comparaison : les pics du spectre de la courroie que le mode k vient de balayer
+    void keep_peaks(uint8_t k, Belt belt) {
+        std::array<Peak, compare_peaks> found;
+        const size_t n = find_peaks(measurement.spectra[uint8_t(belt)], sweep_start_hz, sweep_step_hz, found);
+        for (size_t i = 0; i < compare_peaks; ++i) {
+            compared_peaks[k][uint8_t(belt)][i] = i < n ? found[i].frequency : NAN;
+        }
+    }
+
+    /// Nouvelle mesure, dans un mode (les modes de diagnostic sont repris par le réglage en direct qui suit)
+    void reset(uint8_t harmonic, bool prusa_excitation, bool ringing) {
+        static constexpr Measurement fresh {}; // copiée : pas de temporaire sur la pile de Marlin pendant la mesure
+        measurement = fresh;
+        measurement.harmonic = harmonic == 2 ? 2 : 1;
+        measurement.prusa_excitation = prusa_excitation;
+        measurement.ringing = ringing;
+        ++revisions;
+    }
+
+    /// Réglages de M958 du mode de la mesure ; calibrate : étalonner l'accéléromètre au premier point (~15 s)
+    vibrate_measure::MeasureParams params(bool calibrate) {
+        vibrate_measure::MeasureParams args {
+            .excitation_acceleration = std::fabs(manual_belt_tuning::calc_accel(sweep_start_hz) * 0.001f),
+            .excitation_cycles = excitation_cycles,
+            .klipper_mode = measurement.harmonic == 1, // la 2e harmonique n'existe qu'en mode « Prusa »
+            .calibrate_accelerometer = calibrate,
+            .axis_flag = StepEventFlag::STEP_EVENT_FLAG_STEP_X,
+            .measured_harmonic = measurement.harmonic,
+        };
+        if (measurement.ringing) {
+            // M1992 R : la courroie, peu amortie, sonne encore quand la tête (amortie) s'est tue
+            args.wait_cycles = 10;
+            args.measurement_cycles = 20;
+        }
+        return args;
+    }
+
+    Status measure_belts() {
         if (marlin_server::is_printing() || !marlin_server::printer_idle()) {
             return Status::printing;
         }
@@ -233,7 +319,6 @@ namespace {
         if (!prepare()) {
             return must_stop() ? Status::stopped : Status::not_homed;
         }
-        write_csv_header(live_on);
 
         // Le phase stepping doit être coupé avant de lire les micro-pas (M958, M961) ; il revient après eux
         phase_stepping::EnsureDisabled phase_stepping_disabler;
@@ -242,20 +327,28 @@ namespace {
         stepper_microsteps(X_AXIS, 128);
         stepper_microsteps(Y_AXIS, 128);
 
-        vibrate_measure::MeasureParams args {
-            .excitation_acceleration = std::fabs(manual_belt_tuning::calc_accel(sweep_start_hz) * 0.001f),
-            .excitation_cycles = excitation_cycles,
-            .klipper_mode = harmonic == 1, // la 2e harmonique n'existe qu'en mode « Prusa »
-            .calibrate_accelerometer = !live_on, // une fois, au premier point de la courroie A (~15 s) ; en direct : déjà fait
-            .axis_flag = StepEventFlag::STEP_EVENT_FLAG_STEP_X,
-            .measured_harmonic = harmonic,
-        };
-        if (measurement.ringing) {
-            // M1992 R : la courroie, peu amortie, sonne encore quand la tête (amortie) s'est tue
-            args.wait_cycles = 10;
-            args.measurement_cycles = 20;
+        if (compare_on) {
+            // Comparaison (V-03) : chaque mode balaye les deux courroies ; l'accéléromètre étalonné une fois, au premier
+            // point du premier mode (~15 s)
+            for (uint8_t k = 0; k < compare_modes.size(); ++k) {
+                const CompareMode &mode = compare_modes[k];
+                reset(mode.harmonic, mode.prusa_excitation, mode.ringing);
+                write_csv_header(false);
+                auto args = params(k == 0);
+                for (const Belt belt : { Belt::a, Belt::b }) {
+                    if (const Status s = sweep(belt, args, microstep_restorer); s != Status::done) {
+                        return s;
+                    }
+                    keep_peaks(k, belt);
+                }
+                modes_done = uint8_t(k + 1);
+            }
+            write_csv_comparison();
+            return Status::done;
         }
 
+        write_csv_header(live_on);
+        auto args = params(!live_on); // une fois, au premier point de la courroie A (~15 s) ; en direct : déjà fait
         if (!live_on) {
             for (const Belt belt : { Belt::a, Belt::b }) {
                 if (const Status s = sweep(belt, args, microstep_restorer); s != Status::done) {
@@ -287,7 +380,7 @@ namespace {
 
 } // namespace
 
-void run(uint8_t harmonic, bool live, bool prusa_excitation, bool ringing) {
+void run(uint8_t harmonic, bool live, bool prusa_excitation, bool ringing, bool compare) {
     ScopeGuard count_run = [] { ++runs; }; // après last_status : l'interface lit l'état une fois runs changé
     if (running.exchange(true)) {
         return; // déjà en cours (ne devrait pas arriver : Marlin traite un G-code à la fois)
@@ -296,25 +389,36 @@ void run(uint8_t harmonic, bool live, bool prusa_excitation, bool ringing) {
     ScopeGuard not_running = [] {
         stop_requested = false;
         live_on = false;
+        compare_on = false;
         running = false;
     };
 
-    live_on = live && measurement.harmonic == 1; // en direct : on repart des pics de la dernière mesure
+    live_on = !compare && live && measurement.harmonic == 1; // en direct : on repart des pics de la dernière mesure
     if (!live_on) {
-        static constexpr Measurement fresh {}; // copiée : pas de temporaire sur la pile de Marlin pendant la mesure
-        measurement = fresh;
-        measurement.harmonic = harmonic == 2 ? 2 : 1;
-        measurement.prusa_excitation = prusa_excitation;
-        measurement.ringing = ringing;
+        reset(harmonic, prusa_excitation, ringing);
+        modes_done = 0; // la comparaison d'avant ne vaut plus pour cette mesure
     }
+    compare_on = compare;
     progress = 0;
     current_stage = Stage::preparing;
     last_status = Status::running;
     ++revisions;
 
-    const Status s = measure_belts(measurement.harmonic);
+    const Status s = measure_belts();
     last_status = s;
     ++revisions;
+}
+
+const Comparison &comparison() {
+    return compared_peaks;
+}
+
+uint8_t compared() {
+    return modes_done.load();
+}
+
+bool comparing() {
+    return compare_on.load();
 }
 
 void request_stop() {

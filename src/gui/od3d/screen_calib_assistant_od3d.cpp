@@ -25,7 +25,6 @@
 #include <client_response.hpp>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
-#include <feature/od3d/accel_cap_od3d.hpp>
 #include <feature/od3d/belt_tension_od3d.hpp>
 #include <feature/od3d/calib_assistant_od3d.hpp>
 #include <feature/od3d/damping_od3d.hpp>
@@ -107,7 +106,6 @@ namespace {
         rehome, ///< origine perdue en attendant : retirer l'accéléromètre, la refaire
         accel_run, ///< série des tests à l'accéléromètre
         belts_adjust, ///< courroies hors de la plage : réglage en direct proposé, accéléromètre encore fixé (retour du 23/11)
-        accel_apply, ///< accélération max utile mesurée : M201 proposé, appliqué seulement si l'utilisateur l'accepte
         detach, ///< « Retirez l'accéléromètre » (et remettez la chaussette) : rien ne chauffe avant « C'est fait »
         bed, ///< « Plateau vide et propre ? »
         cell_run, ///< MPC et mesures par bobine
@@ -128,7 +126,6 @@ namespace {
         uint16_t runs_at_start = 0;
         uint16_t checks_at_request = 0;
         bool belts_offered = false; ///< réglage en direct des courroies déjà proposé dans cette session
-        bool accel_offered = false; ///< M201 de l'accélération max utile déjà proposé dans cette session
         uint8_t skip_index = 0xff; ///< étape passée (« Passer »), redemandé tant qu'elle n'a pas commencé
         uint16_t skip_runs = 0; ///< série de cette étape
     };
@@ -371,38 +368,14 @@ namespace {
             && m.peaks[1].found && belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets()).verdict == belts::Verdict::adjust;
     }
 
-    /// Un plafond de M201 est en vigueur (accel_cap_od3d.hpp)
-    bool accel_capped() {
-        const auto cap = accel_cap::get();
-        return cap[0] > 0 || cap[1] > 0;
-    }
-
-    /// L'accélération max utile vient d'être mesurée, différente sur un axe au moins du plafond en vigueur (sans
-    /// plafond : la limite de Prusa, le plus haut palier essayé), pas encore proposée
-    bool accel_to_offer() {
-        const auto &a = assistant::numbers_after(Test::accel_limit);
-        if (flow.accel_offered || !(flow.started & test_bit(Test::accel_limit)) || assistant::result(Test::accel_limit) != Result::ok) {
-            return false;
-        }
-        const auto cap = accel_cap::get();
-        for (uint8_t i = 0; i < 2; ++i) {
-            if (a[i] != calib_registry::no_value && a[i] != (cap[i] > 0 ? cap[i] : int16_t(accel_limit::last().top[i]))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /// Fin d'une série à l'accéléromètre : réglage en direct des courroies proposé, puis les autres tests à
-    /// l'accéléromètre, puis M201 proposé, puis « Retirez l'accéléromètre »
+    /// l'accéléromètre, puis « Retirez l'accéléromètre » (l'accélération max utile n'est qu'une information : V-01)
     void after_accel_part() {
         if (!flow.cancelled && belts_out_of_range()) {
             flow.belts_offered = true;
             flow.stage = Stage::belts_adjust;
         } else if (!flow.cancelled && (flow.mask & cold_tests() & ~flow.started)) {
             run_part(true);
-        } else if (!flow.cancelled && accel_to_offer()) {
-            flow.stage = Stage::accel_apply;
         } else {
             flow.stage = Stage::detach; // aussi après « Annuler » : l'accéléromètre est encore sur la buse
         }
@@ -430,7 +403,6 @@ namespace {
         flow.mask = mask;
         flow.skip_index = 0xff;
         flow.belts_offered = false;
-        flow.accel_offered = false;
         flow.started = 0;
         flow.cancelled = flow.check_failed = false;
         if (!(mask & accel_tests())) {
@@ -468,7 +440,6 @@ namespace {
         case Stage::checking:
         case Stage::rehome:
         case Stage::belts_adjust:
-        case Stage::accel_apply:
             // Chaussette retirée, accéléromètre peut-être fixé : les remettre en ordre avant toute chauffe
             marlin_client::gcode("M107");
             flow.stage = Stage::detach;
@@ -482,6 +453,13 @@ namespace {
     /// Ce que montre une tuile
     /// Pastilles d'état (le mot est au détail, au toucher)
     constexpr Color dot_ok = style::filament_green; ///< vert de l'atelier
+    constexpr Color dot_measured = style::curve_blue; ///< mesuré, mais la mesure n'est pas validée : ni réussi ni échoué
+
+    /// Un test réussi dont la mesure n'est pas encore validée sur la machine (V-03 : courroies, advice_validated)
+    bool unvalidated(Test test) {
+        return test == Test::belts && !belts::advice_validated;
+    }
+
     struct TileView {
         std::optional<Color> dot; ///< pas de pastille : test sans objet ici
         Button::Look look = Button::Look::card; ///< alert : échec ; secondary : en cours
@@ -499,17 +477,16 @@ namespace {
         }
         if (flow.stage == Stage::propose) { // coché : orange ; décoché : vert si déjà fait, gris sinon ; le toucher coche ou décoche
             const bool done = (e.needs & calib_registry::filament) ? !calib_registry::spools_to_measure(e.test, ctx, false) : !calib_registry::outdated(e, record);
-            return { (flow.mask & b) ? style::accent : (done ? dot_ok : style::text_muted), Button::Look::card, true };
+            return { (flow.mask & b) ? style::accent : (done ? (unvalidated(e.test) ? dot_measured : dot_ok) : style::text_muted), Button::Look::card, true };
         }
-        if (!(flow.session & b)) { // à faire : orange ; à jour : gris ; bilan : plafond de M201 à voir et à retirer
-            return { calib_registry::outdated(e, record) ? style::accent : style::text_muted, Button::Look::card,
-                flow.stage == Stage::summary && e.test == Test::accel_limit && accel_capped() };
+        if (!(flow.session & b)) { // à faire : orange ; à jour : gris
+            return { calib_registry::outdated(e, record) ? style::accent : style::text_muted };
         }
         const bool summary = flow.stage == Stage::summary;
         if (flow.started & b) {
             switch (assistant::result(e.test)) {
-            case Result::ok:
-                return { dot_ok, Button::Look::card, summary }; // bilan : ses chiffres
+            case Result::ok: // bilan : ses chiffres
+                return { unvalidated(e.test) ? dot_measured : dot_ok, Button::Look::card, summary };
             case Result::failed:
                 return { style::danger, Button::Look::alert, summary };
             case Result::skipped:
@@ -697,6 +674,9 @@ namespace {
         case fan_response::Status::stopped:
             line(N_("Part fan rise time: stopped before the end."));
             break;
+        case fan_response::Status::hot_nozzle:
+            line(N_("Let the nozzle cool below 50°C, then start again."));
+            break;
         default:
             break;
         }
@@ -781,14 +761,20 @@ namespace {
             }
             break;
         case Test::belts: {
-            w.label(N_("Belts:"));
-            pair(a, "AB", 10, " Hz");
-            if (a[0] != none && a[1] != none) {
-                w.add(", A-B %.1f Hz", std::abs(a[0] - a[1]) / 10.0);
-            }
-            if (any(b, 0, 2)) {
-                w.label(N_("Before:"));
-                pair(b, "AB", 10, " Hz");
+            if (belts::compared()) { // V-03 : les pics de chaque mode, ceux de la mesure habituelle compris
+                static char peaks[288]; // titre et quatre modes, en français avec des pics à trois chiffres
+                belt_peaks_text(peaks);
+                w.add("%s", peaks);
+            } else {
+                w.label(N_("Belts:"));
+                pair(a, "AB", 10, " Hz");
+                if (a[0] != none && a[1] != none) {
+                    w.add(", A-B %.1f Hz", std::abs(a[0] - a[1]) / 10.0);
+                }
+                if (any(b, 0, 2)) {
+                    w.label(N_("Before:"));
+                    pair(b, "AB", 10, " Hz");
+                }
             }
             if (belts::advice_validated) {
                 const belts::Targets t = belts::targets();
@@ -820,7 +806,7 @@ namespace {
             break;
         case Test::speed_map:
             w.label(N_("Critical speeds:"));
-            w.add("%d (X %d, Y %d)", int(a[0]), int(a[1]), int(a[2]));
+            w.add("%d (X %d, Y %d), %d-%d mm/s", int(a[0]), int(a[1]), int(a[2]), int(speed_map::speed_start), int(speed_map::speed_end));
             if (b[0] != none) {
                 w.label(N_("Before:"));
                 w.add("%d", int(b[0]));
@@ -1014,24 +1000,35 @@ namespace {
     /// Bilan : réussites, échecs, puis les gains principaux en une ligne. brief : la seule ligne de compte, pour la
     /// ligne de texte de l'écran ; le bilan complet s'ouvre par « Bilan »
     void build_summary(Writer &w, bool brief = false) {
-        int ok = 0, failed = 0, skipped = 0;
+        int ok = 0, failed = 0, skipped = 0, measured = 0;
         for (const Entry &e : entries) {
             if (!(flow.session & test_bit(e.test)) || !e.automatic) {
                 continue;
             }
             const Result r = (flow.started & test_bit(e.test)) ? assistant::result(e.test) : Result::skipped; // décoché
-            ok += r == Result::ok;
+            const bool neutral = r == Result::ok && unvalidated(e.test); // V-03 : ni réussi ni échoué
+            ok += r == Result::ok && !neutral;
+            measured += neutral;
             failed += r == Result::failed;
             skipped += r == Result::skipped || r == Result::none;
         }
         char format[96];
+        const auto add_measured = [&] {
+            if (measured) {
+                _("%d measured, not validated.").copyToRAM(format, sizeof(format));
+                w.add(" ");
+                w.add(format, measured);
+            }
+        };
         if (brief) {
             _("Finished: %d OK, %d failed, %d skipped.").copyToRAM(format, sizeof(format));
             w.add(format, ok, failed, skipped);
+            add_measured();
             return;
         }
         _("Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers.").copyToRAM(format, sizeof(format));
         w.add(format, ok, failed, skipped);
+        add_measured();
         bool first = true;
         const auto next = [&](const char *msgid) {
             w.add(first ? "\n" : ", ");
@@ -1053,6 +1050,10 @@ namespace {
         if (const auto &a = assistant::numbers_after(Test::belts); done(Test::belts) && a[0] != none && a[1] != none) {
             next(N_("belts"));
             w.add(" %.1f/%.1f Hz", a[0] / 10.0, a[1] / 10.0);
+            if (unvalidated(Test::belts)) {
+                w.add(" ");
+                w.text(N_("(not validated)"));
+            }
         }
         if (done(Test::max_flow)) {
             const auto &a = assistant::numbers_after(Test::max_flow);
@@ -1251,24 +1252,8 @@ namespace {
         Writer w(text);
         build_details(test, w);
         const bool can_retry = assistant::result(test) != Result::ok;
-        // Accélération max utile : le plafond de M201 en vigueur, à retirer avec confirmation (comme « Effacer » du PA)
-        const bool cap = test == Test::accel_limit && accel_capped();
-        if (test == Test::accel_limit) {
-            const auto c = accel_cap::get();
-            w.label(N_("M201 cap in force, prints included:"));
-            if (cap) {
-                w.add("X %d, Y %d mm/s2", int(std::max<int16_t>(c[0], 0)), int(std::max<int16_t>(c[1], 0))); // 0 : cet axe sans plafond
-            } else {
-                w.text(N_("none"));
-            }
-        }
-        const PhaseResponses responses = can_retry ? PhaseResponses { Response::Retry, cap ? Response::Remove : Response::Ok, cap ? Response::Ok : Response::_none, Response::_none }
-                                                   : (cap ? PhaseResponses { Response::Remove, Response::Ok, Response::_none, Response::_none } : Responses_Ok);
-        const Response r = MsgBoxInfo(string_view_utf8::MakeRAM(text), responses, (can_retry ? 1 : 0) + (cap ? 1 : 0)); // « OK » par défaut
-        if (r == Response::Remove && MsgBoxQuestion(_("Remove the acceleration cap? Prints get their own M201 again."), Responses_YesNo, 1) == Response::Yes) {
-            accel_cap::set(0, 0);
-        }
-        return r == Response::Retry;
+        const PhaseResponses responses = can_retry ? PhaseResponses { Response::Retry, Response::Ok, Response::_none, Response::_none } : Responses_Ok;
+        return MsgBoxInfo(string_view_utf8::MakeRAM(text), responses, can_retry ? 1 : 0) == Response::Retry; // « OK » par défaut
     }
 
     template <size_t... I>
@@ -1529,8 +1514,7 @@ void ScreenCalibAssistant::show() {
     switch (flow.stage) {
     case Stage::idle:
     case Stage::propose: {
-        // Une ligne (retour du 24/11) : les deux séries et leur durée ; les K déjà mesurés sont au détail du PA, le
-        // plafond de M201 à celui de « Accél. max »
+        // Une ligne (retour du 24/11) : les deux séries et leur durée ; les K déjà mesurés sont au détail du PA
         const uint32_t cold = flow.mask & cold_tests(), heat = flow.mask & heat_tests();
         text = !flow.mask ? _("Nothing to calibrate. Touch a test to add it.")
             : flow.boot   ? _("New in this firmware: %d tests, ~%d min").formatted(info_params, std::popcount(flow.mask), int(calib_registry::minutes(flow.mask, ctx, redo_tests())))
@@ -1580,13 +1564,6 @@ void ScreenCalibAssistant::show() {
         snprintf(b, sizeof(b), "%.1f", double(m.peaks[1].frequency));
         text = _("Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, accelerometer still on, then Continue.")
                    .formatted(info_params, a, b, int(t.result_min), int(t.result_max));
-        break;
-    }
-    case Stage::accel_apply: {
-        const auto &a = assistant::numbers_after(Test::accel_limit);
-        const auto &top = accel_limit::last().top; // axe non concluant : pas de plafond, la limite de Prusa
-        text = _("Max useful accel. X %d, Y %d mm/s2. Cap M201 there, prints included and after restart? Keep: no cap.")
-                   .formatted(info_params, int(a[0] == none ? top[0] : a[0]), int(a[1] == none ? top[1] : a[1]));
         break;
     }
     case Stage::detach:
@@ -1652,9 +1629,6 @@ void ScreenCalibAssistant::show() {
         break;
     case Stage::belts_adjust:
         s = { N_("Adjust live"), N_("Continue"), N_("Cancel") };
-        break;
-    case Stage::accel_apply:
-        s = { N_("Apply"), N_("Keep"), N_("Cancel") };
         break;
     case Stage::detach:
         s = { N_("It's done") };
@@ -1767,31 +1741,6 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
             open_belts_live(); // l'écran des courroies, en direct ; « Continuer » ici quand c'est réglé
         } else if (tag == tag_b) {
             assistant::recapture(Test::belts); // le bilan et la prochaine fois : les fréquences après réglage
-            after_accel_part();
-        } else {
-            cancel();
-        }
-        break;
-    case Stage::accel_apply:
-        if (tag == tag_a || tag == tag_b) {
-            // « Appliquer » : plafond des axes concluants, gardé, et M201 tout de suite ; « Conserver » : sans plafond
-            const auto &a = assistant::numbers_after(Test::accel_limit);
-            const auto kept = [&](uint8_t i) {
-                return uint16_t(tag == tag_a && a[i] != none ? a[i] : 0);
-            };
-            accel_cap::set(kept(0), kept(1));
-            if (tag == tag_a) {
-                char gcode[32];
-                Writer g(gcode);
-                g.add("M201");
-                for (uint8_t i = 0; i < 2; ++i) {
-                    if (kept(i)) {
-                        g.add(" %c%d", "XY"[i], int(kept(i)));
-                    }
-                }
-                marlin_client::gcode(gcode);
-            }
-            flow.accel_offered = true;
             after_accel_part();
         } else {
             cancel();

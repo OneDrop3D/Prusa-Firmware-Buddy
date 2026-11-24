@@ -65,6 +65,9 @@ namespace {
         if (marlin_server::is_printing() || !marlin_server::printer_idle()) {
             return Status::printing;
         }
+        if (Temperature::degHotend(0) > max_nozzle_temperature || Temperature::degTargetHotend(0) > max_nozzle_temperature) {
+            return Status::hot_nozzle; // V-09 : comme vibration::refused()
+        }
         const uint8_t saved = Temperature::get_print_fan_speed();
         ScopeGuard restore = [saved] {
             sampling_on = false;

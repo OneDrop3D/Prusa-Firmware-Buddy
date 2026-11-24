@@ -80,21 +80,26 @@ float median(std::span<const float> values) {
 
 size_t find_critical(std::span<const float> values, float factor, float min_value, std::span<uint8_t> out) {
     const size_t n = std::min<size_t>(values.size(), 64);
-    if (n == 0 || out.empty()) {
+    if (n < 3 || out.empty()) {
         return 0;
     }
-    const float threshold = std::max(factor * median(values.first(n)), min_value);
     std::array<uint8_t, 64> peaks;
     size_t count = 0;
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i = 1; i + 1 < n; ++i) { // un bord n'est pas un sommet
         const float v = values[i];
-        if (!std::isfinite(v) || !(v > threshold)) {
+        // Sommet : plus haut que le voisin de gauche, au moins autant que celui de droite (un plateau compte une fois)
+        if (!std::isfinite(v) || !(v > min_value) || values[i - 1] >= v || values[i + 1] > v) {
             continue;
         }
-        // Sommet : plus haut que le voisin de gauche, au moins autant que celui de droite (un plateau compte une fois)
-        const bool left_ok = i == 0 || !(values[i - 1] >= v);
-        const bool right_ok = i + 1 == n || !(values[i + 1] > v);
-        if (left_ok && right_ok) {
+        std::array<float, 2 * local_neighbours> around;
+        size_t m = 0;
+        for (size_t j = i > local_neighbours ? i - local_neighbours : 0; j < n && j <= i + local_neighbours; ++j) {
+            if (j != i) {
+                around[m++] = values[j];
+            }
+        }
+        const float base = median(std::span<const float>(around.data(), m)); // les voisines finies seulement
+        if (base > 0.f && v > factor * base) {
             peaks[count++] = uint8_t(i);
         }
     }

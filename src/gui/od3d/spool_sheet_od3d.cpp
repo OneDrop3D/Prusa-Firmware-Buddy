@@ -281,12 +281,10 @@ namespace {
             calibrate.set(pa_look, _("Calibrate PA"));
         }
 
-        // « Reste 350 g » (SPEC_G.md §3.3) quand le poids est suivi : ouvre l'utilisation, où il se corrige après une pesée
-        if (const auto report = spool_usage::report(index)) {
-            usage.set(Button::Look::secondary, _("Left %d g").formatted(usage_params, int(report->remaining_g)), &img::spool_16x16);
-            if (report->low()) {
-                usage.set_look(Button::Look::alert);
-            }
+        // Le reste est déjà écrit en haut de la fiche (« ~119 g ») : le bouton garde « Utilisation » (retour du 24/11,
+        // « Reste 119 g » le répétait), en jaune quand la bobine passe sous son seuil d'alerte
+        if (const auto report = spool_usage::report(index); report && report->low()) {
+            usage.set_look(Button::Look::alert);
         }
 
         if (!type) {

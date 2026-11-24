@@ -1025,11 +1025,15 @@ void HeaderTitle::windowEvent(window_t *sender, GUI_event_t event, void *param) 
 
 void HeaderTitle::unconditionalDraw() {
     if (!showing_notice) {
-        // Police normale (retour du 23/11 : l'en-tête trop petit) ; un titre trop long finit par « ... » au lieu d'être coupé net
+        // Police normale (retour du 23/11 : l'en-tête trop petit). Un titre qui n'y tient pas passe en petite police
+        // plutôt que d'être coupé (photos du 24/11 : « Fonctions One... », « Déplacer les ... », « Attribution de f... ») ;
+        // encore trop long, il finit par « ... » au lieu d'être coupé net
         std::array<char, 64> shown;
         GetText().copyToRAM(shown.data(), shown.size());
-        text::ellipsize(shown.data(), GetRect().Width() / width(Font::normal));
-        draw_text(GetRect(), string_view_utf8::MakeRAM(shown.data()), Font::normal, style::text, GetBackColor());
+        const uint16_t chars = string_view_utf8::MakeRAM(shown.data()).computeNumUtf8Chars();
+        const Font font = chars * width(Font::normal) <= GetRect().Width() ? Font::normal : Font::small;
+        text::ellipsize(shown.data(), GetRect().Width() / width(font));
+        draw_text(GetRect(), string_view_utf8::MakeRAM(shown.data()), font, style::text, GetBackColor());
         return;
     }
     // Deux lignes centrées en hauteur, chaque pixel peint une fois : bande du haut, lignes (fond compris), bande du bas

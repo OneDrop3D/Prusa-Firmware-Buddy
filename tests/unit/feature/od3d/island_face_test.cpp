@@ -13,8 +13,6 @@ TEST_CASE("island: rien à montrer") {
 TEST_CASE("island: priorité processus > impression > chargement > attente > préchauffage") {
     Inputs in;
     in.process = Face { .kind = Kind::process, .slot = 2, .process = Process::pa, .stage = Stage::heating };
-    in.print_fsm = true;
-    in.print_percent = 60;
     in.filament_minimized = true;
     in.filament_percent = 45;
     in.wait_minimized = true;
@@ -27,6 +25,8 @@ TEST_CASE("island: priorité processus > impression > chargement > attente > pr�
     CHECK(f.slot == 2);
 
     in.process = {};
+    in.print_fsm = true;
+    in.print_percent = 60;
     CHECK(choose(in).kind == Kind::print);
 
     in.print_fsm = false;
@@ -54,12 +54,21 @@ TEST_CASE("island: processus") {
         in.on_process_screen = true;
         CHECK(choose(in).kind == Kind::none);
     }
-    SECTION("pendant une impression (PA automatique) : le processus d'abord") {
+    SECTION("pendant une impression (PA automatique) : l'impression, qui mène à son « Arrêter » (retour du 24/11)") {
         in.print_fsm = true;
         in.print_percent = 3;
-        CHECK(choose(in).kind == Kind::process);
-        in.on_process_screen = true;
+        CHECK(choose(in).kind == Kind::print);
+        in.on_process_screen = true; // l'écran PA n'arrête pas l'impression
+        CHECK(choose(in).kind == Kind::print);
+        in.on_process_screen = false;
+        in.on_print_screen = true; // sa ligne du bas montre l'étape de la mesure
+        in.wait_minimized = true; // le « Patientez » réduit de son palpage n'y apparaît pas
         CHECK(choose(in).kind == Kind::none);
+    }
+    SECTION("après l'impression (pastille d'impression cachée), le processus revient") {
+        in.print_fsm = true;
+        in.print_not_started = true;
+        CHECK(choose(in) == in.process);
     }
 }
 

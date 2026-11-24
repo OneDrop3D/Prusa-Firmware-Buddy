@@ -10241,12 +10241,12 @@ msgstr "Annuler"
 #: src/gui/od3d/screen_spool_od3d.cpp
 #, c-format
 msgid "Remove spool %d"
-msgstr "Retire la bobine %d"
+msgstr "Retirez la bobine %d"
 
 #: src/gui/od3d/screen_spool_od3d.cpp
 #, c-format
 msgid "The MMU pulled the filament out of input %d. Remove the spool, then press."
-msgstr "Le MMU a reculé le filament hors de l'entrée %d. Retire la bobine, puis appuie."
+msgstr "Le MMU a reculé le filament hors de l'entrée %d. Retirez la bobine, puis appuyez."
 
 #: src/gui/od3d/screen_spool_od3d.cpp
 msgid "It's done"
@@ -10254,12 +10254,12 @@ msgstr "C'est fait"
 
 #: src/gui/od3d/screen_spool_od3d.cpp
 msgid "Insert the new spool"
-msgstr "Insère la nouvelle bobine"
+msgstr "Insérez la nouvelle bobine"
 
 #: src/gui/od3d/screen_spool_od3d.cpp
 #, c-format
 msgid "Push the filament into input %d: the MMU grabs it by itself."
-msgstr "Pousse le filament dans l'entrée %d : le MMU l'attrape seul."
+msgstr "Poussez le filament dans l'entrée %d : le MMU l'attrape seul."
 
 #: src/gui/od3d/screen_spool_od3d.cpp
 #, c-format

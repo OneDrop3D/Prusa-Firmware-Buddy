@@ -287,13 +287,40 @@ bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filam
 /// se pose sur une place que le palpage ne touchera plus
 bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first = false);
 
-/// Après la mesure automatique, consigne de la buse que le G-code de départ demande (requested) : la consigne actuelle
-/// (current) est gardée si la demande est plus basse de plus de start_hold_margin (palpage à 170 °C, température de
-/// veille du MMU) : la buse ne refroidit pas pour remonter juste après (retour du 24/11 : « passe après le PA de 230 à
-/// 170 puis va remonter, c'est une grosse perte de temps ») ; le palpage se fait chaud, comme Prusa pour le PC et le PA
-inline constexpr int16_t start_hold_margin = 20;
-constexpr int16_t start_hold_target(int16_t requested, int16_t current) {
-    return requested + start_hold_margin < current ? current : requested;
+/// Après la mesure automatique, la buse reste chaude pendant le G-code de départ (retour du 24/11 : « passe après le PA
+/// de 230 à 170 puis va remonter, c'est une grosse perte de temps ») : seules ses consignes de palpage et d'attente
+/// (M109 R170, M104 S100 : de 1 à start_hold_below − 1 °C, sous la consigne actuelle) sont ignorées, et le filament
+/// recule contre le suintement pendant le palpage chaud (décision du 24/11 : « au lieu de revenir a 170, il faudrait
+/// juste rétracter le filament »). Toute autre demande (impression, 0) est suivie et lève le verrou (N-01, M-03).
+inline constexpr int16_t start_hold_below = 180;
+/// Recul en plus du G1 E-2 du G-code de départ : 8 mm en tout, la rétraction de parking de Prusa (STANDARD_RETRACT_LENGTH)
+/// pour une buse qui attend chaude. shortcut: à régler sur la machine, d'après le suintement sur les points palpés
+inline constexpr float start_hold_retract_mm = 6.f;
+
+struct StartHold {
+    bool active = false; ///< mesure automatique faite, chauffe d'impression pas encore demandée
+    bool retracted = false; ///< filament reculé de start_hold_retract_mm
+};
+
+struct HoldStep {
+    int16_t target; ///< consigne à poser
+    float e_mm; ///< filament à bouger en plus [mm], sans changer sa position logique (négatif : recul)
+};
+
+/// Demande de consigne requested (M104 S, M109 S/R), consigne actuelle current ; can_retract : filament dans la buse,
+/// buse assez chaude, pas un flexible. Le filament recule une fois, à une demande ignorée, et revient à la levée.
+constexpr HoldStep start_hold_step(StartHold &hold, int16_t requested, int16_t current, bool can_retract) {
+    if (!hold.active) {
+        return { requested, 0.f };
+    }
+    if (requested > 0 && requested < start_hold_below && requested < current) {
+        const bool retract = can_retract && !hold.retracted;
+        hold.retracted = hold.retracted || retract;
+        return { current, retract ? -start_hold_retract_mm : 0.f };
+    }
+    const float back = hold.retracted ? start_hold_retract_mm : 0.f;
+    hold = {};
+    return { requested, back };
 }
 
 /// Fin de la mesure automatique : filament remis comme au départ. Vide si c'est déjà le cas ; M702 W2 (« Décharger »

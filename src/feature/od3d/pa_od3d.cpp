@@ -27,12 +27,15 @@
 #include <cstring>
 #include <feature/bedlevel/bedlevel.h>
 #include <feature/print_status_message/print_status_message_mgr.hpp>
+#include <feature/prusa/e-stall_detector.h>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <filament.hpp>
 #include <gcode_info.hpp>
 #include <i18n.h>
 #include <memory>
 #include <loadcell.hpp>
+#include <mapi/feedrates/standard_feedrates.hpp>
+#include <mapi/motion.hpp>
 #include <Marlin.h>
 #include <feature/pressure_advance/pressure_advance_config.hpp>
 #include <metric.h>
@@ -135,20 +138,54 @@ void on_tool_change() {
 }
 
 namespace {
-    bool hold_nozzle_hot = false; ///< mesure automatique faite : la buse garde sa consigne jusqu'à la chauffe d'impression
-}
+    StartHold start_hold; ///< mesure automatique faite : la buse garde sa consigne jusqu'à la chauffe d'impression
+
+    // Avec le G1 E-2 du G-code de départ, la rétraction de parking de Prusa
+    static_assert(start_hold_retract_mm + 2.f == float(STANDARD_RETRACT_LENGTH));
+
+    /// Le filament peut reculer : dans la buse, buse assez chaude, pas un flexible (comme l'auto-rétraction de Prusa)
+    [[gnu::noinline]] bool can_retract() {
+        const auto slot = loaded_slot();
+        return slot && !thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0))
+            && !FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(*slot)).parameters().is_flexible;
+    }
+
+    /// Filament reculé (mm < 0) ou remis aux vitesses de parking de Prusa, sa position logique inchangée (comme
+    /// AutoRetract::maybe_deretract_to_nozzle) : le G-code de départ la retrouve telle quelle, en E relatif comme absolu
+    [[gnu::noinline]] void hidden_e_move(float mm) {
+        if (mm == 0.f || planner.draining()) {
+            return;
+        }
+        planner.synchronize();
+        const float e = current_position.e;
+        const float e_planner = planner.get_axis_position_mm(E_AXIS_N(active_extruder));
+        {
+            BlockEStallDetection no_stall;
+            using buddy::standard_feedrates::Extruder;
+            mapi::extruder_move(mm, buddy::standard_feedrates::current_extruder(mm < 0.f ? Extruder::retract : Extruder::deretract));
+            planner.synchronize();
+        }
+        current_position.e = e;
+        planner.set_e_position_mm(e_planner);
+    }
+} // namespace
 
 int16_t start_nozzle_target(int16_t requested) {
-    if (!hold_nozzle_hot) {
+    if (!start_hold.active) {
         return requested;
     }
-    const int16_t target = start_hold_target(requested, int16_t(Hotend::for_tool(PhysicalToolIndex::from_raw(0)).nozzle_target_temp()));
-    hold_nozzle_hot = marlin_server::is_printing() && target != requested; // demande suivie : le départ est fini
-    return marlin_server::is_printing() ? target : requested;
+    if (!marlin_server::is_printing()) {
+        start_hold = {}; // impression finie ou arrêtée : plus rien à garder ni à remettre
+        return requested;
+    }
+    const int16_t current = int16_t(Hotend::for_tool(PhysicalToolIndex::from_raw(0)).nozzle_target_temp());
+    const HoldStep step = start_hold_step(start_hold, requested, current, can_retract());
+    hidden_e_move(step.e_mm);
+    return step.target;
 }
 
 void on_print_start(bool from_file) {
-    hold_nozzle_hot = false;
+    start_hold = {};
     // Pas de changement du PA ici (boucle du serveur : on ne vide pas les files) ; le T du début du G-code ou le
     // premier M572 posent le K de l'emplacement
     slicer_requested = NAN;
@@ -961,7 +998,7 @@ namespace {
             }
         } else {
             plan.active = false;
-            hold_nozzle_hot = plan.leveled; // la buse est chaude : le G-code de départ ne la fait pas redescendre
+            start_hold = { .active = plan.leveled }; // la buse est chaude : le G-code de départ ne la fait pas redescendre
             ok = auto_restore_sequence(sequence, plan.initial, loaded_slot(), plan.initial ? filament_param(*plan.initial, filament) : "");
             if (plan.initial != loaded_slot() && plan.leveled && plan.count) {
                 spot = auto_load_spot(plan.count - 1, true);

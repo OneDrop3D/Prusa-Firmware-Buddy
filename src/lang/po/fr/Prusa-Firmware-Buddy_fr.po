@@ -11324,21 +11324,6 @@ msgstr "Essai, buse froide\nTapez 3 fois sous la buse"
 msgid "Bed lowered, nozzle cold: for 60 s, tap the nozzle tip upward 3 times, sharply, with a wooden stick. \"Last hit\" shows each force; the collision message then appears on the home screen."
 msgstr "Plateau descendu, buse froide : pendant 60 s, tapez 3 fois la pointe de la buse vers le haut, d'un coup sec, avec un bâtonnet en bois. \"Dernier choc\" affiche chaque force ; le message de collision apparaît ensuite à l'accueil."
 
-#: src/gui/od3d/widgets_od3d.cpp
-#, c-format
-msgid "Collision test: %d hits at the same spot. Detection works."
-msgstr "Essai collision : %d chocs au même endroit. La détection fonctionne."
-
-#: src/gui/od3d/widgets_od3d.cpp
-#, c-format
-msgid "Collision: %d hits near X %d, Y %d mm. Print paused: check the part, then resume or stop."
-msgstr "Collision : %d chocs près de X %d, Y %d mm. Impression en pause : vérifiez la pièce, puis reprenez ou arrêtez."
-
-#: src/gui/od3d/widgets_od3d.cpp
-#, c-format
-msgid "Collision: %d hits near X %d, Y %d mm. The print goes on."
-msgstr "Collision : %d chocs près de X %d, Y %d mm. L'impression continue."
-
 #: src/feature/od3d/pa_od3d.cpp
 #, c-format
 msgid "Slot %d PA measured: K = %s"
@@ -12956,3 +12941,46 @@ msgstr "Vibrations des ventilateurs : arrêtées avant la fin."
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "No force: the nozzle did not touch the bed."
 msgstr "Aucune force : la buse n'a pas touché le plateau."
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid ""
+"Collision test\n"
+"%d hits seen"
+msgstr ""
+"Essai collision\n"
+"%d chocs vus"
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid ""
+"Hit X%d Y%d\n"
+"print paused"
+msgstr ""
+"Choc X%d Y%d\n"
+"mise en pause"
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid ""
+"Hit X%d Y%d\n"
+"print goes on"
+msgstr ""
+"Choc X%d Y%d\n"
+"pas de pause"
+
+#: src/gui/dialogs/DialogHandler.cpp
+msgid ""
+"Print\n"
+"finished"
+msgstr ""
+"Impression\n"
+"terminée"
+
+#: src/gui/dialogs/DialogHandler.cpp
+msgid ""
+"Print\n"
+"stopped"
+msgstr ""
+"Impression\n"
+"arrêtée"

@@ -33,6 +33,8 @@
     #include <gui/od3d/island_od3d.hpp>
     #include <gui/od3d/dialog_wait_od3d.hpp>
     #include <gui/od3d/screen_calib_assistant_od3d.hpp>
+    #include <gui/od3d/widgets_od3d.hpp>
+    #include <i18n.h>
 #else
     #include <gui/screen/screen_filament_change.hpp>
 #endif
@@ -609,8 +611,18 @@ void DialogHandler::update_screen() {
     // OneDrop3D : impression terminée ou arrêtée dont l'écran n'est plus sur la pile (onglet, retour, fin pendant qu'on
     // était ailleurs) : fermée comme par son « Accueil », plus de pastille ni d'écran de fin qui revient (retour du
     // 24/11 : « aprés un aret ou la fin d'une impression si on a pas cliquer sur accueil on a toujour le pop up »)
+    // I-04 : un bandeau le dit, une fois (sinon elle disparaissait sans trace). Pas en Exit : on a déjà quitté l'écran de
+    // fin par son « Accueil ».
+    static bool end_noticed = false;
     if (FSMPrintDef<ClientFSM::Printing>::shown && od3d::print_ended() && !Screens::Access()->IsScreenOnStack<od3d::ScreenPrinting>()) {
+        const marlin_server::State state = marlin_vars().print_state;
+        if (!end_noticed && state != marlin_server::State::Exit) {
+            od3d::show_notice(state == marlin_server::State::Finished ? _("Print\nfinished") : _("Print\nstopped"));
+        }
+        end_noticed = true;
         marlin_client::print_exit(); // sans effet hors de Finished / Aborted
+    } else if (!od3d::print_ended()) {
+        end_noticed = false;
     }
 
     // OneDrop3D : écran de la machine à états fermé par nos onglets alors qu'elle continue (voir reopen_if_lost)

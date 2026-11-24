@@ -76,7 +76,7 @@ std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float valu
     std::optional<float> chosen;
     {
         ValueEditor editor(label, value, config, apply, unit, from.IsEmpty() ? frost::origin() : from); // avant que la feuille ne prenne la molette
-        Screens::Access()->gui_loop_until_dialog_closed();
+        loop_until_closed_or_fsm(); // I-01 : annulé si une machine à états de Prusa passe au-dessus
         if (editor.accepted) {
             chosen = editor.value;
         } else if (apply && editor.value != value) {

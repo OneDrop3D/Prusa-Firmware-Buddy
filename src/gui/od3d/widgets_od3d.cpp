@@ -417,15 +417,15 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             StringViewUtf8Parameters<16> params;
             show_notice(_("Spool %d: %d g\nrunning low").formatted(params, *slot + 1, usage ? int(usage->remaining_g) : 0));
         }
-        // F38 : chocs répétés au même endroit (la pause, si demandée, est déjà faite par le fil de Marlin)
+        // F38 : chocs répétés au même endroit (la pause, si demandée, est déjà faite par le fil de Marlin). En bandeau :
+        // une boîte de message cachait les écrans de Prusa (M600, fin de bobine) tant qu'elle restait ouverte (I-01)
         if (const auto hit = collision::take_alert()) {
             StringViewUtf8Parameters<24> params;
             if (hit->test) {
-                MsgBoxWarning(_("Collision test: %d hits at the same spot. Detection works.").formatted(params, int(hit->hits)), Responses_Ok);
+                show_notice(_("Collision test\n%d hits seen").formatted(params, int(hit->hits)));
             } else {
-                const string_view_utf8 text = hit->paused ? _("Collision: %d hits near X %d, Y %d mm. Print paused: check the part, then resume or stop.")
-                                                          : _("Collision: %d hits near X %d, Y %d mm. The print goes on.");
-                MsgBoxWarning(text.formatted(params, int(hit->hits), int(hit->x_mm), int(hit->y_mm)), Responses_Ok);
+                const string_view_utf8 text = hit->paused ? _("Hit X%d Y%d\nprint paused") : _("Hit X%d Y%d\nprint goes on");
+                show_notice(text.formatted(params, int(hit->x_mm), int(hit->y_mm)));
             }
         }
     }
@@ -1002,6 +1002,24 @@ namespace {
 void show_notice(const string_view_utf8 &text) {
     text.copyToRAM(notice_text.data(), notice_text.size());
     notice_since.reset();
+}
+
+namespace {
+    std::optional<ClientFSM> fsm_top_type() {
+        return marlin_vars().peek_fsm_states([](const auto &states) -> std::optional<ClientFSM> {
+            const auto top = states.get_top();
+            return top ? std::optional(top->fsm_type) : std::nullopt;
+        });
+    }
+} // namespace
+
+void loop_until_closed_or_fsm() {
+    const auto opened_over = fsm_top_type();
+    Screens::Access()->gui_loop_until_dialog_closed([opened_over] {
+        if (fsm_top_type() != opened_over) {
+            Screens::Access()->close_dialog(); // DialogHandler::Loop ouvre l'écran de Prusa au tour suivant
+        }
+    });
 }
 
 void HeaderTitle::windowEvent(window_t *sender, GUI_event_t event, void *param) {

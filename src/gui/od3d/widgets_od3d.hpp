@@ -384,6 +384,11 @@ private:
 /// du premier titre qui peut l'écrire en entier (la pastille raccourcit le titre). Une nouvelle alerte remplace l'ancienne.
 void show_notice(const string_view_utf8 &text);
 
+/// Boucle d'une fenêtre bloquante G (fiche de bobine, éditeur de valeur). DialogHandler::Loop n'y tourne pas : une
+/// machine à états de Prusa qui passe au-dessus (M600, fin de bobine, avertissement, erreur du MMU) n'avait pas d'écran
+/// tant que la fenêtre restait ouverte (audit I-01). La fenêtre se ferme dès que la machine du dessus change.
+void loop_until_closed_or_fsm();
+
 /// Titre de l'en-tête, en police normale, coupé avec « ... » à sa place ; il cède sa place à l'alerte de show_notice()
 class HeaderTitle : public window_text_t {
 public:

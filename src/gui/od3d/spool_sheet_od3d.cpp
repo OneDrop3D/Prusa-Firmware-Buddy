@@ -463,7 +463,7 @@ void open_sheet(uint8_t index) {
         const auto old_long_press = gui::knob::GetLongPressScreenAction();
         gui::knob::RegisterLongPressScreenAction([] { Screens::Access()->close_dialog(); });
         SpoolSheet sheet(index);
-        Screens::Access()->gui_loop_until_dialog_closed();
+        loop_until_closed_or_fsm(); // I-01 : fermée si une machine à états de Prusa passe au-dessus
         gui::knob::RegisterLongPressScreenAction(old_long_press);
         choice = sheet.choice;
     } // la fiche disparaît avant l'action

@@ -112,7 +112,7 @@ inline constexpr std::array entries {
     Entry { Test::max_flow, filament | empty_bed | flow_limit | heated, 3, 1, true },
     Entry { Test::min_temp, filament | empty_bed | heated, 7, 1, true },
     Entry { Test::skew, empty_bed | heated, 0, 1, false },
-    Entry { Test::fan_response, 0, 2, 2, true }, // à froid, sans besoin : série « Accéléromètre » ; v2 : vibrations
+    Entry { Test::fan_response, 0, 2, 3, true }, // à froid, sans besoin : série « Accéléromètre » ; v2 : vibrations ; v3 : période étalonnée (V-08)
     Entry { Test::e_jump, filament | heated, 1, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
     Entry { Test::mmu_speed, mmu | one_spool | heated, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
 };

@@ -54,10 +54,13 @@ namespace {
         return std::nullopt;
     }
 
+    /// Période supposée : la valeur de départ de M958 (LIS2DH12 à 1 344 Hz), tant que rien ne l'a étalonnée
+    constexpr float nominal_period = 1.f / 1344.f;
+
     /// Période d'échantillonnage étalonnée par la dernière mesure de Prusa (M1959, M1992...), sinon la nominale
     float sample_period(PrusaAccelerometer &accelerometer) {
         const auto p = vibrate_measure::maybe_calibrate_and_get_accelerometer_sample_period(accelerometer, false, [](float) -> vibrate_measure::Result<void> { return {}; });
-        return p.has_value() && p.value() > 0.f ? p.value() : 1.f / 1344.f;
+        return p.has_value() && p.value() > 0.f ? p.value() : nominal_period;
     }
 
     enum class Read : uint8_t {
@@ -374,6 +377,30 @@ namespace {
         return stop_requested.load() || planner.draining() || !marlin_server::printer_idle();
     }
 
+    /// V-08 : la période étalonnée, jamais la supposée (les bins sont à 0,5 % près : une puce à 1 300 Hz au lieu de
+    /// 1 344 décale le pic de 3 %, au bord de sa fenêtre). Sans mesure qui l'ait étalonnée depuis le démarrage (M958 la
+    /// garde ; M1959, M1992 l'étalonnent), étalonnée ici, une fois (~15 s) : référence et comparaison ont la vraie
+    /// période, d'un démarrage à l'autre
+    Status calibrated_period(PrusaAccelerometer &accelerometer, float &period) {
+        period = sample_period(accelerometer);
+        if (period != nominal_period) {
+            return Status::done;
+        }
+        live::set(N_("Accelerometer calibration"));
+        const auto p = vibrate_measure::maybe_calibrate_and_get_accelerometer_sample_period(accelerometer, true, [](float) -> vibrate_measure::Result<void> {
+            if (must_stop()) {
+                return std::unexpected(vibrate_measure::Error::aborted);
+            }
+            idle(true);
+            return {};
+        });
+        if (!p.has_value() || !(p.value() > 0.f)) {
+            return must_stop() ? Status::stopped : Status::failed;
+        }
+        period = p.value();
+        return Status::done;
+    }
+
     /// Attend ms en vidant la file de l'accéléromètre ; à partir de from_ms : régime du ventilateur et moyenne des
     /// échantillons (pesanteur, retirée avant la transformée)
     Status settle(fan_selftest::FanHandler *fan, uint32_t ms, uint32_t from_ms, PrusaAccelerometer &accelerometer, std::array<float, 3> &mean) {
@@ -504,7 +531,10 @@ namespace {
         }
 
         PrusaAccelerometer accelerometer;
-        const float period = sample_period(accelerometer);
+        float period;
+        if (const Status s = calibrated_period(accelerometer, period); s != Status::done) {
+            return s;
+        }
         std::array<float, 3> mean;
         live::set(N_("All fans off, waiting for them to stop"));
         if (const Status s = settle(nullptr, spin_down_ms, spin_down_ms, accelerometer, mean); s != Status::done) {
@@ -557,10 +587,11 @@ namespace {
             }
         }
 
-        // Références gardées dans la case du ventilateur (OD3D Calib Values) : [0], [1] restent ceux du temps de montée
+        // Références gardées dans la case du ventilateur (OD3D Calib Values) : [0], [1] restent ceux du temps de montée ;
+        // [3] marqué : prises à la période étalonnée (V-08)
         auto values = config_store().od3d_calib_values.get(values_index);
         values.v[2] = pack(codes[0], codes[1]);
-        values.v[3] = pack(codes[2], codes[3]);
+        values.v[3] = int16_t(pack(codes[2], codes[3]) | calibrated_mark);
         config_store().od3d_calib_values.set(values_index, values);
         return Status::done;
     }

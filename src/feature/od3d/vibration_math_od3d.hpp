@@ -145,8 +145,13 @@ std::optional<float> decode(uint8_t code);
 int16_t pack(uint8_t low, uint8_t high);
 uint8_t unpack(int16_t packed, bool high);
 
-/// Les codes des quatre ventilateurs depuis [2] et [3] de la case du ventilateur : M2001 V écrit toujours [3] (jamais
-/// no_value). [3] à no_value : version 1 du test, dont [2] gardait le régime : aucune référence
+/// Marque de [3] : références prises à la période d'échantillonnage étalonnée (V-08, version 3 du test) ; le bit 7 de
+/// l'octet bas, libre (codes sur 7 bits). M2001 V écrit toujours [3] avec elle.
+inline constexpr int16_t calibrated_mark = 0x80;
+
+/// Les codes des quatre ventilateurs depuis [2] et [3] de la case du ventilateur. [3] sans calibrated_mark : aucune
+/// référence (no_value : version 1, dont [2] gardait le régime ; sans la marque : version 2, à la période supposée,
+/// décalée de quelques %) ; la prochaine mesure captée la reprend
 std::array<uint8_t, 4> unpack_references(int16_t v2, int16_t v3);
 
 // ---- Pose de l'accéléromètre (M2005, retour du 24/11 : « calibration automatique » de l'accéléromètre) ----

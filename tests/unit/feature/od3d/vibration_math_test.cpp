@@ -239,9 +239,27 @@ TEST_CASE("vibration: reference codes packed in the calibration values") {
     // Version 1 du test : [2] gardait le régime (5 500 tr/min), [3] jamais écrit : pas pris pour des références
     CHECK(unpack_references(5500, od3d::calib_registry::no_value) == std::array<uint8_t, 4> {});
     // Écrites par M2001 V : [3] jamais no_value, même sans ventilateur de chambre
-    const int16_t chamber = pack(0, 0);
+    const int16_t chamber = int16_t(pack(0, 0) | calibrated_mark);
     CHECK(chamber != od3d::calib_registry::no_value);
     CHECK(unpack_references(p, chamber) == std::array<uint8_t, 4> { encode(0.05f), encode(30.f), 0, 0 });
+    // La marque n'entre pas dans les codes de la chambre
+    const int16_t both = int16_t(pack(encode(0.2f), encode(1.f)) | calibrated_mark);
+    CHECK(unpack_references(p, both) == std::array<uint8_t, 4> { encode(0.05f), encode(30.f), encode(0.2f), encode(1.f) });
+}
+
+TEST_CASE("vibration (V-08): references taken before the calibrated period are dropped") {
+    // Version 2 : [3] sans la marque, références prises à la période supposée (1/1 344 s) : ignorées, la prochaine
+    // mesure captée devient la référence, à la période étalonnée
+    const int16_t fans = pack(encode(0.05f), encode(30.f));
+    CHECK(unpack_references(fans, pack(encode(0.2f), encode(1.f))) == std::array<uint8_t, 4> {});
+    CHECK(unpack_references(fans, pack(0, 0)) == std::array<uint8_t, 4> {});
+    // Gardées telles quelles d'un démarrage à l'autre (config_store) : relues à l'identique
+    const int16_t chamber = int16_t(pack(encode(0.2f), 0) | calibrated_mark);
+    const auto refs = unpack_references(fans, chamber);
+    REQUIRE(decode(refs[0]));
+    CHECK(*decode(refs[0]) == Approx(0.05f).epsilon(0.05));
+    CHECK(compare(FanLevel { 0.05f, true }, decode(refs[0])) == Verdict::ok);
+    CHECK(refs[3] == 0); // second ventilateur de la chambre absent : pas de référence
 }
 
 TEST_CASE("od3d accel mount: tilt of the gravity vector, either way up") {

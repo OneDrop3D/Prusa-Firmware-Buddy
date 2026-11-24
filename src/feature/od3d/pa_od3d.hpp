@@ -2,9 +2,9 @@
 /// OneDrop3D (F4, première étape) : pressure advance par emplacement du MMU, mesuré par la cellule de charge.
 ///
 /// - Mémoire : un K par emplacement (config_store « OD3D PA Slot »), effacé quand on change la bobine dans
-///   l'assistant de l'Atelier ; réglage général « le PA de l'imprimante prime » (« OD3D PA Printer Wins », coupé par
-///   défaut) : K est appliqué à chaque changement d'outil et le M572 / M900 du trancheur est alors ignoré pour un
-///   emplacement qui a un K (gardé pour un emplacement sans K).
+///   l'assistant de l'Atelier ; réglage général « le PA de l'imprimante prime » (« OD3D PA Printer Wins », actif par
+///   défaut depuis X-04) : K est appliqué à chaque changement d'outil et le M572 / M900 du trancheur est alors ignoré
+///   pour un emplacement qui a un K (gardé pour un emplacement sans K).
 /// - Mesure : M1994 (calibrate()), principe dans pa_math_od3d.hpp. **Motif imprimé** à l'avant du plateau (la mesure
 ///   dans le vide ne marchait pas, retour du 22/11) : plateau à la température de la matière, origine, nivellement
 ///   local de la zone (comme le G-code de départ de la CORE One), ligne de purge au bord avant, puis une ligne par K à

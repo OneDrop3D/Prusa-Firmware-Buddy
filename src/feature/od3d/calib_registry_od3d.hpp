@@ -103,8 +103,8 @@ inline constexpr std::array entries {
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 2, true }, // v2 : gain du plan horizontal
     Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
-    Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 1, true }, // après l'input shaper : avec le filtre en place
-    Entry { Test::shaper_check, accelerometer | cold_nozzle, 1, 1, true }, // le filtre choisi, vérifié sur la machine
+    Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 2, true }, // après l'input shaper : avec le filtre en place ; v2 : rampe de l'axe (V-05)
+    Entry { Test::shaper_check, accelerometer | cold_nozzle, 1, 2, true }, // le filtre choisi, vérifié sur la machine ; v2 : rampe de l'axe (V-05)
     Entry { Test::mpc, heated, 12, 1, true },
     Entry { Test::mmu_ptfe, mmu | one_spool | heated, 3, 1, true },
     Entry { Test::nozzle_expansion, empty_bed | heated, 10, 1, true }, // après le tube PTFE : avec le MMU, l'extrudeur est déjà vide

@@ -176,14 +176,14 @@ namespace {
 
     void write_csv_header() {
         if (FILE *f = fopen(csv_path, "a")) {
-            force_probe::csv_printf(f, "# OneDrop3D M2004 max useful acceleration at X%.1f Y%.1f Z%.1f: ramps %d ms, window %d ms after the stop, %d moves per level\n",
+            force_probe::csv_printf(f, "# OneDrop3D M2004 max useful acceleration at X%.1f Y%.1f Z%.1f: ramps of 1/(2 f), f the input shaper frequency of the axis (%d ms without), window %d ms after the stop, %d moves per level\n",
                 double(current_position.x), double(current_position.y), double(current_position.z), int(ramp_s * 1000), int(window_s * 1000), int(moves));
             force_probe::csv_printf(f, "# noise at rest: rms %.5f m/s2\naxis,accel_mm_s2,residual_rms_m_s2\n", double(std::sqrt(measurement.noise)));
             fclose(f);
         }
     }
 
-    void write_csv_axis(uint8_t axis) {
+    void write_csv_axis(uint8_t axis, float ramp) {
         FILE *f = fopen(csv_path, "a");
         if (!f) {
             return; // pas de clé
@@ -194,8 +194,8 @@ namespace {
             }
         }
         const Limit &l = measurement.limits[axis];
-        force_probe::csv_printf(f, "# %c: found %d, reference %u, limit %u mm/s2, residual rose %d, top %u\n", 'X' + axis, int(l.found), unsigned(levels[l.reference]),
-            unsigned(levels[l.last_ok]), int(l.rose), unsigned(measurement.top[axis]));
+        force_probe::csv_printf(f, "# %c: ramp %.2f ms, found %d, reference %u, limit %u mm/s2, residual rose %d, top %u\n", 'X' + axis, double(ramp * 1000.f), int(l.found),
+            unsigned(levels[l.reference]), unsigned(levels[l.last_ok]), int(l.rose), unsigned(measurement.top[axis]));
         fclose(f);
     }
 
@@ -251,6 +251,8 @@ namespace {
         for (uint8_t a = 0; a < axis_count; ++a) {
             const AxisEnum axis = a == 0 ? X_AXIS : Y_AXIS;
             const float centre = current_position[axis];
+            const auto shaper = input_shaper::get_axis_config(axis);
+            const float ramp = ramp_for(shaper ? shaper->frequency : NAN); // V-05 : demi-période de la résonance de l'axe
             for (size_t i = 0; i < accel_levels && levels[i] <= measurement.top[a]; ++i) {
                 live::set(N_("Axis %c: short moves at %d mm/s2, ringing after the stop"), 'X' + a, levels[i]);
                 {
@@ -258,9 +260,9 @@ namespace {
                     s.travel_acceleration = s.acceleration = levels[i];
                     planner.apply_settings(s);
                 }
-                // Triangle de rampes ramp_s : même forme à chaque palier, mise à l'échelle par l'accélération
-                const float speed = levels[i] * ramp_s;
-                const float length = speed * ramp_s;
+                // Triangle de rampes ramp : même forme à chaque palier, mise à l'échelle par l'accélération
+                const float speed = levels[i] * ramp;
+                const float length = speed * ramp;
                 sum = 0.f;
                 for (uint8_t m = 0; m < moves; ++m) {
                     if (must_stop()) {
@@ -278,7 +280,7 @@ namespace {
                 progress = uint8_t((a * accel_levels + i + 1) * 100 / (axis_count * accel_levels));
             }
             measurement.limits[a] = find_limit(measurement.residual[a], levels, measurement.noise);
-            write_csv_axis(a);
+            write_csv_axis(a, ramp);
             if (const auto p = proposal(a)) {
                 live::set_value(N_("Measured: axis %c up to %d mm/s2"), 'X' + a, *p);
             }
@@ -958,9 +960,9 @@ namespace {
         const Measurement &m = measurement;
         force_probe::csv_printf(f, "# OneDrop3D M2006 input shaper check at X%.1f Y%.1f Z%.1f: %d mm/s2, %d moves, noise rms %.5f m/s2\n",
             double(current_position.x), double(current_position.y), double(current_position.z), int(m.accel), int(moves), double(std::sqrt(m.noise)));
-        force_probe::csv_printf(f, "axis,filter,with_rms_m_s2,without_rms_m_s2,reduction,verdict\n");
+        force_probe::csv_printf(f, "axis,filter,ramp_ms,with_rms_m_s2,without_rms_m_s2,reduction,verdict\n");
         for (uint8_t a = 0; a < axis_count; ++a) {
-            force_probe::csv_printf(f, "%c,%d,%.5f,%.5f,%.3f,%d\n", 'X' + a, int(m.has_filter[a]), double(std::sqrt(m.with_filter[a])),
+            force_probe::csv_printf(f, "%c,%d,%.2f,%.5f,%.5f,%.3f,%d\n", 'X' + a, int(m.has_filter[a]), double(m.ramp[a] * 1000.f), double(std::sqrt(m.with_filter[a])),
                 double(std::sqrt(m.without_filter[a])), double(m.reduction[a]), int(m.verdict[a]));
         }
         fclose(f);
@@ -975,10 +977,7 @@ namespace {
         if (!accel_limit::prepare()) {
             return must_stop() ? Status::stopped : Status::not_homed;
         }
-        measurement.accel = settings.accelerate(check_accel, check_accel * ramp_s);
-        // Triangle de rampes ramp_s, comme un palier de M2004
-        const float speed = measurement.accel * ramp_s;
-        const float length = speed * ramp_s;
+        measurement.accel = settings.accelerate(check_accel, check_accel * ramp_s); // la vitesse de la rampe la plus longue
 
         PrusaAccelerometer accelerometer;
         const float period = sample_period(accelerometer);
@@ -1003,6 +1002,11 @@ namespace {
             const float centre = current_position[axis];
             const std::optional<input_shaper::AxisConfig> config = input_shaper::get_axis_config(axis);
             measurement.has_filter[a] = config.has_value();
+            // Triangle de rampes de l'axe, comme un palier de M2004 (V-05) : une demi-période de la résonance que le
+            // filtre doit retirer, la même avec et sans lui
+            measurement.ramp[a] = ramp_for(config ? config->frequency : NAN);
+            const float speed = measurement.accel * measurement.ramp[a];
+            const float length = speed * measurement.ramp[a];
             live::set(N_("Axis %c: short moves with its filter"), 'X' + a);
             if (const Status s = ringing(accelerometer, period, axis, centre, length, speed, measurement.with_filter[a]); s != Status::done) {
                 return s;

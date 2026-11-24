@@ -152,6 +152,7 @@ inline constexpr uint8_t axis_count = 2;
 struct Measurement {
     float noise = NAN; ///< variance au repos (m²/s⁴)
     uint16_t accel = 0; ///< mm/s² utilisée
+    std::array<float, axis_count> ramp { NAN, NAN }; ///< s, rampe de l'axe (vibration::ramp_for(), V-05)
     std::array<bool, axis_count> has_filter {};
     std::array<float, axis_count> with_filter { NAN, NAN }; ///< variance moyenne après l'arrêt
     std::array<float, axis_count> without_filter { NAN, NAN };

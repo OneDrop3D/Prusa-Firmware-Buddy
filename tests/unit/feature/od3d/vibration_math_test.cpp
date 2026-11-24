@@ -123,6 +123,29 @@ TEST_CASE("vibration: all in the noise or nothing measured is not conclusive") {
     CHECK(l.last_ok == 2);
 }
 
+TEST_CASE("vibration (V-05): ramps of half a period of the axis resonance") {
+    CHECK(ramp_for(50.f) == Approx(0.01f));
+    CHECK(ramp_for(60.f) * 60.f == Approx(0.5f));
+    CHECK(ramp_for(100.f) == Approx(0.005f));
+    // Sans filtre sur l'axe : 30 ms, comme avant ; jamais plus long (vitesse et longueur bornées)
+    CHECK(ramp_for(NAN) == ramp_s);
+    CHECK(ramp_for(0.f) == ramp_s);
+    CHECK(ramp_for(-5.f) == ramp_s);
+    CHECK(ramp_for(INFINITY) == ramp_s);
+    CHECK(ramp_for(10.f) == ramp_s);
+
+    // Triangle +a pendant T puis −a pendant T : la résonance f en reçoit sin²(π f T)
+    const auto excitation = [](float f, float t) {
+        const float s = std::sin(pi * f * t);
+        return s * s;
+    };
+    for (const float f : { 100.f / 3.f, 200.f / 3.f, 100.f }) {
+        CAPTURE(f);
+        CHECK(excitation(f, ramp_s) < 1e-3f); // 30 ms fixes : rien à 33, 67 et 100 Hz
+        CHECK(excitation(f, ramp_for(f)) == Approx(1.f)); // la rampe de l'axe : le plus
+    }
+}
+
 TEST_CASE("vibration: fan peak at the rotation speed") {
     // Tachymètre à 6 000 tr/min (100 Hz), rotation réelle à 101,3 Hz : dans la fenêtre du pic
     const Tone t = tone(magnitudes(101.3f, 0.05f, 100.f, 0.002f));

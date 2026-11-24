@@ -30,6 +30,10 @@ float WindowMeter::variance() const {
     return float(var);
 }
 
+float ramp_for(float frequency) {
+    return std::isfinite(frequency) && frequency > 0.f ? std::min(0.5f / frequency, ramp_s) : ramp_s;
+}
+
 Limit find_limit(std::span<const float> residual, std::span<const uint16_t> accel, float noise) {
     Limit l;
     const size_t n = std::min(residual.size(), accel.size());

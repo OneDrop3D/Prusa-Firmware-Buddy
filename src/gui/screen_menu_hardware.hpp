@@ -105,9 +105,14 @@ using ScreenMenuHardwareBase = BasicScreenMenu<
 #endif
 #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
     // OneDrop3D (retour du 23/11 : « on a le nôtre qui est mieux ») : l'assistant fait l'input shaper (choix du filtre
-    // F46) et le phase stepping, accéléromètre posé et retiré, à la place des menus de Prusa. Les réglages à la main de
-    // l'input shaper restent dans Ajuster pendant une impression.
+    // F46) et le phase stepping, accéléromètre posé et retiré. Les menus de Prusa restent après lui (audit X-14) : sur
+    // CORE One, c'est le seul endroit pour couper le phase stepping ou revenir à ses valeurs d'origine si une valeur
+    // écrite par l'assistant est mauvaise (HAS_PHASE_STEPPING_SELFTEST exclut COREONE).
     od3d::MI_CALIB_ASSISTANT,
+    MI_INPUT_SHAPER,
+    #if HAS_PHASE_STEPPING()
+    MI_PHASE_STEPPING_SCREEN,
+    #endif
 #else
     MI_INPUT_SHAPER,
     #if HAS_PHASE_STEPPING()

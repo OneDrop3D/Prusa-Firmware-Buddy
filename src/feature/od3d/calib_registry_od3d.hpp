@@ -98,7 +98,7 @@ struct Entry {
 inline constexpr std::array entries {
     // La pose de l'accéléromètre avant tout : tourné, de travers ou mal fixé, il fausserait toutes les mesures qui suivent
     Entry { Test::accel_mount, accelerometer | cold_nozzle, 1, 2, true }, // v2 : orientation à plat plus jugée
-    Entry { Test::belts, accelerometer | cold_nozzle, 3, 1, true }, // courroies d'abord : elles changent les résonances
+    Entry { Test::belts, accelerometer | cold_nozzle, 5, 2, true }, // courroies d'abord : elles changent les résonances ; v2 : comparaison des modes (V-03)
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 2, true }, // v2 : gain du plan horizontal

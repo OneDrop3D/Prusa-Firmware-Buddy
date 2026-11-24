@@ -16,24 +16,15 @@ float parabolic_offset(float left, float centre, float right) {
     return std::clamp(offset, -0.5f, 0.5f);
 }
 
-Peak find_peak(std::span<const float> values, float start_hz, float step_hz, float window_min_hz, float window_max_hz, float min_relative) {
-    Peak best;
-    const size_t n = values.size();
-    if (n < 3 || !(step_hz > 0.f)) {
-        return best;
-    }
-    constexpr float epsilon = 1e-3f;
-    float best_prominence = -1.f;
-    size_t best_index = 0;
-    for (size_t i = 1; i + 1 < n; ++i) {
-        const float frequency = start_hz + float(i) * step_hz;
-        if (frequency < window_min_hz - epsilon || frequency > window_max_hz + epsilon) {
-            continue;
-        }
+namespace {
+
+    /// Proéminence du point i (0 < i < size - 1) : hauteur au-dessus du plus haut des deux creux qui le séparent d'un
+    /// point plus haut (ou du bord) ; négative si ce n'est pas un sommet (plus haut que le point de gauche, au moins aussi
+    /// haut que celui de droite : un plateau compte une fois)
+    float prominence(std::span<const float> values, size_t i) {
         const float v = values[i];
-        // Sommet : plus haut que le point de gauche, au moins aussi haut que celui de droite (un plateau compte une fois)
         if (!std::isfinite(v) || !(v > 0.f) || !(v > values[i - 1]) || !(v >= values[i + 1])) {
-            continue;
+            return -1.f;
         }
         float left_min = v;
         for (size_t j = i; j-- > 0;) {
@@ -43,28 +34,82 @@ Peak find_peak(std::span<const float> values, float start_hz, float step_hz, flo
             left_min = std::min(left_min, values[j]);
         }
         float right_min = v;
-        for (size_t j = i + 1; j < n; ++j) {
+        for (size_t j = i + 1; j < values.size(); ++j) {
             if (values[j] > v) {
                 break;
             }
             right_min = std::min(right_min, values[j]);
         }
-        const float prominence = v - std::max(left_min, right_min);
-        if (prominence > best_prominence) {
-            best_prominence = prominence;
+        return v - std::max(left_min, right_min);
+    }
+
+    /// Le sommet i, de proéminence p, interpolé
+    Peak peak_at(std::span<const float> values, size_t i, float p, float start_hz, float step_hz, float min_relative) {
+        Peak peak;
+        const float v = values[i];
+        peak.frequency = start_hz + (float(i) + parabolic_offset(values[i - 1], v, values[i + 1])) * step_hz;
+        peak.height = v;
+        peak.relative_prominence = std::clamp(p / v, 0.f, 1.f);
+        peak.found = peak.relative_prominence >= min_relative;
+        return peak;
+    }
+
+} // namespace
+
+Peak find_peak(std::span<const float> values, float start_hz, float step_hz, float window_min_hz, float window_max_hz, float min_relative) {
+    const size_t n = values.size();
+    if (n < 3 || !(step_hz > 0.f)) {
+        return {};
+    }
+    constexpr float epsilon = 1e-3f;
+    float best_prominence = -1.f;
+    size_t best_index = 0;
+    for (size_t i = 1; i + 1 < n; ++i) {
+        const float frequency = start_hz + float(i) * step_hz;
+        if (frequency < window_min_hz - epsilon || frequency > window_max_hz + epsilon) {
+            continue;
+        }
+        if (const float p = prominence(values, i); p > best_prominence) {
+            best_prominence = p;
             best_index = i;
         }
     }
     if (best_prominence < 0.f) {
-        return best;
+        return {};
     }
-    const float v = values[best_index];
-    const float offset = parabolic_offset(values[best_index - 1], v, values[best_index + 1]);
-    best.frequency = start_hz + (float(best_index) + offset) * step_hz;
-    best.height = v;
-    best.relative_prominence = std::clamp(best_prominence / v, 0.f, 1.f);
-    best.found = best.relative_prominence >= min_relative;
-    return best;
+    return peak_at(values, best_index, best_prominence, start_hz, step_hz, min_relative);
+}
+
+size_t find_peaks(std::span<const float> values, float start_hz, float step_hz, std::span<Peak> out) {
+    const size_t n = values.size();
+    if (n < 3 || !(step_hz > 0.f) || out.empty()) {
+        return 0;
+    }
+    const float end_hz = start_hz + float(n - 1) * step_hz;
+    size_t count = 0;
+    for (size_t i = 1; i + 1 < n; ++i) {
+        const float p = prominence(values, i);
+        if (p < 0.f) {
+            continue;
+        }
+        const Peak peak = peak_at(values, i, p, start_hz, step_hz, min_peak_relative);
+        if (!peak.found || peak.frequency < start_hz + edge_guard_hz || peak.frequency > end_hz - edge_guard_hz) {
+            continue; // comme belt_peak() : trop peu marqué, ou collé à un bord
+        }
+        // Rangé du plus proéminent au moins (proéminence = relative × hauteur) ; au-delà de out, le moins proéminent part
+        size_t k = std::min(count, out.size());
+        while (k > 0 && out[k - 1].relative_prominence * out[k - 1].height < p) {
+            --k;
+        }
+        if (k < out.size()) {
+            for (size_t j = std::min(count, out.size() - 1); j > k; --j) {
+                out[j] = out[j - 1];
+            }
+            out[k] = peak;
+            count = std::min(count + 1, out.size());
+        }
+    }
+    return count;
 }
 
 Peak belt_peak(std::span<const float> values, float start_hz, float step_hz) {

@@ -453,6 +453,13 @@ namespace {
     /// Ce que montre une tuile
     /// Pastilles d'état (le mot est au détail, au toucher)
     constexpr Color dot_ok = style::filament_green; ///< vert de l'atelier
+    constexpr Color dot_measured = style::curve_blue; ///< mesuré, mais la mesure n'est pas validée : ni réussi ni échoué
+
+    /// Un test réussi dont la mesure n'est pas encore validée sur la machine (V-03 : courroies, advice_validated)
+    bool unvalidated(Test test) {
+        return test == Test::belts && !belts::advice_validated;
+    }
+
     struct TileView {
         std::optional<Color> dot; ///< pas de pastille : test sans objet ici
         Button::Look look = Button::Look::card; ///< alert : échec ; secondary : en cours
@@ -470,7 +477,7 @@ namespace {
         }
         if (flow.stage == Stage::propose) { // coché : orange ; décoché : vert si déjà fait, gris sinon ; le toucher coche ou décoche
             const bool done = (e.needs & calib_registry::filament) ? !calib_registry::spools_to_measure(e.test, ctx, false) : !calib_registry::outdated(e, record);
-            return { (flow.mask & b) ? style::accent : (done ? dot_ok : style::text_muted), Button::Look::card, true };
+            return { (flow.mask & b) ? style::accent : (done ? (unvalidated(e.test) ? dot_measured : dot_ok) : style::text_muted), Button::Look::card, true };
         }
         if (!(flow.session & b)) { // à faire : orange ; à jour : gris
             return { calib_registry::outdated(e, record) ? style::accent : style::text_muted };
@@ -478,8 +485,8 @@ namespace {
         const bool summary = flow.stage == Stage::summary;
         if (flow.started & b) {
             switch (assistant::result(e.test)) {
-            case Result::ok:
-                return { dot_ok, Button::Look::card, summary }; // bilan : ses chiffres
+            case Result::ok: // bilan : ses chiffres
+                return { unvalidated(e.test) ? dot_measured : dot_ok, Button::Look::card, summary };
             case Result::failed:
                 return { style::danger, Button::Look::alert, summary };
             case Result::skipped:
@@ -754,14 +761,20 @@ namespace {
             }
             break;
         case Test::belts: {
-            w.label(N_("Belts:"));
-            pair(a, "AB", 10, " Hz");
-            if (a[0] != none && a[1] != none) {
-                w.add(", A-B %.1f Hz", std::abs(a[0] - a[1]) / 10.0);
-            }
-            if (any(b, 0, 2)) {
-                w.label(N_("Before:"));
-                pair(b, "AB", 10, " Hz");
+            if (belts::compared()) { // V-03 : les pics de chaque mode, ceux de la mesure habituelle compris
+                static char peaks[288]; // titre et quatre modes, en français avec des pics à trois chiffres
+                belt_peaks_text(peaks);
+                w.add("%s", peaks);
+            } else {
+                w.label(N_("Belts:"));
+                pair(a, "AB", 10, " Hz");
+                if (a[0] != none && a[1] != none) {
+                    w.add(", A-B %.1f Hz", std::abs(a[0] - a[1]) / 10.0);
+                }
+                if (any(b, 0, 2)) {
+                    w.label(N_("Before:"));
+                    pair(b, "AB", 10, " Hz");
+                }
             }
             if (belts::advice_validated) {
                 const belts::Targets t = belts::targets();
@@ -987,24 +1000,35 @@ namespace {
     /// Bilan : réussites, échecs, puis les gains principaux en une ligne. brief : la seule ligne de compte, pour la
     /// ligne de texte de l'écran ; le bilan complet s'ouvre par « Bilan »
     void build_summary(Writer &w, bool brief = false) {
-        int ok = 0, failed = 0, skipped = 0;
+        int ok = 0, failed = 0, skipped = 0, measured = 0;
         for (const Entry &e : entries) {
             if (!(flow.session & test_bit(e.test)) || !e.automatic) {
                 continue;
             }
             const Result r = (flow.started & test_bit(e.test)) ? assistant::result(e.test) : Result::skipped; // décoché
-            ok += r == Result::ok;
+            const bool neutral = r == Result::ok && unvalidated(e.test); // V-03 : ni réussi ni échoué
+            ok += r == Result::ok && !neutral;
+            measured += neutral;
             failed += r == Result::failed;
             skipped += r == Result::skipped || r == Result::none;
         }
         char format[96];
+        const auto add_measured = [&] {
+            if (measured) {
+                _("%d measured, not validated.").copyToRAM(format, sizeof(format));
+                w.add(" ");
+                w.add(format, measured);
+            }
+        };
         if (brief) {
             _("Finished: %d OK, %d failed, %d skipped.").copyToRAM(format, sizeof(format));
             w.add(format, ok, failed, skipped);
+            add_measured();
             return;
         }
         _("Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers.").copyToRAM(format, sizeof(format));
         w.add(format, ok, failed, skipped);
+        add_measured();
         bool first = true;
         const auto next = [&](const char *msgid) {
             w.add(first ? "\n" : ", ");
@@ -1026,6 +1050,10 @@ namespace {
         if (const auto &a = assistant::numbers_after(Test::belts); done(Test::belts) && a[0] != none && a[1] != none) {
             next(N_("belts"));
             w.add(" %.1f/%.1f Hz", a[0] / 10.0, a[1] / 10.0);
+            if (unvalidated(Test::belts)) {
+                w.add(" ");
+                w.text(N_("(not validated)"));
+            }
         }
         if (done(Test::max_flow)) {
             const auto &a = assistant::numbers_after(Test::max_flow);

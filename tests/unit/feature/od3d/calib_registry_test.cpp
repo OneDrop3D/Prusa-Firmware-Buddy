@@ -221,7 +221,7 @@ TEST_CASE("calib_registry: G-codes") {
     CHECK(gcode({ Test::min_temp, 0 }) == "M1996 P0");
     CHECK(gcode({ Test::input_shaper }) == "M1959 A");
     CHECK(gcode({ Test::phase_stepping }) == "M1977 U A");
-    CHECK(gcode({ Test::belts }) == "M1992");
+    CHECK(gcode({ Test::belts }) == "M1992 C"); // comparaison des modes (V-03)
     CHECK(gcode({ Test::speed_map }) == "M1993");
     CHECK(gcode({ Test::damping }) == "M1997");
     CHECK(gcode({ Test::mpc }) == "M306 T");

@@ -230,7 +230,7 @@ bool step_gcode(const Step &step, std::span<char> out) {
     case Test::phase_stepping:
         return write(out, "M1977 U A"); // U : sans question (Prusa) ; A : accéléromètre déjà fixé (OneDrop3D)
     case Test::belts:
-        return write(out, "M1992");
+        return write(out, "M1992 C"); // C : comparaison des modes, tant que la mesure n'est pas validée (V-03)
     case Test::speed_map:
         return write(out, "M1993");
     case Test::damping:

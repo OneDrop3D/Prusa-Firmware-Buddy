@@ -128,6 +128,13 @@ struct Record {
 };
 static_assert(sizeof(Record) == 8);
 
+/// F6 : alerte avant l'impression, la température de buse du fichier (file_c ; 0 : inconnue) est sous la température
+/// minimale mesurée de la bobine (r : valeurs de la même clé de validité). Plancher de la mesure atteint : la vraie
+/// minimale est peut-être plus basse, pas d'alerte
+inline bool below_min_temperature(int16_t file_c, const Record &r) {
+    return file_c > 0 && r.has_min_temperature() && !(r.flags & Record::temperature_floor) && file_c < r.min_temperature;
+}
+
 /// Limite de vitesse du filament [mm/s] pour un débit maximal [mm³/s], bornée à [floor, ceiling] mm³/s ; 0 sans débit
 float e_speed_limit(float max_flow, float floor, float ceiling, float filament_area_mm2);
 

@@ -45,6 +45,19 @@ TEST_CASE("métadonnées : grammes, outils utilisés, matières") {
     CHECK(many.used == 0b11111);
 }
 
+TEST_CASE("métadonnées : température de buse par outil (F6)") {
+    FileInfo info;
+    CHECK(info.nozzle[0] == 0); // absente : pas d'alerte
+    parse_metadata(info, "first_layer_temperature", "230,250");
+    CHECK(info.nozzle[0] == 0);
+    parse_metadata(info, "temperature", "215,240,0,220");
+    CHECK(info.nozzle[0] == 215);
+    CHECK(info.nozzle[1] == 240);
+    CHECK(info.nozzle[2] == 0);
+    CHECK(info.nozzle[3] == 220);
+    CHECK(info.nozzle[4] == 0);
+}
+
 TEST_CASE("anneau de focus : même règle que draw_rounded_rect") {
     // Rayon 4 sur 10 lignes : un pixel coupé sur la première et la dernière ligne seulement
     CHECK(corner_inset(0, 10, 4) == 1);

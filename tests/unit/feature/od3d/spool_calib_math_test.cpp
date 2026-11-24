@@ -290,3 +290,15 @@ TEST_CASE("od3d F5/F6: values of another nozzle or material are ignored (M-02)",
     legacy.key = 0;
     CHECK_FALSE(pa::if_key(legacy, r.key).has_flow());
 }
+
+TEST_CASE("od3d F6: alert before printing under the measured minimum temperature", "[od3d][calib]") {
+    Record r;
+    r.min_temperature = 195;
+    CHECK(below_min_temperature(190, r)); // le fichier demande moins que le minimum mesuré
+    CHECK_FALSE(below_min_temperature(195, r)); // au minimum : pas d'alerte
+    CHECK_FALSE(below_min_temperature(215, r));
+    CHECK_FALSE(below_min_temperature(0, r)); // température absente du fichier
+    CHECK_FALSE(below_min_temperature(190, Record {})); // pas mesurée (ou autre buse, autre matière : record() vide)
+    r.flags = Record::temperature_floor; // plancher atteint : la vraie minimale est peut-être plus basse
+    CHECK_FALSE(below_min_temperature(190, r));
+}

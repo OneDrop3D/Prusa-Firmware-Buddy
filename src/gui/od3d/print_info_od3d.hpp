@@ -19,6 +19,7 @@ struct FileInfo {
     std::array<float, max_tools> grams {}; ///< filament par outil [g]
     float millimeters = 0; ///< filament de tous les outils [mm]
     std::array<std::array<char, 8>, max_tools> types {}; ///< matière par outil (« PLA »)
+    std::array<int16_t, max_tools> nozzle {}; ///< température de buse par outil (« temperature », hors 1re couche) [°C] ; 0 : absente
     uint8_t used = 0; ///< bit i : l'outil i sert (au moins 0,0003 g, comme GCodeInfo::ExtruderInfo::used)
 
     float total_grams() const;

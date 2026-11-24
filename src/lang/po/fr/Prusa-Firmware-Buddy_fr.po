@@ -12974,3 +12974,8 @@ msgstr "Incertain : PA du trancheur utilisé"
 #: src/gui/od3d/screen_spool_calib_od3d.cpp
 msgid "Flexible filament: not measured."
 msgstr "Filament flexible : pas de mesure."
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %d° requested, measured minimum %d°"
+msgstr "Emplacement %d : %d° demandés, minimum mesuré %d°"

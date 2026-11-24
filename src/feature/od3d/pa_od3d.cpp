@@ -25,6 +25,7 @@
 #include <config_store/store_instance.hpp>
 #include <cstdlib>
 #include <cstring>
+#include <feature/auto_retract/auto_retract.hpp>
 #include <feature/bedlevel/bedlevel.h>
 #include <feature/print_status_message/print_status_message_mgr.hpp>
 #include <feature/prusa/e-stall_detector.h>
@@ -162,10 +163,11 @@ namespace {
     // Avec le G1 E-2 du G-code de départ, la rétraction de parking de Prusa
     static_assert(start_hold_retract_mm + 2.f == float(STANDARD_RETRACT_LENGTH));
 
-    /// Le filament peut reculer : dans la buse, buse assez chaude, pas un flexible (comme l'auto-rétraction de Prusa)
+    /// Le filament peut reculer : dans la buse, buse assez chaude, pas un flexible (comme l'auto-rétraction de Prusa), pas
+    /// déjà reculé par elle (elle le remet au premier mouvement d'extrusion ; un recul de plus lui en ferait perdre la trace)
     [[gnu::noinline]] bool can_retract() {
         const auto slot = loaded_slot();
-        return slot && !thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0)) && !flexible(*slot);
+        return slot && !thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0)) && !flexible(*slot) && !buddy::auto_retract().will_deretract();
     }
 
     /// Filament reculé (mm < 0) ou remis aux vitesses de parking de Prusa, sa position logique inchangée (comme

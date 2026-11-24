@@ -40,7 +40,6 @@ enum class Register : uint8_t {
     Set_Get_Idler_iRun = 0x20,
     Reserved = 0x21,
     Bowden_Length = 0x22,
-    OD3D_Assist = 0x25, ///< OneDrop3D (F11) : assistance du MMU pendant l'impression (firmware OneDrop3D du MMU)
 };
 
 } // namespace MMU2

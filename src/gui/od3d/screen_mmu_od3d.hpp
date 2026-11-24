@@ -35,13 +35,10 @@ private:
     Slot slot;
 };
 
-/// Raccourci de l'étagère : tuile d'icône, titre, et une 2e ligne (« Ouvrir > », « bientôt »…)
+/// Raccourci de l'étagère : tuile d'icône, titre, et une 2e ligne (« Ouvrir > »…)
 class Shortcut : public Button {
 public:
     Shortcut(window_t *parent, Rect16 body, uint8_t tag, const img::Resource &icon, Color tile, const string_view_utf8 &title, const string_view_utf8 &subtitle);
-
-    /// Change la 2e ligne ; greyed : dessiné comme inactif mais cliquable (le clic dit pourquoi)
-    void set_subtitle(const string_view_utf8 &text, bool greyed);
 
 protected:
     void unconditionalDraw() override;
@@ -49,7 +46,6 @@ protected:
 private:
     Color tile;
     string_view_utf8 subtitle;
-    bool greyed = false;
 };
 
 /// Étagère de l'onglet Atelier : une bobine par outil lu à l'exécution (MMU3 : 5 ; sans MMU : 1 ; INDX : 3 à 8, sur deux
@@ -66,21 +62,15 @@ private:
     explicit ScreenMMU(std::index_sequence<I...>);
 
     void update();
-    /// F11 : 2e ligne et état de la tuile « Assistance »
-    void update_assist();
 
     Header header;
     ShelfSpool spools[VirtualToolIndex::count];
     Shortcut preload_all;
-    Shortcut assist;
     Shortcut motors;
     Shortcut pressure_advance;
     Shortcut settings;
     Shortcut info;
     TabBar tabs;
-
-    bool assist_on; ///< F11 : choix gardé, relu à l'ouverture
-    uint8_t assist_shown = 0xff; ///< état dessiné de la tuile, 0xff : à dessiner
 };
 
 /// Rappel du choix d'une bobine : true, le choix se referme ; false, il reste ouvert (question refusée)

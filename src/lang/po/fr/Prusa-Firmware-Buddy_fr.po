@@ -10144,10 +10144,6 @@ msgid "All slots"
 msgstr "Tout"
 
 #: src/gui/od3d/screen_mmu_od3d.cpp
-msgid "soon"
-msgstr "bientôt"
-
-#: src/gui/od3d/screen_mmu_od3d.cpp
 msgid "Motors"
 msgstr "Moteurs"
 
@@ -10306,10 +10302,6 @@ msgstr "Éjection de l'emplacement %d"
 #, c-format
 msgid "Cutting filament %d"
 msgstr "Coupe du filament %d"
-
-#: src/gui/od3d/screen_mmu_od3d.cpp
-msgid "MMU assist"
-msgstr "Assistance"
 
 #: src/gui/MItem_menus.hpp src/gui/od3d/screen_move_od3d.cpp
 msgid "Move axes"
@@ -12658,22 +12650,6 @@ msgstr "Courroies : non concluant, pic hors plage (trop tendues ou trop lâches 
 #: src/gui/od3d/screen_mmu_usb_od3d.cpp
 msgid "The calibration assistant is using the MMU. Try again after this test."
 msgstr "L'assistant de calibration utilise le MMU. Réessayez après ce test."
-
-#: src/gui/od3d/screen_mmu_od3d.cpp
-msgid "on"
-msgstr "activée"
-
-#: src/gui/od3d/screen_mmu_od3d.cpp
-msgid "off"
-msgstr "coupée"
-
-#: src/gui/od3d/screen_mmu_od3d.cpp
-msgid "MMU too old"
-msgstr "MMU ancien"
-
-#: src/gui/od3d/screen_mmu_od3d.cpp
-msgid "The MMU firmware does not know the assist (no register 0x25): Prusa firmware or an older OneDrop3D one. Flash a OneDrop3D MMU firmware that has it."
-msgstr "Le firmware du MMU ne connaît pas l'assistance (pas de registre 0x25) : firmware Prusa ou OneDrop3D plus ancien. Flashez un firmware OneDrop3D du MMU qui l'a."
 
 #: src/gui/od3d/screen_belts_od3d.cpp src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Measurement being validated: adjust with the Prusa app or the Prusa wizard (M961)."

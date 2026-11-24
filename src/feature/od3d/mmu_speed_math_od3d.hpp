@@ -66,9 +66,9 @@ constexpr Choice choose(std::span<const Cycle> cycles) {
 struct Saved {
     uint8_t speed = 0; ///< mm/s ; 0 : celle de Prusa
     uint16_t prusa_ds : 15 = 0; ///< cycle à la vitesse de Prusa [0,1 s], 0 sans mesure
-    /// F11 : assistance du MMU pendant l'impression choisie (mmu_assist_od3d.hpp). Bit 15 de l'ancien prusa_ds, toujours 0
-    /// jusque-là (un cycle dure moins de 3 276 s) : config_store plein, pas de nouvel élément
-    uint16_t assist : 1 = 0;
+    /// Bit 15 : choix de l'assistance F11, retirée. Ignoré : il peut valoir 1 là où elle a été activée, jusqu'à la
+    /// prochaine écriture (M2002 ou remise à zéro)
+    uint16_t unused : 1 = 0;
     uint16_t cycle_ds = 0; ///< cycle à la vitesse choisie [0,1 s]
 
     constexpr bool operator==(const Saved &) const = default;

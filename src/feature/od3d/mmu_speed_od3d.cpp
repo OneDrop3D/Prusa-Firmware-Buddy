@@ -189,21 +189,21 @@ Result measure(uint8_t slot) {
         show_cycle(levels.size(), check, ok);
         if (!ok) {
             set_speed(prusa_speed);
-            config_store().od3d_mmu_speeds.set(Saved { .assist = saved().assist }); // F11 gardée
+            config_store().od3d_mmu_speeds.set(Saved {});
             return finish(Result::failed_check);
         }
         cycle_ds = ds(check.total_ms);
     } else {
         set_speed(prusa_speed);
     }
-    config_store().od3d_mmu_speeds.set(Saved { .speed = choice.speed, .prusa_ds = prusa_ds, .assist = saved().assist, .cycle_ds = cycle_ds });
+    config_store().od3d_mmu_speeds.set(Saved { .speed = choice.speed, .prusa_ds = prusa_ds, .cycle_ds = cycle_ds });
     measurement.speed = choice.speed;
     return finish(Result::saved);
 }
 
 void reset() {
     set_speed(prusa_speed);
-    config_store().od3d_mmu_speeds.set(Saved { .assist = saved().assist }); // F11 gardée
+    config_store().od3d_mmu_speeds.set(Saved {});
     forget();
 }
 

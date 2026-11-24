@@ -137,9 +137,9 @@ private:
     LiveText step_title;
     StepChip steps[4];
     LiveText position;
-    TextButton origin_all;
+    // « Origine XYZ » et « Axes du MMU » retirés (retour du 24/11, « menus en double ») : la maison au centre de la croix,
+    // la question « Prendre l'origine ? » avant un mouvement de Z, et Contrôle › Prise d'origine Auto / Axes du MMU
     TextButton motors;
-    TextButton mmu_axes;
     TabBar tabs;
 
     uint8_t shown_step; ///< pas dessiné comme choisi

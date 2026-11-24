@@ -6811,7 +6811,7 @@ msgstr "RE-CHAUFFER"
 
 #: src/common/client_response_texts.hpp:82
 msgid "REMAP"
-msgstr "RÉATTRIBUER"
+msgstr "MODIFIER"
 
 #: src/common/client_response_texts.hpp:84
 msgid "REMOVE"
@@ -10361,7 +10361,7 @@ msgstr "Origine XYZ"
 
 #: src/gui/od3d/screen_move_od3d.cpp
 msgid "Motors off"
-msgstr "Couper moteurs"
+msgstr "Arrêt moteurs"
 
 #: src/gui/od3d/screen_move_od3d.cpp
 msgid "MMU axes"
@@ -12812,3 +12812,27 @@ msgstr "aucun"
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Remove the acceleration cap? Prints get their own M201 again."
 msgstr "Retirer le plafond d'accélération ? Les impressions retrouvent leur propre M201."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The MMU bootloader did not answer. Unplug and replug its micro-USB, press its reset button, then Retry."
+msgstr "Le chargeur du MMU ne répond pas. Débranchez et rebranchez son micro-USB, appuyez sur son bouton reset, puis Réessayer."
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Delay\nWithout touch, knob or job, 1 to 240 min"
+msgstr "Délai\nSans toucher ni travail, 1 à 240 min"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Sleep delay"
+msgstr "Délai de la veille"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Heaters delay\nAfter falling asleep, 0: immediately"
+msgstr "Délai des chauffes\nAprès l'endormissement, 0 : aussitôt"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Heaters delay"
+msgstr "Délai des chauffes"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Z motor hold\nLower is quieter; Off: the bed may drop"
+msgstr "Maintien du moteur Z\nPlus bas, moins de bruit ; Off : Z libéré"

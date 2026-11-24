@@ -26,48 +26,54 @@ namespace od3d {
 namespace {
 
     // ---- Géométrie (SPEC_G.md §3.17) ----
-    // Colonnes ajustées à la police de l'imprimante : « Rétracter » (81 px) tient dans la colonne E,
-    // pris sur la croix et la carte, qui garde presque les proportions du plateau.
-    // Sous l'en-tête de 40 px : croix et carte de 144 px (152 avant), touches un peu moins hautes.
-    constexpr Rect16 cross_rect = { 8, style::content.Top(), 140, 144 };
-    constexpr Rect16 x_minus_body = { 12, 94, 40, 44 };
-    constexpr Rect16 x_plus_body = { 104, 94, 40, 44 };
-    constexpr Rect16 y_plus_body = { 54, 48, 48, 42 };
-    constexpr Rect16 y_minus_body = { 54, 142, 48, 42 };
-    constexpr Rect16 origin_xy_body = { 56, 94, 44, 44 };
-    // Diagonales dans les coins de la croix (retour de l'utilisateur, 21/11 : « plusieurs axes à la fois »)
-    constexpr Rect16 up_left_body = { 12, 49, 38, 38 };
-    constexpr Rect16 up_right_body = { 106, 49, 38, 38 };
-    constexpr Rect16 down_left_body = { 12, 144, 38, 38 };
-    constexpr Rect16 down_right_body = { 106, 144, 38, 38 };
-    constexpr Rect16 z_value_rect = { 148, style::content.Top(), 66, 16 };
-    constexpr Rect16 z_plus_body = { 154, 62, 54, 60 };
-    constexpr Rect16 z_minus_body = { 154, 127, 54, 60 };
-    constexpr Rect16 e_value_rect = { 214, style::content.Top(), 84, 16 };
-    constexpr Rect16 extrude_body = { 214, 62, 84, 60 };
-    constexpr Rect16 retract_body = { 214, 127, 84, 60 };
-    constexpr Rect16 map_rect = { 304, style::content.Top(), 168, 144 };
-    constexpr Rect16 step_title_rect = { 8, 203, 36, 16 };
-    constexpr Rect16 position_rect = { 296, 203, 176, 16 };
-    // Trois boutons en bas : origine, moteurs coupés, axes du MMU
-    constexpr Rect16 origin_all_body = { 8, 236, 150, 36 };
-    constexpr Rect16 motors_body = { 165, 236, 150, 36 };
-    constexpr Rect16 mmu_axes_body = { 322, 236, 150, 36 };
+    // Retour du 24/11 (« pas pratique à cliquer au doigt ») : toutes les touches font au moins 52 px (diagonales de 38,
+    // pas de 58 × 30 avant). La croix est une grille de 3 × 3 touches de 52 px, la colonne E garde « Rétracter » (81 px),
+    // la carte, la position et « Couper moteurs » se partagent la colonne de droite ; les 4 pas prennent toute la ligne
+    // du bas. « Origine XYZ » et « Axes du MMU » sont partis (doublons de la maison du centre et de Contrôle).
+    constexpr Rect16 cross_rect = { 8, style::content.Top(), 174, 174 };
+    constexpr int16_t key = 52; ///< touches de la croix
+    constexpr int16_t col(int i) {
+        return int16_t(12 + 56 * i);
+    }
+    constexpr int16_t row(int i) {
+        return int16_t(48 + 56 * i);
+    }
+    constexpr Rect16 up_left_body = { col(0), row(0), key, key };
+    constexpr Rect16 y_plus_body = { col(1), row(0), key, key };
+    constexpr Rect16 up_right_body = { col(2), row(0), key, key };
+    constexpr Rect16 x_minus_body = { col(0), row(1), key, key };
+    constexpr Rect16 origin_xy_body = { col(1), row(1), key, key };
+    constexpr Rect16 x_plus_body = { col(2), row(1), key, key };
+    constexpr Rect16 down_left_body = { col(0), row(2), key, key };
+    constexpr Rect16 y_minus_body = { col(1), row(2), key, key };
+    constexpr Rect16 down_right_body = { col(2), row(2), key, key };
+    constexpr Rect16 z_value_rect = { 184, style::content.Top(), 58, 16 };
+    constexpr Rect16 z_plus_body = { 188, 62, 52, 74 };
+    constexpr Rect16 z_minus_body = { 188, 140, 52, 74 };
+    constexpr Rect16 e_value_rect = { 244, style::content.Top(), 88, 16 };
+    constexpr Rect16 extrude_body = { 246, 62, 84, 74 };
+    constexpr Rect16 retract_body = { 246, 140, 84, 74 };
+    constexpr Rect16 map_rect = { 336, style::content.Top(), 136, 108 };
+    constexpr Rect16 position_rect = { 338, 154, 134, 16 };
+    constexpr Rect16 motors_body = { 338, 176, 134, 40 }; ///< « Arrêt moteurs » (13 caractères) tient entier
+    constexpr Rect16 step_title_rect = { 8, 240, 38, 16 };
 
-    /// 58 px : « 0.1 mm » (54 px) tient dans le contour de 2 px du pas choisi
+    /// Pas de 100 × 40 px sur toute la ligne du bas
     constexpr Rect16 step_body(int i) {
-        return Rect16(46 + 62 * i, 196, 58, 30);
+        return Rect16(48 + 106 * i, 228, 100, 40);
     }
 
-    static_assert(style::inside(style::content, cross_rect) && style::inside(style::content, map_rect) && style::inside(style::content, style::with_ring(mmu_axes_body)));
-    static_assert(style::with_ring(origin_all_body).Right() < style::with_ring(motors_body).Left() && style::with_ring(motors_body).Right() < style::with_ring(mmu_axes_body).Left());
+    static_assert(style::inside(style::content, cross_rect) && style::inside(style::content, map_rect) && style::inside(style::content, style::with_ring(motors_body)));
+    static_assert(style::inside(style::content, style::with_ring(step_body(3))) && style::with_ring(step_body(3)).Right() < style::screen_w);
     static_assert(style::inside(cross_rect, style::with_ring(up_left_body)) && style::inside(cross_rect, style::with_ring(up_right_body)) && style::inside(cross_rect, style::with_ring(down_left_body)) && style::inside(cross_rect, style::with_ring(down_right_body)));
     static_assert(style::with_ring(up_left_body).Right() < style::with_ring(y_plus_body).Left() && style::with_ring(y_plus_body).Right() < style::with_ring(up_right_body).Left());
     static_assert(style::with_ring(up_left_body).Bottom() < style::with_ring(x_minus_body).Top() && style::with_ring(x_minus_body).Bottom() < style::with_ring(down_left_body).Top());
     static_assert(style::inside(cross_rect, style::with_ring(x_minus_body)) && style::inside(cross_rect, style::with_ring(x_plus_body)) && style::inside(cross_rect, style::with_ring(y_plus_body)) && style::inside(cross_rect, style::with_ring(y_minus_body)));
     static_assert(z_value_rect.Bottom() < style::with_ring(z_plus_body).Top() && cross_rect.Right() < z_value_rect.Left() && z_value_rect.Right() < e_value_rect.Left());
-    static_assert(style::with_ring(retract_body).Right() < map_rect.Left() && cross_rect.Bottom() < style::with_ring(step_body(0)).Top());
-    static_assert(style::with_ring(step_body(3)).Right() < position_rect.Left() && style::with_ring(step_body(0)).Bottom() < style::with_ring(origin_all_body).Top());
+    static_assert(style::with_ring(z_plus_body).Right() < style::with_ring(extrude_body).Left() && style::with_ring(retract_body).Right() < map_rect.Left());
+    static_assert(map_rect.Bottom() < position_rect.Top() && position_rect.Bottom() < style::with_ring(motors_body).Top());
+    static_assert(cross_rect.Bottom() < style::with_ring(step_body(0)).Top() && style::with_ring(motors_body).Bottom() < style::with_ring(step_body(0)).Top());
+    static_assert(style::with_ring(z_minus_body).Bottom() < style::with_ring(step_body(0)).Top() && style::with_ring(step_body(0)).Right() < style::with_ring(step_body(1)).Left());
     static_assert(style::with_ring(y_plus_body).Bottom() < style::with_ring(origin_xy_body).Top() && style::with_ring(origin_xy_body).Bottom() < style::with_ring(y_minus_body).Top());
     static_assert(style::with_ring(z_plus_body).Bottom() < style::with_ring(z_minus_body).Top() && step_title_rect.Right() < style::with_ring(step_body(0)).Left());
 
@@ -249,10 +255,6 @@ namespace {
         move_by(Y_AXIS, direction < 2 ? d : -d);
     }
 
-    void open_mmu_axes() {
-        open_screen<ScreenMMUMotors>();
-    }
-
     /// Va au point touché comme la liste de Prusa (G123 : vitesse manuelle, arrêté par l'ordre suivant) ;
     /// la carte ne couvre que le plateau, à l'intérieur des butées
     void go_to(float x, float y) {
@@ -406,9 +408,11 @@ void CrossPanel::unconditionalDraw() {
 BedMap::BedMap(window_t *parent)
     : window_t(parent, map_rect)
     , hint(_("tap to go there")) {
-    // Légende en bas à gauche, à sa longueur (17 caractères au plus) : elle ne touche pas les coins arrondis
-    const uint16_t chars = std::min<uint16_t>(hint.computeNumUtf8Chars(), 17);
-    hint_rect = Rect16(map_inner.Left() + 6, map_inner.Bottom() - 19, chars * width(Font::small), height(Font::small));
+    // Légende en bas à gauche, à sa longueur : elle ne touche pas les coins arrondis. Carte plus étroite depuis le 24/11 :
+    // une légende qui ne tient pas n'est pas écrite (plutôt que coupée au milieu d'un mot)
+    const uint16_t chars = hint.computeNumUtf8Chars();
+    const uint16_t fit = (map_inner.Width() - 12) / width(Font::small);
+    hint_rect = chars <= fit ? Rect16(map_inner.Left() + 6, map_inner.Bottom() - 19, chars * width(Font::small), height(Font::small)) : Rect16();
 }
 
 void BedMap::set(std::optional<point_i16_t> p) {
@@ -496,9 +500,7 @@ ScreenMove::ScreenMove()
     , step_title(this, step_title_rect, Align_t::LeftCenter())
     , steps { { this, 0 }, { this, 1 }, { this, 2 }, { this, 3 } }
     , position(this, position_rect, Align_t::LeftCenter())
-    , origin_all(this, origin_all_body, home_all, _("Home XYZ"), &img::home_full_16x16, style::secondary, style::text_strong)
     , motors(this, motors_body, disable_motors, _("Motors off"), nullptr, style::secondary, style::text_strong)
-    , mmu_axes(this, mmu_axes_body, open_mmu_axes, _("MMU axes"), &img::spool_16x16, style::secondary, style::text_strong)
     , tabs(this, section_tab())
     , shown_step(step_index) {
     ClrMenuTimeoutClose(); // comme la liste de Prusa : l'écran reste ouvert pendant les déplacements
@@ -515,10 +517,13 @@ void ScreenMove::update() {
     const float x = marlin_vars().native_pos[X_AXIS].get();
     const float y = marlin_vars().native_pos[Y_AXIS].get();
 
-    char a[12], b[12], text[24];
-    axis_text(a, 'X', x, xy_known);
-    axis_text(b, 'Y', y, xy_known);
-    snprintf(text, sizeof(text), "%s  %s", a, b);
+    char a[12], text[24];
+    // « X125.0 Y110.0 » : 13 caractères dans la colonne de la carte (134 px)
+    if (xy_known) {
+        snprintf(text, sizeof(text), "X%.1f Y%.1f", static_cast<double>(x), static_cast<double>(y));
+    } else {
+        strlcpy(text, "X-- Y--", sizeof(text));
+    }
     position.set(text, style::text_soft);
 
     axis_text(a, 'Z', marlin_vars().native_pos[Z_AXIS].get(), known(_BV(Z_AXIS)));

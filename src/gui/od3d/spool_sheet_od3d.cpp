@@ -82,10 +82,12 @@ namespace {
     constexpr Rect16 secondary_body(int i) {
         return Rect16(16 + 152 * i, top + 110, 144, 38);
     }
+    /// Trois puces (Précharger, Éjecter, Couper) de la largeur des boutons du dessus : le PA a rejoint « Calibrer le PA »,
+    /// et les puces de 106 × 32 étaient petites au doigt (retour du 24/11)
     constexpr Rect16 chip_body(int i) {
-        return Rect16(16 + 114 * i, top + 156, 106, 32);
+        return Rect16(16 + 152 * i, top + 156, 144, 36);
     }
-    static_assert(style::inside(band, style::with_ring(chip_body(3))) && style::inside(band, style::with_ring(secondary_body(2))));
+    static_assert(style::inside(band, style::with_ring(chip_body(2))) && style::inside(band, style::with_ring(secondary_body(2))));
     static_assert(head_rect.Bottom() < style::with_ring(main_body).Top() && style::with_ring(main_body).Bottom() < style::with_ring(secondary_body(0)).Top());
     static_assert(style::with_ring(main_body).Right() < style::with_ring(calibrate_body).Left() && style::inside(band, style::with_ring(calibrate_body)));
     static_assert(style::with_ring(secondary_body(0)).Bottom() < style::with_ring(chip_body(0)).Top());
@@ -202,19 +204,22 @@ namespace {
 #endif
         Rect16 from = frost::origin(); ///< la bobine touchée, d'où s'ouvre la fiche (sa place une fois ouverte)
         StringViewUtf8Parameters<8> usage_params; ///< « Reste 350 g », avant le bouton qui garde le texte formaté
-        std::array<char, 12> pa_text {}; ///< « PA 0.035 » ou « PA ? » (F4), avant le bouton qui le montre
+        std::array<char, 12> pa_text {}; ///< « PA 0.035 » (F4), avant le bouton qui le montre
         Head head;
         Button main;
-        Button calibrate; ///< F4 : « Calibrer le PA » en un clic (chargement compris)
+        /// F4 : un seul bouton du PA (retour du 24/11 : « Calibrer le PA » et la puce « PA ? » ouvraient le même écran).
+        /// « PA 0.035 » quand l'emplacement est mesuré (l'écran du PA, sa courbe, « Mesurer ») ; sinon « Calibrer le PA »,
+        /// qui propose la mesure en un clic (chargement compris)
+        Button calibrate;
         Button change;
         Button material;
         Button usage;
         Button preload;
         Button eject;
         Button cut;
-        Button pa;
         Button close; ///< dernier à la molette (ordre de la maquette), mais toujours atteignable
         Choice main_choice;
+        Choice pa_choice = Choice::calibrate;
     };
 
     SpoolSheet::SpoolSheet(uint8_t index)
@@ -228,7 +233,6 @@ namespace {
         , preload(this, chip_body(0), tag_preload, Button::Look::outline, _("Preload"), nullptr, style::surface, chip_body(0).Height() / 2)
         , eject(this, chip_body(1), tag_eject, Button::Look::outline, _("Eject"), nullptr, style::surface, chip_body(1).Height() / 2)
         , cut(this, chip_body(2), tag_cut, Button::Look::outline, _("Cut"), nullptr, style::surface, chip_body(2).Height() / 2)
-        , pa(this, chip_body(3), tag_pa, Button::Look::outline, {}, nullptr, style::surface, chip_body(3).Height() / 2)
         , close(this, close_body, tag_close, Button::Look::secondary, _("Close"), nullptr, style::surface, 13) {
         SetBackColor(style::surface); // ce que la fiche repeint d'elle-même : seulement sa bande
 
@@ -258,20 +262,24 @@ namespace {
         }
         main.set_font(Font::normal);
 
-        // La mesure charge elle-même la bobine (MMU actif) ; pas pendant une autre mesure
-        calibrate.set_enabled(idle && (loaded || mmu) && !pa::is_running());
         change.set_enabled(mmu_free);
         preload.set_enabled(mmu_free);
         eject.set_enabled(mmu_free);
         cut.set_enabled(mmu_free);
-        // F4 : K mesuré de l'emplacement, « PA ? » sans mesure (en jaune si le PA de l'imprimante prime) ; ouvre l'écran
-        // du PA, toujours (on y regarde la valeur et la courbe même pendant une impression)
-        if (const auto k = pa::k_for_slot(index)) {
+        // F4 : K mesuré de l'emplacement : « PA 0.035 », qui ouvre l'écran du PA, toujours (on y regarde la valeur et la
+        // courbe même pendant une impression). Sans mesure : « Calibrer le PA » (en jaune si le PA de l'imprimante prime),
+        // la mesure en un clic, qui charge elle-même la bobine (MMU actif) ; pas pendant une autre mesure
+        const auto k = pa::k_for_slot(index);
+        const Button::Look pa_look = pa::needs_measure(index) ? Button::Look::alert : Button::Look::secondary;
+        if (k) {
             snprintf(pa_text.data(), pa_text.size(), "PA %.3f", double(*k));
+            pa_choice = Choice::pa;
+            calibrate.set(pa_look, string_view_utf8::MakeRAM(pa_text.data()));
         } else {
-            strlcpy(pa_text.data(), "PA ?", pa_text.size());
+            const bool can_measure = idle && (loaded || mmu) && !pa::is_running();
+            pa_choice = can_measure ? Choice::calibrate : Choice::pa;
+            calibrate.set(pa_look, _("Calibrate PA"));
         }
-        pa.set(pa::needs_measure(index) ? Button::Look::alert : Button::Look::outline, string_view_utf8::MakeRAM(pa_text.data()));
 
         // « Reste 350 g » (SPEC_G.md §3.3) quand le poids est suivi : ouvre l'utilisation, où il se corrige après une pesée
         if (const auto report = spool_usage::report(index)) {
@@ -283,7 +291,7 @@ namespace {
 
         if (!type) {
             // Emplacement vide : seul le bouton principal (SPEC_G.md §3.3)
-            for (Button *b : { &calibrate, &change, &material, &usage, &preload, &eject, &cut, &pa }) {
+            for (Button *b : { &calibrate, &change, &material, &usage, &preload, &eject, &cut }) {
                 b->set_enabled(false);
                 b->set_visible(false);
             }
@@ -400,7 +408,7 @@ namespace {
                 choice = main_choice;
                 break;
             case tag_calibrate:
-                choice = Choice::calibrate;
+                choice = pa_choice;
                 break;
             case tag_change:
                 choice = Choice::change;

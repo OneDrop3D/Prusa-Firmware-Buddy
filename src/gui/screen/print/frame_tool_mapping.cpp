@@ -979,9 +979,8 @@ void FrameToolMapping::on_button_click(Response response) {
         return;
 
     case Response::Abort:
-        if (MsgBoxQuestion(_("Do you really want to abort print?"), { Response::Abort, Response::No }) != Response::Abort) {
-            return;
-        }
+        // OneDrop3D (retour du 24/11, « optimise le menu imprimer ») : pas de « Voulez-vous vraiment annuler
+        // l'impression ? » ici : rien n'est encore imprimé, « Abandonner » ramène seulement au fichier
 
         // Don't redraw tools mapping screen since we're leaving
         Screens::Access()->Get()->Validate();

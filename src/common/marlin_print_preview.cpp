@@ -697,7 +697,10 @@ PrintPreview::Result PrintPreview::Loop() {
 
 #if HAS_MMU2()
     case State::mmu_filament_inserted_wait_user:
-        switch (response) {
+        // OneDrop3D (retour du 24/11, « optimise le menu imprimer ») : lancée par « Imprimer maintenant » (aperçu et
+        // association sautés si possible), l'impression décharge le filament détecté sans poser la question : c'est la
+        // réponse « Oui », celle qui ne risque pas un chargement sur un filament resté dans l'extrudeur
+        switch (skip_if_able >= marlin_server::PreviewSkipIfAble::tool_mapping ? Response::Yes : response) {
 
         case Response::No:
             ChangeState(State::inactive);

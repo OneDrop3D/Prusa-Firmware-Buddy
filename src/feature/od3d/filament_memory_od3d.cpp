@@ -2,6 +2,7 @@
 #include "filament_memory_od3d.hpp"
 #include "filament_memory_math_od3d.hpp"
 
+#include <atomic>
 #include <ctime>
 
 #include <config_store/store_instance.hpp>
@@ -51,6 +52,18 @@ std::optional<uint8_t> loaded_slot() {
         .finda = MMU2::mmu2.FindaDetectsFilament(),
         .extruder = head == FilamentSensorState::HasFilament ? Sensor::has : (head == FilamentSensorState::NoFilament ? Sensor::none : Sensor::unknown),
     });
+}
+
+namespace {
+    std::atomic<bool> print_start_tool_change = false;
+}
+
+void on_print_start() {
+    print_start_tool_change = true;
+}
+
+bool take_print_start_tool_change() {
+    return print_start_tool_change.exchange(false);
 }
 
 void step() {

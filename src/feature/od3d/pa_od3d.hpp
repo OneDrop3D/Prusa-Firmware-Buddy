@@ -166,6 +166,10 @@ void calibrate_auto_step(uint8_t slot);
 /// sort du chargement tombe sur le plateau, pas dans le vide
 void calibrate_auto_level();
 
+/// M104 S, M109 S/R : consigne à appliquer. Après une mesure automatique, jusqu'à la chauffe d'impression du G-code de
+/// départ, une baisse forte est ignorée (pa_math : start_hold_target) ; sinon requested
+int16_t start_nozzle_target(int16_t requested);
+
 /// Dernière mesure (en mémoire vive seulement), pour l'écran : K de chaque ligne imprimée **dans l'ordre des lignes**
 /// (ligne 1 à l'avant), retard, coût, et forme moyenne d'un créneau au K le plus bas, au meilleur coût et au K le plus
 /// haut. Lire quand is_running() est faux.

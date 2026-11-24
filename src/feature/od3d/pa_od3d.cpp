@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <cmath>
 #include <cstdio>
 #include <tuple>
@@ -133,7 +134,21 @@ void on_tool_change() {
     }
 }
 
+namespace {
+    bool hold_nozzle_hot = false; ///< mesure automatique faite : la buse garde sa consigne jusqu'à la chauffe d'impression
+}
+
+int16_t start_nozzle_target(int16_t requested) {
+    if (!hold_nozzle_hot) {
+        return requested;
+    }
+    const int16_t target = start_hold_target(requested, int16_t(Hotend::for_tool(PhysicalToolIndex::from_raw(0)).nozzle_target_temp()));
+    hold_nozzle_hot = marlin_server::is_printing() && target != requested; // demande suivie : le départ est fini
+    return marlin_server::is_printing() ? target : requested;
+}
+
 void on_print_start(bool from_file) {
+    hold_nozzle_hot = false;
     // Pas de changement du PA ici (boucle du serveur : on ne vide pas les files) ; le T du début du G-code ou le
     // premier M572 posent le K de l'emplacement
     slicer_requested = NAN;
@@ -879,7 +894,7 @@ namespace {
         std::array<uint8_t, VirtualToolIndex::count> order {}; ///< emplacements à mesurer, dans l'ordre
         uint8_t count = 0;
         uint8_t next = 0; ///< prochaine étape
-        std::optional<uint8_t> initial; ///< filament dans la buse au départ, remis à la fin
+        std::optional<uint8_t> initial; ///< filament laissé dans la buse à la fin (mesuré en dernier s'il l'est)
         std::array<pattern::Rect, VirtualToolIndex::count> blocks {}; ///< place du bloc de chaque étape
         uint8_t along_y = 0; ///< bit i : bloc de l'étape i tourné de 90° (lignes parallèles à Y)
         pattern::Rect area {}; ///< rectangle qui contient tous les blocs : palpé une fois
@@ -940,6 +955,7 @@ namespace {
             }
         } else {
             plan.active = false;
+            hold_nozzle_hot = plan.leveled; // la buse est chaude : le G-code de départ ne la fait pas redescendre
             ok = auto_restore_sequence(sequence, plan.initial, loaded_slot(), plan.initial ? filament_param(*plan.initial, filament) : "");
             if (plan.initial != loaded_slot() && plan.leveled && plan.count) {
                 spot = auto_load_spot(plan.count - 1, true);
@@ -1062,8 +1078,10 @@ void calibrate_auto() {
         return;
     }
 
-    // Ordre : la bobine chargée en dernier (elle reste dans la buse, rien à remettre)
-    const std::optional<uint8_t> initial = loaded_slot();
+    // Ordre : en dernier, celle qui doit rester dans la buse : la bobine d'une impression d'une seule matière (le T du
+    // G-code de départ la reprend telle quelle : ni déchargement ni rechargement après la mesure, retour du 24/11 :
+    // « après le PA [...] le décharge puis le recharge »), sinon celle chargée au départ (elle est remise à la fin)
+    const std::optional<uint8_t> initial = std::popcount(used) == 1 ? std::optional<uint8_t>(uint8_t(std::countr_zero(used))) : loaded_slot();
     std::array<uint8_t, VirtualToolIndex::count> order;
     size_t count = 0;
     for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {

@@ -985,6 +985,14 @@ TEST_CASE("PA : K retrouvé avec des lignes alternées (grand motif et compact)"
     }
 }
 
+TEST_CASE("pa: nozzle kept hot after the automatic measurement") {
+    CHECK(pa::start_hold_target(170, 230) == 230); // palpage de PrusaSlicer : pas de descente
+    CHECK(pa::start_hold_target(100, 230) == 230); // veille du MMU
+    CHECK(pa::start_hold_target(220, 230) == 220); // première couche un peu plus basse : demandée telle quelle
+    CHECK(pa::start_hold_target(235, 230) == 235); // chauffe d'impression
+    CHECK(pa::start_hold_target(170, 0) == 170);
+}
+
 TEST_CASE("motif : lignes alternées, chaque ligne part de la fin de la précédente") {
     for (const bool compact : { true, false }) {
         pa::Request rq;

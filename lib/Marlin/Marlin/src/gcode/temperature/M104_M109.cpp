@@ -30,6 +30,11 @@
 #include "../../module/planner.h"
 #include "../../lcd/ultralcd.h"
 #include <utils/variant_utils.hpp>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_LOADCELL() && HAS_MMU2()
+  #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4) : buse gardée chaude après la mesure automatique du PA
+#endif
 #include "../../Marlin.h"
 
 #if ENABLED(PRINTJOB_TIMER_AUTOSTART)
@@ -67,7 +72,10 @@ void GcodeSuite::M104() {
   if (!tool.has_value()) return;
 
   if (parser.seenval('S')) {
-    const int16_t temp = static_cast<int16_t>(parser.value_celsius());
+    int16_t temp = static_cast<int16_t>(parser.value_celsius());
+    #if HAS_LOADCELL() && HAS_MMU2()
+      temp = od3d::pa::start_nozzle_target(temp);
+    #endif
     #if ENABLED(SINGLENOZZLE)
       singlenozzle_temp[tool->to_raw()] = temp;
       if (!stdext::holds_value(PhysicalToolIndex::currently_selected(), *tool)) return;
@@ -123,7 +131,10 @@ void M109_no_parser(PhysicalToolIndex tool, const M109Flags& flags) {
   const bool no_wait_for_cooling = flags.wait_heat && !flags.wait_heat_or_cool;
   const bool set_temp = no_wait_for_cooling || flags.wait_heat_or_cool;
   if (set_temp) {
-    const int16_t temp = flags.target_temp;
+    int16_t temp = flags.target_temp;
+    #if HAS_LOADCELL() && HAS_MMU2()
+      temp = od3d::pa::start_nozzle_target(temp);
+    #endif
     #if ENABLED(SINGLENOZZLE)
       singlenozzle_temp[tool.to_raw()] = temp;
       if (!stdext::holds_value(PhysicalToolIndex::currently_selected(), tool)) return;

@@ -1121,10 +1121,10 @@ static bool pre_finalize_print([[maybe_unused]] bool finished) {
 #if HAS_MMU2()
     if (MMU2::mmu2.Enabled()) {
         // Unloading from nozzle is handled by Slicer, do not use auto_retract (frequent filament changes cause filament_tracker cannot properly hold valid value)
-        // When we are running single-filament gcode with MMU, we should unload current filament.
-        if (!finished || GCodeInfo::getInstance().is_singletool_gcode()) {
-            safely_unload_filament_from_nozzle_to_mmu();
-        }
+        // OneDrop3D (F43) : Prusa déchargeait ici le filament à l'arrêt et à la fin d'une impression mono-outil ; il reste
+        // dans la buse (retour du 24/11 : « quand il a purgé un filament [...] et qu'elle s'est arrêtée il ne retient
+        // pas »). La mémoire du filament le retient, et le T du G-code de départ suivant le reprend sans le recharger
+        // (MMU2::tool_change)
     } else
 #endif
 
@@ -2438,6 +2438,9 @@ static void _server_print_loop(void) {
 #endif
 #if HAS_FILAMENT_TRACKER() && HAS_MMU2()
         od3d::spool_usage::on_print_start(); // OneDrop3D (F13)
+#endif
+#if HAS_MMU2()
+        od3d::filament_memory::on_print_start(); // OneDrop3D (F43) : le T du G-code de départ reprend le filament gardé
 #endif
 #if HAS_LOADCELL() && HAS_MMU2()
         od3d::pa::on_print_start(!server.print_is_serial); // OneDrop3D (F4) : et mesure automatique du PA (M1994 A)

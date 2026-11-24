@@ -19,6 +19,7 @@
 #include "mmu2_progress_converter.h"
 #include "mmu2_reporting.h"
 #include "../e-stall_detector.h"
+#include <feature/od3d/filament_memory_od3d.hpp> // OneDrop3D (F43)
 #include <printers.h>
 #include <option/has_mmu2_over_uart.h>
 #if not HAS_MMU2_OVER_UART()
@@ -683,12 +684,15 @@ bool MMU2::tool_change(uint8_t slot) {
         return false;
     }
 
+    // OneDrop3D (F43) : le T du G-code de départ reprend le filament gardé dans la buse (filament_memory_od3d.hpp)
+    const bool print_start = od3d::filament_memory::take_print_start_tool_change() && marlin_printingIsActive();
     if (slot != extruder) {
         if (/*FindaDetectsFilament()*/
             /*!IS_SD_PRINTING && !usb_timer.running()*/
-            !marlin_printingIsActive()) {
+            !marlin_printingIsActive() || (print_start && extruder != MMU2_NO_TOOL)) {
             // If Tcodes are used manually through the serial
             // we need to unload manually as well -- but only if FINDA detects filament
+            // OneDrop3D : au départ d'une impression, un autre filament gardé dans la buse aussi (pointe façonnée)
             unload();
         }
 
@@ -697,6 +701,11 @@ bool MMU2::tool_change(uint8_t slot) {
         BlockEStallDetection blockEStallDetection;
         planner_synchronize();
         ToolChangeCommon(slot);
+    } else if (print_start) {
+        // OneDrop3D : le même filament déjà dans la buse, reculé de ce que le G-code de départ pousse ensuite : il revient
+        // au bout de la buse et la ligne de purge amorce sur le plateau
+        extruder_move(-od3d::filament_memory::start_load_mm, 25.f);
+        planner_synchronize();
     }
     return true;
 }

@@ -280,6 +280,15 @@ bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filam
 /// se pose sur une place que le palpage ne touchera plus
 bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first = false);
 
+/// Après la mesure automatique, consigne de la buse que le G-code de départ demande (requested) : la consigne actuelle
+/// (current) est gardée si la demande est plus basse de plus de start_hold_margin (palpage à 170 °C, température de
+/// veille du MMU) : la buse ne refroidit pas pour remonter juste après (retour du 24/11 : « passe après le PA de 230 à
+/// 170 puis va remonter, c'est une grosse perte de temps ») ; le palpage se fait chaud, comme Prusa pour le PC et le PA
+inline constexpr int16_t start_hold_margin = 20;
+constexpr int16_t start_hold_target(int16_t requested, int16_t current) {
+    return requested + start_hold_margin < current ? current : requested;
+}
+
 /// Fin de la mesure automatique : filament remis comme au départ. Vide si c'est déjà le cas ; M702 W2 (« Décharger »
 /// de Prusa) s'il n'y en avait pas ; sinon le chargement de initial (filament : sa matière)
 bool auto_restore_sequence(std::span<char> out, std::optional<uint8_t> initial, std::optional<uint8_t> loaded, const char *filament);

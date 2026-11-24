@@ -24,4 +24,23 @@ std::optional<uint8_t> loaded_slot();
 /// Boucle de Marlin (marlin_server, idle) : décision au démarrage du MMU, puis mémoire tenue à jour
 void step();
 
+// ---- Filament gardé dans la buse d'une impression à l'autre (retour du 24/11) ----
+// Prusa le déchargeait à la fin et à l'arrêt, parce que le G-code de départ de PrusaSlicer pour la CORE One MMU3 compte
+// que T<n> n'amène le filament qu'aux roues de l'extrudeur : il pousse ensuite start_load_mm (« load to the nozzle »)
+// à 15 mm au-dessus du plateau, puis la ligne de purge amorce. Le premier T d'une impression reprend donc le filament
+// gardé : le même est reculé de start_load_mm (il revient au bout de la buse, rien ne sort en l'air), un autre est
+// d'abord déchargé avec sa pointe façonnée (ramming), comme Prusa hors impression.
+
+/// parking_pos_retraction 84 + extra_loading_move −52 − 15 du profil PrusaSlicer de la CORE One MMU3
+/// shortcut: valeur du profil de PrusaSlicer ; à lire dans le G-code si un autre trancheur ou profil la change
+inline constexpr float start_load_mm = 17.f;
+
+/// Départ d'une impression (marlin_server, PrintInit) : le prochain changement d'outil du MMU est celui du G-code de
+/// départ. shortcut: posé aussi pour une impression reprise à une position du fichier ; son premier T, s'il change de
+/// filament, déchargerait avec ramming une pointe déjà façonnée par le trancheur
+void on_print_start();
+
+/// MMU2::tool_change : premier changement d'outil depuis on_print_start(), rendu une seule fois
+bool take_print_start_tool_change();
+
 } // namespace od3d::filament_memory

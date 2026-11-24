@@ -190,10 +190,11 @@ namespace {
         return sequence[0] == '\0' || marlin_server::inject(GCodeLiteral { .gcode = ConstexprString::from_str_unsafe(sequence) });
     }
 
-    /// Paramètre S de M701 pour la matière de l'emplacement, comme le menu « Charger dans la buse » de Prusa
+    /// Paramètre S de M701 pour la matière de l'emplacement, comme le menu « Charger dans la buse » de Prusa ; pendant
+    /// l'impression, celle du fichier si l'imprimante ne la connaît pas (heuristique de Prusa, comme auto_type())
     const char *filament_param(uint8_t slot, std::span<char> out) {
         StringBuilder sb(out);
-        FilamentType::for_tool(VirtualToolIndex::from_raw(slot)).build_encoded_gcode_param(sb);
+        FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot)).build_encoded_gcode_param(sb);
         return sb.str();
     }
 
@@ -435,7 +436,7 @@ namespace {
         if (const auto k = k_for_slot(slot)) {
             return *k;
         }
-        const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+        const FilamentType type = FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot));
         for (uint8_t other = 0; other < VirtualToolIndex::count; ++other) {
             if (other != slot && FilamentType::for_tool(VirtualToolIndex::from_raw(other)) == type) {
                 if (const auto k = k_for_slot(other)) {
@@ -791,9 +792,11 @@ namespace {
         return rq;
     }
 
-    /// Matière de l'emplacement pour la mesure automatique
+    /// Matière de l'emplacement pour la mesure automatique : celle de l'imprimante, sinon (bobine jamais chargée par
+    /// l'écran : retour du 24/11, « calibrer pour les différents filaments ») celle que le fichier donne à cet outil
+    /// (heuristique de Prusa, la même que pour ses propres décisions pendant l'impression)
     FilamentType auto_type(uint8_t slot) {
-        return FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+        return FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot));
     }
 
     /// Bloc droit d'un emplacement, en (0, 0) : lignes depuis (0, auto_lead) ; la purge est sous les lignes
@@ -1000,6 +1003,13 @@ void calibrate_auto() {
         }
         if (record(slot).has_k()) {
             has_k |= uint8_t(1u << slot);
+        }
+    }
+    // Matière inconnue même du fichier : pas de température sûre, pas de mesure ; on le dit
+    const uint8_t unknown = uint8_t(slots_to_measure(mode, used, 0xff, has_k) & ~known);
+    for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
+        if (unknown & (1u << slot)) {
+            report_slot(slot, Error::not_loaded);
         }
     }
     const uint8_t todo = slots_to_measure(mode, used, known, has_k);

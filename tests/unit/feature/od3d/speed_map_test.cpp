@@ -134,16 +134,50 @@ TEST_CASE("vitesses : sommets critiques") {
     CHECK(find_critical(v, 1.8f, 0.f, one) == 1);
     CHECK(one[0] == 2);
 
-    // Un bord compte ; un plateau une seule fois
+    // Un bord ne compte pas (V-07) ; un plateau une seule fois
     const std::vector<float> edge { 5, 1, 1, 1, 3, 3, 1 };
     const size_t m = find_critical(edge, 1.5f, 0.f, out);
-    REQUIRE(m == 2);
-    CHECK(out[0] == 0);
-    CHECK(out[1] == 4);
+    REQUIRE(m == 1);
+    CHECK(out[0] == 4);
 
-    // Plat : rien ; vide : rien
+    // Plat : rien ; vide ou trop court : rien
     CHECK(find_critical(std::vector<float>(10, 2.f), 1.5f, 0.f, out) == 0);
     CHECK(find_critical(std::vector<float> {}, 1.5f, 0.f, out) == 0);
+    CHECK(find_critical(std::vector<float> { 1, 9 }, 1.5f, 0.f, out) == 0);
+}
+
+TEST_CASE("vitesses (V-07) : base locale, une énergie qui croît n'a pas de vitesse critique") {
+    uint8_t out[5];
+    // L'énergie croît avec la vitesse (de 20 à 80 mm/s par pas de 5) : avec la médiane de tout l'axe, la plus haute
+    // vitesse ressortait « critique » ; aucune ne l'est
+    std::vector<float> rising;
+    for (int i = 0; i < 13; ++i) {
+        rising.push_back(1.f + 0.25f * float(i));
+    }
+    CHECK(find_critical(rising, 1.5f, 0.f, out) == 0);
+    std::vector<float> steep;
+    for (int i = 0; i < 13; ++i) {
+        steep.push_back(std::exp(0.3f * float(i)));
+    }
+    CHECK(find_critical(steep, 1.5f, 0.f, out) == 0);
+
+    // Une résonance sur cette pente : trouvée par rapport à ses voisines (base 2,5), et rien d'autre
+    std::vector<float> bump = rising;
+    bump[6] += 3.f; // 50 mm/s : 5,5 contre 2 ; 2,25 ; 2,75 ; 3 autour
+    REQUIRE(find_critical(bump, 1.5f, 0.f, out) == 1);
+    CHECK(out[0] == 6);
+    CHECK(speeds({ out[0] }, 20, 5) == "50");
+
+    // Trop peu au-dessus de ses voisines : pas critique
+    std::vector<float> small = rising;
+    small[6] += 0.5f;
+    CHECK(find_critical(small, 1.5f, 0.f, out) == 0);
+
+    // Voisines non mesurées (NAN) : la base prend celles qui le sont ; sans aucune, pas de verdict
+    const std::vector<float> holes { 1, NAN, 4, 1, 1 };
+    REQUIRE(find_critical(holes, 1.5f, 0.f, out) == 1);
+    CHECK(out[0] == 2);
+    CHECK(find_critical(std::vector<float> { NAN, 4, NAN }, 1.5f, 0.f, out) == 0);
 }
 
 TEST_CASE("vitesses : liste lisible") {

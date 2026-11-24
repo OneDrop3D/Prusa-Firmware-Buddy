@@ -793,7 +793,7 @@ namespace {
             break;
         case Test::speed_map:
             w.label(N_("Critical speeds:"));
-            w.add("%d (X %d, Y %d)", int(a[0]), int(a[1]), int(a[2]));
+            w.add("%d (X %d, Y %d), %d-%d mm/s", int(a[0]), int(a[1]), int(a[2]), int(speed_map::speed_start), int(speed_map::speed_end));
             if (b[0] != none) {
                 w.label(N_("Before:"));
                 w.add("%d", int(b[0]));

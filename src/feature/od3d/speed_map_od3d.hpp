@@ -1,11 +1,11 @@
 /// @file
 /// OneDrop3D (F22) : carte des vitesses critiques (VFA) mesurée par l'accéléromètre de l'input shaper (M1993).
 ///
-/// Pour chaque axe (X puis Y) et chaque vitesse de 20 à 300 mm/s par pas de 10, la tête fait un aller et un retour à
+/// Pour chaque axe (X puis Y) et chaque vitesse de 20 à 80 mm/s par pas de 5, la tête fait un aller et un retour à
 /// vitesse constante depuis un même bout (sweep_from : sans recentrage entre deux vitesses, ensemble centré sur le
 /// plateau) ; l'énergie vibratoire (moyenne quadratique de l'accélération après un
 /// passe-haut, speed_map_math_od3d.hpp) n'est mesurée que dans la partie à vitesse constante, repérée par la position
-/// réelle des moteurs. Les vitesses dont l'énergie ressort nettement sont « à éviter ».
+/// réelle des moteurs. Les vitesses dont l'énergie ressort nettement de celle de leurs voisines sont « à éviter ».
 ///
 /// Les résultats restent en mémoire jusqu'au redémarrage ; l'interface les lit pendant la mesure (barres en direct).
 #pragma once
@@ -18,14 +18,17 @@
 namespace od3d::speed_map {
 
 inline constexpr float speed_start = 20.f; ///< mm/s
-inline constexpr float speed_step = 10.f;
-inline constexpr size_t speed_count = 29; ///< 20 à 300 mm/s
+inline constexpr float speed_step = 5.f;
+/// 20 à 80 mm/s (V-07, étude F34) : la fréquence des pas complets des moteurs vaut 6,25 × v Hz (500 Hz à 80 mm/s) et
+/// approche au-delà la moitié de l'échantillonnage de l'accéléromètre (~1 344 Hz), qui ne la capte plus : une carte
+/// plus haute ne serait pas fiable. Le pas de 5 mm/s garde des voisines de chaque côté pour la base locale.
+inline constexpr size_t speed_count = 13;
 inline constexpr float speed_end = speed_start + (speed_count - 1) * speed_step;
-static_assert(speed_end == 300.f);
+static_assert(speed_end == 80.f);
 
 inline constexpr uint8_t axis_count = 2; ///< X, Y
 
-/// Seuil des vitesses critiques : énergie au-dessus de critical_factor × la médiane de l'axe
+/// Seuil des vitesses critiques : énergie au-dessus de critical_factor × leur base locale (find_critical())
 inline constexpr float critical_factor = 1.5f;
 inline constexpr size_t max_critical = 5;
 

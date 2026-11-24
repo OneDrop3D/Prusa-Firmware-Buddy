@@ -12956,3 +12956,15 @@ msgstr "Vibrations des ventilateurs : arrêtées avant la fin."
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "No force: the nozzle did not touch the bed."
 msgstr "Aucune force : la buse n'a pas touché le plateau."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Attach the accelerometer to the extruder, then Start (X and Y, about 1 min)."
+msgstr "Fixez l'accéléromètre sur l'extrudeur, puis Démarrer (X et Y, 1 min env.)."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Orange bars: speeds to avoid. Measured up to %d mm/s, the limit of the accelerometer."
+msgstr "Barres orange : vitesses à éviter. Mesurées jusqu'à %d mm/s, la limite de l'accéléromètre."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "No critical speed up to %d mm/s, the limit of the accelerometer."
+msgstr "Aucune vitesse critique jusqu'à %d mm/s, la limite de l'accéléromètre."

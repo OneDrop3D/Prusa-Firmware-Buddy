@@ -102,7 +102,7 @@ inline constexpr std::array entries {
     Entry { Test::phase_stepping, accelerometer | cold_nozzle, 8, 1, true },
     Entry { Test::input_shaper, accelerometer | cold_nozzle, 6, 1, true },
     Entry { Test::damping, accelerometer | cold_nozzle, 4, 2, true }, // v2 : gain du plan horizontal
-    Entry { Test::speed_map, accelerometer | cold_nozzle, 6, 1, true }, // après le phase stepping (F34)
+    Entry { Test::speed_map, accelerometer | cold_nozzle, 2, 2, true }, // après le phase stepping (F34) ; v2 : 20 à 80 mm/s, base locale (V-07)
     Entry { Test::accel_limit, accelerometer | cold_nozzle, 1, 2, true }, // après l'input shaper : avec le filtre en place ; v2 : rampe de l'axe (V-05)
     Entry { Test::shaper_check, accelerometer | cold_nozzle, 1, 2, true }, // le filtre choisi, vérifié sur la machine ; v2 : rampe de l'axe (V-05)
     Entry { Test::mpc, heated, 12, 1, true },

@@ -34,7 +34,8 @@ bool applicable(const Entry &e, const Context &ctx) {
     return !((e.needs & accelerometer) && ctx.accelerometer == Accelerometer::no)
         && !((e.needs & mmu) && !ctx.mmu)
         && !((e.needs & (filament | one_spool)) && !ctx.spools)
-        && !((e.needs & flow_limit) && !ctx.flow_limit);
+        && !((e.needs & flow_limit) && !ctx.flow_limit)
+        && !(e.test == Test::mpc && !ctx.mpc); // M-16 : pas de bit de Need libre
 }
 
 uint32_t select(const Context &ctx, std::span<const Record> records, bool only_outdated) {

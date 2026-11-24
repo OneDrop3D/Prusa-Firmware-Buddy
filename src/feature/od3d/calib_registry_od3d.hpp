@@ -162,6 +162,7 @@ struct Context {
     Accelerometer accelerometer = Accelerometer::unknown;
     bool mmu = false;
     bool flow_limit = false;
+    bool mpc = false; ///< M-16 : régulation MPC choisie (od3d_mpc_enabled) ; en PID, sa calibration ne sert à rien
     uint8_t spools = 0; ///< bit n : l'emplacement n a une bobine (utilisable)
     /// Par test (indice Test), bit n : l'emplacement n a déjà une valeur pour la bobine en place (K du PA, débit maximal,
     /// température minimale, accélération du filament ; effacée au changement de bobine)

@@ -26,7 +26,7 @@ Records all_done() {
 }
 
 Context full(Accelerometer accel = Accelerometer::yes) {
-    return Context { .accelerometer = accel, .mmu = true, .flow_limit = true, .spools = 0b00101 };
+    return Context { .accelerometer = accel, .mmu = true, .flow_limit = true, .mpc = true, .spools = 0b00101 };
 }
 
 /// Comme full(), chaque bobine déjà mesurée (K, débit…)
@@ -73,6 +73,17 @@ TEST_CASE("calib_registry: spools and flow limit") {
     CHECK_FALSE((m & test_bit(Test::max_flow))); // son résultat ne sert qu'à « limiter au débit mesuré »
     CHECK((m & test_bit(Test::pa)));
     CHECK((m & test_bit(Test::min_temp)));
+}
+
+TEST_CASE("calib_registry: MPC only while the MPC regulates (M-16)") {
+    const Records none {};
+    Context ctx = full();
+    ctx.mpc = false; // PID de Prusa : 12 min pour rien
+    CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mpc)));
+    CHECK_FALSE((proposed(ctx, none) & test_bit(Test::mpc)));
+    CHECK((select(ctx, none, true) & test_bit(Test::nozzle_expansion))); // le reste de la série « Chauffe » reste
+    ctx.mpc = true;
+    CHECK((proposed(ctx, none) & test_bit(Test::mpc)));
 }
 
 TEST_CASE("calib_registry: version bump proposes only that test") {

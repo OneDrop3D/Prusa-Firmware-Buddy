@@ -479,6 +479,7 @@ Context context() {
     ctx.accelerometer = accelerometer();
     ctx.mmu = config_store().mmu2_enabled.get();
     ctx.flow_limit = calib::flow_limit_enabled();
+    ctx.mpc = config_store().od3d_mpc_enabled.get(); // M-16
     std::array<int16_t, VirtualToolIndex::count> bed {}, nozzle {};
     for (uint8_t i = 0; i < VirtualToolIndex::count; ++i) {
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(i);

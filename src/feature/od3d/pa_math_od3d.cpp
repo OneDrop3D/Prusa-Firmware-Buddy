@@ -600,28 +600,20 @@ uint8_t slots_to_measure(AutoMode mode, uint8_t used, uint8_t known, uint8_t has
 }
 
 std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern::Rect &print, float w, float h, std::span<const float> xs,
-    std::span<const float> ys, float grow_x, float grow_y, float clearance) {
+    std::span<const float> ys, float grow_x, float grow_y, float clearance, std::span<const pattern::Rect> taken) {
     constexpr pattern::Rect purge_probe { 150.f, 0.f, 250.f, 20.f };
-    const auto overlaps = [](const pattern::Rect &a, const pattern::Rect &b) {
-        return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-    };
     const pattern::Rect kept = print.grown(clearance, clearance);
     const pattern::Rect kept_purge = purge_probe.grown(clearance, clearance);
     const pattern::Rect probed = print.grown(grow_x, grow_y);
+    // Points palpés : xs × ys dans probed (comme Prusa, PrintArea::rect_t::contains : bornes comprises). Un point gêne
+    // r à moins de clearance ; la condition se sépare en X et en Y : il suffit d'un x et d'un y qui gênent
+    const auto near = [clearance](std::span<const float> vs, float lo, float hi, float a0, float a1) {
+        return std::any_of(vs.begin(), vs.end(), [&](float v) { return v >= lo && v <= hi && v > a0 - clearance && v < a1 + clearance; });
+    };
     const auto is_free = [&](const pattern::Rect &r) {
-        if (overlaps(r, kept) || overlaps(r, kept_purge)) {
-            return false;
-        }
-        for (const float x : xs) {
-            for (const float y : ys) {
-                // Comme Prusa (PrintArea::rect_t::contains) : bornes comprises
-                const bool tapped = x >= probed.x0 && x <= probed.x1 && y >= probed.y0 && y <= probed.y1;
-                if (tapped && overlaps(r, pattern::Rect { x, y, x, y }.grown(clearance, clearance))) {
-                    return false;
-                }
-            }
-        }
-        return true;
+        return !pattern::overlaps(r, kept) && !pattern::overlaps(r, kept_purge)
+            && std::none_of(taken.begin(), taken.end(), [&](const pattern::Rect &t) { return pattern::overlaps(r, t.grown(clearance, clearance)); })
+            && !(near(xs, probed.x0, probed.x1, r.x0, r.x1) && near(ys, probed.y0, probed.y1, r.y0, r.y1));
     };
     if (!(w > 0.f) || !(h > 0.f) || w > zone.width() || h > zone.height()) {
         return std::nullopt;
@@ -633,7 +625,51 @@ std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern:
             }
         }
     }
+    // Rien contre un bord (demande du 24/11) : la place la plus à l'avant, puis la plus à gauche. Une place libre
+    // glissée vers la gauche s'arrête contre le bord droit d'un obstacle : seules ces abscisses sont à essayer
+    // (arrondies au mm supérieur : pas de contact faux par l'arrondi des flottants)
+    for (float y = zone.y0; y + h <= zone.y1; y += 1.f) {
+        std::optional<pattern::Rect> best;
+        const auto consider = [&](float edge) {
+            const float x = std::ceil(edge);
+            if (x >= zone.x0 && x + w <= zone.x1 && (!best || x < best->x0)) {
+                if (const pattern::Rect r { x, y, x + w, y + h }; is_free(r)) {
+                    best = r;
+                }
+            }
+        };
+        consider(kept.x1);
+        consider(kept_purge.x1);
+        for (const pattern::Rect &t : taken) {
+            consider(t.x1 + clearance);
+        }
+        for (const float x : xs) {
+            consider(x + clearance);
+        }
+        if (best) {
+            return best;
+        }
+    }
     return std::nullopt;
+}
+
+size_t auto_spots(std::span<pattern::Rect> out, uint8_t &along_y, const pattern::Rect &zone, const pattern::Rect &print, float w, float h,
+    std::span<const float> xs, std::span<const float> ys, float grow_x, float grow_y, float clearance) {
+    along_y = 0;
+    size_t n = 0;
+    for (; n < out.size() && n < 8; ++n) {
+        const std::span<const pattern::Rect> taken(out.data(), n);
+        auto r = auto_spot(zone, print, w, h, xs, ys, grow_x, grow_y, clearance, taken);
+        if (!r) {
+            r = auto_spot(zone, print, h, w, xs, ys, grow_x, grow_y, clearance, taken);
+            if (!r) {
+                break; // blocs de même taille : les suivants ne tiendraient pas non plus
+            }
+            along_y |= uint8_t(1u << n);
+        }
+        out[n] = *r;
+    }
+    return n;
 }
 
 namespace {

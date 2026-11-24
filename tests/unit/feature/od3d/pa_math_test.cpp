@@ -519,6 +519,140 @@ TEST_CASE("od3d pa: place du motif automatique à côté de l'impression", "[od3
         const pattern::Rect print { 85.f, 70.f, 165.f, 150.f };
         CHECK_FALSE(pa::auto_spot(zone, print, w, 3.f * h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
     }
+    SECTION("rien contre un bord : la place libre entre deux blocs déjà pris") {
+        const pattern::Rect band { 10.f, 10.f, 240.f, 50.f }; // bande étroite : un bloc par rangée
+        const pattern::Rect print { 100.f, 180.f, 150.f, 200.f }; // loin : aucun point palpé dans la bande
+        const pattern::Rect taken[] { { 10.f, 10.f, 70.f, 50.f }, { 170.f, 10.f, 240.f, 50.f } };
+        const auto r = pa::auto_spot(band, print, 60.f, 27.f, g.xs, g.ys, g.grow_x, g.grow_y, 5.f, taken);
+        REQUIRE(r.has_value());
+        CHECK(r->x0 == 75.f); // contre le bloc de gauche, à 5 mm
+        CHECK(r->y0 == 10.f);
+        CHECK(r->x1 <= 145.f); // hors de la zone palpée près de la purge
+        for (const pattern::Rect &t : taken) {
+            CHECK_FALSE(overlap(*r, t.grown(5.f, 5.f)));
+        }
+    }
+}
+
+namespace {
+
+/// Bloc d'un emplacement de la mesure automatique (comme pa_od3d.cpp) : purge (demi-largeur 3, à 6 mm de la 1re
+/// ligne), puis compact_cap lignes du motif compact ; lead : du bord du bloc à la 1re ligne
+constexpr float lead = 3.f + 6.f;
+
+pattern::Lines compact_lines(float x, float y) {
+    pa::Request rq;
+    pa::make_compact(rq);
+    pattern::Lines l;
+    l.x0 = x;
+    l.y0 = y;
+    l.pitch = rq.pitch;
+    l.length = pa::line_length(rq.params);
+    l.count = pa::compact_cap;
+    l.bead = rq.params.bead;
+    return l;
+}
+
+/// Blocs placés : chacun libre (check_free) et à 5 mm au moins des autres
+void check_blocks(std::span<const pattern::Rect> blocks, const pattern::Rect &zone, const pattern::Rect &print, const Grid &g) {
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        check_free(blocks[i], zone, print, g);
+        for (size_t j = 0; j < i; ++j) {
+            CHECK_FALSE(overlap(blocks[i], blocks[j].grown(5.f, 5.f)));
+        }
+    }
+}
+
+} // namespace
+
+TEST_CASE("od3d pa: un bloc par emplacement, chacun à sa place, tourné s'il le faut", "[od3d][pa]") {
+    const Grid g;
+    const pattern::Rect zone { 10.f, 10.f, 240.f, 210.f };
+    const pattern::Rect one = compact_lines(0.f, lead).area(); // bloc droit en (0, 0)
+    const float w = one.width(), h = one.y1;
+    REQUIRE(w > 80.f);
+    REQUIRE(w < 95.f);
+    REQUIRE(h > 20.f);
+    REQUIRE(h < 30.f);
+    std::array<pattern::Rect, 5> out;
+    uint8_t along_y = 0xff;
+
+    SECTION("pièce à l'avant : trois blocs derrière elle, couchés") {
+        const pattern::Rect print { 20.f, 0.f, 230.f, 60.f };
+        const size_t n = pa::auto_spots(std::span(out.data(), 3), along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(n == 3);
+        CHECK(along_y == 0);
+        check_blocks(std::span(out.data(), n), zone, print, g);
+        for (size_t i = 0; i < n; ++i) {
+            CHECK(out[i].y0 >= print.y1);
+            CHECK_THAT(out[i].width(), WithinAbs(w, 1e-4));
+        }
+        // Le 1er comme avant (une seule bobine : même place que l'ancien bloc unique)
+        const auto first = pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(first.has_value());
+        CHECK(out[0].x0 == first->x0);
+        CHECK(out[0].y0 == first->y0);
+    }
+    SECTION("pièce large au milieu : devant et derrière, pas une colonne") {
+        const pattern::Rect print { 20.f, 60.f, 230.f, 150.f };
+        // Une colonne de deux blocs ne tient nulle part (ancien comportement : une seule bobine mesurée)
+        CHECK_FALSE(pa::auto_spot(zone, print, w, 2.f * h + 5.f, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
+        const size_t n = pa::auto_spots(std::span(out.data(), 3), along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(n == 3);
+        check_blocks(std::span(out.data(), n), zone, print, g);
+        CHECK(out[0].y1 <= print.y0);
+        CHECK(out[1].y0 >= print.y1);
+        CHECK(out[2].y0 >= print.y1);
+    }
+    SECTION("pièce sur toute la profondeur : blocs debout dans la bande de gauche, le 3e reporté") {
+        const pattern::Rect print { 80.f, 0.f, 240.f, 220.f }; // reste 65 mm à gauche : un bloc couché n'y tient pas
+        CHECK_FALSE(pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
+        const size_t n = pa::auto_spots(std::span(out.data(), 3), along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(n == 2);
+        CHECK(along_y == 0b11);
+        check_blocks(std::span(out.data(), n), zone, print, g);
+        for (size_t i = 0; i < n; ++i) {
+            CHECK_THAT(out[i].width(), WithinAbs(h, 1e-4)); // tourné : h × w
+            CHECK_THAT(out[i].height(), WithinAbs(w, 1e-4));
+            CHECK(out[i].x1 <= print.x0);
+        }
+    }
+    SECTION("rien ne tient : aucun bloc") {
+        const pattern::Rect print { 0.f, 0.f, 250.f, 220.f };
+        CHECK(pa::auto_spots(out, along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y) == 0);
+        CHECK(along_y == 0);
+    }
+}
+
+TEST_CASE("motif : bloc tourné de 90°, lignes et purge le long de Y", "[od3d][pattern]") {
+    const pattern::Rect one = compact_lines(0.f, lead).area();
+    // Bloc debout (comme pa_od3d.cpp, auto_lines_of()) : X et Y échangés autour du départ des lignes
+    const pattern::Rect b { 20.f, 30.f, 20.f + one.y1, 30.f + one.width() };
+    pattern::Lines lines = compact_lines(b.x0 + lead, b.y0 - one.x0);
+    lines.along_y = true;
+    const pattern::Rect a = lines.area();
+    CHECK(b.grown(1e-3f, 1e-3f).contains(a)); // à l'arrondi des flottants près
+    CHECK_THAT(a.width(), WithinAbs(one.height(), 1e-4));
+    CHECK_THAT(a.height(), WithinAbs(one.width(), 1e-4));
+    // Ligne 0 le long de +Y, ligne 1 en sens inverse, 2,5 mm plus loin en X
+    const pattern::Point s0 = lines.at(lines.x_start(0), lines.y(0));
+    const pattern::Point e0 = lines.at(lines.x_start(0) + lines.dir(0) * lines.length, lines.y(0));
+    CHECK(s0.x == e0.x);
+    CHECK_THAT(e0.y - s0.y, WithinAbs(lines.length, 1e-4));
+    const pattern::Point s1 = lines.at(lines.x_start(1), lines.y(1));
+    CHECK_THAT(s1.x - s0.x, WithinAbs(lines.pitch, 1e-4));
+    CHECK_THAT(s1.y, WithinAbs(e0.y, 1e-4)); // part d'où la précédente s'arrête
+    // Purge (à 6 mm sous la 1re ligne, 50 mm le long des lignes) : dans le bloc, à côté des lignes
+    const pattern::Point p = lines.at(lines.x0, lines.y0 - 6.f);
+    CHECK(p.x - 3.f >= b.x0);
+    CHECK(p.x + 3.f < a.x0);
+    CHECK(p.y >= b.y0);
+    CHECK(p.y + 50.f <= b.y1);
+    // Droit : rien ne change
+    lines.along_y = false;
+    const pattern::Point q = lines.at(12.f, 34.f);
+    CHECK(q.x == 12.f);
+    CHECK(q.y == 34.f);
 }
 
 TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994", "[od3d][pa]") {

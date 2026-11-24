@@ -193,10 +193,18 @@ uint8_t slots_to_measure(AutoMode mode, uint8_t used, uint8_t known, uint8_t has
 /// Où imprimer un motif de w × h avant l'impression sans la gêner : dans zone, à clearance au moins de la zone
 /// d'impression print (M555), de la zone que le G-code de départ de PrusaSlicer pour la CORE One palpe près de sa
 /// purge (G29 P1 X150 Y0 W100 H20 C ; l'origine Z y est aussi) et de chaque point que Prusa palpera autour de la pièce
-/// (points majeurs xs × ys de la grille dans print agrandie de grow_x, grow_y : G29 P1). Le plus à l'avant possible,
-/// contre le bord gauche, sinon le droit ; vide si rien ne tient.
+/// (points majeurs xs × ys de la grille dans print agrandie de grow_x, grow_y : G29 P1), et des rectangles déjà pris
+/// (taken). Le plus à l'avant possible, contre le bord gauche, sinon le droit ; si rien ne tient contre un bord, le
+/// plus à l'avant puis le plus à gauche ailleurs ; vide si rien ne tient.
 std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern::Rect &print, float w, float h, std::span<const float> xs,
-    std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f);
+    std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f, std::span<const pattern::Rect> taken = {});
+
+/// Places des blocs de la mesure automatique, un par emplacement dans l'ordre (demande du 24/11) : chaque bloc de
+/// w × h cherche la sienne (auto_spot()), les blocs déjà placés devenant interdits ; s'il ne tient pas, le bloc tourné
+/// de 90° (h × w, bit n de along_y : lignes parallèles à Y). Rend le nombre de blocs placés, les premiers de out (8 au
+/// plus) : les blocs ont la même taille, le premier qui ne tient pas arrête la recherche.
+size_t auto_spots(std::span<pattern::Rect> out, uint8_t &along_y, const pattern::Rect &zone, const pattern::Rect &print, float w, float h,
+    std::span<const float> xs, std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f);
 
 // ---- Demande de mesure (M1994) ----
 

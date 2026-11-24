@@ -73,9 +73,18 @@ float tally_width(uint8_t number);
 
 // ---- Lignes ----
 
+/// Point du plateau [mm]
+struct Point {
+    float x;
+    float y;
+};
+
 /// count lignes parallèles à X, de l'avant (y0) vers l'arrière, espacées de pitch ; chaque ligne couvre au plus x0 à
 /// x0 + length, plus marks de repères à sa droite. Lignes dans les deux sens (demande du 22/11) : la ligne i + 1 part
-/// d'où la ligne i s'arrête (paires vers +X, impaires vers −X), sans retour à gauche entre deux lignes
+/// d'où la ligne i s'arrête (paires vers +X, impaires vers −X), sans retour à gauche entre deux lignes.
+/// along_y (mesure automatique, demande du 24/11 : un bloc qui ne tient pas couché peut tenir debout) : motif tourné
+/// de 90°, X et Y échangés autour de (x0, y0) ; les fonctions ci-dessous restent dans le repère des lignes parallèles
+/// à X et at() donne le point du plateau
 struct Lines {
     float x0 = 0;
     float y0 = 0;
@@ -84,14 +93,17 @@ struct Lines {
     float marks = 0;
     uint8_t count = 0;
     Bead bead { 0.45f, 0.2f };
+    bool along_y = false;
 
+    /// Point du plateau pour (px, py) du repère des lignes parallèles à X
+    Point at(float px, float py) const { return along_y ? Point { x0 + (py - y0), y0 + (px - x0) } : Point { px, py }; }
     float y(uint8_t i) const { return y0 + pitch * float(i); }
     bool reversed(uint8_t i) const { return i % 2 == 1; }
     /// Sens de la ligne i le long de X : 1 ou −1
     float dir(uint8_t i) const { return reversed(i) ? -1.f : 1.f; }
     /// Départ de la ligne i en X (sa fin : x_start(i) + dir(i)·length)
     float x_start(uint8_t i) const { return reversed(i) ? x0 + length : x0; }
-    /// Surface couverte (cordons et traits compris)
+    /// Surface couverte sur le plateau (cordons et traits compris)
     Rect area() const;
 };
 

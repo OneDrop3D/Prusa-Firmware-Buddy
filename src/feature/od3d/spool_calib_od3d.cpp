@@ -191,7 +191,15 @@ namespace {
         }
         force_probe::start();
         ScopeGuard stop_probe = [] { force_probe::stop(); };
-        if (!wait_ms(zero_ms) || !session.move_z(z) || !session.print_to(x_end, y, pattern::e_per_mm(lines.bead), v)) {
+        // M-08 : zéro moyenné sur tout le repos (un seul échantillon variait de ±15 g) ; le PA, qui ne lit que des
+        // écarts à ses paliers lents, n'en dépend pas et ne passe pas ici
+        force_probe::window_begin();
+        if (!wait_ms(zero_ms)) {
+            return StepResult::stopped;
+        }
+        force_probe::window_end();
+        const float zero_g = force_probe::window().mean_g;
+        if (!session.move_z(z) || !session.print_to(x_end, y, pattern::e_per_mm(lines.bead), v)) {
             return StepResult::stopped;
         }
         // Début (montée de la pression) et fin (le mouvement peut partir un peu après la demande) écartés
@@ -213,7 +221,7 @@ namespace {
         session.retract();
 
         const force_probe::WindowStats w = force_probe::window();
-        out = { label, w.mean_g, w.sd_g };
+        out = { label, w.mean_g - zero_g, w.sd_g };
         if (csv) {
             std::ignore = force_probe::write_csv(csv, label);
         }

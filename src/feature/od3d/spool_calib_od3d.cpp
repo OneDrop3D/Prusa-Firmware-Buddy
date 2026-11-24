@@ -299,6 +299,7 @@ namespace {
             return false;
         }
         st_phase = Phase::priming;
+        // Purge refaite même juste après le PA de la bobine (~10 s) : la goutte de l'attente fausserait les premières lignes
         if (!session.purge(purge->x, purge->dir)) {
             fail(Error::stopped);
             return false;

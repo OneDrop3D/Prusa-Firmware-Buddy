@@ -118,6 +118,10 @@ uint16_t minutes(uint32_t mask, const Context &ctx, uint32_t redo) {
             total += unsigned(e.minutes) * unsigned((e.needs & filament) ? spool_count(spools_to_measure(e.test, ctx, redo & test_bit(e.test))) : 1);
         }
     }
+    // Plateau de la dilatation chauffé et reposé pendant les tests du MMU à froid (bed_step()) : ~2 min de moins
+    if ((mask & test_bit(Test::nozzle_expansion)) && (mask & needs_mask(mmu))) {
+        total -= 2;
+    }
     return uint16_t(total);
 }
 
@@ -129,9 +133,22 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out, uint3
         }
     };
     const uint8_t first_spool = uint8_t(std::countr_zero(unsigned(ctx.spools))); // 8 et plus : aucune
-    for (const Entry &e : entries) {
+    const auto add_machine = [&](const Entry &e) {
         if (e.automatic && (mask & test_bit(e.test)) && !(e.needs & filament) && (!(e.needs & one_spool) || first_spool < 8)) {
             add(e.test, (e.needs & one_spool) ? first_spool : 0);
+        }
+    };
+    for (const Entry &e : entries) {
+        // Tests du MMU à froid ensemble juste avant la dilatation : le plateau chauffe et se repose pour elle pendant eux
+        if (e.test == Test::nozzle_expansion) {
+            for (const Entry &m : entries) {
+                if (bed_free(m.test)) {
+                    add_machine(m);
+                }
+            }
+        }
+        if (!bed_free(e.test)) {
+            add_machine(e);
         }
     }
     for (const uint8_t slot : ctx.order) {
@@ -151,6 +168,17 @@ size_t build_steps(uint32_t mask, const Context &ctx, std::span<Step> out, uint3
         }
     }
     return n;
+}
+
+std::optional<size_t> bed_step(std::span<const Step> steps, size_t i, bool loading) {
+    size_t j = i;
+    while (j < steps.size() && bed_free(steps[j].test)) {
+        ++j;
+    }
+    if (j == i && !loading) {
+        return std::nullopt; // l'étape i tourne avec le plateau tel qu'il est (MPC : l'air de la chambre ne doit pas changer)
+    }
+    return j < steps.size() && (entry(steps[j].test).needs & empty_bed) ? std::optional<size_t>(j) : std::nullopt;
 }
 
 void defer(std::span<Step> steps, size_t i) {

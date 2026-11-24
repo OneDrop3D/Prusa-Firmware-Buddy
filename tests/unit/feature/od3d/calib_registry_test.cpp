@@ -111,7 +111,7 @@ TEST_CASE("calib_registry: manual tests are never checked by default") {
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 8 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateurs, vitesse de la poulie, puis 4 mesures
+    // 8 à l'accéléromètre, MPC, tube PTFE, vitesse de la poulie, dilatation de la buse, ventilateurs, puis 4 mesures
     // pour chacune des 2 bobines
     constexpr size_t accel_steps = 8;
     REQUIRE(n == accel_steps + 1 + 1 + 1 + 1 + 1 + 4 * 2);
@@ -129,15 +129,15 @@ TEST_CASE("calib_registry: steps order") {
     CHECK(at(Test::input_shaper) < at(Test::accel_limit));
     CHECK(at(Test::accel_limit) < at(Test::shaper_check));
     CHECK(steps[accel_steps].test == Test::mpc);
-    // Tube PTFE avant les chargements, une fois, avec la première bobine
+    // Tests du MMU à froid ensemble, avant la dilatation (le plateau chauffe pour elle pendant eux), avec la première
+    // bobine ; la vitesse de la poulie après le tube PTFE (sa longueur fait l'avance rapide)
     CHECK(steps[accel_steps + 1].test == Test::mmu_ptfe);
     CHECK(steps[accel_steps + 1].slot == 0);
+    CHECK(steps[accel_steps + 2].test == Test::mmu_speed);
+    CHECK(steps[accel_steps + 2].slot == 0);
     // Dilatation de la buse (buse vide) avant les chargements, une fois ; puis les ventilateurs (sans besoin)
-    CHECK(steps[accel_steps + 2].test == Test::nozzle_expansion);
-    CHECK(steps[accel_steps + 3].test == Test::fan_response);
-    // Vitesse de la poulie : après le tube PTFE (sa longueur fait l'avance rapide), avant les chargements
-    CHECK(steps[accel_steps + 4].test == Test::mmu_speed);
-    CHECK(steps[accel_steps + 4].slot == 0);
+    CHECK(steps[accel_steps + 3].test == Test::nozzle_expansion);
+    CHECK(steps[accel_steps + 4].test == Test::fan_response);
 
     // Puis par bobine : PA, débit, accélération du filament, température minimale en dernier (elle finit sous la
     // température de la matière : rien ne remonte après elle) ; un seul chargement par bobine
@@ -234,6 +234,45 @@ TEST_CASE("calib_registry: duration") {
     CHECK(one == 2 * entry(Test::pa).minutes); // par bobine
     CHECK(minutes(test_bit(Test::skew), ctx) == 0);
     CHECK(minutes(test_bit(Test::belts) | test_bit(Test::pa), ctx) == entry(Test::belts).minutes + one);
+
+    // Dilatation après les tests du MMU à froid : son plateau a chauffé et s'est reposé pendant eux
+    const uint32_t expansion = test_bit(Test::nozzle_expansion);
+    CHECK(minutes(expansion, ctx) == entry(Test::nozzle_expansion).minutes);
+    CHECK(minutes(expansion | test_bit(Test::mmu_ptfe), ctx) == entry(Test::nozzle_expansion).minutes + entry(Test::mmu_ptfe).minutes - 2);
+}
+
+TEST_CASE("calib_registry: the bed heats for the next test during what does not measure it") {
+    std::array<Step, 32> steps;
+    const size_t n = build_steps(series_tests(true), full(), steps); // bobines 1 et 3
+    const std::span<const Step> s(steps.data(), n);
+    const auto at = [&](Test t, uint8_t slot = 0) {
+        return size_t(std::find_if(steps.begin(), steps.begin() + n, [&](const Step &x) { return x.test == t && x.slot == slot; }) - steps.begin());
+    };
+    // MPC : rien, il mesure les pertes de la buse dans l'air de la chambre
+    CHECK_FALSE(bed_step(s, at(Test::mpc), false).has_value());
+    // Tube PTFE, vitesse de la poulie (déchargement d'abord ou non) : pour la dilatation
+    CHECK(bed_step(s, at(Test::mmu_ptfe), false) == at(Test::nozzle_expansion));
+    CHECK(bed_step(s, at(Test::mmu_speed), true) == at(Test::nozzle_expansion));
+    // La dilatation chauffe son plateau elle-même ; un déchargement avant elle : pendant lui
+    CHECK_FALSE(bed_step(s, at(Test::nozzle_expansion), false).has_value());
+    CHECK(bed_step(s, at(Test::nozzle_expansion), true) == at(Test::nozzle_expansion));
+    // Bobine suivante : pendant son chargement, pour son PA ; jamais pendant une mesure (motif, accélération du filament)
+    CHECK(bed_step(s, at(Test::pa, 2), true) == at(Test::pa, 2));
+    CHECK_FALSE(bed_step(s, at(Test::max_flow), false).has_value());
+    CHECK_FALSE(bed_step(s, at(Test::e_jump), false).has_value());
+    CHECK_FALSE(bed_step(s, at(Test::e_jump), true).has_value()); // chargée pour elle seule : rien n'attend le plateau
+    CHECK_FALSE(bed_step(s, n, false).has_value());
+    // Seuls les tests du MMU laissent le plateau libre
+    for (const Entry &e : entries) {
+        CHECK(bed_free(e.test) == (e.test == Test::mmu_ptfe || e.test == Test::mmu_speed));
+    }
+
+    // Sans dilatation : pendant le tube PTFE, pour le PA de la première bobine
+    const size_t m = build_steps(test_bit(Test::mmu_ptfe) | test_bit(Test::pa), full(), steps);
+    REQUIRE(m == 3);
+    CHECK(bed_step(std::span<const Step>(steps.data(), m), 0, false) == size_t(1));
+    // Tube PTFE remis à la fin (MMU indisponible) : rien après lui
+    CHECK_FALSE(bed_step(std::span<const Step>(steps.data(), 1), 0, false).has_value());
 }
 
 TEST_CASE("calib_registry: results and records") {

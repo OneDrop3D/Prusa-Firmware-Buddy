@@ -21,7 +21,6 @@
 #include <Marlin/src/Marlin.h>
 #include <Marlin/src/module/motion.h>
 #include <Marlin/src/module/planner.h>
-#include <Marlin/src/module/prusa/fourier_series.h>
 #include <Marlin/src/module/temperature.h>
 #include <option/has_chamber_api.h>
 #include <option/xbuddy_extension_variant.h>
@@ -359,8 +358,8 @@ namespace {
     constexpr uint8_t window_tries = 3;
     constexpr size_t values_index = size_t(calib_registry::Test::fan_response);
 
-    /// Une transformée en un point par fréquence (celle de M958) ; ~1,2 Ko hors de la pile de Marlin
-    std::array<std::optional<FourierSeries3d>, fan_bins> bins;
+    /// Une transformée en un point par fréquence (ToneBank, vibration_math_od3d.hpp) ; ~0,8 Ko hors de la pile de Marlin
+    ToneBank bank;
 
     constexpr const char *fan_text[fan_count] = {
         N_("Print fan alone at %d%%: vibration at its speed"),
@@ -417,9 +416,7 @@ namespace {
         const auto frequencies = bin_frequencies(f0);
         const uint32_t want = uint32_t(window_s / period);
         for (uint8_t attempt = 0; attempt < window_tries; ++attempt) {
-            for (size_t k = 0; k < fan_bins; ++k) {
-                bins[k].emplace(frequencies[k]);
-            }
+            bank.start(frequencies, period);
             accelerometer.clear();
             uint32_t n = 0;
             bool lost = false;
@@ -431,11 +428,7 @@ namespace {
                 accelerometer::Acceleration a;
                 switch (read(accelerometer, a)) {
                 case Read::sample: {
-                    const accelerometer::Acceleration d(a.val[0] - mean[0], a.val[1] - mean[1], a.val[2] - mean[2]);
-                    const float t = float(n) * period;
-                    for (auto &b : bins) {
-                        b->add_sample(t, d);
-                    }
+                    bank.add(a.val[0] - mean[0], a.val[1] - mean[1], a.val[2] - mean[2]);
                     ++n;
                     continue;
                 }
@@ -455,12 +448,7 @@ namespace {
             if (lost) {
                 continue;
             }
-            std::array<float, fan_bins> magnitudes;
-            for (size_t k = 0; k < fan_bins; ++k) {
-                const xyz_float_t m = bins[k]->get_magnitude();
-                magnitudes[k] = std::sqrt(sq(m.x) + sq(m.y) + sq(m.z));
-            }
-            out = tone(magnitudes);
+            out = tone(bank.magnitudes());
             return Status::done;
         }
         return Status::failed;

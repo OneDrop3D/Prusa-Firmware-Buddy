@@ -147,6 +147,43 @@ TEST_CASE("vibration: fan peak at the rotation speed") {
     CHECK_FALSE(weak.detected);
 }
 
+TEST_CASE("vibration: tone bank, a phasor per bin, matches the direct transform") {
+    // Une seconde de signal sur les trois axes : pic du ventilateur sur x, autres raies sur y et z
+    const auto freq = bin_frequencies(100.f);
+    const auto signal = [](int axis, double t) {
+        const double w = 2.0 * std::numbers::pi * t;
+        return float(axis == 0 ? 0.05 * std::sin(w * 101.3) : axis == 1 ? 0.02 * std::cos(w * 80.0 + 0.4) : 0.01 * std::sin(w * 117.0));
+    };
+    const int n = int(rate);
+    ToneBank bank;
+    CHECK(bank.magnitudes()[0] == 0.f); // sans échantillon
+    bank.start(freq, 1.f / rate);
+    for (int i = 0; i < n; ++i) {
+        const double t = i / double(rate);
+        bank.add(signal(0, t), signal(1, t), signal(2, t));
+    }
+    const auto got = bank.magnitudes();
+    for (size_t k = 0; k < fan_bins; ++k) {
+        double sum = 0;
+        for (int axis = 0; axis < 3; ++axis) {
+            double re = 0, im = 0;
+            for (int i = 0; i < n; ++i) {
+                const double t = i / double(rate);
+                re += signal(axis, t) * std::cos(2.0 * std::numbers::pi * freq[k] * t);
+                im += signal(axis, t) * std::sin(2.0 * std::numbers::pi * freq[k] * t);
+            }
+            sum += re * re + im * im;
+        }
+        CHECK(got[k] == Approx(2.0 * std::sqrt(sum) / n).epsilon(0.002).margin(1e-5));
+    }
+    CHECK(tone(got).detected);
+
+    // Une nouvelle fenêtre repart de zéro
+    bank.start(freq, 1.f / rate);
+    bank.add(0.f, 0.f, 0.f);
+    CHECK(bank.magnitudes()[peak_bins / 2] == 0.f);
+}
+
 TEST_CASE("vibration: fan compared with its reference") {
     const std::array<Tone, 3> first { Tone { 0.02f, 0.002f, true }, Tone { 0.03f, 0.002f, true }, Tone { 0.05f, 0.002f, true } };
     const FanLevel ref = fan_level(first);

@@ -83,6 +83,30 @@ inline constexpr float worse_ratio = 2.f; ///< balourd ou usure : amplitude deux
 /// Fréquences des bins d'un régime : peak_bins autour de f0 (Hz), puis le bruit voisin
 std::array<float, fan_bins> bin_frequencies(float f0);
 
+/// Amplitude (m/s²) à chaque fréquence des bins, comme FourierSeries3d de Prusa (2 |Σ a·e^(iωt)| / n, norme des trois
+/// axes) mais sans sinus ni double par échantillon : le phaseur de chaque bin tourne d'un pas fixe à chaque échantillon.
+/// Retour du 24/11 (« la calibration de ventilateur ne fonctionne toujours pas ») : avec FourierSeries3d, 19 sinf/cosf
+/// (angles jusqu'à ~1 000 rad, réduction lente) et des sommes en double émulées sur le Cortex-M4, par échantillon,
+/// prenaient à peu près les 744 µs entre deux échantillons : la file de l'accéléromètre (32) débordait, la fenêtre
+/// recommençait, et le test finissait en échec après trois essais.
+class ToneBank {
+public:
+    /// Nouvelle fenêtre, un échantillon toutes les period s
+    void start(const std::array<float, fan_bins> &frequencies, float period);
+    void add(float x, float y, float z);
+    /// 0 sans échantillon
+    std::array<float, fan_bins> magnitudes() const;
+
+private:
+    struct Bin {
+        float step_re = 1, step_im = 0; ///< e^(iωT), T : période d'échantillonnage
+        float re = 1, im = 0; ///< e^(iωt) de l'échantillon suivant
+        std::array<float, 6> sum {}; ///< Σ a·e^(iωt), partie réelle et imaginaire de chaque axe
+    };
+    std::array<Bin, fan_bins> bins {};
+    uint32_t n = 0;
+};
+
 struct Tone {
     float amplitude = 0.f; ///< m/s², le plus haut des bins du pic
     float noise = 0.f; ///< m/s², médiane des bins voisins

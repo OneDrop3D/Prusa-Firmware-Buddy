@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace od3d::vibration {
 
@@ -69,6 +70,42 @@ std::array<float, fan_bins> bin_frequencies(float f0) {
         f[peak_bins + k] = f0 * noise_factors[k];
     }
     return f;
+}
+
+void ToneBank::start(const std::array<float, fan_bins> &frequencies, float period) {
+    for (size_t k = 0; k < fan_bins; ++k) {
+        const float w = 2.f * std::numbers::pi_v<float> * frequencies[k] * period;
+        bins[k] = Bin { .step_re = std::cos(w), .step_im = std::sin(w) };
+    }
+    n = 0;
+}
+
+void ToneBank::add(float x, float y, float z) {
+    // shortcut: phaseurs jamais renormalisés (en float, ~1e-4 d'écart après les 1 344 pas d'une fenêtre de 1 s) ; à
+    // renormaliser pour des fenêtres bien plus longues
+    const float a[3] = { x, y, z };
+    for (Bin &b : bins) {
+        for (int i = 0; i < 3; ++i) {
+            b.sum[2 * i] += a[i] * b.re;
+            b.sum[2 * i + 1] += a[i] * b.im;
+        }
+        const float re = b.re * b.step_re - b.im * b.step_im;
+        b.im = b.re * b.step_im + b.im * b.step_re;
+        b.re = re;
+    }
+    ++n;
+}
+
+std::array<float, fan_bins> ToneBank::magnitudes() const {
+    std::array<float, fan_bins> m {};
+    for (size_t k = 0; k < fan_bins && n; ++k) {
+        float s = 0.f;
+        for (const float v : bins[k].sum) {
+            s += v * v;
+        }
+        m[k] = 2.f * std::sqrt(s) / float(n);
+    }
+    return m;
 }
 
 Tone tone(std::span<const float> magnitudes) {

@@ -22,6 +22,9 @@ inline constexpr uint32_t baseline_ms = 300; ///< comptage avant la commande
 inline constexpr uint32_t high_ms = 2700; ///< à fond, régime final sur les 500 dernières ms
 inline constexpr size_t max_bins = 64; ///< (baseline_ms + high_ms) / 50 ms = 60, et un peu de marge
 inline constexpr float min_rpm = 1000.f; ///< à fond, en dessous : pas de signal (ventilateur ou tachymètre)
+/// V-09 : pendant le comptage, le tachymètre partagé reste au ventilateur pièce et celui de la tête n'est plus
+/// surveillé ; buse au-dessus de 50 °C (ou chauffe demandée), refusé sans rien changer, comme M2001 V
+inline constexpr float max_nozzle_temperature = 50.f;
 
 enum class Status : uint8_t {
     idle,
@@ -30,6 +33,7 @@ enum class Status : uint8_t {
     stopped,
     printing, ///< refusé : impression en cours
     no_signal, ///< pas de régime lisible : avance inchangée
+    hot_nozzle, ///< refusé : buse au-dessus de max_nozzle_temperature
 };
 
 struct Result {

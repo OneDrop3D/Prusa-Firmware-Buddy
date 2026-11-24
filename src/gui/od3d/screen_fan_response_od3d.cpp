@@ -193,6 +193,9 @@ void ScreenFanResponse::show_info() {
         case Status::no_signal:
             text = _("No fan speed read: fan lead unchanged.");
             break;
+        case Status::hot_nozzle:
+            text = _("Let the nozzle cool below 50°C, then start again.");
+            break;
         }
     }
     info.SetText(text);

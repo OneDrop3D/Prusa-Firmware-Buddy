@@ -667,6 +667,9 @@ namespace {
         case fan_response::Status::stopped:
             line(N_("Part fan rise time: stopped before the end."));
             break;
+        case fan_response::Status::hot_nozzle:
+            line(N_("Let the nozzle cool below 50°C, then start again."));
+            break;
         default:
             break;
         }

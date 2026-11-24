@@ -118,9 +118,11 @@ TEST_CASE("e_jump: classify") {
 TEST_CASE("e_jump: F = jump / K, bounded") {
     // PLA K 0,04 : saut gardé 12 mm/s → 300 mm/s²
     CHECK(filament_accel(12.f, 0.04f) == Approx(300.f));
-    // Jamais sous Prusa, jamais au-dessus de la limite E
+    // Jamais sous Prusa, jamais au-dessus de 300 (N-04)
     CHECK(filament_accel(2.f, 0.04f) == Approx(prusa_filament_accel));
     CHECK(filament_accel(40.f, 0.005f) == Approx(max_filament_accel));
+    CHECK(max_filament_accel == 300.f); // N-04 : 2,5 fois Prusa au plus
+    CHECK(filament_accel(50.f, 0.04f) == Approx(300.f)); // 1 250 demandés : bornés
     // Sans PA ou sans saut : rien à limiter
     CHECK(std::isnan(filament_accel(12.f, 0.f)));
     CHECK(std::isnan(filament_accel(0.f, 0.04f)));
@@ -134,7 +136,7 @@ TEST_CASE("e_jump: line acceleration (estimated)") {
     CHECK(line_accel(prusa_filament_accel, 0.68f, 0.3f) == Approx(1563.f).margin(5.f));
     CHECK(line_accel(300.f) == Approx(2.5f * line_accel(prusa_filament_accel)));
     CHECK(std::isnan(line_accel(120.f, 0.05f, 0.4f))); // cordon impossible (plus haut que large)
-    CHECK(line_accel(max_filament_accel) == Approx(xy_accel_cap)); // borné à l'XY de la machine
+    CHECK(line_accel(1500.f) == Approx(xy_accel_cap)); // borné à l'XY de la machine
     CHECK(std::isnan(line_accel(NAN)));
 }
 

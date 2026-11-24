@@ -476,14 +476,15 @@ Context context() {
     ctx.accelerometer = accelerometer();
     ctx.mmu = config_store().mmu2_enabled.get();
     ctx.flow_limit = calib::flow_limit_enabled();
+    ctx.mpc = config_store().od3d_mpc_enabled.get(); // M-16
     std::array<int16_t, VirtualToolIndex::count> bed {}, nozzle {};
     for (uint8_t i = 0; i < VirtualToolIndex::count; ++i) {
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(i);
         const FilamentType type = FilamentType::for_tool(tool);
-        if (tool.is_enabled() && type) {
+        const FilamentTypeParameters p = type.parameters();
+        if (tool.is_enabled() && type && !p.is_flexible) { // M-09 : jamais de mesure sur un flexible
             ctx.spools |= uint8_t(1u << i);
         }
-        const FilamentTypeParameters p = type.parameters();
         bed[i] = p.heatbed_temperature;
         nozzle[i] = p.nozzle_temperature;
         // Déjà mesuré pour la bobine en place (effacé au changement de bobine) : pas refait sans le demander

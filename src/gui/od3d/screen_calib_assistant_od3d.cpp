@@ -1665,7 +1665,14 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     if (tag < entries.size()) {
         const Entry &e = entries[tag];
         if (!e.automatic) {
-            open_screen<ScreenSkew>(); // seul test manuel : la pièce imprimée à mesurer
+            // Tests à la main : l'écran de la mesure, lancée par l'utilisateur (accélération du filament N-04, avec la
+            // première bobine ; vitesse de la poulie U-03), sinon la pièce imprimée à mesurer (équerrage)
+            const uint8_t spools = assistant::context().spools;
+            if (const ScreenFactory::Creator screen = step_screen({ e.test, spools ? uint8_t(std::countr_zero(unsigned(spools))) : uint8_t(0) }); screen.func) {
+                Screens::Access()->Open(screen);
+            } else {
+                open_screen<ScreenSkew>();
+            }
         } else if (flow.stage == Stage::propose) {
             flow.mask ^= test_bit(e.test); // cocher ou décocher (passer avant le lancement)
         } else if (flow.stage == Stage::summary && show_details(e.test)) {

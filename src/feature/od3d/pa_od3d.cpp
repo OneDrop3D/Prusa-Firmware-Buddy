@@ -25,14 +25,18 @@
 #include <config_store/store_instance.hpp>
 #include <cstdlib>
 #include <cstring>
+#include <feature/auto_retract/auto_retract.hpp>
 #include <feature/bedlevel/bedlevel.h>
 #include <feature/print_status_message/print_status_message_mgr.hpp>
+#include <feature/prusa/e-stall_detector.h>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <filament.hpp>
 #include <gcode_info.hpp>
 #include <i18n.h>
 #include <memory>
 #include <loadcell.hpp>
+#include <mapi/feedrates/standard_feedrates.hpp>
+#include <mapi/motion.hpp>
 #include <Marlin.h>
 #include <feature/pressure_advance/pressure_advance_config.hpp>
 #include <metric.h>
@@ -50,29 +54,44 @@ namespace od3d::pa {
 
 // ---- Mémoire ----
 
+uint8_t key_for_slot(uint8_t slot) {
+    const PhysicalToolIndex tool = PhysicalToolIndex::from_raw(0);
+    const auto nozzle_um = uint16_t(std::lround(std::clamp(config_store().get_nozzle_diameter(tool), 0.f, 5.f) * 1000.f));
+    return make_key(nozzle_um, config_store().get_nozzle_is_high_flow(tool), FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot)).parameters().name);
+}
+
 Record record(uint8_t slot) {
     if (slot >= VirtualToolIndex::count) {
         return {};
     }
-    return config_store().od3d_pa.get(slot);
+    return if_key(config_store().od3d_pa.get(slot), key_for_slot(slot)); // M-02 : autre buse ou autre matière : rien
 }
 
 std::optional<float> k_for_slot(uint8_t slot) {
     const Record r = record(slot);
-    if (!r.has_k()) {
-        return std::nullopt;
+    if (!r.applies()) {
+        return std::nullopt; // pas de K, ou trop peu sûr (M-10) : le PA du trancheur sert
     }
     return k_from_e4(r.k_e4);
 }
 
 void set_record(uint8_t slot, const Record &r) {
-    if (slot < VirtualToolIndex::count && config_store().od3d_pa.get(slot) != r) {
-        config_store().od3d_pa.set(slot, r);
+    if (slot >= VirtualToolIndex::count) {
+        return;
+    }
+    Record stamped = r;
+    stamped.key = key_for_slot(slot); // M-02 : valable pour la buse et la matière de maintenant
+    if (config_store().od3d_pa.get(slot) != stamped) {
+        config_store().od3d_pa.set(slot, stamped);
     }
 }
 
 void clear(uint8_t slot) {
     set_record(slot, Record {});
+}
+
+bool stale(uint8_t slot) {
+    return slot < VirtualToolIndex::count && config_store().od3d_pa.get(slot).has_k() && !k_for_slot(slot);
 }
 
 bool printer_wins() {
@@ -83,8 +102,12 @@ void set_printer_wins(bool set) {
     config_store().od3d_pa_printer_wins.set(set);
 }
 
+bool flexible(uint8_t slot) {
+    return slot < VirtualToolIndex::count && FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot)).parameters().is_flexible;
+}
+
 bool needs_measure(uint8_t slot) {
-    return printer_wins() && !record(slot).has_k();
+    return printer_wins() && !k_for_slot(slot) && !flexible(slot); // un flexible n'est jamais mesuré (M-09)
 }
 
 // ---- Application ----
@@ -135,20 +158,54 @@ void on_tool_change() {
 }
 
 namespace {
-    bool hold_nozzle_hot = false; ///< mesure automatique faite : la buse garde sa consigne jusqu'à la chauffe d'impression
-}
+    StartHold start_hold; ///< mesure automatique faite : la buse garde sa consigne jusqu'à la chauffe d'impression
+
+    // Avec le G1 E-2 du G-code de départ, la rétraction de parking de Prusa
+    static_assert(start_hold_retract_mm + 2.f == float(STANDARD_RETRACT_LENGTH));
+
+    /// Le filament peut reculer : dans la buse, buse assez chaude, pas un flexible (comme l'auto-rétraction de Prusa), pas
+    /// déjà reculé par elle (elle le remet au premier mouvement d'extrusion ; un recul de plus lui en ferait perdre la trace)
+    [[gnu::noinline]] bool can_retract() {
+        const auto slot = loaded_slot();
+        return slot && !thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0)) && !flexible(*slot) && !buddy::auto_retract().will_deretract();
+    }
+
+    /// Filament reculé (mm < 0) ou remis aux vitesses de parking de Prusa, sa position logique inchangée (comme
+    /// AutoRetract::maybe_deretract_to_nozzle) : le G-code de départ la retrouve telle quelle, en E relatif comme absolu
+    [[gnu::noinline]] void hidden_e_move(float mm) {
+        if (mm == 0.f || planner.draining()) {
+            return;
+        }
+        planner.synchronize();
+        const float e = current_position.e;
+        const float e_planner = planner.get_axis_position_mm(E_AXIS_N(active_extruder));
+        {
+            BlockEStallDetection no_stall;
+            using buddy::standard_feedrates::Extruder;
+            mapi::extruder_move(mm, buddy::standard_feedrates::current_extruder(mm < 0.f ? Extruder::retract : Extruder::deretract));
+            planner.synchronize();
+        }
+        current_position.e = e;
+        planner.set_e_position_mm(e_planner);
+    }
+} // namespace
 
 int16_t start_nozzle_target(int16_t requested) {
-    if (!hold_nozzle_hot) {
+    if (!start_hold.active) {
         return requested;
     }
-    const int16_t target = start_hold_target(requested, int16_t(Hotend::for_tool(PhysicalToolIndex::from_raw(0)).nozzle_target_temp()));
-    hold_nozzle_hot = marlin_server::is_printing() && target != requested; // demande suivie : le départ est fini
-    return marlin_server::is_printing() ? target : requested;
+    if (!marlin_server::is_printing()) {
+        start_hold = {}; // impression finie ou arrêtée : plus rien à garder ni à remettre
+        return requested;
+    }
+    const int16_t current = int16_t(Hotend::for_tool(PhysicalToolIndex::from_raw(0)).nozzle_target_temp());
+    const HoldStep step = start_hold_step(start_hold, requested, current, can_retract());
+    hidden_e_move(step.e_mm);
+    return step.target;
 }
 
 void on_print_start(bool from_file) {
-    hold_nozzle_hot = false;
+    start_hold = {};
     // Pas de changement du PA ici (boucle du serveur : on ne vide pas les files) ; le T du début du G-code ou le
     // premier M572 posent le K de l'emplacement
     slicer_requested = NAN;
@@ -704,6 +761,10 @@ void calibrate(const Request &rq, bool load_tried) {
     // Pas dans la buse : chargement de Prusa mis en file, avec le MMU ou, sans MMU, sa demande d'insérer le filament
     // (« Arrêter » y passe la mesure : load_failed au retour)
     const FilamentTypeParameters material = type.parameters();
+    if (material.is_flexible) {
+        fail(Error::flexible); // M-09 : les débits fixes de la mesure (jusqu'à 10 mm³/s) pousseraient trop un TPU
+        return;
+    }
     Temperatures t = temperatures_for(material, rq.temperature, rq.bed_temperature);
     st_temperature = t.nozzle;
 
@@ -850,7 +911,8 @@ namespace {
         if (e == Error::none) {
             char k[12];
             snprintf(k, sizeof(k), "%.3f", double(k_from_e4(record(slot).k_e4)));
-            tell(_("Slot %d PA measured: K = %s").formatted(params, int(slot + 1), k));
+            tell(k_for_slot(slot) ? _("Slot %d PA measured: K = %s").formatted(params, int(slot + 1), k)
+                                  : _("Slot %d PA unsure (K = %s), slicer PA kept").formatted(params, int(slot + 1), k)); // M-10
         } else {
             tell(_("Slot %d PA not measured, slicer PA kept").formatted(params, int(slot + 1)));
         }
@@ -961,7 +1023,7 @@ namespace {
             }
         } else {
             plan.active = false;
-            hold_nozzle_hot = plan.leveled; // la buse est chaude : le G-code de départ ne la fait pas redescendre
+            start_hold = { .active = plan.leveled }; // la buse est chaude : le G-code de départ ne la fait pas redescendre
             ok = auto_restore_sequence(sequence, plan.initial, loaded_slot(), plan.initial ? filament_param(*plan.initial, filament) : "");
             if (plan.initial != loaded_slot() && plan.leveled && plan.count) {
                 spot = auto_load_spot(plan.count - 1, true);
@@ -1048,7 +1110,7 @@ void calibrate_auto() {
     used = scan.used;
     const bool single_material = scan.single_material;
     for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-        if (VirtualToolIndex::from_raw(slot).is_enabled() && auto_type(slot)) {
+        if (VirtualToolIndex::from_raw(slot).is_enabled() && auto_type(slot) && !flexible(slot)) { // M-09 : jamais un flexible
             known |= uint8_t(1u << slot);
         }
         if (record(slot).has_k()) {

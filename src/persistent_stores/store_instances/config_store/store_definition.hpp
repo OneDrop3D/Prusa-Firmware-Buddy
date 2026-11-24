@@ -469,8 +469,9 @@ struct CurrentStore
     StoreItemArray<od3d::spool_usage::Record, AnyDefaultConstructor {}, ItemFlag::printer_state, journal::hash("OD3D Spool Weight"), 8, VirtualToolIndex::count> od3d_spool_usage;
     /// OneDrop3D (F4) : pressure advance mesuré par emplacement (k_none : à mesurer), effacé au changement de bobine.
     StoreItemArray<od3d::pa::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D PA Slot"), 8, VirtualToolIndex::count> od3d_pa;
-    /// OneDrop3D (F4) : « le PA de l'imprimante prime » sur le M572 du trancheur (coupé par défaut)
-    StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D PA Printer Wins")> od3d_pa_printer_wins;
+    /// OneDrop3D (F4) : « le PA de l'imprimante prime » sur le M572 du trancheur (actif par défaut, X-04 : le K mesuré sert
+    /// dès qu'il est valable pour la buse et la matière)
+    StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D PA Printer Wins")> od3d_pa_printer_wins;
     /// OneDrop3D (F4) : « PA automatique » (od3d::pa::AutoMode : 0 désactivé, 1 à la 1re impression d'une bobine, 2 à
     /// chaque impression)
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D PA Auto")> od3d_pa_auto;

@@ -2,9 +2,9 @@
 /// OneDrop3D (F4, première étape) : pressure advance par emplacement du MMU, mesuré par la cellule de charge.
 ///
 /// - Mémoire : un K par emplacement (config_store « OD3D PA Slot »), effacé quand on change la bobine dans
-///   l'assistant de l'Atelier ; réglage général « le PA de l'imprimante prime » (« OD3D PA Printer Wins », coupé par
-///   défaut) : K est appliqué à chaque changement d'outil et le M572 / M900 du trancheur est alors ignoré pour un
-///   emplacement qui a un K (gardé pour un emplacement sans K).
+///   l'assistant de l'Atelier ; réglage général « le PA de l'imprimante prime » (« OD3D PA Printer Wins », actif par
+///   défaut depuis X-04) : K est appliqué à chaque changement d'outil et le M572 / M900 du trancheur est alors ignoré
+///   pour un emplacement qui a un K (gardé pour un emplacement sans K).
 /// - Mesure : M1994 (calibrate()), principe dans pa_math_od3d.hpp. **Motif imprimé** à l'avant du plateau (la mesure
 ///   dans le vide ne marchait pas, retour du 22/11) : plateau à la température de la matière, origine, nivellement
 ///   local de la zone (comme le G-code de départ de la CORE One), ligne de purge au bord avant, puis une ligne par K à
@@ -47,21 +47,34 @@ namespace od3d::pa {
 
 // ---- Mémoire ----
 
+/// M-02 : clé de validité (make_key) de l'emplacement maintenant : buse de l'imprimante, matière de la bobine (celle de
+/// l'imprimante, sinon celle du fichier pendant une impression). Sert aussi au débit et à la température (calib::Record)
+uint8_t key_for_slot(uint8_t slot);
+
+/// Ce qui est gardé pour l'emplacement ; vide s'il a été mesuré avec une autre buse ou une autre matière (M-02)
 Record record(uint8_t slot);
 
-/// K mesuré de l'emplacement, s'il y en a un
+/// K mesuré de l'emplacement, s'il y en a un assez sûr pour remplacer celui du trancheur (M-10)
 std::optional<float> k_for_slot(uint8_t slot);
 
+/// Enregistre r avec la clé de maintenant
 void set_record(uint8_t slot, const Record &r);
 
 /// Efface le K (bobine changée)
 void clear(uint8_t slot);
 
+/// Un K est gardé mais ne sert pas : mesuré avec une autre buse ou une autre matière (M-02), ou trop peu sûr (M-10) ;
+/// à remesurer
+bool stale(uint8_t slot);
+
 /// « Le PA de l'imprimante prime »
 bool printer_wins();
 void set_printer_wins(bool set);
 
-/// Le réglage est actif et l'emplacement n'a pas de K : « PA à mesurer »
+/// M-09 : la bobine de l'emplacement est un filament flexible : jamais mesurée (M1994, M1995, M1996, assistant)
+bool flexible(uint8_t slot);
+
+/// Le réglage est actif et l'emplacement n'a pas de K qui serve (k_for_slot), sauf un flexible : « PA à mesurer »
 bool needs_measure(uint8_t slot);
 
 // ---- Application (fil de Marlin) ----
@@ -113,6 +126,7 @@ enum class Error : uint8_t {
     no_area, ///< mesure automatique : l'impression ne déclare pas sa zone (M555)
     load_failed, ///< le chargement de Prusa n'a pas mis la bobine dans la buse (pas de seconde tentative)
     no_force, ///< aucune force dès les premières lignes : la buse ne touche pas le plateau (pa::in_air)
+    flexible, ///< M-09 : filament flexible, jamais mesuré (débits fixes de la mesure trop forts pour lui)
 };
 
 struct Status {
@@ -167,8 +181,9 @@ void calibrate_auto_step(uint8_t slot);
 /// sort du chargement tombe sur le plateau, pas dans le vide
 void calibrate_auto_level();
 
-/// M104 S, M109 S/R : consigne à appliquer. Après une mesure automatique, jusqu'à la chauffe d'impression du G-code de
-/// départ, une baisse forte est ignorée (pa_math : start_hold_target) ; sinon requested
+/// M104 S, M109 S/R (fil de Marlin) : consigne à appliquer. Après une mesure automatique, jusqu'à la chauffe
+/// d'impression du G-code de départ, les consignes de palpage et d'attente sont ignorées et le filament recule le temps
+/// du palpage (pa_math : start_hold_step) ; sinon requested
 int16_t start_nozzle_target(int16_t requested);
 
 /// Dernière mesure (en mémoire vive seulement), pour l'écran : K de chaque ligne imprimée **dans l'ordre des lignes**

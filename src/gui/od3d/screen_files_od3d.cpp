@@ -18,6 +18,7 @@
 #include <feature/od3d/print_start_od3d.hpp>
 #include <feature/od3d/mesh_memory_od3d.hpp>
 #include <feature/od3d/pa_od3d.hpp>
+#include <feature/od3d/spool_calib_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <gcode/gcode_reader_any.hpp>
 #include <gui/event/gui_event.hpp>
@@ -1227,7 +1228,7 @@ void ScreenPreview::unconditionalDraw() {
 
     // Une ligne par emplacement utilisé : bobine, « n · matière chargée », PA mesuré (F4), grammes du fichier (en
     // jaune s'ils dépassent le reste de la bobine, F13)
-    int row = 0, mismatch = -1, shortage = -1, pa_missing = -1;
+    int row = 0, mismatch = -1, shortage = -1, pa_missing = -1, too_cold = -1;
     float shortage_left = 0;
     Slot mismatch_slot;
     for (uint8_t t = 0; t < print_info::max_tools; ++t) {
@@ -1266,19 +1267,27 @@ void ScreenPreview::unconditionalDraw() {
             mismatch = t;
             mismatch_slot = slot;
         }
+        // F6 : le fichier imprime cette bobine sous la température minimale mesurée (même buse, même matière)
+        if (too_cold < 0 && slot.look.filament && calib::below_min_temperature(info.nozzle[t], calib::record(t))) {
+            too_cold = t;
+        }
     }
 
     // Alertes (§3.10) : la bobine n'a pas assez de filament pour le fichier (F13 ; la fin d'une bobine n'arrête pas
     // l'impression, le capteur la met en pause) ; la matière chargée n'est pas celle du fichier (Prusa la vérifie aussi
-    // au départ). Une alerte prend les deux lignes ; deux alertes, une ligne chacune.
-    StringViewUtf8Parameters<24> shortage_params, mismatch_params, pa_params;
-    string_view_utf8 warnings[3];
+    // au départ) ; le fichier l'imprime sous sa température minimale mesurée (F6). Une alerte prend les deux lignes ;
+    // deux alertes, une ligne chacune.
+    StringViewUtf8Parameters<24> shortage_params, mismatch_params, cold_params, pa_params;
+    string_view_utf8 warnings[4];
     int count = 0;
     if (shortage >= 0) {
         warnings[count++] = _("Slot %d: %d g needed, about %d g left").formatted(shortage_params, shortage + 1, int(std::lround(info.grams[shortage])), int(shortage_left));
     }
     if (mismatch >= 0) {
         warnings[count++] = _("Slot %d: %s in the file, %s loaded").formatted(mismatch_params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
+    }
+    if (too_cold >= 0) {
+        warnings[count++] = _("Slot %d: %d° requested, measured minimum %d°").formatted(cold_params, too_cold + 1, int(info.nozzle[too_cold]), int(calib::record(too_cold).min_temperature));
     }
     if (pa_missing >= 0) {
         // F4 : « PA à mesurer » ; le M572 du trancheur reste utilisé pour cet emplacement

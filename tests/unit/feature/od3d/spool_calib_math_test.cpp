@@ -1,5 +1,6 @@
 /// OneDrop3D (F5, F6) : coude de la courbe force/débit et température minimale, sur des courbes synthétiques.
 #include <feature/od3d/spool_calib_math_od3d.hpp>
+#include <feature/od3d/pa_math_od3d.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -266,4 +267,38 @@ TEST_CASE("od3d F5: purge at the measured flow", "[od3d][calib]") {
     r.max_flow_e1 = 6000;
     CHECK_THAT(purge_feedrate(prusa, r, 40.f, area), WithinAbs(0.6 * 40.0 / area, 1e-4));
     CHECK(purge_feedrate(prusa, r, 40.f, 0.f) == prusa);
+}
+
+TEST_CASE("od3d F5/F6: values of another nozzle or material are ignored (M-02)", "[od3d][calib]") {
+    namespace pa = od3d::pa;
+    Record r;
+    r.max_flow_e1 = flow_to_e1(20.f);
+    r.min_temperature = 190;
+    r.key = pa::make_key(400, false, "PLA");
+    CHECK(pa::if_key(r, r.key) == r);
+
+    // Buse 0,6, ou PETG chargé par le menu de Prusa : ni limite de débit, ni purge au débit mesuré, ni température
+    for (const uint8_t key : { pa::make_key(600, false, "PLA"), pa::make_key(400, false, "PETG") }) {
+        const Record other = pa::if_key(r, key);
+        CHECK_FALSE(other.has_flow());
+        CHECK_FALSE(other.has_min_temperature());
+        CHECK(purge_feedrate(3.f, other, 40.f, 2.4053f) == 3.f); // purge de Prusa
+    }
+
+    // Mesure d'avant la clé (octet de réserve à 0) : à refaire
+    Record legacy = r;
+    legacy.key = 0;
+    CHECK_FALSE(pa::if_key(legacy, r.key).has_flow());
+}
+
+TEST_CASE("od3d F6: alert before printing under the measured minimum temperature", "[od3d][calib]") {
+    Record r;
+    r.min_temperature = 195;
+    CHECK(below_min_temperature(190, r)); // le fichier demande moins que le minimum mesuré
+    CHECK_FALSE(below_min_temperature(195, r)); // au minimum : pas d'alerte
+    CHECK_FALSE(below_min_temperature(215, r));
+    CHECK_FALSE(below_min_temperature(0, r)); // température absente du fichier
+    CHECK_FALSE(below_min_temperature(190, Record {})); // pas mesurée (ou autre buse, autre matière : record() vide)
+    r.flags = Record::temperature_floor; // plancher atteint : la vraie minimale est peut-être plus basse
+    CHECK_FALSE(below_min_temperature(190, r));
 }

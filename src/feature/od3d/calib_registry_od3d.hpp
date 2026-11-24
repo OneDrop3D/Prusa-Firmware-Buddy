@@ -113,8 +113,11 @@ inline constexpr std::array entries {
     Entry { Test::min_temp, filament | empty_bed | heated, 7, 1, true },
     Entry { Test::skew, empty_bed | heated, 0, 1, false },
     Entry { Test::fan_response, 0, 2, 3, true }, // à froid, sans besoin : série « Accéléromètre » ; v2 : vibrations ; v3 : période étalonnée (V-08)
-    Entry { Test::e_jump, filament | heated, 1, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
-    Entry { Test::mmu_speed, mmu | one_spool | heated, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
+    // Rien d'imprimé ni de palpé : purge à la position de Prusa. N-04 : à la main seulement (mesurée buse dans le vide)
+    Entry { Test::e_jump, filament | heated, 1, 1, false },
+    // Après le tube PTFE : sa longueur fait l'avance rapide. U-03 : à la main seulement (au-delà de 95 mm/s, des fausses
+    // erreurs du capteur sont possibles)
+    Entry { Test::mmu_speed, mmu | one_spool | heated, 4, 1, false },
 };
 static_assert(entries.size() == size_t(Test::count), "une entrée par Test");
 
@@ -162,6 +165,7 @@ struct Context {
     Accelerometer accelerometer = Accelerometer::unknown;
     bool mmu = false;
     bool flow_limit = false;
+    bool mpc = false; ///< M-16 : régulation MPC choisie (od3d_mpc_enabled) ; en PID, sa calibration ne sert à rien
     uint8_t spools = 0; ///< bit n : l'emplacement n a une bobine (utilisable)
     /// Par test (indice Test), bit n : l'emplacement n a déjà une valeur pour la bobine en place (K du PA, débit maximal,
     /// température minimale, accélération du filament ; effacée au changement de bobine)

@@ -5,7 +5,7 @@
 #include "flow_limit_od3d.hpp"
 #include "force_probe_od3d.hpp"
 #include "measure_session_od3d.hpp"
-#include "pa_math_od3d.hpp"
+#include "pa_od3d.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -41,12 +41,16 @@ Record record(uint8_t slot) {
     if (slot >= VirtualToolIndex::count) {
         return {};
     }
-    return config_store().od3d_spool_calib.get(slot);
+    return pa::if_key(config_store().od3d_spool_calib.get(slot), pa::key_for_slot(slot)); // M-02 : autre buse ou matière : rien
 }
 
 void set_record(uint8_t slot, const Record &r) {
-    if (slot < VirtualToolIndex::count && config_store().od3d_spool_calib.get(slot) != r) {
-        config_store().od3d_spool_calib.set(slot, r);
+    if (slot < VirtualToolIndex::count) {
+        Record stamped = r;
+        stamped.key = pa::key_for_slot(slot); // M-02 : lu par record(), une valeur d'une autre clé n'est jamais gardée
+        if (config_store().od3d_spool_calib.get(slot) != stamped) {
+            config_store().od3d_spool_calib.set(slot, stamped);
+        }
     }
     refresh_flow_limit();
 }
@@ -187,7 +191,15 @@ namespace {
         }
         force_probe::start();
         ScopeGuard stop_probe = [] { force_probe::stop(); };
-        if (!wait_ms(zero_ms) || !session.move_z(z) || !session.print_to(x_end, y, pattern::e_per_mm(lines.bead), v)) {
+        // M-08 : zéro moyenné sur tout le repos (un seul échantillon variait de ±15 g) ; le PA, qui ne lit que des
+        // écarts à ses paliers lents, n'en dépend pas et ne passe pas ici
+        force_probe::window_begin();
+        if (!wait_ms(zero_ms)) {
+            return StepResult::stopped;
+        }
+        force_probe::window_end();
+        const float zero_g = force_probe::window().mean_g;
+        if (!session.move_z(z) || !session.print_to(x_end, y, pattern::e_per_mm(lines.bead), v)) {
             return StepResult::stopped;
         }
         // Début (montée de la pression) et fin (le mouvement peut partir un peu après la demande) écartés
@@ -209,7 +221,7 @@ namespace {
         session.retract();
 
         const force_probe::WindowStats w = force_probe::window();
-        out = { label, w.mean_g, w.sd_g };
+        out = { label, w.mean_g - zero_g, w.sd_g };
         if (csv) {
             std::ignore = force_probe::write_csv(csv, label);
         }
@@ -236,6 +248,10 @@ namespace {
         const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
         if (filament_memory::loaded_slot() != slot || !type) { // jamais de motif dans le vide (retour du 23/11)
             fail(Error::not_loaded);
+            return FilamentType::none;
+        }
+        if (type.parameters().is_flexible) {
+            fail(Error::flexible); // M-09 : la rampe pousserait un TPU jusqu'à 30 mm³/s
             return FilamentType::none;
         }
         return type;

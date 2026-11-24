@@ -7,7 +7,8 @@
 ///   filament irait plus vite (flow_limit_od3d.hpp) ; la limite est bornée à [5, 40] mm³/s.
 /// - F6, température minimale (M1996) : lignes à débit constant modéré, la température descend d'une ligne à l'autre
 ///   depuis celle de la matière (jamais au-dessus), jamais sous la température minimale d'extrusion de Prusa (+10 °C) ; on garde la
-///   plus basse température dont la force reste sous un seuil relatif. Purement informatif.
+///   plus basse température dont la force reste sous un seuil relatif. Sert à l'alerte d'« Avant l'impression » quand le
+///   fichier imprime la bobine plus froid (below_min_temperature).
 /// Les deux **impriment des lignes** à l'avant du plateau (la mesure dans le vide ne suivait pas la pression, retour du
 /// 22/11) : cordon de largeur et de hauteur fixes (0,6 × 0,3 mm), une ligne par palier, la force verticale (positive
 /// vers le haut) moyennée sur le milieu de la ligne, relative à la buse au repos juste au-dessus. Préparation commune
@@ -33,7 +34,10 @@ inline constexpr float flow_ceiling = 40.f;
 
 // ---- Mémoire ----
 
+/// Ce qui est gardé pour l'emplacement ; vide s'il a été mesuré avec une autre buse ou une autre matière (M-02, même clé
+/// que le K : pa::key_for_slot) : la limite de débit et la purge reprennent alors les valeurs de Prusa
 Record record(uint8_t slot);
+/// Enregistre r avec la clé de maintenant
 void set_record(uint8_t slot, const Record &r);
 
 /// Efface débit maximal et température minimale (bobine changée)
@@ -82,6 +86,7 @@ enum class Error : uint8_t {
     stopped, ///< annulé
     weak_signal, ///< force trop faible
     too_few_points, ///< pas assez de paliers exploitables
+    flexible, ///< M-09 : filament flexible, jamais mesuré (rampe de débit jusqu'à 30 mm³/s)
 };
 
 struct Status {

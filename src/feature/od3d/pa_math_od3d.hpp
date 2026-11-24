@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 
 namespace od3d::pa {
 
@@ -166,6 +167,33 @@ inline constexpr uint16_t k_none = 0xFFFF;
 uint16_t k_to_e4(float k);
 float k_from_e4(uint16_t e4);
 
+/// M-02 : clé de validité d'une mesure par emplacement (K, débit maximal, température minimale) : la buse (diamètre en
+/// µm, haut débit) et la matière (son nom). 7 bits, jamais 0 : 0 est une mesure d'avant la clé, à refaire.
+/// shortcut: empreinte de 7 bits (deux contextes sur 127 se confondent) ; une vraie clé demande de la place dans le
+/// config_store, plein
+constexpr uint8_t make_key(uint16_t nozzle_um, bool high_flow, std::string_view material) {
+    uint32_t h = 2166136261u; // FNV-1a
+    const auto mix = [&h](uint8_t byte) { h = (h ^ byte) * 16777619u; };
+    mix(uint8_t(nozzle_um));
+    mix(uint8_t(nozzle_um >> 8));
+    mix(high_flow ? 1 : 0);
+    for (const char c : material) {
+        mix(uint8_t(c));
+    }
+    return uint8_t(h % 127u + 1u);
+}
+
+/// M-02 : r s'il a été mesuré avec la clé key, sinon un enregistrement vide : la valeur ne sert pas (pa::Record,
+/// calib::Record)
+template <class R>
+constexpr R if_key(const R &r, uint8_t key) {
+    return r.key == key ? r : R {};
+}
+
+/// M-10 : un K ne remplace le PA du trancheur qu'à partir de cette confiance ; il est enregistré dès 30 (mesure validée
+/// le 22/11) et montré « peu sûr » en dessous. shortcut: seuil à régler sur des mesures réelles (CSV)
+inline constexpr uint8_t apply_confidence = 60;
+
 /// Ce qui est gardé par emplacement (config_store, « OD3D PA Slot »). Taille fixe : pour changer la structure, créer
 /// un nouvel élément (nouveau nom) sans réutiliser celui-ci.
 struct Record {
@@ -176,9 +204,12 @@ struct Record {
 
     uint16_t k_e4 = k_none; ///< K mesuré [1e-4 s] ; k_none : à mesurer
     uint8_t confidence = 0; ///< confiance de la mesure, 0 à 100 (100 pour une ligne choisie)
-    uint8_t source = measured; ///< ancien octet de réserve, à 0 dans les mémoires d'avant : « mesuré »
+    uint8_t source : 1 = measured; ///< bit 0 de l'ancien octet de réserve, à 0 dans les mémoires d'avant : « mesuré »
+    uint8_t key : 7 = 0; ///< M-02 : make_key() de la mesure (bits libres du même octet) ; 0 : d'avant la clé
 
     bool has_k() const { return k_e4 != k_none; }
+    /// Le K remplace celui du trancheur (une ligne choisie à l'œil a la confiance 100)
+    bool applies() const { return has_k() && confidence >= apply_confidence; }
     bool operator==(const Record &) const = default;
 };
 static_assert(sizeof(Record) == 4);
@@ -287,13 +318,40 @@ bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filam
 /// se pose sur une place que le palpage ne touchera plus
 bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first = false);
 
-/// Après la mesure automatique, consigne de la buse que le G-code de départ demande (requested) : la consigne actuelle
-/// (current) est gardée si la demande est plus basse de plus de start_hold_margin (palpage à 170 °C, température de
-/// veille du MMU) : la buse ne refroidit pas pour remonter juste après (retour du 24/11 : « passe après le PA de 230 à
-/// 170 puis va remonter, c'est une grosse perte de temps ») ; le palpage se fait chaud, comme Prusa pour le PC et le PA
-inline constexpr int16_t start_hold_margin = 20;
-constexpr int16_t start_hold_target(int16_t requested, int16_t current) {
-    return requested + start_hold_margin < current ? current : requested;
+/// Après la mesure automatique, la buse reste chaude pendant le G-code de départ (retour du 24/11 : « passe après le PA
+/// de 230 à 170 puis va remonter, c'est une grosse perte de temps ») : seules ses consignes de palpage et d'attente
+/// (M109 R170, M104 S100 : de 1 à start_hold_below − 1 °C, sous la consigne actuelle) sont ignorées, et le filament
+/// recule contre le suintement pendant le palpage chaud (décision du 24/11 : « au lieu de revenir a 170, il faudrait
+/// juste rétracter le filament »). Toute autre demande (impression, 0) est suivie et lève le verrou (N-01, M-03).
+inline constexpr int16_t start_hold_below = 180;
+/// Recul en plus du G1 E-2 du G-code de départ : 8 mm en tout, la rétraction de parking de Prusa (STANDARD_RETRACT_LENGTH)
+/// pour une buse qui attend chaude. shortcut: à régler sur la machine, d'après le suintement sur les points palpés
+inline constexpr float start_hold_retract_mm = 6.f;
+
+struct StartHold {
+    bool active = false; ///< mesure automatique faite, chauffe d'impression pas encore demandée
+    bool retracted = false; ///< filament reculé de start_hold_retract_mm
+};
+
+struct HoldStep {
+    int16_t target; ///< consigne à poser
+    float e_mm; ///< filament à bouger en plus [mm], sans changer sa position logique (négatif : recul)
+};
+
+/// Demande de consigne requested (M104 S, M109 S/R), consigne actuelle current ; can_retract : filament dans la buse,
+/// buse assez chaude, pas un flexible. Le filament recule une fois, à une demande ignorée, et revient à la levée.
+constexpr HoldStep start_hold_step(StartHold &hold, int16_t requested, int16_t current, bool can_retract) {
+    if (!hold.active) {
+        return { requested, 0.f };
+    }
+    if (requested > 0 && requested < start_hold_below && requested < current) {
+        const bool retract = can_retract && !hold.retracted;
+        hold.retracted = hold.retracted || retract;
+        return { current, retract ? -start_hold_retract_mm : 0.f };
+    }
+    const float back = hold.retracted ? start_hold_retract_mm : 0.f;
+    hold = {};
+    return { requested, back };
 }
 
 /// Fin de la mesure automatique : filament remis comme au départ. Vide si c'est déjà le cas ; M702 W2 (« Décharger »

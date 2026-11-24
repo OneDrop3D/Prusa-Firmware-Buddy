@@ -278,7 +278,8 @@ namespace {
         } else {
             const bool can_measure = idle && (loaded || mmu) && !pa::is_running();
             pa_choice = can_measure ? Choice::calibrate : Choice::pa;
-            calibrate.set(pa_look, _("Calibrate PA"));
+            // M-02 : un K mesuré avec une autre buse ou une autre matière ne sert pas
+            calibrate.set(pa_look, pa::stale(index) ? _("Remeasure PA") : _("Calibrate PA"));
         }
 
         // Le reste est déjà écrit en haut de la fiche (« ~119 g ») : le bouton garde « Utilisation » (retour du 24/11,

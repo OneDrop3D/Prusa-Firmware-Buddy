@@ -25,7 +25,7 @@
  *
  * Buse à la température de la matière, tête à la position de purge de Prusa, PA coupé ; par palier de saut (4 à
  * 47 mm/s, ×1,25), deux impulsions de l'extrudeur seul ; le détecteur de filament coincé de Prusa dit s'il a calé. 70 %
- * du dernier palier sûr est enregistré pour l'emplacement ; à l'impression, M204 F = saut / K (120 à 1500 mm/s²).
+ * du dernier palier sûr est enregistré pour l'emplacement ; à l'impression, M204 F = saut / K (120 à 300 mm/s², N-04).
  * Refusé pendant une impression ; arrêtable depuis l'écran. Réglages remis à la fin. Retirer le filament extrudé.
  */
 void PrusaGcodeSuite::M2000() {

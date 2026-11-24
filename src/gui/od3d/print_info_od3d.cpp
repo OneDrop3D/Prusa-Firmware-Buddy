@@ -57,6 +57,10 @@ void parse_metadata(FileInfo &info, std::string_view name, std::string_view valu
         for_each_item(value, ',', [&](uint8_t, std::string_view item) {
             info.millimeters += to_float(item);
         });
+    } else if (name == "temperature") {
+        for_each_item(value, ',', [&](uint8_t i, std::string_view item) {
+            info.nozzle[i] = int16_t(to_float(item));
+        });
     } else if (name == "filament_type") {
         for_each_item(value, ';', [&](uint8_t i, std::string_view item) {
             const size_t n = std::min(item.size(), info.types[i].size() - 1);

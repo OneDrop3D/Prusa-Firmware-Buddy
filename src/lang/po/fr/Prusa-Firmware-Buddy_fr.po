@@ -13012,3 +13012,30 @@ msgstr "%d mesurés, non validés."
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "(not validated)"
 msgstr "(non validé)"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Remeasure PA"
+msgstr "Remesurer le PA"
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "Slot %d PA unsure (K = %s), slicer PA kept"
+msgstr "PA de l'emplacement %d incertain (K = %s), PA du trancheur gardé"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Unsure: slicer PA used"
+msgstr "Incertain : PA du trancheur utilisé"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Flexible filament: not measured."
+msgstr "Filament flexible : pas de mesure."
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %d° requested, measured minimum %d°"
+msgstr "Emplacement %d : %d° demandés, minimum mesuré %d°"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Preload the spool, then Start: up to 7 cycles from 95 to 120 mm/s, the level before the last clean one is kept (~4 min)."
+msgstr "Bobine préchargée, puis Démarrer : jusqu'à 7 cycles de 95 à 120 mm/s, le palier avant le dernier sans erreur est gardé (~4 min)."

@@ -46,21 +46,6 @@ public:
     #include <puppies/mmu.hpp>
 #endif
 
-namespace od3d::mmu_assist {
-/// OneDrop3D (F11) : échanges avec le registre d'assistance du MMU (Register::OD3D_Assist), entre deux interrogations,
-/// MMU au repos. Définis dans src/feature/od3d/mmu_assist_od3d.cpp (tests : stub).
-enum class Exchange : uint8_t {
-    none,
-    read, ///< relire le registre
-    write, ///< y écrire value, puis le relire
-};
-Exchange next_exchange(uint16_t &value);
-/// Valeur relue dans le registre
-void read_back(uint16_t raw);
-/// Communication (re)démarrée : le MMU est à reconnaître
-void restart();
-} // namespace od3d::mmu_assist
-
 /// New MMU2 protocol logic
 namespace MMU2 {
 
@@ -344,8 +329,6 @@ private:
         ButtonSent,
         ReadRegisterSent, // standalone requests for reading registers - from higher layers
         WriteRegisterSent,
-        AssistWriteSent, // OneDrop3D (F11)
-        AssistReadSent,
 
         // States which do not expect a message - MSb set
         NotExpectsResponse = 0x80,

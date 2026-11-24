@@ -4,9 +4,10 @@
 ///
 /// `M2002 P<emplacement 0-4>` : le test de chargement de Prusa (M1704 : jusqu'aux engrenages de l'extrudeur, buse froide
 /// permise, puis déchargement vers le MMU) est fait avec la bobine préchargée de cet emplacement, à chaque palier de
-/// mmu_speed_math_od3d.hpp (95 à 190 mm/s, chargement et déchargement). Un palier avec une erreur, un réessai, un
-/// patinage ou un cycle plus lent arrête la montée ; 80 % du dernier palier passé est gardé (au moins 95), vérifié par
-/// un dernier cycle, puis renvoyé au MMU à chaque démarrage. La durée d'un cycle est mesurée à 95 mm/s et à la vitesse
+/// mmu_speed_math_od3d.hpp (95 à 120 mm/s, chargement et déchargement). Un palier avec une erreur, un réessai, un
+/// patinage ou un cycle plus lent arrête la montée ; le palier d'avant le dernier passé est gardé (au moins 95), vérifié
+/// par un dernier cycle, puis renvoyé au MMU à chaque démarrage (jamais plus de 120, U-03 ; lancé à la main seulement,
+/// plus par l'assistant). La durée d'un cycle est mesurée à 95 mm/s et à la vitesse
 /// gardée : c'est le gain d'un changement d'outil. Une erreur au palier de Prusa ou à la vérification : rien ne change
 /// (vitesse de Prusa). `M2002 R` : vitesse de Prusa.
 #pragma once

@@ -141,10 +141,10 @@ TEST_CASE("calib_registry: manual tests are never checked by default") {
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 8 à l'accéléromètre, MPC, tube PTFE, vitesse de la poulie, dilatation de la buse, ventilateurs, puis 3 mesures
-    // pour chacune des 2 bobines (l'accélération du filament se mesure à la main, N-04)
+    // 8 à l'accéléromètre, MPC, tube PTFE, dilatation de la buse, ventilateurs, puis 3 mesures pour chacune des 2 bobines
+    // (l'accélération du filament et la vitesse de la poulie se mesurent à la main, N-04 et U-03)
     constexpr size_t accel_steps = 8;
-    REQUIRE(n == accel_steps + 1 + 1 + 1 + 1 + 1 + 3 * 2);
+    REQUIRE(n == accel_steps + 1 + 1 + 1 + 1 + 3 * 2);
 
     // Accéléromètre d'abord (une seule pose) : sa pose vérifiée en premier, puis les courroies ; l'accélération max utile
     // après l'input shaper (elle mesure avec son filtre), la vérification du filtre ensuite
@@ -159,22 +159,19 @@ TEST_CASE("calib_registry: steps order") {
     CHECK(at(Test::input_shaper) < at(Test::accel_limit));
     CHECK(at(Test::accel_limit) < at(Test::shaper_check));
     CHECK(steps[accel_steps].test == Test::mpc);
-    // Tests du MMU à froid ensemble, avant la dilatation (le plateau chauffe pour elle pendant eux), avec la première
-    // bobine ; la vitesse de la poulie après le tube PTFE (sa longueur fait l'avance rapide)
+    // Test du MMU à froid avant la dilatation (le plateau chauffe pour elle pendant lui), avec la première bobine
     CHECK(steps[accel_steps + 1].test == Test::mmu_ptfe);
     CHECK(steps[accel_steps + 1].slot == 0);
-    CHECK(steps[accel_steps + 2].test == Test::mmu_speed);
-    CHECK(steps[accel_steps + 2].slot == 0);
     // Dilatation de la buse (buse vide) avant les chargements, une fois ; puis les ventilateurs (sans besoin)
-    CHECK(steps[accel_steps + 3].test == Test::nozzle_expansion);
-    CHECK(steps[accel_steps + 4].test == Test::fan_response);
+    CHECK(steps[accel_steps + 2].test == Test::nozzle_expansion);
+    CHECK(steps[accel_steps + 3].test == Test::fan_response);
 
     // Puis par bobine : PA, débit, température minimale en dernier (elle finit sous la température de la matière : rien
     // ne remonte après elle) ; un seul chargement par bobine
     const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp };
     for (size_t k = 0; k < 6; ++k) {
-        CHECK(steps[accel_steps + 5 + k].test == per_slot[k % 3]);
-        CHECK(steps[accel_steps + 5 + k].slot == (k < 3 ? 0 : 2));
+        CHECK(steps[accel_steps + 4 + k].test == per_slot[k % 3]);
+        CHECK(steps[accel_steps + 4 + k].slot == (k < 3 ? 0 : 2));
     }
 
     // Jamais le test manuel
@@ -199,11 +196,13 @@ TEST_CASE("calib_registry: front PTFE needs the MMU and a spool") {
     CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_ptfe)));
     CHECK(build_steps(test_bit(Test::mmu_ptfe), ctx, steps) == 0);
 
-    // Vitesse de la poulie : mêmes besoins
+    // Vitesse de la poulie : mêmes besoins, mais lancée à la main seulement (U-03)
     ctx = full();
     ctx.spools = 0b10000;
-    REQUIRE(build_steps(test_bit(Test::mmu_speed), ctx, steps) == 1);
-    CHECK(steps[0].slot == 4);
+    CHECK((select(ctx, none, true) & test_bit(Test::mmu_speed)));
+    CHECK_FALSE((automatic_mask() & test_bit(Test::mmu_speed)));
+    CHECK(build_steps(test_bit(Test::mmu_speed), ctx, steps) == 0);
+    CHECK_FALSE((proposed(ctx, none) & test_bit(Test::mmu_speed)));
     ctx.mmu = false;
     CHECK_FALSE((select(ctx, none, true) & test_bit(Test::mmu_speed)));
 }
@@ -280,9 +279,9 @@ TEST_CASE("calib_registry: the bed heats for the next test during what does not 
     };
     // MPC : rien, il mesure les pertes de la buse dans l'air de la chambre
     CHECK_FALSE(bed_step(s, at(Test::mpc), false).has_value());
-    // Tube PTFE, vitesse de la poulie (déchargement d'abord ou non) : pour la dilatation
+    // Tube PTFE (déchargement d'abord ou non) : pour la dilatation
     CHECK(bed_step(s, at(Test::mmu_ptfe), false) == at(Test::nozzle_expansion));
-    CHECK(bed_step(s, at(Test::mmu_speed), true) == at(Test::nozzle_expansion));
+    CHECK(bed_step(s, at(Test::mmu_ptfe), true) == at(Test::nozzle_expansion));
     // La dilatation chauffe son plateau elle-même ; un déchargement avant elle : pendant lui
     CHECK_FALSE(bed_step(s, at(Test::nozzle_expansion), false).has_value());
     CHECK(bed_step(s, at(Test::nozzle_expansion), true) == at(Test::nozzle_expansion));
@@ -503,11 +502,12 @@ TEST_CASE("calib_registry: two series, cold with the accelerometer and heating")
             CHECK((cold & test_bit(e.test)));
         }
     }
-    // Chauffe : MPC, tube PTFE et poulie (extrudeur vidé à chaud, comme pour la dilatation), dilatation, par bobine
-    for (const Test t : { Test::mpc, Test::mmu_ptfe, Test::nozzle_expansion, Test::mmu_speed, Test::pa, Test::max_flow, Test::min_temp }) {
+    // Chauffe : MPC, tube PTFE (extrudeur vidé à chaud, comme pour la dilatation), dilatation, par bobine
+    for (const Test t : { Test::mpc, Test::mmu_ptfe, Test::nozzle_expansion, Test::pa, Test::max_flow, Test::min_temp }) {
         CHECK((heat & test_bit(t)));
     }
     CHECK_FALSE(((cold | heat) & test_bit(Test::e_jump))); // N-04 : à la main seulement
+    CHECK_FALSE(((cold | heat) & test_bit(Test::mmu_speed))); // U-03 : à la main seulement
     // Les étapes d'une série ne contiennent que ses tests ; ordre gardé (MPC part de la buse froide)
     std::array<Step, 32> steps;
     const size_t n = build_steps(heat, full(), steps);

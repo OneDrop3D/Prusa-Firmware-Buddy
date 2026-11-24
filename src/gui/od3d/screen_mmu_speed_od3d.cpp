@@ -131,7 +131,7 @@ void MmuSpeedLevels::unconditionalDraw() {
         } else if (m.speed) {
             snprintf(text, sizeof(text), "%d", int(m.speed));
         } else {
-            strlcpy(text, "80%", sizeof(text));
+            strlcpy(text, "-5", sizeof(text)); // le palier d'avant le dernier passé (paliers de 5 mm/s)
         }
         draw_text(col, string_view_utf8::MakeRAM(text), Font::small, check ? style::accent : style::text_muted, style::surface, Align_t::Center());
 
@@ -189,7 +189,7 @@ void ScreenMmuSpeed::show_info() {
         if (const char *why = mmu_speed_result_text(m.result)) {
             text(why);
         } else if (m.result != ms::Result::saved) {
-            text(N_("Preload the spool, then Start: up to 7 cycles from 95 to 190 mm/s, 80% of the last clean level is kept (~4 min)."));
+            text(N_("Preload the spool, then Start: up to 7 cycles from 95 to 120 mm/s, the level before the last clean one is kept (~4 min)."));
         } else if (m.speed > ms::prusa_speed) {
             put(info_text, N_("Saved: %d mm/s, sent to the MMU at each start."), int(m.speed));
         } else {

@@ -17,9 +17,12 @@
 namespace od3d::mmu_speed {
 
 inline constexpr uint8_t prusa_speed = 95; ///< config::pulleyLoadFeedrate et pulleyUnloadFeedrate du MMU [mm/s]
-/// Paliers essayés, de la vitesse de Prusa à 190 mm/s (80 % : 152 mm/s au plus ; le MMU pas à pas jusqu'à 40 kHz)
-inline constexpr std::array<uint8_t, 6> levels { prusa_speed, 115, 135, 155, 175, 190 };
-inline constexpr uint8_t keep_percent = 80; ///< marge sous le dernier palier passé
+/// U-03 : plafond (décision du 24/11 : 95 mm/s par défaut, 120 en mode expert). Prusa écrit que 120 mm/s, c'est déjà
+/// trop (fausses erreurs du capteur) ; jamais envoyé au-dessus, même une vitesse enregistrée avant (jusqu'à 152)
+inline constexpr uint8_t max_speed = 120;
+/// Paliers essayés, de la vitesse de Prusa au plafond
+inline constexpr std::array<uint8_t, 6> levels { prusa_speed, 100, 105, 110, 115, max_speed };
+static_assert(levels.front() == prusa_speed && levels.back() == max_speed);
 /// Avance lente plus longue qu'au palier de Prusa : la poulie a patiné (ou le moteur décroché) pendant l'avance rapide.
 /// 1 s = 20 mm à 20 mm/s ; la progression est relue ~5 fois par seconde (±0,2 s)
 inline constexpr uint32_t slip_ms = 1000;
@@ -47,8 +50,8 @@ struct Choice {
     uint8_t speed = 0; ///< vitesse à garder ; 0 : le palier de Prusa n'est pas passé (rien ne change)
 };
 
-/// cycles[i] : cycle au palier levels[i]. On garde 80 % du dernier palier passé avant le premier échec, jamais moins
-/// que la vitesse de Prusa
+/// cycles[i] : cycle au palier levels[i]. On garde le palier d'avant le dernier passé avant le premier échec (marge
+/// d'un palier : un seul cycle par palier ; 115 mm/s au plus), jamais moins que la vitesse de Prusa
 constexpr Choice choose(std::span<const Cycle> cycles) {
     Choice c;
     const size_t n = std::min(cycles.size(), levels.size());
@@ -56,7 +59,7 @@ constexpr Choice choose(std::span<const Cycle> cycles) {
         ++c.passed;
     }
     if (c.passed) {
-        c.speed = uint8_t(std::max<unsigned>(prusa_speed, unsigned(levels[c.passed - 1]) * keep_percent / 100));
+        c.speed = levels[c.passed > 1 ? c.passed - 2 : 0];
     }
     return c;
 }
@@ -75,9 +78,10 @@ struct Saved {
 };
 static_assert(sizeof(Saved) == 6, "même place dans le config_store qu'avant F11");
 
-/// Vitesse envoyée au MMU
+/// Vitesse envoyée au MMU (registres 0x11 et 0x0d, à chacun de ses démarrages) : entre celle de Prusa et le plafond,
+/// aussi pour une vitesse enregistrée avant le plafond
 constexpr uint8_t speed_of(const Saved &s) {
-    return s.speed ? s.speed : prusa_speed;
+    return s.speed ? std::clamp(s.speed, prusa_speed, max_speed) : prusa_speed;
 }
 
 } // namespace od3d::mmu_speed

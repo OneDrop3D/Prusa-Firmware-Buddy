@@ -32,10 +32,12 @@ struct Resonance {
 /// Pic principal (le plus haut) de psd : psd[i] = gain² mesuré à start_hz + i × step_hz, tous les points mesurés
 Resonance analyse(std::span<const float> psd, float start_hz, float step_hz);
 
-/// Amortissements que l'écran propose d'appliquer à l'input shaper ; au-delà, la mesure est douteuse (deux pics
-/// confondus, accéléromètre mal fixé). Prusa calcule ses filtres pour 0,05 à 0,15 (M958.cpp, fit_shaper).
-inline constexpr float min_zeta = 0.02f;
-inline constexpr float max_zeta = 0.25f;
+/// Amortissements que l'écran propose d'appliquer à l'input shaper : ceux pour lesquels Prusa calcule ses filtres
+/// (M958.cpp, fit_shaper). Au-delà, la mesure est douteuse (deux pics confondus, couplage CoreXY qui élargit le pic,
+/// accéléromètre mal fixé) : un filtre conçu pour 0,25 quand le vrai ζ vaut 0,05 laisse ~17 % de vibration au lieu
+/// de ~4 % (V-02, jusqu'ici 0,02 à 0,25)
+inline constexpr float min_zeta = 0.05f;
+inline constexpr float max_zeta = 0.15f;
 
 constexpr bool applicable(const Resonance &r) {
     return r.found && r.zeta >= min_zeta && r.zeta <= max_zeta;

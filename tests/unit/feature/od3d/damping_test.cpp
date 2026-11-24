@@ -115,6 +115,25 @@ TEST_CASE("amortissement : valeurs proposées à l'input shaper") {
     CHECK_FALSE(applicable(r));
 }
 
+TEST_CASE("amortissement (V-02) : seulement les ζ des filtres de Prusa, de 0,05 à 0,15") {
+    CHECK(min_zeta == 0.05f);
+    CHECK(max_zeta == 0.15f);
+    Resonance r { .found = true, .frequency = 50, .width = 10, .q = 5, .zeta = 0.05f };
+    CHECK(applicable(r)); // bornes comprises
+    r.zeta = 0.15f;
+    CHECK(applicable(r));
+    r.zeta = 0.04f; // acceptés jusqu'ici (0,02 à 0,25)
+    CHECK_FALSE(applicable(r));
+    r.zeta = 0.2f;
+    CHECK_FALSE(applicable(r));
+    r.zeta = 0.25f;
+    CHECK_FALSE(applicable(r));
+    // Un pic élargi par le couplage (ζ mesuré 0,2 pour un vrai 0,05) n'est plus proposé
+    const Resonance wide = analyse(resonance(50, 0.2f, true), sweep_start_hz, sweep_step_hz);
+    REQUIRE(wide.found);
+    CHECK_FALSE(applicable(wide));
+}
+
 TEST_CASE("accéléromètre (ACC-1) : pesanteur à l'arrêt") {
     using od3d::accel::gravity_plausible;
     CHECK(gravity_plausible(0, 0, 9.81f));

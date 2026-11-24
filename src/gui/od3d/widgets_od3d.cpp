@@ -1031,9 +1031,12 @@ void HeaderTitle::unconditionalDraw() {
         std::array<char, 64> shown;
         GetText().copyToRAM(shown.data(), shown.size());
         const uint16_t chars = string_view_utf8::MakeRAM(shown.data()).computeNumUtf8Chars();
-        const Font font = chars * width(Font::normal) <= GetRect().Width() ? Font::normal : Font::small;
-        text::ellipsize(shown.data(), GetRect().Width() / width(font));
-        draw_text(GetRect(), string_view_utf8::MakeRAM(shown.data()), font, style::text, GetBackColor());
+        if (chars * width(Font::normal) <= GetRect().Width()) {
+            draw_text(GetRect(), string_view_utf8::MakeRAM(shown.data()), Font::normal, style::text, GetBackColor());
+            return;
+        }
+        text::ellipsize(shown.data(), GetRect().Width() / width(Font::small));
+        draw_text(GetRect(), string_view_utf8::MakeRAM(shown.data()), Font::small, style::text, GetBackColor());
         return;
     }
     // Deux lignes centrées en hauteur, chaque pixel peint une fois : bande du haut, lignes (fond compris), bande du bas

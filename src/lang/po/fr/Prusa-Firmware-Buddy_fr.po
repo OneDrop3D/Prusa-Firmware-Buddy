@@ -12969,3 +12969,8 @@ msgstr "PA de l'emplacement %d incertain (K = %s), PA du trancheur gardé"
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "Unsure: slicer PA used"
 msgstr "Incertain : PA du trancheur utilisé"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Flexible filament: not measured."
+msgstr "Filament flexible : pas de mesure."

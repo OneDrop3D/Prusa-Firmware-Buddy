@@ -484,10 +484,10 @@ Context context() {
     for (uint8_t i = 0; i < VirtualToolIndex::count; ++i) {
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(i);
         const FilamentType type = FilamentType::for_tool(tool);
-        if (tool.is_enabled() && type) {
+        const FilamentTypeParameters p = type.parameters();
+        if (tool.is_enabled() && type && !p.is_flexible) { // M-09 : jamais de mesure sur un flexible
             ctx.spools |= uint8_t(1u << i);
         }
-        const FilamentTypeParameters p = type.parameters();
         bed[i] = p.heatbed_temperature;
         nozzle[i] = p.nozzle_temperature;
         // Déjà mesuré pour la bobine en place (effacé au changement de bobine) : pas refait sans le demander

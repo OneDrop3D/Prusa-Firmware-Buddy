@@ -71,7 +71,10 @@ bool stale(uint8_t slot);
 bool printer_wins();
 void set_printer_wins(bool set);
 
-/// Le réglage est actif et l'emplacement n'a pas de K qui serve (k_for_slot) : « PA à mesurer »
+/// M-09 : la bobine de l'emplacement est un filament flexible : jamais mesurée (M1994, M1995, M1996, assistant)
+bool flexible(uint8_t slot);
+
+/// Le réglage est actif et l'emplacement n'a pas de K qui serve (k_for_slot), sauf un flexible : « PA à mesurer »
 bool needs_measure(uint8_t slot);
 
 // ---- Application (fil de Marlin) ----
@@ -123,6 +126,7 @@ enum class Error : uint8_t {
     no_area, ///< mesure automatique : l'impression ne déclare pas sa zone (M555)
     load_failed, ///< le chargement de Prusa n'a pas mis la bobine dans la buse (pas de seconde tentative)
     no_force, ///< aucune force dès les premières lignes : la buse ne touche pas le plateau (pa::in_air)
+    flexible, ///< M-09 : filament flexible, jamais mesuré (débits fixes de la mesure trop forts pour lui)
 };
 
 struct Status {

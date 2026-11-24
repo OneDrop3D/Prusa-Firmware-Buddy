@@ -350,6 +350,9 @@ void ScreenPa::show_note() {
         case pa::Error::no_force:
             text = _("No force: the nozzle did not touch the bed.");
             break;
+        case pa::Error::flexible:
+            text = _("Flexible filament: not measured.");
+            break;
         default:
             text = _("Invalid request.");
             break;

@@ -101,8 +101,12 @@ void set_printer_wins(bool set) {
     config_store().od3d_pa_printer_wins.set(set);
 }
 
+bool flexible(uint8_t slot) {
+    return slot < VirtualToolIndex::count && FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot)).parameters().is_flexible;
+}
+
 bool needs_measure(uint8_t slot) {
-    return printer_wins() && !k_for_slot(slot);
+    return printer_wins() && !k_for_slot(slot) && !flexible(slot); // un flexible n'est jamais mesuré (M-09)
 }
 
 // ---- Application ----
@@ -161,8 +165,7 @@ namespace {
     /// Le filament peut reculer : dans la buse, buse assez chaude, pas un flexible (comme l'auto-rétraction de Prusa)
     [[gnu::noinline]] bool can_retract() {
         const auto slot = loaded_slot();
-        return slot && !thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0))
-            && !FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(*slot)).parameters().is_flexible;
+        return slot && !thermalManager.tooColdToExtrude(PhysicalToolIndex::from_raw(0)) && !flexible(*slot);
     }
 
     /// Filament reculé (mm < 0) ou remis aux vitesses de parking de Prusa, sa position logique inchangée (comme
@@ -756,6 +759,10 @@ void calibrate(const Request &rq, bool load_tried) {
     // Pas dans la buse : chargement de Prusa mis en file, avec le MMU ou, sans MMU, sa demande d'insérer le filament
     // (« Arrêter » y passe la mesure : load_failed au retour)
     const FilamentTypeParameters material = type.parameters();
+    if (material.is_flexible) {
+        fail(Error::flexible); // M-09 : les débits fixes de la mesure (jusqu'à 10 mm³/s) pousseraient trop un TPU
+        return;
+    }
     Temperatures t = temperatures_for(material, rq.temperature, rq.bed_temperature);
     st_temperature = t.nozzle;
 
@@ -1101,7 +1108,7 @@ void calibrate_auto() {
     used = scan.used;
     const bool single_material = scan.single_material;
     for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-        if (VirtualToolIndex::from_raw(slot).is_enabled() && auto_type(slot)) {
+        if (VirtualToolIndex::from_raw(slot).is_enabled() && auto_type(slot) && !flexible(slot)) { // M-09 : jamais un flexible
             known |= uint8_t(1u << slot);
         }
         if (record(slot).has_k()) {

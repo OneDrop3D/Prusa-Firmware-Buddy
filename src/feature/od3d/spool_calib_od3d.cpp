@@ -250,6 +250,10 @@ namespace {
             fail(Error::not_loaded);
             return FilamentType::none;
         }
+        if (type.parameters().is_flexible) {
+            fail(Error::flexible); // M-09 : la rampe pousserait un TPU jusqu'à 30 mm³/s
+            return FilamentType::none;
+        }
         return type;
     }
 

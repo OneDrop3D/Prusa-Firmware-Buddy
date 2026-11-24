@@ -326,6 +326,9 @@ void ScreenSpoolCalib::show_note() {
         case calib::Error::too_few_points:
             text = _("Too few steps: nothing saved.");
             break;
+        case calib::Error::flexible:
+            text = _("Flexible filament: not measured.");
+            break;
         default:
             text = _("Invalid request.");
             break;

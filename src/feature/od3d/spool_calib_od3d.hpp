@@ -85,6 +85,7 @@ enum class Error : uint8_t {
     stopped, ///< annulé
     weak_signal, ///< force trop faible
     too_few_points, ///< pas assez de paliers exploitables
+    flexible, ///< M-09 : filament flexible, jamais mesuré (rampe de débit jusqu'à 30 mm³/s)
 };
 
 struct Status {

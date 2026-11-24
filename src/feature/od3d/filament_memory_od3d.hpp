@@ -36,9 +36,9 @@ void step();
 inline constexpr float start_load_mm = 17.f;
 
 /// Départ d'une impression (marlin_server, PrintInit) : le prochain changement d'outil du MMU est celui du G-code de
-/// départ. shortcut: posé aussi pour une impression reprise à une position du fichier ; son premier T, s'il change de
-/// filament, déchargerait avec ramming une pointe déjà façonnée par le trancheur
-void on_print_start();
+/// départ, seulement si l'impression part du début du fichier. Reprise à une position du fichier : son G-code de départ
+/// ne repasse pas, il n'y a ni « load to the nozzle » à compenser ni pointe à refaire (audit U-07)
+void on_print_start(bool from_file_start);
 
 /// MMU2::tool_change : premier changement d'outil depuis on_print_start(), rendu une seule fois
 bool take_print_start_tool_change();

@@ -2440,7 +2440,8 @@ static void _server_print_loop(void) {
         od3d::spool_usage::on_print_start(); // OneDrop3D (F13)
 #endif
 #if HAS_MMU2()
-        od3d::filament_memory::on_print_start(); // OneDrop3D (F43) : le T du G-code de départ reprend le filament gardé
+        // OneDrop3D (F43) : le T du G-code de départ reprend le filament gardé ; pas à la reprise d'une position (U-07)
+        od3d::filament_memory::on_print_start(server.print_is_serial || media_position() == 0);
 #endif
 #if HAS_LOADCELL() && HAS_MMU2()
         od3d::pa::on_print_start(!server.print_is_serial); // OneDrop3D (F4) : et mesure automatique du PA (M1994 A)

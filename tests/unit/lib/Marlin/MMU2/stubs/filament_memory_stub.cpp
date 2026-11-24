@@ -3,7 +3,7 @@
 
 namespace od3d::filament_memory {
 
-void on_print_start() {}
+void on_print_start(bool) {}
 
 bool take_print_start_tool_change() {
     return false;

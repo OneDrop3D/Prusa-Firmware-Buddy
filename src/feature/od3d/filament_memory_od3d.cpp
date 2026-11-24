@@ -58,8 +58,8 @@ namespace {
     std::atomic<bool> print_start_tool_change = false;
 }
 
-void on_print_start() {
-    print_start_tool_change = true;
+void on_print_start(bool from_file_start) {
+    print_start_tool_change = from_file_start;
 }
 
 bool take_print_start_tool_change() {

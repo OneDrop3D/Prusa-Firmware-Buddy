@@ -690,6 +690,11 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#5\" W2 P3\nM1994 P3 A1");
         REQUIRE(pa::auto_step_sequence(out, 3, nullptr));
         CHECK(text() == "M1994 P3 A1");
+        // Premier chargement : le plateau palpé avant (M1994 A2), le chargement se pose ensuite sur une place palpée
+        REQUIRE(pa::auto_step_sequence(out, 3, "#5", true));
+        CHECK(text() == "M1994 A2\nG28 O I\nG27 W2\nM701 S\"#5\" W2 P3\nM1994 P3 A1");
+        REQUIRE(pa::auto_step_sequence(out, 3, nullptr, true)); // rien à charger : pas de palpage à part
+        CHECK(text() == "M1994 P3 A1");
     }
     SECTION("fin automatique : filament remis comme au départ") {
         REQUIRE(pa::auto_restore_sequence(out, std::nullopt, std::nullopt, ""));

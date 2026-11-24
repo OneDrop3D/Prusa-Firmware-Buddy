@@ -105,12 +105,13 @@ void filament_gcodes::M701_load(const M701LoadArgs &args) {
 
     mapi::ParkingPosition park_position = mapi::get_parking_position(do_purge_only ? mapi::ParkPosition::purge : mapi::ParkPosition::load);
     park_position.z = mapi::ParkingPosition::AtLeast { .above_print = Z_NOZZLE_PARK_RISE, .absolute = args.z_min_pos };
-    // OneDrop3D : chargement de l'assistant de calibration au-dessus du départ de la ligne de purge réservée sur le
-    // plateau : ce qui sort de la buse est posé par la purge au lieu de tomber dans le vide (od3d/measure_session_od3d.hpp)
-    if (const auto spot = od3d::session::load_spot(); spot && !do_purge_only) {
+    // OneDrop3D : chargement de l'assistant de calibration et de la mesure automatique du PA au départ d'une impression
+    // au-dessus d'une place libre du plateau (départ de la ligne de purge) : ce qui sort de la buse s'y pose au lieu de
+    // pendre de la buse garée en hauteur (od3d/measure_session_od3d.hpp)
+    if (const auto spot = do_purge_only ? std::nullopt : od3d::session::take_load_spot()) {
         park_position.x = spot->x;
         park_position.y = spot->y;
-        park_position.z = od3d::session::purge_z; // absolu : l'origine est faite (G28 O I avant, calib_registry::load_gcode)
+        park_position.z = spot->z; // absolu : l'origine est faite (G28 O I avant)
     }
 
     settings.SetParkPoint(park_position);
@@ -180,6 +181,12 @@ void filament_gcodes::M702_unload(std::optional<float> unload_length, float z_mi
     settings.SetRetractLength(0.f);
     mapi::ParkingPosition park_position = mapi::get_parking_position(mapi::ParkPosition::unload);
     park_position.z = mapi::ParkingPosition::AtLeast { .above_print = Z_NOZZLE_PARK_RISE, .absolute = z_min_pos };
+    // OneDrop3D : comme M701, la pointe que le MMU façonne (ramming) se pose sur la place réservée du plateau
+    if (const auto spot = od3d::session::take_load_spot()) {
+        park_position.x = spot->x;
+        park_position.y = spot->y;
+        park_position.z = spot->z;
+    }
     settings.SetParkPoint(park_position);
     xyze_pos_t current_position_tmp = current_position;
 

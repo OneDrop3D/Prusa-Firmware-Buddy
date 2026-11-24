@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <optional>
+#include <utility>
 
 #include <common/marlin_server.hpp>
 #include <common/marlin_vars.hpp>
@@ -222,8 +223,19 @@ std::optional<PurgeStart> purge_start() {
     return series.purge;
 }
 
-std::optional<PurgeStart> load_spot() {
-    return series.active ? series.purge : std::nullopt;
+namespace {
+    std::optional<LoadSpot> pending_spot; ///< set_load_spot(), fil de Marlin
+}
+
+std::optional<LoadSpot> take_load_spot() {
+    if (series.active) {
+        return series.purge ? std::optional(LoadSpot { series.purge->x, series.purge->y, purge_z }) : std::nullopt;
+    }
+    return std::exchange(pending_spot, std::nullopt);
+}
+
+void set_load_spot(std::optional<LoadSpot> spot) {
+    pending_spot = spot;
 }
 
 bool mesh_ready() {

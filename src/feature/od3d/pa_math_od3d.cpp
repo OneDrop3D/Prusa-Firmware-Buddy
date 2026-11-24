@@ -738,9 +738,10 @@ bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filam
     return ok && append(out, n, " J1");
 }
 
-bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament) {
+bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first) {
     size_t n = 0;
-    return (!filament || (load_line(out, n, slot, filament) && append(out, n, "\n"))) && append(out, n, "M1994 P%u A1", unsigned(slot));
+    return (!filament || ((!level_first || append(out, n, "M1994 A2\n")) && load_line(out, n, slot, filament) && append(out, n, "\n")))
+        && append(out, n, "M1994 P%u A1", unsigned(slot));
 }
 
 bool auto_restore_sequence(std::span<char> out, std::optional<uint8_t> initial, std::optional<uint8_t> loaded, const char *filament) {

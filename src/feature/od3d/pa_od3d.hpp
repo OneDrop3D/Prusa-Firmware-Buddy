@@ -161,6 +161,11 @@ void calibrate_auto();
 /// à la fin le filament remis comme au départ ; un échec ou « Passer » laisse le PA du trancheur, l'impression continue
 void calibrate_auto_step(uint8_t slot);
 
+/// Corps de M1994 A2, avant le premier chargement de la mesure automatique : palpe la zone de tous les blocs, puis
+/// pose la place du chargement (session::set_load_spot) au départ de la ligne de purge de l'étape : le plastique qui
+/// sort du chargement tombe sur le plateau, pas dans le vide
+void calibrate_auto_level();
+
 /// Dernière mesure (en mémoire vive seulement), pour l'écran : K de chaque ligne imprimée **dans l'ordre des lignes**
 /// (ligne 1 à l'avant), retard, coût, et forme moyenne d'un créneau au K le plus bas, au meilleur coût et au K le plus
 /// haut. Lire quand is_running() est faux.

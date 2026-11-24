@@ -19,6 +19,7 @@
  *
  *    M1994 A
  *    M1994 P<slot> A1
+ *    M1994 A2
  *    M1994 [P<slot>] [V<0|1>] [L<k>] [H<k>] [S<k>] [R<n>] [B<mm3/s>] [F<mm3/s>] [U<s>] [D<s>] [W<mm>] [Z<mm>] [C<n>] [T<C>] [Q<C>] [X<mm>] [Y<mm>] [I<mm>] [O<0|1>] [J1]
  *
  *#### Parameters
@@ -54,7 +55,9 @@
  */
 void PrusaGcodeSuite::M1994() {
     if (parser.seen('A')) {
-        if (parser.seenval('P')) {
+        if (parser.has_value() && parser.value_byte() == 2) {
+            od3d::pa::calibrate_auto_level();
+        } else if (parser.seenval('P')) {
             od3d::pa::calibrate_auto_step(parser.value_byte());
         } else {
             od3d::pa::calibrate_auto();

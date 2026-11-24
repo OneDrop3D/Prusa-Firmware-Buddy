@@ -276,8 +276,9 @@ std::optional<float> next_k(std::span<const SweepPoint> done, const Search &s, c
 bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament, int bed = 0);
 
 /// Mesure automatique, étape de slot : son chargement comme ci-dessus si filament (sinon : déjà dans la buse), puis
-/// M1994 P<n> A1
-bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament);
+/// M1994 P<n> A1. level_first (premier chargement) : M1994 A2 avant, le plateau palpé d'abord, pour que le chargement
+/// se pose sur une place que le palpage ne touchera plus
+bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first = false);
 
 /// Fin de la mesure automatique : filament remis comme au départ. Vide si c'est déjà le cas ; M702 W2 (« Décharger »
 /// de Prusa) s'il n'y en avait pas ; sinon le chargement de initial (filament : sa matière)

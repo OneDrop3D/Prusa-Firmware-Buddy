@@ -887,6 +887,7 @@ namespace {
         int16_t nozzle = 0; ///< buse : première couche du fichier pour une impression d'une seule matière ; 0 : celle de la matière
         int16_t probe = 0; ///< buse pendant le palpage
         bool leveled = false; ///< zone palpée par une étape précédente (maillage en mémoire)
+        bool skip = false; ///< « Passer » pendant le palpage d'avant le premier chargement (M1994 A2)
         bool active = false;
     };
     AutoPlan plan;
@@ -903,6 +904,21 @@ namespace {
         return lines;
     }
 
+    /// Départ de la ligne de purge d'un bloc (sous les lignes, dans leur sens)
+    pattern::Point auto_purge_point(const pattern::Lines &lines) {
+        return lines.at(lines.x0, lines.y0 - auto_purge_gap);
+    }
+
+    /// Place du chargement de l'étape i, dans son bloc (palpé) : au départ de sa ligne de purge, que la purge emporte en
+    /// partant (buse à purge_z au-dessus, puis descente en s'en éloignant) ; after_purge (filament remis à la fin) :
+    /// après la fin de la purge déjà faite, sous les lignes, dans le bloc
+    session::LoadSpot auto_load_spot(size_t i, bool after_purge = false) {
+        const pattern::Lines lines = auto_lines_of(i, plan.order[i]);
+        const float along = after_purge ? std::min(session::purge_length + 8.f, lines.length + lines.marks - 4.f) : 0.f;
+        const pattern::Point p = lines.at(lines.x0 + std::max(0.f, along), lines.y0 - auto_purge_gap);
+        return { p.x, p.y, session::load_z };
+    }
+
     /// L'impression continue (pas d'arrêt en cours) : la mesure automatique peut mettre la suite en file
     bool print_goes_on() {
         return marlin_server::is_printing() && !marlin_server::aborting_or_aborted();
@@ -912,14 +928,26 @@ namespace {
     void auto_next() {
         char filament[16];
         bool ok;
+        // Chaque chargement (et le déchargement de la fin) se pose sur une place palpée de son bloc, pas en l'air
+        // (retour du 24/11) ; avant le premier, le plateau est palpé à part (M1994 A2, qui pose la place)
+        std::optional<session::LoadSpot> spot;
         if (plan.next < plan.count) {
             const uint8_t slot = plan.order[plan.next];
-            ok = auto_step_sequence(sequence, slot, loaded_slot() == slot ? nullptr : filament_param(slot, filament));
+            const bool load = loaded_slot() != slot;
+            ok = auto_step_sequence(sequence, slot, load ? filament_param(slot, filament) : nullptr, load && !plan.leveled);
+            if (load && plan.leveled) {
+                spot = auto_load_spot(plan.next);
+            }
         } else {
             plan.active = false;
             ok = auto_restore_sequence(sequence, plan.initial, loaded_slot(), plan.initial ? filament_param(*plan.initial, filament) : "");
+            if (plan.initial != loaded_slot() && plan.leveled && plan.count) {
+                spot = auto_load_spot(plan.count - 1, true);
+            }
         }
+        session::set_load_spot(ok ? spot : std::nullopt);
         if (!ok || !inject_sequence()) {
+            session::set_load_spot(std::nullopt);
             plan.active = false; // file d'injection pleine : l'impression continue avec le PA du trancheur
             log_slot(plan.next < plan.count ? plan.order[plan.next] : 0xff, Error::mmu);
         }
@@ -956,7 +984,7 @@ namespace {
         // Comme le G-code de départ du MMU : au-dessus du début de la purge, purge pendant la montée de la buse ; purge
         // sous les lignes, dans leur sens (le long de Y pour un bloc tourné)
         if (e == Error::none) {
-            const pattern::Point purge = lines.at(lines.x0, lines.y0 - auto_purge_gap);
+            const pattern::Point purge = auto_purge_point(lines);
             e = heat_and_purge(session, t.nozzle, purge.x, purge.y, 1.f, lines.along_y);
             if (e != Error::none && must_stop()) {
                 e = Error::stopped;
@@ -1085,6 +1113,28 @@ void calibrate_auto() {
     auto_next();
 }
 
+void calibrate_auto_level() {
+    if (!plan.active || plan.leveled || plan.next >= plan.count || !print_goes_on()) {
+        return;
+    }
+    const uint8_t slot = plan.order[plan.next];
+    Temperatures t = temperatures_for(auto_type(slot).parameters(), plan.nozzle, plan.bed);
+    t.probe = plan.probe;
+    stop_requested = false;
+    running = true;
+    ScopeGuard not_running = [] { running = false; };
+    begin(slot);
+    {
+        session::Session session(stop_requested, true);
+        plan.leveled = prepare_bed(session, plan.area, t) == Error::none;
+        plan.skip = must_stop(); // avant la fin de la session (« Passer » n'est lu que pendant)
+    }
+    // Palpage raté : le chargement se fait à la position de Prusa, l'étape refera le palpage complet
+    if (plan.leveled && !plan.skip) {
+        session::set_load_spot(auto_load_spot(plan.next));
+    }
+}
+
 void calibrate_auto_step(uint8_t slot) {
     if (!plan.active || plan.next >= plan.count || plan.order[plan.next] != slot) {
         return; // pas l'étape attendue (G-code tapé à la main, impression d'avant)
@@ -1099,13 +1149,15 @@ void calibrate_auto_step(uint8_t slot) {
         return;
     }
 
+    session::set_load_spot(std::nullopt); // pas prise (chargement sauté) : ne servira pas à un chargement plus tard
     stop_requested = false;
     running = true;
     ScopeGuard not_running = [] { running = false; ++runs; };
     begin(slot);
-    bool stopped = false;
+    // « Passer » pendant le palpage d'avant le premier chargement : comme pendant la mesure
+    bool stopped = plan.skip;
     // Chargement de Prusa déjà tenté : sans la bobine dans la buse, pas de seconde tentative
-    const Error e = loaded_slot() == slot ? measure_auto_slot(slot, i, stopped) : Error::load_failed;
+    const Error e = stopped ? Error::stopped : loaded_slot() == slot ? measure_auto_slot(slot, i, stopped) : Error::load_failed;
     fail(e);
     report_slot(slot, e);
 

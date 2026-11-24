@@ -101,8 +101,25 @@ struct PurgeStart {
 /// faite (le chargement qui précède le test se fait au-dessus de son départ, load_spot()) ; nullopt : plateau plein
 std::optional<PurgeStart> purge_start();
 
-/// M701 (chargement de Prusa) pendant la série : la ligne de purge réservée, au-dessus de laquelle charger à purge_z
-std::optional<PurgeStart> load_spot();
+/// Où M701 et M702 (chargement, déchargement de Prusa) se font, au-dessus du plateau : ce qui sort de la buse (pointe
+/// de l'ancien filament façonnée par le MMU, bout du nouveau) se pose sur une place libre au lieu de pendre de la buse
+/// garée en hauteur (retour du 24/11 : « il purge en hauteur et du coup je dois enlever le filament à la main »)
+struct LoadSpot {
+    float x;
+    float y;
+    float z; ///< absolue (l'origine est faite)
+};
+
+/// Hauteur du chargement de la mesure automatique au départ d'une impression : le plastique (~70 mm³ au plus : ramming
+/// de 20 mm de l'ancien filament, 10 mm du nouveau) se pose sur le plateau, la buse reste au-dessus du petit tas
+inline constexpr float load_z = 5.f;
+
+/// Série : au-dessus de la ligne de purge réservée, à purge_z. Sinon la place posée par set_load_spot(), rendue une
+/// seule fois (le M701 ou M702 qui la prend). nullopt : position de chargement de Prusa
+std::optional<LoadSpot> take_load_spot();
+
+/// Mesure automatique au départ d'une impression : le prochain M701 ou M702 se fait là ; nullopt : retirée
+void set_load_spot(std::optional<LoadSpot> spot);
 
 /// Série : le maillage du plateau entier est en mémoire et l'origine est là ; le test va directement à sa température
 /// d'impression (pas de palpage, donc pas de descente à la température de palpage)

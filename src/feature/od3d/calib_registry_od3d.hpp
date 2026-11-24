@@ -113,7 +113,8 @@ inline constexpr std::array entries {
     Entry { Test::min_temp, filament | empty_bed | heated, 7, 1, true },
     Entry { Test::skew, empty_bed | heated, 0, 1, false },
     Entry { Test::fan_response, 0, 2, 2, true }, // à froid, sans besoin : série « Accéléromètre » ; v2 : vibrations
-    Entry { Test::e_jump, filament | heated, 1, 1, true }, // rien d'imprimé ni de palpé : purge à la position de Prusa
+    // Rien d'imprimé ni de palpé : purge à la position de Prusa. N-04 : à la main seulement (mesurée buse dans le vide)
+    Entry { Test::e_jump, filament | heated, 1, 1, false },
     Entry { Test::mmu_speed, mmu | one_spool | heated, 4, 1, true }, // après le tube PTFE : sa longueur fait l'avance rapide
 };
 static_assert(entries.size() == size_t(Test::count), "une entrée par Test");

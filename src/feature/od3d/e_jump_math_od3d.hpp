@@ -28,10 +28,11 @@ inline constexpr uint8_t pulses = 2; ///< impulsions par palier : 2 détections 
 /// débit plus fort, des sauts plus longs et la traînée de la bobine : on garde 56 à 70 % du calage
 inline constexpr float margin = 0.7f;
 
-/// Bornes de F [mm/s²] : jamais sous Prusa (une mesure basse est plus souvent une fausse détection) ; au-dessus de
-/// 1500, la limite d'accélération de E de Prusa (M201 E1500) borne déjà le filament
+/// Bornes de F [mm/s²] : jamais sous Prusa (une mesure basse est plus souvent une fausse détection) ; au plus 300
+/// (N-04 : mesurée buse dans le vide, elle remplace le M204 F du trancheur ; 1 500 avant, 12,5 fois Prusa), aussi pour
+/// une valeur déjà enregistrée (F calculée à chaque application)
 inline constexpr float prusa_filament_accel = 120.f;
-inline constexpr float max_filament_accel = 1500.f;
+inline constexpr float max_filament_accel = 300.f;
 
 /// Cordon de référence du bilan (buse 0,4 de la CORE One) et accélération XY maximale (HWLIMIT_NORMAL_MAX_ACCELERATION)
 inline constexpr float ref_width = 0.45f;

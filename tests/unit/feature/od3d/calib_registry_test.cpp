@@ -128,15 +128,23 @@ TEST_CASE("calib_registry: manual tests are never checked by default") {
     CHECK((select(full(), r, true) == test_bit(Test::skew)));
     CHECK(proposed(measured(), r) == 0);
     CHECK_FALSE((automatic_mask() & test_bit(Test::skew)));
+    // N-04 : l'accélération du filament (M2000) n'est plus lancée par l'assistant, même jamais faite
+    CHECK_FALSE((automatic_mask() & test_bit(Test::e_jump)));
+    Context ctx = measured();
+    ctx.measured[size_t(Test::e_jump)] = 0; // aucune bobine mesurée
+    r[size_t(Test::e_jump)] = {};
+    CHECK(proposed(ctx, r) == 0);
+    std::array<Step, 32> steps;
+    CHECK(build_steps(test_bit(Test::e_jump), ctx, steps) == 0);
 }
 
 TEST_CASE("calib_registry: steps order") {
     std::array<Step, 32> steps;
     const size_t n = build_steps(automatic_mask(), full(), steps);
-    // 8 à l'accéléromètre, MPC, tube PTFE, vitesse de la poulie, dilatation de la buse, ventilateurs, puis 4 mesures
-    // pour chacune des 2 bobines
+    // 8 à l'accéléromètre, MPC, tube PTFE, vitesse de la poulie, dilatation de la buse, ventilateurs, puis 3 mesures
+    // pour chacune des 2 bobines (l'accélération du filament se mesure à la main, N-04)
     constexpr size_t accel_steps = 8;
-    REQUIRE(n == accel_steps + 1 + 1 + 1 + 1 + 1 + 4 * 2);
+    REQUIRE(n == accel_steps + 1 + 1 + 1 + 1 + 1 + 3 * 2);
 
     // Accéléromètre d'abord (une seule pose) : sa pose vérifiée en premier, puis les courroies ; l'accélération max utile
     // après l'input shaper (elle mesure avec son filtre), la vérification du filtre ensuite
@@ -161,12 +169,12 @@ TEST_CASE("calib_registry: steps order") {
     CHECK(steps[accel_steps + 3].test == Test::nozzle_expansion);
     CHECK(steps[accel_steps + 4].test == Test::fan_response);
 
-    // Puis par bobine : PA, débit, accélération du filament, température minimale en dernier (elle finit sous la
-    // température de la matière : rien ne remonte après elle) ; un seul chargement par bobine
-    const Test per_slot[] = { Test::pa, Test::max_flow, Test::e_jump, Test::min_temp };
-    for (size_t k = 0; k < 8; ++k) {
-        CHECK(steps[accel_steps + 5 + k].test == per_slot[k % 4]);
-        CHECK(steps[accel_steps + 5 + k].slot == (k < 4 ? 0 : 2));
+    // Puis par bobine : PA, débit, température minimale en dernier (elle finit sous la température de la matière : rien
+    // ne remonte après elle) ; un seul chargement par bobine
+    const Test per_slot[] = { Test::pa, Test::max_flow, Test::min_temp };
+    for (size_t k = 0; k < 6; ++k) {
+        CHECK(steps[accel_steps + 5 + k].test == per_slot[k % 3]);
+        CHECK(steps[accel_steps + 5 + k].slot == (k < 3 ? 0 : 2));
     }
 
     // Jamais le test manuel
@@ -278,11 +286,9 @@ TEST_CASE("calib_registry: the bed heats for the next test during what does not 
     // La dilatation chauffe son plateau elle-même ; un déchargement avant elle : pendant lui
     CHECK_FALSE(bed_step(s, at(Test::nozzle_expansion), false).has_value());
     CHECK(bed_step(s, at(Test::nozzle_expansion), true) == at(Test::nozzle_expansion));
-    // Bobine suivante : pendant son chargement, pour son PA ; jamais pendant une mesure (motif, accélération du filament)
+    // Bobine suivante : pendant son chargement, pour son PA ; jamais pendant une mesure (motif)
     CHECK(bed_step(s, at(Test::pa, 2), true) == at(Test::pa, 2));
     CHECK_FALSE(bed_step(s, at(Test::max_flow), false).has_value());
-    CHECK_FALSE(bed_step(s, at(Test::e_jump), false).has_value());
-    CHECK_FALSE(bed_step(s, at(Test::e_jump), true).has_value()); // chargée pour elle seule : rien n'attend le plateau
     CHECK_FALSE(bed_step(s, n, false).has_value());
     // Seuls les tests du MMU laissent le plateau libre
     for (const Entry &e : entries) {
@@ -369,8 +375,8 @@ TEST_CASE("calib_registry: what is already done is not checked, and not redone")
     CHECK(build_steps(test_bit(Test::pa), ctx, steps, test_bit(Test::pa)) == 3);
 
     // Même règle pour les autres mesures par bobine
-    ctx.measured[size_t(Test::e_jump)] = 0b00011;
-    n = build_steps(test_bit(Test::e_jump), ctx, steps);
+    ctx.measured[size_t(Test::min_temp)] = 0b00011;
+    n = build_steps(test_bit(Test::min_temp), ctx, steps);
     REQUIRE(n == 1);
     CHECK(steps[0].slot == 2);
 
@@ -498,9 +504,10 @@ TEST_CASE("calib_registry: two series, cold with the accelerometer and heating")
         }
     }
     // Chauffe : MPC, tube PTFE et poulie (extrudeur vidé à chaud, comme pour la dilatation), dilatation, par bobine
-    for (const Test t : { Test::mpc, Test::mmu_ptfe, Test::nozzle_expansion, Test::mmu_speed, Test::pa, Test::max_flow, Test::min_temp, Test::e_jump }) {
+    for (const Test t : { Test::mpc, Test::mmu_ptfe, Test::nozzle_expansion, Test::mmu_speed, Test::pa, Test::max_flow, Test::min_temp }) {
         CHECK((heat & test_bit(t)));
     }
+    CHECK_FALSE(((cold | heat) & test_bit(Test::e_jump))); // N-04 : à la main seulement
     // Les étapes d'une série ne contiennent que ses tests ; ordre gardé (MPC part de la buse froide)
     std::array<Step, 32> steps;
     const size_t n = build_steps(heat, full(), steps);

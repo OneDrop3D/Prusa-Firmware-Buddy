@@ -269,10 +269,11 @@ namespace {
         // F4 : K mesuré de l'emplacement : « PA 0.035 », qui ouvre l'écran du PA, toujours (on y regarde la valeur et la
         // courbe même pendant une impression). Sans mesure : « Calibrer le PA » (en jaune si le PA de l'imprimante prime),
         // la mesure en un clic, qui charge elle-même la bobine (MMU actif) ; pas pendant une autre mesure
-        const auto k = pa::k_for_slot(index);
+        // K valable pour la buse et la matière (pa::measured), même peu sûr : l'écran du PA dit s'il sert
+        const pa::Record rec = pa::record(index);
         const Button::Look pa_look = pa::needs_measure(index) ? Button::Look::alert : Button::Look::secondary;
-        if (k) {
-            snprintf(pa_text.data(), pa_text.size(), "PA %.3f", double(*k));
+        if (rec.has_k()) {
+            snprintf(pa_text.data(), pa_text.size(), "PA %.3f", double(pa::k_from_e4(rec.k_e4)));
             pa_choice = Choice::pa;
             calibrate.set(pa_look, string_view_utf8::MakeRAM(pa_text.data()));
         } else {

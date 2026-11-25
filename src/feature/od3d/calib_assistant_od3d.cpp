@@ -489,7 +489,7 @@ Context context() {
         nozzle[i] = p.nozzle_temperature;
         // Déjà mesuré pour la bobine en place (effacé au changement de bobine) : pas refait sans le demander
         const uint8_t bit = uint8_t(1u << i);
-        ctx.measured[size_t(Test::pa)] |= pa::record(i).has_k() ? bit : 0;
+        ctx.measured[size_t(Test::pa)] |= pa::measured(i) ? bit : 0; // même critère que le PA automatique
         ctx.measured[size_t(Test::max_flow)] |= calib::record(i).has_flow() ? bit : 0;
         ctx.measured[size_t(Test::min_temp)] |= calib::record(i).has_min_temperature() ? bit : 0;
         ctx.measured[size_t(Test::e_jump)] |= e_jump::record(i).has_jump() ? bit : 0;

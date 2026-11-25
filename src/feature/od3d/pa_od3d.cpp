@@ -104,7 +104,7 @@ void clear(uint8_t slot) {
 }
 
 bool stale(uint8_t slot) {
-    return slot < VirtualToolIndex::count && config_store().od3d_pa.get(slot).has_k() && !k_for_slot(slot);
+    return slot < VirtualToolIndex::count && !measured(slot) && config_store().od3d_pa.get(slot).has_k();
 }
 
 bool printer_wins() {
@@ -120,7 +120,7 @@ bool flexible(uint8_t slot) {
 }
 
 bool needs_measure(uint8_t slot) {
-    return printer_wins() && !k_for_slot(slot) && !flexible(slot); // un flexible n'est jamais mesuré (M-09)
+    return printer_wins() && !measured(slot) && !flexible(slot); // un flexible n'est jamais mesuré (M-09)
 }
 
 // ---- Application ----

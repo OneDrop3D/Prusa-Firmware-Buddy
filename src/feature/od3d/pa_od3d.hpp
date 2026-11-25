@@ -69,8 +69,7 @@ void set_record(uint8_t slot, const Record &r);
 /// Efface le K (bobine changée)
 void clear(uint8_t slot);
 
-/// Un K est gardé mais ne sert pas : mesuré avec une autre buse ou une autre matière (M-02), ou trop peu sûr (M-10) ;
-/// à remesurer
+/// Un K est gardé mais ne sert pas : mesuré avec une autre buse ou une autre matière (M-02) ; à remesurer
 bool stale(uint8_t slot);
 
 /// « Le PA de l'imprimante prime »
@@ -80,7 +79,7 @@ void set_printer_wins(bool set);
 /// M-09 : la bobine de l'emplacement est un filament flexible : jamais mesurée (M1994, M1995, M1996, assistant)
 bool flexible(uint8_t slot);
 
-/// Le réglage est actif et l'emplacement n'a pas de K qui serve (k_for_slot), sauf un flexible : « PA à mesurer »
+/// Le réglage est actif et l'emplacement n'a pas de K valable (measured), sauf un flexible : « PA à mesurer »
 bool needs_measure(uint8_t slot);
 
 // ---- Application (fil de Marlin) ----

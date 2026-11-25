@@ -1,32 +1,39 @@
 /// @file
 #include "clean_resume_od3d.hpp"
+#include "feature_marks_od3d.hpp"
 
-#include <variant>
+#include <algorithm>
+#include <cmath>
 
 #include <config_store/store_instance.hpp>
 #include <mapi/feedrates/standard_feedrates.hpp>
 #include <mapi/motion.hpp>
-#include <mapi/parking.hpp>
+#include <Marlin.h>
 #include <module/motion.h>
 #include <module/planner.h>
 #include <module/temperature.h>
+#include <option/has_cancel_object.h>
 #include <tool_index.hpp>
+#if HAS_CANCEL_OBJECT()
+    #include <feature/cancel_object/cancel_object.hpp>
+#endif
 
 namespace od3d::clean_resume {
 
 namespace {
 
-    bool approach_pending = false; ///< before_unpark a purgé : la descente suivante est la nôtre (thread de Marlin)
+    Tracker tracker; ///< fil de Marlin
+    InfillPlan plan; ///< hors de la pile de Marlin
 
-    /// Position de purge de Prusa (M600), dans les limites de la machine
-    std::optional<Plan> purge_position(auto &&make_plan) {
-        const mapi::ParkingPosition purge = mapi::get_parking_position(mapi::ParkPosition::purge);
-        const float *x = std::get_if<float>(&purge.x);
-        const float *y = std::get_if<float>(&purge.y);
-        if (!x || !y) {
-            return std::nullopt;
-        }
-        return make_plan(*x, *y, Box { X_MIN_POS, X_MAX_POS, Y_MIN_POS, Y_MAX_POS });
+    /// Marge au-dessus de la pièce pour les déplacements XY, comme unpark_head_XY de Prusa
+    constexpr float traverse_clearance_mm = 5.0f;
+
+    bool object_cancelled([[maybe_unused]] int16_t object) {
+#if HAS_CANCEL_OBJECT()
+        return buddy::cancel_object().is_object_cancelled(object);
+#else
+        return false;
+#endif
     }
 
     /// Outil actif, axes connus, buse assez chaude pour extruder
@@ -35,30 +42,13 @@ namespace {
         return tool.has_value() && all_axes_homed() && !thermalManager.tooColdToExtrude(*tool);
     }
 
-    /// Purge, rétraction, essuyage (aller-retour en X), recalage de E. \returns false si l'impression s'arrête
-    bool run(const Plan &p) {
-        namespace fr = buddy::standard_feedrates;
-        do_blocking_move_to_xy(p.purge_x, p.purge_y, NOZZLE_PARK_XY_FEEDRATE);
-        mapi::extruder_move(p.extrude_mm, fr::current_extruder(fr::Extruder::advanced_pause_purge));
-        if (p.retract_mm > 0) {
-            mapi::extruder_move(-p.retract_mm, fr::current_extruder(fr::Extruder::retract));
-        }
-        do_blocking_move_to_x(p.wipe_x, NOZZLE_PARK_XY_FEEDRATE);
-        do_blocking_move_to_x(p.purge_x, NOZZLE_PARK_XY_FEEDRATE);
-        planner.synchronize();
-        // Toujours recalé : la désrétraction de Prusa vise la position E de la pièce
-        sync_e_position_to(p.e_after);
-        return !planner.draining();
-    }
-
 } // namespace
 
 Settings settings() {
     return Settings {
         .enabled = config_store().od3d_clean_resume.get(),
-        .purge_mm = config_store().od3d_clean_resume_purge.get(),
+        .purge_tenths = config_store().od3d_clean_resume_purge.get(),
         .retract_tenths = config_store().od3d_clean_resume_retract.get(),
-        .approach_mm_s = config_store().od3d_clean_resume_approach.get(),
     }
         .clamped();
 }
@@ -66,58 +56,85 @@ Settings settings() {
 void set_settings(const Settings &s) {
     const Settings c = s.clamped();
     config_store().od3d_clean_resume.set(c.enabled);
-    config_store().od3d_clean_resume_purge.set(c.purge_mm);
+    config_store().od3d_clean_resume_purge.set(c.purge_tenths);
     config_store().od3d_clean_resume_retract.set(c.retract_tenths);
-    config_store().od3d_clean_resume_approach.set(c.approach_mm_s);
+    feature_marks::enabled = c.enabled;
 }
 
-void before_unpark(float resume_e) {
-    approach_pending = false;
+void load() {
+    feature_marks::enabled = config_store().od3d_clean_resume.get();
+}
+
+void on_print_start() {
+    tracker.reset();
+    feature_marks::enabled = config_store().od3d_clean_resume.get();
+}
+
+void set_feature(uint8_t feature) {
+    tracker.set_feature(feature);
+}
+
+void on_print_move(float x0, float y0, float z0, float e0, float x1, float y1, float z1, float e1) {
+    if (!feature_marks::enabled.load(std::memory_order_relaxed)) {
+        return;
+    }
+    if (tracker.move({ x0, y0 }, z0, e0, { x1, y1 }, z1, e1)) {
+#if HAS_CANCEL_OBJECT()
+        tracker.set_object(buddy::cancel_object().current_object());
+#endif
+    }
+}
+
+void before_unpark(float resume_z, float resume_e) {
     const Settings s = settings();
     if (!s.enabled || !can_extrude()) {
         return;
     }
-    const auto plan = purge_position([&](float x, float y, const Box &box) {
-        return plan_pause(s, x, y, resume_e, current_position.e, box);
-    });
-    if (!plan) {
+    const Refusal refusal = plan_infill(s, tracker, resume_z, resume_e, current_position.e,
+        Box { X_MIN_POS, X_MAX_POS, Y_MIN_POS, Y_MAX_POS }, object_cancelled, plan);
+    SERIAL_ECHO_START();
+    SERIAL_ECHOLNPAIR("Clean resume (0: infill prime, else Prusa resume): ", int(refusal));
+    if (refusal != Refusal::none) {
         return;
     }
-    // La tête est garée haut (au moins 50 mm au-dessus de la pièce) : les mouvements XY restent sans Z, comme le
-    // parcage de la pause ; ensuite unpark_head_XY de Prusa revient au point
-    approach_pending = run(*plan);
-}
 
-std::optional<float> take_approach(float prusa_z_mm_s) {
-    if (!approach_pending) {
-        return std::nullopt;
-    }
-    approach_pending = false;
-    return approach_feedrate(settings(), prusa_z_mm_s);
-}
+    namespace fr = buddy::standard_feedrates;
+    const float traverse_z = std::max(resume_z, planner.max_printed_z) + traverse_clearance_mm;
 
-void before_power_panic_unpark(float resume_z, float pause_retract_mm) {
-    const Settings s = settings();
-    if (!s.enabled || !can_extrude()) {
+    // 1. Comme unpark_head_XY : le long retour en Z au-dessus du parcage, puis au-dessus du remplissage
+    do_blocking_move_to_z(std::min(current_position.z, traverse_z), NOZZLE_PARK_Z_FEEDRATE, Segmented::yes);
+    if (planner.draining()) {
         return;
     }
-    const auto plan = purge_position([&](float x, float y, const Box &box) {
-        return plan_power_panic(s, x, y, pause_retract_mm, current_position.e, box);
-    });
-    if (!plan) {
+    do_blocking_move_to_xy(plan.purge.x, plan.purge.y, NOZZLE_PARK_XY_FEEDRATE);
+
+    // 2. Descente sur le remplissage, filament toujours rétracté
+    do_blocking_move_to_z(plan.z, NOZZLE_PARK_Z_FEEDRATE);
+    if (planner.draining()) {
         return;
     }
-    // Au-dessus de la pièce avant tout déplacement XY (Z monte = le plateau descend : sens toujours sûr)
-    const float lift = power_panic_lift_z(current_position.z, resume_z, Z_MAX_POS);
-    if (lift > current_position.z) {
-        do_blocking_move_to_z(lift, NOZZLE_PARK_Z_FEEDRATE);
-    }
-    run(*plan);
-}
 
-float power_panic_z_feedrate(float prusa_mm_s) {
-    const Settings s = settings();
-    return s.enabled ? approach_feedrate(s, prusa_mm_s) : prusa_mm_s;
+    // 3. Une seule fois en bas : désrétraction de la pause et petite purge
+    mapi::extruder_move(plan.purge_e, fr::current_extruder(fr::Extruder::advanced_pause_purge));
+
+    // 4. Court cordon le long du remplissage déjà tracé, au débit de ce remplissage
+    for (size_t i = 0; i < plan.line_count; ++i) {
+        destination = current_position;
+        destination.x = plan.line[i].x;
+        destination.y = plan.line[i].y;
+        destination.e += std::hypot(destination.x - current_position.x, destination.y - current_position.y) * plan.e_per_mm;
+        prepare_move_to(destination, prime_line_mm_s, { .move = { .is_printing_move = true } });
+    }
+
+    // 5. Rétraction, remontée : unpark_head_XY rejoint le point de reprise, unpark_head_ZE descend et désrétracte
+    mapi::extruder_move(-plan.retract, fr::current_extruder(fr::Extruder::retract));
+    do_blocking_move_to_z(traverse_z, NOZZLE_PARK_Z_FEEDRATE);
+    planner.synchronize();
+    if (planner.draining()) {
+        return;
+    }
+    // La désrétraction de Prusa vise E de la pièce : elle pousse exactement la rétraction faite ici
+    sync_e_position_to(plan.e_after);
 }
 
 } // namespace od3d::clean_resume

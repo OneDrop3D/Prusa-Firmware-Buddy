@@ -10990,24 +10990,8 @@ msgid "slow cool-down"
 msgstr "descente douce"
 
 #: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Clean resume\nPurge off the part before going back"
-msgstr "Reprise sans cicatrice\nPurge hors de la pièce avant le retour"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Clean resume\nAfter a pause or a power loss"
-msgstr "Reprise sans cicatrice\nAprès une pause ou une coupure"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Purge\nPushed out at Prusa's purge spot"
-msgstr "Purge\nPoussée là où Prusa purge déjà"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
 msgid "Retraction\nPushed back exactly on return"
 msgstr "Rétraction\nRepoussée à l'identique au retour"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Approach (mm/s)\nLast 5 mm down onto the part"
-msgstr "Approche (mm/s)\nLes 5 derniers mm vers la pièce"
 
 #: src/gui/od3d/screen_resume_od3d.cpp
 msgid "Clean resume"
@@ -13050,3 +13034,15 @@ msgstr "PA non mesuré : emplacement %d pas en 1re couche, voir sa fiche"
 #, c-format
 msgid "Slot %d: %s in the file, %s spool"
 msgstr "Emplacement %d : %s dans le fichier, bobine %s"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid "Clean resume\nPrime inside the infill first"
+msgstr "Reprise sans cicatrice\nAmorce d'abord dans le remplissage"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid "Clean resume\nAfter a pause, in the infill"
+msgstr "Reprise sans cicatrice\nAprès une pause, dans le remplissage"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid "Purge\nSmall, inside the infill"
+msgstr "Purge\nPetite, dans le remplissage"

@@ -1,7 +1,7 @@
 /// @file
 /// OneDrop3D (F30) : Réglages › Fonctions OneDrop3D › « Reprise sans cicatrice » (feature/od3d/clean_resume_od3d.hpp).
-/// Interrupteur (coupé par défaut), purge, rétraction, vitesse de la dernière descente. Menu de Prusa dessiné en
-/// style G (menu_od3d) : doigt et molette ; aucun windowEvent redéfini.
+/// Interrupteur (coupé par défaut), petite purge dans le remplissage, rétraction. Menu de Prusa dessiné en style G
+/// (menu_od3d) : doigt et molette ; aucun windowEvent redéfini.
 #pragma once
 
 #include <basic_screen_menu.hpp>
@@ -35,13 +35,7 @@ public:
     void OnClick() override;
 };
 
-class MI_CLEAN_RESUME_APPROACH final : public WiSpin {
-public:
-    MI_CLEAN_RESUME_APPROACH();
-    void OnClick() override;
-};
-
-class ScreenCleanResume final : public BasicScreenMenu<MI_CLEAN_RESUME_ENABLE, MI_CLEAN_RESUME_PURGE, MI_CLEAN_RESUME_RETRACT, MI_CLEAN_RESUME_APPROACH> {
+class ScreenCleanResume final : public BasicScreenMenu<MI_CLEAN_RESUME_ENABLE, MI_CLEAN_RESUME_PURGE, MI_CLEAN_RESUME_RETRACT> {
 public:
     ScreenCleanResume();
 };

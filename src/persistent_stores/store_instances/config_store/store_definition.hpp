@@ -504,12 +504,11 @@ struct CurrentStore
     /// OneDrop3D (UI-13) : températures des préréglages de Prusa modifiées par l'utilisateur, indice = PresetFilamentType
     /// (filament_presets_math_od3d.hpp : -1 = valeur de Prusa) ; lues par FilamentType::parameters() seulement
     StoreItemArray<od3d::filament_presets::Override, AnyDefaultConstructor {}, ItemFlag::user_presets, journal::hash("OD3D Preset Overrides"), 32, std::to_underlying(PresetFilamentType::_count_sparse)> od3d_preset_overrides;
-    /// OneDrop3D (F30) : reprise sans cicatrice (coupée par défaut) ; purge (mm), rétraction (dixièmes de mm), vitesse
-    /// de la dernière descente (mm/s)
+    /// OneDrop3D (F30) : reprise sans cicatrice (coupée par défaut) ; petite purge dans le remplissage et rétraction,
+    /// en dixièmes de mm (la purge était en mm jusqu'au 25/11 : une ancienne valeur vaut 10 fois moins, toujours sûre)
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Clean Resume Enabled")> od3d_clean_resume;
-    StoreItem<uint8_t, 8, ItemFlag::features, journal::hash("OD3D Clean Resume Purge")> od3d_clean_resume_purge;
+    StoreItem<uint8_t, 10, ItemFlag::features, journal::hash("OD3D Clean Resume Purge")> od3d_clean_resume_purge;
     StoreItem<uint8_t, 8, ItemFlag::features, journal::hash("OD3D Clean Resume Retract")> od3d_clean_resume_retract;
-    StoreItem<uint8_t, 2, ItemFlag::features, journal::hash("OD3D Clean Resume Approach")> od3d_clean_resume_approach;
     /// OneDrop3D (F8) : température selon le débit, seulement avec le MPC (coupée par défaut) ; seuil [mm³/s] et
     /// hausse maximale [°C]
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Flow Temp Enabled")> od3d_flow_temp_enabled;
@@ -1321,6 +1320,10 @@ struct DeprecatedStore
 
     // OneDrop3D : « Ne plus demander » de l'assistant de calibration au démarrage, proposition retirée le 23/11
     StoreItem<uint32_t, 0, journal::hash("OD3D Calib Dismissed")> od3d_calib_dismissed;
+
+    // OneDrop3D (F30) : vitesse de la dernière descente, retirée le 25/11 (plus de descente lente ni de désrétraction
+    // pendant la descente)
+    StoreItem<uint8_t, 2, journal::hash("OD3D Clean Resume Approach")> od3d_clean_resume_approach;
 
     /*
         StoreItemArray<float, defaults::nozzle_diameter, ItemFlag::hw_config, journal::hash("Nozzle Diameter Array"), 16, HOTENDS> nozzle_diameters;

@@ -716,3 +716,41 @@ TEST_CASE("media_prefetch::not_valid_for_print") {
     CHECK(std::string(c.gcode.data()) == "G0");
     CHECK(mp.read_command(c).status == MediaPrefetchManager::Status::end_of_file);
 }
+
+// OneDrop3D (F30) : les « ;TYPE:… » du trancheur deviennent M2011 à leur place, seulement si la reprise sans cicatrice
+// est active ; sinon la lecture est celle de Prusa (commentaires jetés)
+TEST_CASE("media_prefetch::od3d_feature_marks") {
+    StubGcodeProviderMemory p;
+    p.add_gcode("G1 X1");
+    p.add_gcode(";TYPE:Internal infill");
+    p.add_gcode("G1 X2 E1");
+    p.add_gcode("; plain comment");
+    p.add_gcode(";TYPE:Perimeter");
+    p.add_gcode("G1 X3");
+
+    MediaPrefetchManager mp;
+    MediaPrefetchManager::ReadResult c;
+
+    SECTION("off") {
+        od3d::feature_marks::enabled = false;
+        mp.start(p.filename(), {});
+        mp.issue_fetch();
+        CHECK(read_gcode(mp) == "G1X1");
+        CHECK(read_gcode(mp) == "G1X2E1");
+        CHECK(read_gcode(mp) == "G1X3");
+    }
+
+    SECTION("on") {
+        od3d::feature_marks::enabled = true;
+        mp.start(p.filename(), {});
+        mp.issue_fetch();
+        CHECK(read_gcode(mp) == "G1X1");
+        CHECK(read_gcode(mp) == "M2011 S1");
+        CHECK(read_gcode(mp) == "G1X2E1");
+        CHECK(read_gcode(mp) == "M2011 S0");
+        CHECK(read_gcode(mp) == "G1X3");
+    }
+
+    od3d::feature_marks::enabled = false;
+    CHECK(mp.read_command(c).status == S::end_of_file);
+}

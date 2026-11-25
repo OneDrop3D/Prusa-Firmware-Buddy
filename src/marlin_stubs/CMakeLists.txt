@@ -49,6 +49,11 @@ if(HAS_CANCEL_OBJECT)
   target_sources(firmware PRIVATE M486.cpp)
 endif()
 
+if(HAS_PAUSE)
+  # OneDrop3D (F30) : type de tracé rendu par la lecture du fichier
+  target_sources(firmware PRIVATE M2011_od3d.cpp)
+endif()
+
 if(HAS_I2C_EXPANDER)
   target_sources(firmware PRIVATE M262-M268.cpp)
 endif()

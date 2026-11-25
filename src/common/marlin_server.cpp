@@ -1470,6 +1470,9 @@ static void settings_load() {
 #if HAS_LOADCELL() && HAS_MMU2()
     od3d::collision::load(); // OneDrop3D (F38) : sécurité collision
 #endif
+#if HAS_PAUSE()
+    od3d::clean_resume::load(); // OneDrop3D (F30) : types de tracé à la lecture du fichier, selon le réglage
+#endif
 }
 
 #if HAS_SELFTEST()
@@ -2450,6 +2453,9 @@ static void _server_print_loop(void) {
 #if HAS_CHAMBER_API()
         od3d::chamber_climate::on_print_start(); // OneDrop3D (F29) : une descente douce en cours s'arrête
 #endif
+#if HAS_PAUSE()
+        od3d::clean_resume::on_print_start(); // OneDrop3D (F30) : remplissage oublié, types de tracé selon le réglage
+#endif
 #if HAS_WASTEBIN_FILL_TRACKING()
         // Fresh print: reset the per-print pellet/toolchange progress counter.
         WastebinWatcher::instance().reset_print_progress();
@@ -2766,13 +2772,14 @@ static void _server_print_loop(void) {
 #endif // HAS_NOZZLE_CLEANER()
 
 #if HAS_PAUSE()
-        // OneDrop3D (F30) : reprise sans cicatrice (option) : purge hors pièce, rétraction, essuyage ; rien si coupée.
-        // Comme unpark_prime : seulement à la reprise d'une pause (pas pendant une reprise après collision)
+        // OneDrop3D (F30) : reprise sans cicatrice (option) : amorce dans le remplissage de l'objet (petite purge, court
+        // cordon), puis le retour de Prusa ; rien si coupée ou sans remplissage connu. Comme unpark_prime : seulement à
+        // la reprise d'une pause (pas pendant une reprise après collision)
     #if HAS_CRASH_DETECTION()
         if (crash_s.get_state() == Crash_s::PRINTING)
     #endif
         {
-            od3d::clean_resume::before_unpark(server.resume.pos.e);
+            od3d::clean_resume::before_unpark(server.resume.pos.z, server.resume.pos.e);
         }
 #endif
 
@@ -3563,17 +3570,6 @@ void unpark_head_ZE(void) {
     if (!all_axes_homed()) {
         return;
     }
-
-#if HAS_PAUSE()
-    // OneDrop3D (F30) : après la purge hors pièce, descente lente avec la désrétraction (calibrée) pendant la
-    // descente : la buse n'est pas immobile sur la pièce pendant que la pression revient
-    if (const auto approach_mm_s = od3d::clean_resume::take_approach(NOZZLE_PARK_Z_FEEDRATE)) {
-        destination = current_position.with_z(server.resume.pos.z);
-        destination.e = server.resume.pos.e;
-        prepare_internal_move_to_destination(*approach_mm_s);
-        return;
-    }
-#endif
 
     // Move Z
     destination = current_position.with_z(server.resume.pos.z);

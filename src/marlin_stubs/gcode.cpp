@@ -12,6 +12,7 @@
 #include "metric.h"
 #include <option/has_gearbox_alignment.h>
 #include <option/has_mmu2.h>
+#include <option/has_pause.h>
 #include <option/has_loadcell.h>
 #include <option/has_mmu2.h>
 #include <option/has_toolchanger.h>
@@ -433,6 +434,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 2010: // OneDrop3D (lot UI-0) : mesure de l'écran
             PrusaGcodeSuite::M2010();
             break;
+#if HAS_PAUSE()
+        case 2011: // OneDrop3D (F30) : type de tracé, rendu par la lecture du fichier
+            PrusaGcodeSuite::M2011();
+            break;
+#endif
 #if ENABLED(OD3D_MPCTEMP)
         case 306: // OneDrop3D (F7) : régulation MPC de la buse (absente du Marlin de Prusa)
             PrusaGcodeSuite::M306();

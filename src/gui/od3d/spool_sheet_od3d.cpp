@@ -223,7 +223,7 @@ namespace {
     };
 
     SpoolSheet::SpoolSheet(uint8_t index)
-        : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est voilé) ; l'en-tête reste vivant
+        : IDialog(style::below_header) // l'écran dessous reste visible, figé, au-dessus de la fiche ; l'en-tête reste vivant
         , head(this, index)
         , main(this, main_body, tag_main, Button::Look::primary, {}, nullptr, style::surface, style::radius_big)
         , calibrate(this, calibrate_body, tag_calibrate, Button::Look::secondary, _("Calibrate PA"), nullptr, style::surface, style::radius_big)

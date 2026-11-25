@@ -47,6 +47,8 @@ namespace {
         int32_t knob = jogwheel.GetEncoder();
     };
 
+    constexpr uint16_t edge_h = 2; ///< liseré sombre au-dessus d'une fenêtre sans voile
+
     Rect16 closed_origin;
     uint32_t closed_ms = 0;
 
@@ -73,6 +75,11 @@ void open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> par
     // instantanées ») : la fenêtre se peint d'une seule image, à sa place, au lieu de grandir depuis l'élément touché
     (void)from;
     plan(rect, corners, rect, parts, painter, veil);
+    // Sans voile, l'écran dessous reste visible : le liseré, dans le prolongement des coins lissés sur le sombre, détache
+    // la fenêtre des cartes et des lignes de même couleur qu'elle coupe
+    if (const Rect16 edge(rect.Left(), rect.Top() - edge_h, rect.Width(), edge_h); !veil && style::inside(style::below_header, edge)) {
+        display::fill_rect(edge, style::veil);
+    }
 }
 
 void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, bool veil) {

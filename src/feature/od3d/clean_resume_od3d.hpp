@@ -1,38 +1,41 @@
 /// @file
 /// OneDrop3D (F30) : reprise sans cicatrice (option, coupée par défaut ; voir clean_resume_math_od3d.hpp).
 ///
-/// Déjà chez Prusa : à la pause, rétraction de STANDARD_RETRACT_LENGTH, levée (au moins 50 mm au-dessus de la pièce)
-/// et parcage à l'arrière ; à la reprise, réchauffe, retour en Z puis en XY 5 mm au-dessus de la pièce, descente à
-/// 5 mm/s et désrétraction immobile au point de reprise. Après une coupure : réchauffe, origine X/Y, retour au point
-/// et désrétraction. La purge hors pièce n'existe chez Prusa qu'avec le nettoyeur de buse de l'INDX.
+/// Déjà chez Prusa : à la pause, rétraction de STANDARD_RETRACT_LENGTH, tête garée hors de la pièce et plateau
+/// descendu ; à la reprise, réchauffe, retour en Z puis en XY 5 mm au-dessus de la pièce (unpark_head_XY), descente à
+/// 5 mm/s et désrétraction immobile au point de reprise (unpark_head_ZE).
 ///
-/// Ajouté, quand l'option est active : avant ce retour, purge à la position de purge de Prusa (celle du M600),
-/// rétraction, essuyage, recalage de E ; après une pause, descente lente avec la désrétraction pendant la descente.
-/// Option coupée : aucun mouvement de plus, la reprise de Prusa est inchangée.
+/// Ajouté, option active et remplissage connu : juste avant ce retour, descente rétractée sur le remplissage de l'objet,
+/// désrétraction et petite purge en bas, court cordon le long du remplissage, rétraction et remontée ; puis le retour de
+/// Prusa. Sans remplissage connu, et après une coupure de courant (la mémoire du remplissage ne survit pas au
+/// redémarrage) : la reprise de Prusa, sans aucun mouvement de plus.
 #pragma once
 
 #include "clean_resume_math_od3d.hpp"
 
-#include <optional>
+#include <cstdint>
 
 namespace od3d::clean_resume {
 
 Settings settings();
 void set_settings(const Settings &s);
 
-// ---- Thread de Marlin ----
+// ---- Fil de Marlin ----
 
-/// Reprise après pause, juste avant le retour en XY de Prusa (unpark_head_XY). resume_e : E de la pièce à la pause
-void before_unpark(float resume_e);
+/// Au démarrage (settings_load) : marqueurs de type à la lecture du fichier selon le réglage (la lecture d'une impression
+/// commence avant son PrintInit)
+void load();
 
-/// unpark_head_ZE : si before_unpark a purgé, vitesse de la descente avec désrétraction (consommé à la lecture)
-std::optional<float> take_approach(float prusa_z_mm_s);
+/// Départ d'une impression : remplissage oublié, marqueurs de type à la lecture du fichier selon le réglage
+void on_print_start();
 
-/// Reprise après coupure (power_panic, ResumeState::Unpark), avant le retour au point : monte d'au moins 5 mm
-/// au-dessus du point de reprise, purge, essuie ; Prusa désrétracte ensuite pause_retract_mm comme d'habitude
-void before_power_panic_unpark(float resume_z, float pause_retract_mm);
+/// M2011 S<n>, rendu par la lecture du fichier à la place d'un « ;TYPE:… » (feature_marks_od3d.hpp)
+void set_feature(uint8_t feature);
 
-/// Vitesse Z du retour au point après une coupure : la nôtre si l'option est active, sinon celle de Prusa
-float power_panic_z_feedrate(float prusa_mm_s);
+/// G0/G1 traité (G0_G1.cpp), positions natives avant et après ; rien si l'option est coupée
+void on_print_move(float x0, float y0, float z0, float e0, float x1, float y1, float z1, float e1);
+
+/// Reprise après pause, juste avant le retour de Prusa (unpark_head_XY). resume_z, resume_e : Z et E de la pièce
+void before_unpark(float resume_z, float resume_e);
 
 } // namespace od3d::clean_resume

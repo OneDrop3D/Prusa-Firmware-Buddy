@@ -38,6 +38,11 @@
   #include <feature/cancel_object/cancel_object.hpp>
 #endif
 
+#include <option/has_pause.h>
+#if HAS_PAUSE()
+  #include <feature/od3d/clean_resume_od3d.hpp> // OneDrop3D (F30)
+#endif
+
 extern xyze_pos_t destination;
 
 #if ENABLED(VARIABLE_G0_FEEDRATE)
@@ -107,6 +112,12 @@ void GcodeSuite::G0_G1(TERN_(HAS_FAST_MOVES, const bool fast_move/*=false*/)) {
         feedrate_mm_s = MMM_TO_MMS(G0_FEEDRATE);  // Get the fixed G0 feedrate
       #endif
     }
+  #endif
+
+  #if HAS_PAUSE()
+    // OneDrop3D (F30) : tracés de remplissage gardés pour la reprise sans cicatrice (rien si l'option est coupée)
+    od3d::clean_resume::on_print_move(current_position.x, current_position.y, current_position.z, current_position.e,
+      destination.x, destination.y, destination.z, destination.e);
   #endif
 
   #if ANY(POLAR)

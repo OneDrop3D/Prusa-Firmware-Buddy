@@ -10994,24 +10994,8 @@ msgid "slow cool-down"
 msgstr "descente douce"
 
 #: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Clean resume\nPurge off the part before going back"
-msgstr "Reprise sans cicatrice\nPurge hors de la pièce avant le retour"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Clean resume\nAfter a pause or a power loss"
-msgstr "Reprise sans cicatrice\nAprès une pause ou une coupure"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Purge\nPushed out at Prusa's purge spot"
-msgstr "Purge\nPoussée là où Prusa purge déjà"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
 msgid "Retraction\nPushed back exactly on return"
 msgstr "Rétraction\nRepoussée à l'identique au retour"
-
-#: src/gui/od3d/screen_resume_od3d.cpp
-msgid "Approach (mm/s)\nLast 5 mm down onto the part"
-msgstr "Approche (mm/s)\nLes 5 derniers mm vers la pièce"
 
 #: src/gui/od3d/screen_resume_od3d.cpp
 msgid "Clean resume"
@@ -13039,3 +13023,15 @@ msgstr "Emplacement %d : %d° demandés, minimum mesuré %d°"
 #: src/gui/od3d/screen_mmu_speed_od3d.cpp
 msgid "Preload the spool, then Start: up to 7 cycles from 95 to 120 mm/s, the level before the last clean one is kept (~4 min)."
 msgstr "Bobine préchargée, puis Démarrer : jusqu'à 7 cycles de 95 à 120 mm/s, le palier avant le dernier sans erreur est gardé (~4 min)."
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid "Clean resume\nPrime inside the infill first"
+msgstr "Reprise sans cicatrice\nAmorce d'abord dans le remplissage"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid "Clean resume\nAfter a pause, in the infill"
+msgstr "Reprise sans cicatrice\nAprès une pause, dans le remplissage"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid "Purge\nSmall, inside the infill"
+msgstr "Purge\nPetite, dans le remplissage"

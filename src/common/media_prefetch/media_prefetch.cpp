@@ -566,6 +566,11 @@ bool MediaPrefetchManager::fetch_command(AsyncJobExecutionControl &control) {
     }
 
     if (ch == '\n') {
+        // OneDrop3D (F30) : un « ;TYPE:… » devient M2011 S<n> ; tout autre commentaire reste une ligne vide, sautée
+        if (s.command_buffer.od3d_mark_active) {
+            buf_pos = od3d::feature_marks::write_command(s.command_buffer.od3d_mark.finish(), s.command_buffer_data.data(), s.command_buffer_data.size());
+        }
+
         if (buffer_full) {
             // If the line is too long and doesn't contain a semicolon, need to warn and set a flag [BFW-6396]
             if (!s.command_buffer.contains_semicolon) {
@@ -591,9 +596,15 @@ bool MediaPrefetchManager::fetch_command(AsyncJobExecutionControl &control) {
 
         s.command_buffer.flush_pending = true;
 
+    } else if (s.command_buffer.od3d_mark_active) {
+        // OneDrop3D (F30) : la suite de la ligne de commentaire, lue seulement pour « TYPE: »
+        s.command_buffer.od3d_mark.feed(ch);
+
     } else if (buf_pos == 0 && ch == ';') {
         // If the line starts with a comment, skip it
         s.command_buffer.skip_rest_of_line = true;
+        // OneDrop3D (F30) : reprise sans cicatrice active, on y cherche « TYPE: » (feature_marks_od3d.hpp)
+        s.command_buffer.od3d_mark_active = od3d::feature_marks::enabled.load(std::memory_order_relaxed);
 
     } else if (buf_pos == 0 && isspace(ch)) {
         // Skip whitespaces at the beginning of the line

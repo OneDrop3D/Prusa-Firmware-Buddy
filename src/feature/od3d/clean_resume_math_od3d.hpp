@@ -1,71 +1,144 @@
 /// @file
 /// OneDrop3D (F30) : reprise sans cicatrice, partie sans matériel (testée en unitaire).
 ///
-/// Avant de revenir sur la pièce (reprise après pause, après coupure) : purge à l'endroit où Prusa purge déjà
-/// (position de purge du M600, devant le plateau sur la CORE One), rétraction, petit essuyage (aller-retour en X
-/// qui casse le fil), puis retour de Prusa. La position de E est recalée pour que la désrétraction de Prusa pousse
-/// exactement ce que l'on vient de rétracter dans une buse fraîchement purgée (« désrétraction calibrée »).
-/// Après une pause, la dernière descente (5 mm au-dessus de la pièce) se fait lentement, la désrétraction pendant
-/// la descente : la buse n'est jamais immobile sur la pièce pendant que la pression revient.
+/// Demande de l'utilisateur (25/11) : « pour cette purge elle doit être plus petite et à l'intérieur du remplissage de
+/// l'objet et l'imprimante doit commencer par le remplissage comme ça on limite les traces ».
 ///
-/// PA progressif sur les premiers millimètres : non. Le pressure advance de Prusa ne change qu'avec les files de
-/// mouvements vides (M572_internal : planner.synchronize, set_axis_e_config : file vide exigée) ; une rampe de K
-/// ferait plusieurs arrêts complets au point de reprise, donc de nouvelles marques.
+/// Le firmware ne peut pas réordonner le G-code : « commencer par le remplissage » veut dire amorcer d'abord dans le
+/// remplissage. À la reprise d'une pause : descente, filament rétracté, sur un point du remplissage intérieur déjà
+/// imprimé (couche en cours ou précédente) ; désrétraction et petite purge une seule fois en bas ; court cordon le long
+/// de ce remplissage ; rétraction, remontée, puis le retour de Prusa au point de reprise (sa désrétraction pousse
+/// exactement la rétraction faite ici). Les défauts de la reprise (goutte, sous-extrusion) restent dans l'objet.
+///
+/// Le remplissage vient du trancheur : chaque « ;TYPE:… » devient M2011 à la lecture du fichier (feature_marks_od3d.hpp)
+/// et Tracker garde les derniers tracés de remplissage enchaînés (G1 qui extrudent dans le plan). Sans remplissage connu
+/// (première couche, mode vase, objet sans remplissage, pause avant le premier remplissage, impression par le port
+/// série, objet annulé, suite trop courte, couche trop ancienne) : la reprise de Prusa, telle quelle.
 #pragma once
 
+#include <array>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
-#include <optional>
 
 namespace od3d::clean_resume {
 
 struct Settings {
     bool enabled = false; ///< coupé par défaut : la reprise de Prusa reste telle quelle
-    uint8_t purge_mm = 8; ///< filament poussé hors de la pièce, après la désrétraction de la pause
-    uint8_t retract_tenths = 8; ///< rétraction après la purge, en dixièmes de mm (désrétractée au retour)
-    uint8_t approach_mm_s = 2; ///< vitesse de la dernière descente sur la pièce (Prusa : 5 mm/s)
+    uint8_t purge_tenths = 10; ///< petite purge en bas, en dixièmes de mm de filament (1 mm ≈ 2,4 mm³)
+    uint8_t retract_tenths = 8; ///< rétraction avant le retour au point de reprise (désrétractée par Prusa)
 
-    static constexpr uint8_t purge_max = 30;
+    static constexpr uint8_t purge_max = 30; ///< 3 mm
     static constexpr uint8_t retract_max = 20; ///< 2 mm
-    static constexpr uint8_t approach_min = 1, approach_max = 5;
 
     Settings clamped() const;
 };
 
-/// Essuyage : aller-retour en X de cette longueur à la position de purge
-inline constexpr float wipe_mm = 10.0f;
-
-/// Désrétraction de la pause prise en compte au plus (au-delà, la position de E n'est pas crédible : rien n'est fait)
+/// Désrétraction de la pause prise en compte au plus (au-delà, la position de E n'est pas crédible)
 inline constexpr float max_unretract_mm = 10.0f;
+/// Suite de remplissage utilisable : au moins cette longueur gardée
+inline constexpr float min_run_mm = 6.0f;
+/// Purge et bout du cordon au moins à cette distance (le long du tracé) des bouts gardés : loin des périmètres
+inline constexpr float edge_margin_mm = 2.0f;
+/// Court cordon d'amorce après la purge ; plus court que min_line_mm : purge seule
+inline constexpr float prime_line_mm = 10.0f;
+inline constexpr float min_line_mm = 1.0f;
+inline constexpr float prime_line_mm_s = 20.0f;
+/// Reprise au plus à cette hauteur au-dessus du remplissage utilisé
+inline constexpr float max_layer_gap_mm = 1.0f;
+/// Filament par mm de cordon du remplissage mesuré : bornes de vraisemblance
+inline constexpr float min_e_per_mm = 0.005f;
+inline constexpr float max_e_per_mm = 0.2f;
+/// Écart de Z qui fait une autre couche, et écart XY qui casse l'enchaînement de deux tracés
+inline constexpr float z_eps = 0.005f;
+inline constexpr float join_mm = 0.05f;
 
-/// Remontée minimale au-dessus du point de reprise avant d'aller purger après une coupure
-inline constexpr float power_panic_clearance_mm = 5.0f;
+struct Point {
+    float x = 0;
+    float y = 0;
+};
+
+/// Tracés de remplissage enchaînés, à une même hauteur ; les max_points derniers points gardés
+struct Run {
+    static constexpr size_t max_points = 24;
+    std::array<Point, max_points> ring {};
+    uint8_t first = 0;
+    uint8_t count = 0;
+    float z = NAN;
+    float total_mm = 0; ///< toute la suite, points oubliés compris
+    float total_e = 0;
+    int16_t object = -1; ///< objet (M486) au début de la suite, -1 inconnu
+
+    const Point &at(size_t i) const { return ring[(first + i) % max_points]; }
+    void push(Point p);
+    /// Longueur des points gardés [mm]
+    float kept_mm() const;
+    float e_per_mm() const { return total_mm > 0 ? total_e / total_mm : NAN; }
+};
+
+/// Suit le type de tracé (M2011) et les mouvements G0/G1 traités. Fil de Marlin.
+class Tracker {
+public:
+    /// M2011 S : 1 remplissage intérieur, 0 autre tracé ; un changement termine la suite en cours
+    void set_feature(uint8_t feature);
+    /// Mouvement traité (coordonnées natives, avant/après). \returns true si une suite de remplissage commence :
+    /// l'appelant peut y poser l'objet en cours (set_object)
+    bool move(Point from, float z0, float e0, Point to, float z1, float e1);
+    void set_object(int16_t object) { current_.object = object; }
+
+    /// Z des deux dernières couches imprimées (mouvements qui extrudent dans le plan) ; NAN : pas encore
+    float layer_z() const { return layer_z_; }
+    float prev_layer_z() const { return prev_layer_z_; }
+    const Run &current() const { return current_; }
+    const Run &last() const { return last_; }
+
+private:
+    void close_run();
+
+    uint8_t feature_ = 0;
+    Run current_;
+    Run last_; ///< dernière suite terminée assez longue
+    float layer_z_ = NAN;
+    float prev_layer_z_ = NAN;
+};
+
+/// Ce que fait la reprise : descente sur purge, désrétraction et purge (purge_e) en bas, cordon par line (filament :
+/// longueur × e_per_mm), rétraction de retract, puis E posé à e_after pour la désrétraction de Prusa
+struct InfillPlan {
+    static constexpr size_t max_line = Run::max_points + 1;
+    Point purge;
+    float z = NAN;
+    float purge_e = 0;
+    std::array<Point, max_line> line {};
+    uint8_t line_count = 0;
+    float e_per_mm = 0;
+    float retract = 0;
+    float e_after = NAN;
+};
+
+/// Pourquoi la reprise de Prusa est gardée
+enum class Refusal : uint8_t {
+    none, ///< plan fait
+    disabled,
+    e_position, ///< E incohérent (en avance sur la pièce, ou trop loin derrière)
+    first_layer, ///< une seule couche imprimée
+    no_infill, ///< aucune suite de remplissage assez longue
+    too_far, ///< remplissage ni de la couche en cours ni de la précédente, ou trop bas sous la reprise
+    cancelled, ///< objet annulé
+    extrusion, ///< filament par mm invraisemblable
+    limits, ///< point hors des limites de la machine
+    short_run, ///< aucun point assez loin des bouts du tracé
+};
 
 struct Box {
     float x_min, x_max, y_min, y_max;
 };
 
-struct Plan {
-    float purge_x, purge_y; ///< position de purge, dans les limites
-    float wipe_x; ///< aller de l'essuyage (puis retour en purge_x)
-    float extrude_mm; ///< désrétraction de la pause + purge
-    float retract_mm; ///< rétraction après la purge
-    float e_after; ///< position de E à poser à la fin (recalage)
-};
-
-/// Reprise après pause : resume_e = E de la pièce au moment de la pause, current_e = E maintenant (rétracté par la
-/// pause). Après le plan, E vaut resume_e − retract : la désrétraction de Prusa pousse exactement retract_mm.
-/// nullopt : option coupée ou position de E incohérente (on laisse la reprise de Prusa telle quelle).
-std::optional<Plan> plan_pause(const Settings &settings, float purge_x, float purge_y, float resume_e, float current_e, const Box &limits);
-
-/// Reprise après coupure : Prusa désrétracte toujours pause_retract_mm (STANDARD_RETRACT_LENGTH) au retour.
-/// On désrétracte ce qu'il a rétracté à la coupure, on purge, puis on rétracte la même longueur ; E revient à
-/// current_e (rien ne change pour la suite de Prusa).
-std::optional<Plan> plan_power_panic(const Settings &settings, float purge_x, float purge_y, float pause_retract_mm, float current_e, const Box &limits);
-
-/// Hauteur où monter avant d'aller purger après une coupure (jamais plus bas que maintenant, jamais au-delà de z_max)
-float power_panic_lift_z(float current_z, float resume_z, float z_max);
-
-/// Vitesse de la dernière descente : le réglage, jamais plus rapide que celle de Prusa
-float approach_feedrate(const Settings &settings, float prusa_mm_s);
+/// Plan de la reprise après pause. resume_z, resume_e : position de la pièce à la pause ; current_e : E maintenant
+/// (rétracté par la pause). cancelled(objet) : vrai si l'objet est annulé (nullptr : jamais).
+/// Point de purge : sur la suite (en cours si assez longue, sinon la précédente), le point de tracé le plus proche de
+/// son barycentre, à edge_margin_mm au moins des bouts ; cordon le long du tracé, du côté le plus long.
+Refusal plan_infill(const Settings &settings, const Tracker &tracker, float resume_z, float resume_e, float current_e,
+    const Box &limits, bool (*cancelled)(int16_t), InfillPlan &out);
 
 } // namespace od3d::clean_resume

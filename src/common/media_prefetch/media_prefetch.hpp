@@ -9,6 +9,8 @@
 #include <async_job/async_job.hpp>
 #include <freertos/mutex.hpp>
 #include <buddy/filename_defs.hpp>
+// OneDrop3D (F30) : chemin relatif, les tests de la lecture n'ont pas src/ dans leurs chemins
+#include "../../feature/od3d/feature_marks_od3d.hpp"
 
 /// Handles loading data from a gcode file, keeps it in the ring buffer, and provides the gcode further down to the pipeline
 class MediaPrefetchManager {
@@ -270,6 +272,10 @@ private:
 
             /// If set, denotes that the buffer contains a ';' character
             bool contains_semicolon = false;
+
+            /// OneDrop3D (F30) : comment line read for a « ;TYPE:… » mark (feature_marks_od3d.hpp)
+            bool od3d_mark_active = false;
+            od3d::feature_marks::LineParser od3d_mark;
 
         } command_buffer;
 

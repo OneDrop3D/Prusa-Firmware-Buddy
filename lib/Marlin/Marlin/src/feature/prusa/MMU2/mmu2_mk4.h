@@ -433,7 +433,10 @@ private:
     /// which is read from the GUI, httpd and metrics tasks.
     std::atomic<uint8_t> extruder;
 
-    uint8_t tool_change_extruder; ///< only used for UI purposes
+    /// only used for UI purposes
+    /// OneDrop3D (F43) : atomique, lu aussi par l'interface (filament_memory::loaded_slot) ; différent d'extruder après
+    /// un changement d'outil interrompu, l'emplacement chargé n'est alors plus sûr
+    std::atomic<uint8_t> tool_change_extruder;
 
     pos3d resume_position;
     int16_t resume_hotend_temp;

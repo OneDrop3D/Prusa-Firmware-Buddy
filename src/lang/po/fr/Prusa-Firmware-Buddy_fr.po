@@ -9923,10 +9923,6 @@ msgstr "Avant l'impression"
 msgid "Map colours"
 msgstr "Associer les couleurs"
 
-#: src/gui/od3d/screen_files_od3d.cpp
-msgid "Slot %d: %s in the file, %s loaded"
-msgstr "Emplacement %d : %s dans le fichier, %s chargé"
-
 #: src/gui/od3d/screen_printing_od3d.cpp
 msgid "Adjust"
 msgstr "Ajuster"
@@ -13039,3 +13035,8 @@ msgstr "Emplacement %d : %d° demandés, minimum mesuré %d°"
 #: src/gui/od3d/screen_mmu_speed_od3d.cpp
 msgid "Preload the spool, then Start: up to 7 cycles from 95 to 120 mm/s, the level before the last clean one is kept (~4 min)."
 msgstr "Bobine préchargée, puis Démarrer : jusqu'à 7 cycles de 95 à 120 mm/s, le palier avant le dernier sans erreur est gardé (~4 min)."
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %s in the file, %s spool"
+msgstr "Emplacement %d : %s dans le fichier, bobine %s"

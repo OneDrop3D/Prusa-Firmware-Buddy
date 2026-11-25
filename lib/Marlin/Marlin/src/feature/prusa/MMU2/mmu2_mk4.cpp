@@ -684,15 +684,29 @@ bool MMU2::tool_change(uint8_t slot) {
         return false;
     }
 
-    // OneDrop3D (F43) : le T du G-code de départ reprend le filament gardé dans la buse (filament_memory_od3d.hpp)
-    const bool print_start = od3d::filament_memory::take_print_start_tool_change() && marlin_printingIsActive();
-    if (slot != extruder) {
+    // OneDrop3D (F43) : le T du G-code de départ reprend le filament gardé dans la buse, seulement s'il est sûr
+    // (filament_memory_math_od3d.hpp : start_load) ; un autre, ou un filament dont Prusa n'est pas sûr, est d'abord
+    // déchargé avec sa pointe façonnée (ramming), comme Prusa le faisait à l'arrêt
+    namespace fm = od3d::filament_memory;
+    const bool print_start = fm::take_print_start_tool_change() && marlin_printingIsActive();
+    const fm::StartLoad start = print_start
+        ? fm::start_load(slot, get_current_tool(), get_tool_change_tool(), FindaDetectsFilament(), WhereIsFilament() == FilamentState::AT_FSENSOR)
+        : fm::StartLoad::load;
+    if (start == fm::StartLoad::keep) {
+        // OneDrop3D : le même filament déjà dans la buse, reculé de ce que le G-code de départ pousse ensuite : il revient
+        // au bout de la buse et la ligne de purge amorce sur le plateau
+        extruder_move(-fm::start_load_mm, 25.f);
+        planner_synchronize();
+        return true;
+    }
+    // OneDrop3D (F43) : Prusa saute le T vers l'emplacement qu'il croit chargé ; seulement s'il en est sûr. Après un
+    // changement d'outil interrompu, extruder garde l'ancien emplacement : un T vers lui imprimerait le nouveau filament
+    if (print_start || slot != fm::certain_slot(get_current_tool(), get_tool_change_tool())) {
         if (/*FindaDetectsFilament()*/
             /*!IS_SD_PRINTING && !usb_timer.running()*/
-            !marlin_printingIsActive() || (print_start && extruder != MMU2_NO_TOOL)) {
+            !marlin_printingIsActive() || start == fm::StartLoad::unload_first) {
             // If Tcodes are used manually through the serial
             // we need to unload manually as well -- but only if FINDA detects filament
-            // OneDrop3D : au départ d'une impression, un autre filament gardé dans la buse aussi (pointe façonnée)
             unload();
         }
 
@@ -701,11 +715,6 @@ bool MMU2::tool_change(uint8_t slot) {
         BlockEStallDetection blockEStallDetection;
         planner_synchronize();
         ToolChangeCommon(slot);
-    } else if (print_start) {
-        // OneDrop3D : le même filament déjà dans la buse, reculé de ce que le G-code de départ pousse ensuite : il revient
-        // au bout de la buse et la ligne de purge amorce sur le plateau
-        extruder_move(-od3d::filament_memory::start_load_mm, 25.f);
-        planner_synchronize();
     }
     return true;
 }
@@ -789,7 +798,8 @@ uint8_t __attribute__((noinline)) MMU2::get_current_tool() const {
 }
 
 uint8_t MMU2::get_tool_change_tool() const {
-    return tool_change_extruder == MMU2_NO_TOOL ? (uint8_t)FILAMENT_UNKNOWN : tool_change_extruder;
+    const uint8_t t = tool_change_extruder.load(); // OneDrop3D : une seule lecture, l'interface la lit aussi
+    return t == MMU2_NO_TOOL ? (uint8_t)FILAMENT_UNKNOWN : t;
 }
 
 void MMU2::RestoreLoadedTool(uint8_t slot) {

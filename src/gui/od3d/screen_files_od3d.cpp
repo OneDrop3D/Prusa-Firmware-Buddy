@@ -1284,7 +1284,8 @@ void ScreenPreview::unconditionalDraw() {
         warnings[count++] = _("Slot %d: %d g needed, about %d g left").formatted(shortage_params, shortage + 1, int(std::lround(info.grams[shortage])), int(shortage_left));
     }
     if (mismatch >= 0) {
-        warnings[count++] = _("Slot %d: %s in the file, %s loaded").formatted(mismatch_params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
+        // La matière de la bobine posée sur l'emplacement, pas ce qui est dans la buse (« chargé » se lisait ainsi, 25/11)
+        warnings[count++] = _("Slot %d: %s in the file, %s spool").formatted(mismatch_params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
     }
     if (too_cold >= 0) {
         warnings[count++] = _("Slot %d: %d° requested, measured minimum %d°").formatted(cold_params, too_cold + 1, int(info.nozzle[too_cold]), int(calib::record(too_cold).min_temperature));

@@ -22,6 +22,7 @@
 #include <display.hpp>
 #include <display_helper.h>
 #include <feature/od3d/collision_od3d.hpp>
+#include <feature/od3d/filament_memory_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <filament.hpp>
@@ -58,8 +59,10 @@ Slot Slot::read(uint8_t index) {
     Slot slot;
     slot.enabled = tool.is_enabled();
     const FilamentType type = FilamentType::for_tool(tool);
-    // Sans MMU, l'outil 0 est toujours « choisi » : chargé seulement s'il a une matière
-    slot.loaded = VirtualToolIndex::currently_selected_opt() == tool && type;
+    // « Chargé » seulement s'il est sûr (F43) : jamais l'outil 0 que Prusa rend quand le MMU ne répond pas (mise à jour
+    // USB, démarrage), ni l'ancien emplacement d'un changement d'outil interrompu (retour du 25/11 : « PETG chargé ») ;
+    // sans MMU, l'outil 0, seulement s'il a une matière
+    slot.loaded = filament_memory::loaded_slot() == index && type;
     if (type && slot.enabled) {
         const FilamentTypeParameters params = type.parameters();
         strlcpy(slot.material.data(), params.name.data(), slot.material.size());

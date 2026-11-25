@@ -49,6 +49,7 @@ std::optional<uint8_t> loaded_slot() {
         .mmu_configured = config_store().mmu2_enabled.get(),
         .mmu_active = MMU2::mmu2.Enabled(),
         .prusa_slot = tool ? tool->to_raw() : no_slot,
+        .changing_slot = MMU2::mmu2.get_tool_change_tool(),
         .finda = MMU2::mmu2.FindaDetectsFilament(),
         .extruder = head == FilamentSensorState::HasFilament ? Sensor::has : (head == FilamentSensorState::NoFilament ? Sensor::none : Sensor::unknown),
     });
@@ -113,10 +114,10 @@ void step() {
         return;
     }
 
-    if (const auto keep = slot_to_keep(command, marlin_server::is_printing(), prusa_slot)) {
-        const Record next = make_record(stored, *keep, material_of(*keep).data(), now());
-        if (!(next == stored)) {
-            config_store().od3d_loaded_filament.set(next);
+    // Seulement l'emplacement sûr : après un changement d'outil interrompu (arrêt de l'impression), Prusa garde l'ancien
+    if (const auto keep = slot_to_keep(command, marlin_server::is_printing(), certain_slot(prusa_slot, mmu.get_tool_change_tool()))) {
+        if (const auto next = record_update(stored, *keep, material_of(*keep).data(), now())) {
+            config_store().od3d_loaded_filament.set(*next);
         }
     }
 }

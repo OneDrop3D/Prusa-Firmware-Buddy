@@ -9844,8 +9844,8 @@ msgid "tighten"
 msgstr "serrer"
 
 #: src/gui/od3d/screen_menu_od3d.cpp
-msgid "OneDrop3D Features"
-msgstr "Fonctions OneDrop3D"
+msgid "Printer calibration"
+msgstr "Calibrage"
 
 #: src/gui/od3d/screen_menu_od3d.cpp
 msgid "Spool Join"
@@ -11755,8 +11755,8 @@ msgid "System\nFactory reset, settings file, diagnostics"
 msgstr "Système\nRéinitialisation, réglages, diagnostic"
 
 #: src/gui/od3d/screen_menu_od3d.cpp
-msgid "OneDrop3D features\nCalibrations, PA, MPC, chamber climate"
-msgstr "Fonctions OneDrop3D\nCalibrations, PA, MPC, climat chambre"
+msgid "Printer calibration\nAssistant, PA, MPC, chamber climate"
+msgstr "Calibrage de l'imprimante\nAssistant, PA, MPC, climat chambre"
 
 #: src/gui/od3d/screen_climate_od3d.cpp
 msgid "Chamber per filament\nTarget, min and max in Filaments"

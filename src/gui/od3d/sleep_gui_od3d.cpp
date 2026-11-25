@@ -1,5 +1,6 @@
 /// @file
 #include "sleep_gui_od3d.hpp"
+#include "widgets_od3d.hpp"
 
 #include <feature/od3d/sleep_od3d.hpp>
 
@@ -60,6 +61,9 @@ namespace {
                 const uint8_t brightness = ili9488_brightness_get();
                 saved_brightness = brightness ? brightness : 0xff; // jamais 0 : l'écran resterait noir au réveil
                 display::fill_rect(GuiDefaults::RectScreen, COLOR_BLACK);
+                // L'en-tête et les onglets ne sont plus à l'écran : un écran ouvert pendant la veille (impression lancée
+                // par le réseau, clé insérée) les sautait au réveil (chrome::kept), et ils restaient noirs
+                chrome::forget_all();
             } else {
                 set_backlight(saved_brightness);
                 if (auto *screen = Screens::Access()->Get()) {

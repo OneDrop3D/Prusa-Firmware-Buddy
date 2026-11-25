@@ -23,10 +23,10 @@ namespace od3d {
 
 namespace nozzle_comp = buddy::nozzle_thermal_compensation;
 
-// ---- Fonctions OneDrop3D ----
+// ---- Calibrage de l'imprimante (« Fonctions OneDrop3D » avant le 25/11) ----
 
 MI_FEATURES::MI_FEATURES()
-    : IWindowMenuItem(_("OneDrop3D features\nCalibrations, PA, MPC, chamber climate"), &img::wizard_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(_("Printer calibration\nAssistant, PA, MPC, chamber climate"), &img::wizard_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_FEATURES::click(IWindowMenu &) {
     open_screen<ScreenMenuFeatures>();
@@ -78,8 +78,9 @@ void MI_UI_MEASURE::click(IWindowMenu &) {
     MsgBoxInfo(_("Screen timings added to OD3D_UI.CSV on the USB drive."), Responses_Ok);
 }
 
+// Titre court : l'en-tête n'a la place que de 19 caractères (petite police, heure sur 24 h)
 ScreenMenuFeatures::ScreenMenuFeatures()
-    : BasicScreenMenu(_("OneDrop3D Features")) {}
+    : BasicScreenMenu(_("Printer calibration")) {}
 
 // ---- Ventilation anticipée (F26) ----
 

@@ -88,7 +88,7 @@ std::optional<float> ValueEditor::exec(const string_view_utf8 &label, float valu
 }
 
 ValueEditor::ValueEditor(const string_view_utf8 &label, float value, const NumericInputConfig &config, Apply apply, const char *unit, Rect16 from)
-    : IDialog(style::below_header) // l'écran dessous ne se redessine plus (il est voilé) ; l'en-tête reste vivant
+    : IDialog(style::below_header) // l'écran dessous reste visible, figé, au-dessus de la feuille ; l'en-tête reste vivant
     , label(label)
     , config(config)
     , value(config.clamp(value))

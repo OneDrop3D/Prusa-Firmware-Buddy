@@ -1,11 +1,21 @@
 #include "screen_menu.hpp"
 
 #include <ScreenHandler.hpp>
+#include <i_window_menu_item.hpp>
+#include <sound.hpp>
 
 void ScreenMenuBase_::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     // OneDrop3D (interface G) : appui long = retour, sauf sous un dialogue ou sans retour (1er démarrage : langue,
     // configuration de l'imprimante) ; les écrans qui s'en servent déjà (Contrôle, Matériel) le traitent avant d'arriver ici
     if (event == GUI_event_t::HELD_RELEASED && !GetFirstDialog() && header.back_shown()) {
+        Screens::Access()->close_screen();
+        return;
+    }
+    // Balayage = retour, comme l'appui long, dans toute liste qui a un retour, impression comprise : la règle générale de
+    // ScreenHandler ne ferme que ce que Prusa ferme au délai des menus, et Ajuster ne l'est pas (ClrMenuTimeoutClose)
+    if ((event == GUI_event_t::TOUCH_SWIPE_LEFT || event == GUI_event_t::TOUCH_SWIPE_RIGHT) && !GetFirstDialog() && header.back_shown()
+        && !IWindowMenuItem::edited_item()) {
+        sound::play(SoundType::button_echo);
         Screens::Access()->close_screen();
         return;
     }

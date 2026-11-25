@@ -32,6 +32,8 @@
 #include <odometer.hpp>
 #include <option/buddy_enable_connect.h>
 #include <option/has_indx.h>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
 #include <option/has_tool_crash_recovery.h>
 #include <option/has_tool_mapping.h>
 #include <screen_menu_tune.hpp>
@@ -649,13 +651,16 @@ void ScreenPrinting::update_info() {
 
     // En bas : mesure automatique du PA (F4, « Passer » à la place de « Pause »), sinon message d'état de Prusa (chauffe,
     // palpage...), sinon prochain changement (M600), sinon le nom du fichier
+#if HAS_LOADCELL() && HAS_MMU2() // INDX : pas de PA mesuré
     if (pa::is_running() && !ended) {
         const pa::Status s = pa::status();
         StringBuilder sb(d.bottom);
         sb.append_printf("PA %u%s", unsigned(s.slot + 1), dot);
         pa_progress(sb, s);
         d.bottom_strong = true;
-    } else if (const auto msg = print_status_message().current_message(); msg && !ended) {
+    } else
+#endif
+        if (const auto msg = print_status_message().current_message(); msg && !ended) {
         StringBuilder sb(d.bottom);
         PrintStatusMessageFormatterBuddy::format(sb, msg.message);
         d.bottom_strong = true;

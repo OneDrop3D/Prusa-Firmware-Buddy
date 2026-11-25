@@ -8,6 +8,7 @@
 #include "marlin_client.hpp"
 #include <screen_error.hpp>
 #include "screen_home.hpp"
+#include <option/has_loadcell.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
 #include <option/has_od3d_ui.h>
@@ -157,7 +158,7 @@ void init_screens() {
     return;
 #endif
 
-#if HAS_OD3D_UI()
+#if HAS_OD3D_UI() && HAS_LOADCELL() && HAS_MMU2() // pas d'assistant sur l'INDX
     // OneDrop3D : calibrations nouvelles ou changées par ce firmware, une seule fois ; empilé en premier, il s'ouvre
     // après les écrans de première mise en route de Prusa (sur une imprimante neuve, ses tests d'abord)
     if (od3d::calibration_prompt_at_boot()) {

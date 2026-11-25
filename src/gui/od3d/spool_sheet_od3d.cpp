@@ -7,12 +7,18 @@
 #include "screen_pa_od3d.hpp"
 #include "screen_spool_od3d.hpp"
 
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#include <option/has_toolchanger.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
-#include <feature/od3d/spool_usage_od3d.hpp>
-#include <feature/od3d/tip_od3d.hpp>
+#if HAS_MMU2()
+    #include <feature/od3d/spool_usage_od3d.hpp>
+    #include <feature/od3d/tip_od3d.hpp>
+#endif
 #include <i18n.h>
 #include <IDialog.hpp>
 #include <img_resources.hpp>
@@ -140,7 +146,11 @@ namespace {
             char status[72];
             const char *state = slot.loaded ? N_("In the nozzle") : (type ? N_("In the MMU") : N_("Empty"));
             _(state).copyToRAM(status, sizeof(status));
+#if HAS_MMU2()
             const bool tip_drift = index < tip::slots && tip::drifting(tip::stats(index));
+#else
+            constexpr bool tip_drift = false; // F10 : pointes des emplacements du MMU
+#endif
             if (tip_drift) {
                 strlcat(status, " · ", sizeof(status));
                 const size_t len = strlen(status);
@@ -151,10 +161,12 @@ namespace {
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · %d/%d\xC2\xB0", p.nozzle_temperature, p.heatbed_temperature);
             }
+#if HAS_MMU2()
             if (const auto usage = spool_usage::report(index); usage && type) {
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · ~%d g", int(usage->remaining_g));
             }
+#endif
             draw_text(status_rect, string_view_utf8::MakeRAM(status), Font::small, tip_drift ? style::warning : style::text_muted, style::surface);
         }
 
@@ -238,11 +250,12 @@ namespace {
 
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
         const FilamentType type = FilamentType::for_tool(tool);
-        const bool loaded = VirtualToolIndex::currently_selected_opt() == tool;
+        // INDX : chaque tête a son filament (matière connue : chargée) et se charge par M701 T (atelier::run)
+        const bool loaded = HAS_MMU2() ? VirtualToolIndex::currently_selected_opt() == tool : bool(type);
         const bool mmu = atelier::mmu_active();
         const bool idle = atelier::can_run();
         // Sans MMU actif, seul le premier emplacement existe : chargement et déchargement de Prusa sans MMU
-        const bool reachable = mmu || (index == 0 && tool.is_enabled());
+        const bool reachable = mmu || ((HAS_TOOLCHANGER() || index == 0) && tool.is_enabled());
         // Le MMU ne peut ni précharger, ni éjecter, ni couper si un filament va jusqu'à la tête (comme le menu Prusa)
         const bool mmu_free = mmu && idle && !atelier::filament_in_nozzle();
 
@@ -266,6 +279,7 @@ namespace {
         preload.set_enabled(mmu_free);
         eject.set_enabled(mmu_free);
         cut.set_enabled(mmu_free);
+#if HAS_LOADCELL() && HAS_MMU2()
         // F4 : K mesuré de l'emplacement : « PA 0.035 », qui ouvre l'écran du PA, toujours (on y regarde la valeur et la
         // courbe même pendant une impression). Sans mesure : « Calibrer le PA » (en jaune si le PA de l'imprimante prime),
         // la mesure en un clic, qui charge elle-même la bobine (MMU actif) ; pas pendant une autre mesure
@@ -287,8 +301,10 @@ namespace {
         if (const auto report = spool_usage::report(index); report && report->low()) {
             usage.set_look(Button::Look::alert);
         }
+#endif
 
-        if (!type) {
+        // INDX : ni PA mesuré ni MMU (changement de bobine, utilisation, préchargement...) : chargement et déchargement
+        if (!type || !(HAS_LOADCELL() && HAS_MMU2())) {
             // Emplacement vide : seul le bouton principal (SPEC_G.md §3.3)
             for (Button *b : { &calibrate, &change, &material, &usage, &preload, &eject, &cut }) {
                 b->set_enabled(false);
@@ -488,6 +504,7 @@ void open_sheet(uint8_t index) {
     case Choice::cut:
         op = Op::cut;
         break;
+#if HAS_LOADCELL() && HAS_MMU2()
     case Choice::insert:
         open_change_spool(index, SpoolChange::insert);
         break;
@@ -506,6 +523,10 @@ void open_sheet(uint8_t index) {
     case Choice::calibrate:
         open_pa(index, true); // l'écran du PA propose la mesure, puis montre ses étapes et « Annuler »
         break;
+#else
+    default: // INDX : boutons masqués (pas de MMU)
+        break;
+#endif
     }
     // Après un écran ouvert : rien n'est repeint dessous, il se dessine à sa place. Avant l'opération : un message de
     // Prusa (imprimante occupée) se pose sur l'écran repeint, et le chargement s'ouvre depuis la bobine.

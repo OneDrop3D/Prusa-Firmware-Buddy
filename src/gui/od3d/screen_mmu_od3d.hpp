@@ -98,18 +98,6 @@ private:
     TabBar tabs;
 };
 
-/// Bandeau d'un groupe des moteurs : fond, titre ; la note de droite est une fenêtre à part (redessinée seule)
-class Panel : public window_t {
-public:
-    Panel(window_t *parent, Rect16 rect, const string_view_utf8 &title);
-
-protected:
-    void unconditionalDraw() override;
-
-private:
-    string_view_utf8 title;
-};
-
 /// Choix d'une position (sélecteur ou galet) : petite bobine facultative et numéro
 class PositionButton : public Button {
 public:

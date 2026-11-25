@@ -23,6 +23,7 @@
 #include <lfn.h>
 #include <marlin_client.hpp>
 #include <option/has_human_interactions.h>
+#include <option/has_mmu2.h>
 #include <option/has_power_panic.h>
 #include <option/has_selftest.h>
 #include <raii/auto_restore.hpp>
@@ -343,7 +344,11 @@ ScreenHome::ScreenHome(std::index_sequence<I...>)
     , header(this, _("Home"), false)
     , spools { SpoolCard(this, I, atelier::visible_tools())... }
     // L'étagère de l'onglet Atelier ; « MMU > » seulement avec un MMU activé (sans lui, l'icône seule)
+#if HAS_MMU2()
     , mmu(this, style::with_ring(mmu_body), open_screen<ScreenMMU>, img::settings_16x16, atelier::mmu_enabled() ? string_view_utf8::MakeCPUFLASH("MMU >") : string_view_utf8 {})
+#else
+    , mmu(this, style::with_ring(mmu_body), open_filament_menu, img::settings_16x16, string_view_utf8 {}) // INDX : menu du filament de Prusa, par tête
+#endif
     , file(this)
     , print(this, file)
     , files(this, files_body, open_files, img::folder_full_16x16, style::tile, _("Files"), string_view_utf8::MakeCPUFLASH("USB"))

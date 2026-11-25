@@ -5,7 +5,7 @@
 #pragma once
 
 #include "atelier_od3d.hpp"
-#include "screen_mmu_od3d.hpp" // Panel
+#include "widgets_od3d.hpp" // Panel
 
 #include <array>
 #include <feature/od3d/music_player_od3d.hpp>

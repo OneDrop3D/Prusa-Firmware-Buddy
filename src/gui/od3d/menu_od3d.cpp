@@ -13,6 +13,7 @@
 #include <iterator>
 #include <i_window_menu_item.hpp>
 #include <img_resources.hpp>
+#include <option/has_mmu2.h>
 #include <raii/auto_restore.hpp>
 #include <screen_menu_filament.hpp>
 #include <screen_menu_filament_mmu.hpp>
@@ -348,7 +349,11 @@ TabBar::Tab section_tab() {
     if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMenuSettings>(); })) {
         return TabBar::Tab::settings;
     }
+#if HAS_MMU2()
     if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMMU>() || n.creator.is_screen<ScreenMenuFilamentMMU>() || n.creator.is_screen<ScreenMenuFilament>(); })) {
+#else
+    if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMenuFilament>(); })) { // INDX : l'onglet Atelier
+#endif
         return TabBar::Tab::workshop;
     }
     if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenFiles>() || n.creator.is_screen<ScreenPrinting>(); })) {

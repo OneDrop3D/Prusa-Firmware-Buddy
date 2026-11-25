@@ -43,7 +43,7 @@ using ScreenMenuControlSpec = ScreenMenu<EFooter::On,
     MI_PICK_PARK_TOOL,
 #endif
     MI_MOVE_AXIS,
-#if HAS_OD3D_UI()
+#if HAS_OD3D_UI() && HAS_MMU2()
     od3d::MI_MMU_AXES, // OneDrop3D : les axes du MMU, à côté de ceux de l'imprimante
 #endif
     MI_DISABLE_MOTORS,

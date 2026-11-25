@@ -442,16 +442,6 @@ namespace {
 
 } // namespace
 
-Panel::Panel(window_t *parent, Rect16 rect, const string_view_utf8 &title)
-    : window_t(parent, rect)
-    , title(title) {}
-
-void Panel::unconditionalDraw() {
-    const Rect16 r = GetRect();
-    display::draw_rounded_rect(r, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
-    draw_text(Rect16(r.Left() + 12, r.Top() + 7, 170, height(Font::small)), title, Font::small, style::text_strong, style::surface);
-}
-
 PositionButton::PositionButton(window_t *parent, Rect16 body, uint8_t tag, int8_t spool, const string_view_utf8 &label)
     : Button(parent, body, tag, Look::secondary, label, nullptr, style::surface, style::radius_small)
     , spool(spool) {}

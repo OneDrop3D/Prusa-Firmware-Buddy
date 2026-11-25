@@ -21,9 +21,15 @@
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
-#include <feature/od3d/collision_od3d.hpp>
-#include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_state.h>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_MMU2()
+    #include <feature/od3d/spool_usage_od3d.hpp>
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
+    #include <feature/od3d/collision_od3d.hpp>
+#endif
 #include <filament.hpp>
 #include <i18n.h>
 #include <i_window_menu_item.hpp>
@@ -58,18 +64,21 @@ Slot Slot::read(uint8_t index) {
     Slot slot;
     slot.enabled = tool.is_enabled();
     const FilamentType type = FilamentType::for_tool(tool);
-    // Sans MMU, l'outil 0 est toujours « choisi » : chargé seulement s'il a une matière
-    slot.loaded = VirtualToolIndex::currently_selected_opt() == tool && type;
+    // Sans MMU, l'outil 0 est toujours « choisi » : chargé seulement s'il a une matière. INDX : chaque tête a son
+    // filament, chargé si sa matière est connue
+    slot.loaded = (!HAS_MMU2() || VirtualToolIndex::currently_selected_opt() == tool) && type;
     if (type && slot.enabled) {
         const FilamentTypeParameters params = type.parameters();
         strlcpy(slot.material.data(), params.name.data(), slot.material.size());
         // Seuls les filaments ad hoc ont une couleur : sinon une couleur par matière
         slot.look.filament = params.color.has_value() ? *params.color : spool::default_color(params.name.data());
+#if HAS_MMU2()
         // Remplissage réel (F13, ou étiquette OpenPrintTag) ; bobine pleine dessinée si le poids n'est pas suivi
         if (const auto usage = spool_usage::report(index)) {
             slot.look.fill_percent = usage->fill_percent();
             slot.low = usage->low();
         }
+#endif
     } else {
         strlcpy(slot.material.data(), "-", slot.material.size()); // « — » n'est pas dans la police
     }
@@ -261,6 +270,9 @@ bool draw_whole(window_frame_t &frame, window_t *first, window_t *last, void (*o
 // ---- Navigation ----
 
 void open_filament_menu() {
+#if !HAS_MMU2()
+    open_screen<ScreenMenuFilament>(); // INDX : le menu de Prusa, par tête
+#else
     switch (MMU2::xState(marlin_vars().mmu2_state.get())) {
     case MMU2::xState::Active:
         open_screen<ScreenMenuFilamentMMU>();
@@ -272,6 +284,7 @@ void open_filament_menu() {
     case MMU2::xState::Bootloader:
         break; // le MMU démarre : comme l'accueil Prusa, rien tant qu'il ne répond pas
     }
+#endif
 }
 
 void open_files() {
@@ -368,6 +381,16 @@ namespace chrome {
 
 // ---- Écran ----
 
+Panel::Panel(window_t *parent, Rect16 rect, const string_view_utf8 &title)
+    : window_t(parent, rect)
+    , title(title) {}
+
+void Panel::unconditionalDraw() {
+    const Rect16 r = GetRect();
+    display::draw_rounded_rect(r, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
+    draw_text(Rect16(r.Left() + 12, r.Top() + 7, 170, height(Font::small)), title, Font::small, style::text_strong, style::surface);
+}
+
 Screen::Screen(bool has_back)
     : has_back(has_back) {
     SetBackColor(style::screen);
@@ -409,6 +432,7 @@ void Screen::InitState(screen_init_variant var) {
 void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
     if (event == GUI_event_t::LOOP && !HasDialog()) {
         calibration_follow(); // série de l'assistant : l'écran de la mesure en cours, avec ses courbes
+#if HAS_MMU2()
         // F13 : une bobine vient de passer sous son seuil d'alerte (une fois par passage), sur nos écrans seulement
         // Sans boîte de message : elle bloquait les dialogues de l'impression (chargement, erreurs du MMU) tant qu'elle
         // restait ouverte (RET-22)
@@ -417,6 +441,8 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             StringViewUtf8Parameters<16> params;
             show_notice(_("Spool %d: %d g\nrunning low").formatted(params, *slot + 1, usage ? int(usage->remaining_g) : 0));
         }
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
         // F38 : chocs répétés au même endroit (la pause, si demandée, est déjà faite par le fil de Marlin). En bandeau :
         // une boîte de message cachait les écrans de Prusa (M600, fin de bobine) tant qu'elle restait ouverte (I-01)
         if (const auto hit = collision::take_alert()) {
@@ -428,6 +454,7 @@ void Screen::windowEvent(window_t *sender, GUI_event_t event, void *param) {
                 show_notice(text.formatted(params, int(hit->x_mm), int(hit->y_mm)));
             }
         }
+#endif
     }
     if (event == GUI_event_t::HELD_RELEASED && has_back) {
         if (!GetFirstDialog()) { // sous un éditeur de valeur ou une question, l'écran ne se ferme pas derrière
@@ -1108,7 +1135,11 @@ namespace {
         open_print_tab(); // l'écran Impression pendant une impression, sinon les fichiers
     }
     void tab_workshop() {
+#if HAS_MMU2()
         open_section<ScreenMMU>();
+#else
+        open_section<ScreenMenuFilament>(); // INDX : pas d'atelier G ; le menu du filament de Prusa, par tête
+#endif
     }
     void tab_settings() {
         open_section<ScreenMenuSettings>();

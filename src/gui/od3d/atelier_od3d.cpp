@@ -10,7 +10,10 @@
 #include <display.hpp>
 #include <display_helper.h>
 #include <feature/filament_sensor/filament_sensors_handler.hpp>
-#include <feature/od3d/spool_usage_od3d.hpp>
+#include <option/has_mmu2.h>
+#if HAS_MMU2()
+    #include <feature/od3d/spool_usage_od3d.hpp>
+#endif
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <i18n.h>
 #include <marlin_client.hpp>
@@ -243,7 +246,11 @@ namespace atelier {
     }
 
     bool mmu_enabled() {
+#if HAS_MMU2()
         return config_store().mmu2_enabled.get();
+#else
+        return false; // INDX : des têtes, pas de MMU
+#endif
     }
 
     uint8_t visible_tools() {
@@ -259,6 +266,7 @@ namespace atelier {
         if (!slot.look.filament) {
             return _("Empty");
         }
+#if HAS_MMU2()
         if (const auto usage = spool_usage::report(index)) {
             // Reste (F13 ou étiquette OpenPrintTag), en jaune sous le seuil d'alerte
             snprintf(buf.data(), buf.size(), "~%d g", int(usage->remaining_g));
@@ -267,6 +275,7 @@ namespace atelier {
             }
             return string_view_utf8::MakeRAM(buf.data());
         }
+#endif
         paint_name(buf, paint_index(FilamentType::for_tool(VirtualToolIndex::from_raw(index))));
         return string_view_utf8::MakeRAM(buf.data());
     }
@@ -303,6 +312,8 @@ namespace atelier {
 
     bool run(Op op, uint8_t slot) {
         ArrayStringBuilder<MAX_CMD_SIZE> gcode;
+        // P : emplacement du MMU. INDX : M701 et M702 ignorent P et prennent la tête active ; T désigne la tête
+        constexpr char tool_letter = HAS_MMU2() ? 'P' : 'T';
         switch (op) {
         case Op::load:
             // Comme MI_MMU_LOAD_TO_NOZZLE_I : la matière de l'emplacement donne la température. Sans matière (imprimante
@@ -310,13 +321,17 @@ namespace atelier {
             if (const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot))) {
                 gcode.append_string("M701 S\"");
                 type.build_encoded_gcode_param(gcode);
-                gcode.append_printf("\" W2 P%i", slot);
+                gcode.append_printf("\" W2 %c%i", tool_letter, slot);
             } else {
-                gcode.append_printf("M701 W2 P%i", slot);
+                gcode.append_printf("M701 W2 %c%i", tool_letter, slot);
             }
             break;
         case Op::unload:
-            gcode.append_string("M702 W2");
+            if (HAS_MMU2()) {
+                gcode.append_string("M702 W2");
+            } else {
+                gcode.append_printf("M702 W2 T%i", slot);
+            }
             break;
         case Op::preload:
             gcode.append_printf("M704 P%i", slot);

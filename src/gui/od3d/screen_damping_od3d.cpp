@@ -2,6 +2,7 @@
 #include "screen_damping_od3d.hpp"
 #include "screen_calib_assistant_od3d.hpp" // confirm_stop_measure
 #include "accelerometer_guide_od3d.hpp"
+#include <option/has_attachable_accelerometer.h>
 #include "menu_items_od3d.hpp"
 #include "menu_od3d.hpp"
 #include "thumbnail_od3d.hpp" // draw_pixels
@@ -207,7 +208,7 @@ void ScreenDamping::show_info() {
         switch (shown_status) {
         case Status::idle:
         case Status::running:
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).");
+            text = shown_homing ? _(shown_homing) : (HAS_ATTACHABLE_ACCELEROMETER() ? _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).") : _("Start: X and Y, about 4 min."));
             break;
         case Status::done: {
             char x[8], y[8], prusa[8]; // recopiés dans info_params
@@ -233,7 +234,7 @@ void ScreenDamping::show_info() {
             text = _("Measurement failed.");
             break;
         case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).");
+            text = shown_homing ? _(shown_homing) : (HAS_ATTACHABLE_ACCELEROMETER() ? _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).") : _("Start: X and Y, about 4 min."));
             break;
         }
     }

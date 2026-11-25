@@ -27,19 +27,26 @@
 #include <common/marlin_vars.hpp>
 #include <feature/od3d/belt_tension_od3d.hpp>
 #include <feature/od3d/calib_assistant_od3d.hpp>
-#include <feature/od3d/collision_od3d.hpp>
 #include <feature/od3d/damping_od3d.hpp>
 #include <feature/od3d/fan_response_od3d.hpp>
-#include <feature/od3d/e_jump_od3d.hpp>
-#include <feature/od3d/mmu_flash_od3d.hpp>
-#include <feature/od3d/mmu_speed_od3d.hpp>
-#include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/od3d/mpc_control_od3d.hpp>
 #include <feature/od3d/music_player_od3d.hpp>
-#include <feature/od3d/nozzle_expansion_od3d.hpp>
-#include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/speed_map_od3d.hpp>
-#include <feature/od3d/spool_calib_od3d.hpp>
+#include <option/has_indx.h>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_MMU2()
+    #include <feature/od3d/mmu_flash_od3d.hpp>
+    #include <feature/od3d/mmu_speed_od3d.hpp>
+    #include <feature/od3d/mmu_usb_od3d.hpp>
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
+    #include <feature/od3d/collision_od3d.hpp>
+    #include <feature/od3d/e_jump_od3d.hpp>
+    #include <feature/od3d/nozzle_expansion_od3d.hpp>
+    #include <feature/od3d/pa_od3d.hpp>
+    #include <feature/od3d/spool_calib_od3d.hpp>
+#endif
 #include <fsm/filament_change_phases.hpp>
 #include <fsm_loadunload_type.hpp>
 #include <i18n.h>
@@ -100,6 +107,7 @@ namespace {
             f.percent = std::min<uint8_t>(value, 100);
             return f;
         };
+#if HAS_MMU2()
         // L'écriture du firmware du MMU par le port avant passe avant l'assistant, qu'on peut lancer pendant ce temps : on
         // suit son avancement, puis la pastille rappelle de « Terminer » (ou de réessayer) tant que le mode dure
         if (const mmu_flash::Status s = mmu_flash::status(); s.phase != mmu_flash::Phase::idle && mmu_usb::active()) {
@@ -109,6 +117,8 @@ namespace {
             f.process = Process::mmu_usb;
             return f;
         }
+#endif
+#if HAS_LOADCELL() && HAS_MMU2() // INDX : ni assistant ni mesures par emplacement
         // L'assistant de calibration d'abord : ses étapes (PA, courroies...) sont montrées comme les siennes
         if (calibration_assistant_active()) {
             f.process = Process::calibration;
@@ -147,6 +157,7 @@ namespace {
             f.steps = s.steps;
             return f;
         }
+#endif
         if (belts::is_running()) {
             return percent(Process::belts, belts::progress_percent());
         }
@@ -156,9 +167,12 @@ namespace {
         if (damping::is_running()) {
             return percent(Process::damping, damping::progress_percent());
         }
+#if HAS_LOADCELL() && HAS_MMU2()
         if (nozzle_expansion::is_running()) {
             return percent(Process::nozzle_expansion, nozzle_expansion::progress_percent());
         }
+#endif
+#if HAS_MMU2()
         if (mmu_speed::is_running()) {
             const mmu_speed::Measurement &m = mmu_speed::last();
             f.process = Process::mmu_speed;
@@ -168,9 +182,12 @@ namespace {
             f.steps = mmu_speed::cycles;
             return f;
         }
+#endif
+#if !HAS_INDX() // régulation MPC (OD3D_MPCTEMP)
         if (const mpc::TuneStatus s = mpc::tune_status(); s.running) {
             return percent(Process::mpc, s.progress);
         }
+#endif
         if (fan_response::is_running()) {
             return percent(Process::fan_response, fan_response::progress_percent());
         }
@@ -178,49 +195,61 @@ namespace {
             f.process = Process::music;
             return f;
         }
+#if HAS_LOADCELL() && HAS_MMU2()
         if (collision::test_running()) {
             f.process = Process::hit_test;
             return f;
         }
+#endif
+#if HAS_MMU2()
         if (mmu_usb::active()) {
             f.process = Process::mmu_usb;
             return f;
         }
+#endif
         return std::nullopt;
     }
 
     /// L'écran du processus (celui qui l'a lancé)
     ScreenFactory::Creator process_screen(const Face &f) {
         switch (f.process) {
+#if HAS_LOADCELL() && HAS_MMU2()
         case Process::pa:
             return ScreenFactory::ScreenWithArg<ScreenPa>(f.slot);
         case Process::flow:
         case Process::min_temp:
             return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(f.slot);
+        case Process::hit_test:
+            return ScreenFactory::Screen<ScreenCollision>;
+        case Process::calibration:
+            return ScreenFactory::Screen<ScreenCalibAssistant>;
+        case Process::nozzle_expansion:
+            return ScreenFactory::Screen<ScreenNozzleExpansion>;
+        case Process::e_jump:
+            return ScreenFactory::ScreenWithArg<ScreenEJump>(f.slot);
+#endif
+#if HAS_MMU2()
+        case Process::mmu_usb:
+            return ScreenFactory::Screen<ScreenMmuUsb>;
+        case Process::mmu_speed:
+            return ScreenFactory::Screen<ScreenMmuSpeed>;
+#endif
+#if !HAS_INDX()
+        case Process::mpc:
+            return mpc_calibration_screen();
+#endif
         case Process::belts:
             return ScreenFactory::Screen<ScreenBelts>;
         case Process::speed_map:
             return ScreenFactory::Screen<ScreenSpeedMap>;
         case Process::damping:
             return ScreenFactory::Screen<ScreenDamping>;
-        case Process::mpc:
-            return mpc_calibration_screen();
         case Process::music:
             return ScreenFactory::Screen<ScreenMusic>;
-        case Process::hit_test:
-            return ScreenFactory::Screen<ScreenCollision>;
-        case Process::mmu_usb:
-            return ScreenFactory::Screen<ScreenMmuUsb>;
-        case Process::calibration:
-            return ScreenFactory::Screen<ScreenCalibAssistant>;
         case Process::fan_response:
             return ScreenFactory::Screen<ScreenFanResponse>;
-        case Process::nozzle_expansion:
-            return ScreenFactory::Screen<ScreenNozzleExpansion>;
-        case Process::e_jump:
-            return ScreenFactory::ScreenWithArg<ScreenEJump>(f.slot);
-        case Process::mmu_speed:
-            return ScreenFactory::Screen<ScreenMmuSpeed>;
+        default: // processus absents de cette imprimante (INDX : MMU, cellule de charge, MPC)
+            break;
         }
         return {};
     }

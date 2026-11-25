@@ -172,6 +172,9 @@ struct Context {
     std::array<uint8_t, max_tests> measured {};
     /// Ordre des bobines pour les tests par bobine (spool_order()) ; les emplacements absents de spools sont ignorés
     std::array<uint8_t, 8> order { 0, 1, 2, 3, 4, 5, 6, 7 };
+    /// Accéléromètre fixé à la main le temps des tests (CORE One) ; false : il est dans la tête (CORE One L), sa pose
+    /// (M2005) n'a pas de sens
+    bool accelerometer_clipped = true;
 };
 
 /// La calibration a un sens sur cette imprimante (sans accéléromètre, ses tests ne sont pas proposés)

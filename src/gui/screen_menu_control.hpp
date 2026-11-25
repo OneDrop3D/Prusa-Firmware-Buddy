@@ -18,7 +18,8 @@
 #include "MItem_mmu.hpp"
 #include <device/board.h>
 #include <option/has_nozzle_thermal_compensation.h>
-#if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
+#include <option/has_od3d_ui.h>
+#if HAS_OD3D_UI()
     #include <gui/od3d/menu_items_od3d.hpp> // OneDrop3D
     #include <gui/od3d/screen_sleep_od3d.hpp> // OneDrop3D (F39)
 #endif
@@ -42,11 +43,11 @@ using ScreenMenuControlSpec = ScreenMenu<EFooter::On,
     MI_PICK_PARK_TOOL,
 #endif
     MI_MOVE_AXIS,
-#if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
+#if HAS_OD3D_UI()
     od3d::MI_MMU_AXES, // OneDrop3D : les axes du MMU, à côté de ceux de l'imprimante
 #endif
     MI_DISABLE_MOTORS,
-#if HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
+#if HAS_OD3D_UI()
     od3d::MI_SLEEP_NOW, // OneDrop3D (F39) : mise en veille depuis l'accueil (carte Contrôle)
     od3d::MI_MOTOR_MUSIC, // OneDrop3D (F18) : musique des moteurs
 #endif

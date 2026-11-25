@@ -17,15 +17,10 @@ target_sources(
           M1990_od3d.cpp
           M852_od3d.cpp
           M1991_od3d.cpp
-          M1994_od3d.cpp
           M1998_od3d.cpp
           M1999_od3d.cpp
           M2002_od3d.cpp
-          M1995_od3d.cpp
-          M1996_od3d.cpp
           M2001_od3d.cpp
-          M2003_od3d.cpp
-          M2000_od3d.cpp
           M2010_od3d.cpp
           M306_od3d.cpp
           M9140_M9150.cpp
@@ -36,6 +31,15 @@ target_sources(
           M999.cpp
           skippable_gcode.cpp
   )
+
+# OneDrop3D : mesures par emplacement du MMU à la cellule de charge (F4 PA, F5/F6 débit et température, M2000
+# accélération du filament) ; M2003 (dilatation de la buse) aussi avec la compensation F2. Pas sur l'INDX (pas de MMU).
+if(HAS_LOADCELL AND HAS_MMU2)
+  target_sources(firmware PRIVATE M1994_od3d.cpp M1995_od3d.cpp M1996_od3d.cpp M2000_od3d.cpp)
+  if(HAS_NOZZLE_THERMAL_COMPENSATION)
+    target_sources(firmware PRIVATE M2003_od3d.cpp)
+  endif()
+endif()
 
 if(NOT BOARD STREQUAL "XL_DEV_KIT_XLB")
   target_sources(firmware PRIVATE G26.cpp M862_2_3.cpp M862_5.cpp M862_6.cpp)

@@ -15,7 +15,8 @@
     #include <gui/event/touch_event.hpp>
     #include <option/has_mmu2.h>
     #include <option/has_nozzle_thermal_compensation.h>
-    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    #include <option/has_od3d_ui.h>
+    #if HAS_OD3D_UI()
         // OneDrop3D (UI-15, BUG-6) : notre éditeur de valeur à la place du clavier numérique de Prusa, qui refusait OK
         // hors des limites et ne s'annulait ni à la molette ni par un bouton visible (« écran figé »)
         #include <gui/od3d/value_editor_od3d.hpp>
@@ -55,7 +56,7 @@ void WiSpin::event(WindowMenuItemEventContext &ctx) {
 #if HAS_TOUCH()
     if (ctx.event.value_maybe<gui_event::TouchEvent>()) {
         // Toute la ligne ouvre l'éditeur (chez Prusa, la valeur seule : toucher le libellé ne faisait rien)
-    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    #if HAS_OD3D_UI()
         // OneDrop3D : la feuille s'ouvre depuis la ligne touchée
         const auto r = NumericEditor::exec(GetLabel(), value(), config_, nullptr, nullptr, ctx.menu ? NumericEditor::row(*ctx.menu, *this) : Rect16());
     #else

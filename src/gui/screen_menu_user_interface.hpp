@@ -10,6 +10,7 @@
 #include <option/has_tool_mapping.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
+#include <option/has_od3d_ui.h>
 
 #include <option/has_touch.h>
 #if HAS_TOUCH()
@@ -32,12 +33,12 @@ using ScreenMenuUserInterface__ = BasicScreenMenu<
     // So we only allow sound control for ST7789
     MI_SOUND_VOLUME,
 #endif
-#if HAS_ILI9488_DISPLAY() && !(HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()) // OneDrop3D : dans Système › Diagnostic
+#if HAS_ILI9488_DISPLAY() && !(HAS_OD3D_UI()) // OneDrop3D : dans Système › Diagnostic
     MI_DISPLAY_BAUDRATE,
 #endif
 #if HAS_TOUCH()
     MI_ENABLE_TOUCH,
-    #if !(HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()) // OneDrop3D : dans Système › Diagnostic
+    #if !(HAS_OD3D_UI()) // OneDrop3D : dans Système › Diagnostic
     TOUCH_SIG_WORKAROUND,
     #endif
 #endif

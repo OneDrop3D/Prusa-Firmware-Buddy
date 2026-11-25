@@ -24,12 +24,19 @@
 #include <WindowMenuItems.hpp>
 #include <WindowItemFormatableLabel.hpp>
 #include <gui/menu_item/menu_item_select_menu.hpp>
+#include <feature/od3d/mesh_memory_od3d.hpp>
+#include <option/has_attachable_accelerometer.h>
+#include <option/has_indx.h>
+#include <option/has_loadcell.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
+#include <option/has_od3d_ui.h>
 #include <tool_index.hpp>
 
-static_assert(HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2(), "Fonctions OneDrop3D : CORE One avec MMU");
+static_assert(HAS_OD3D_UI(), "Fonctions OneDrop3D : CORE One et CORE One L, avec ou sans INDX");
+#if HAS_MMU2()
 static_assert(VirtualToolIndex::count == 5, "Un relais par emplacement du MMU");
+#endif
 
 class ScreenMenuInfo; // menu Info de Prusa
 
@@ -180,21 +187,59 @@ public:
     void click(IWindowMenu &) override;
 };
 
-class ScreenMenuFeatures final : public BasicScreenMenu<MI_CALIB_ASSISTANT, MI_ACCELEROMETER, MI_NOZZLE_TEMPERATURE, MI_FAN_LEAD, MI_FAN_RESPONSE, MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME, MI_COLLISION, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_PA_AUTO, MI_PA_LARGE, MI_MESH_REUSE, MI_MESH_REDO, MI_FLOW_LIMIT, MI_E_JUMP, MI_SKEW_XY, MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING, MI_MMU_USB, MI_PAIR_PRINTFORGE, MI_UI_MEASURE> {
+// Selon l'imprimante : l'INDX n'a ni MMU (mesures par emplacement, assistant, relais, MMU par l'USB) ni régulation MPC,
+// compensation de dilatation ou équerrage ; l'accéléromètre de la CORE One L et de l'INDX est intégré (rien à demander) ;
+// le maillage gardé est celui de la CORE One (OD3D_MESH_MEMORY())
+class ScreenMenuFeatures final : public BasicScreenMenu<
+#if HAS_LOADCELL() && HAS_MMU2()
+                                     MI_CALIB_ASSISTANT,
+    #if HAS_ATTACHABLE_ACCELEROMETER()
+                                     MI_ACCELEROMETER,
+    #endif
+#endif
+#if !HAS_INDX()
+                                     MI_NOZZLE_TEMPERATURE,
+#endif
+                                     MI_FAN_LEAD,
+#if !HAS_INDX()
+                                     MI_FAN_RESPONSE, // le ventilateur pièce de l'INDX est sur la tête : pas de tachymètre lu ici
+#endif
+                                     MI_CHAMBER_CLIMATE, MI_CLEAN_RESUME,
+#if HAS_LOADCELL() && HAS_MMU2()
+                                     MI_COLLISION, MI_SPOOL_JOIN_SLOTS, MI_PA_PRINTER_WINS, MI_PA_AUTO, MI_PA_LARGE,
+#endif
+#if OD3D_MESH_MEMORY()
+                                     MI_MESH_REUSE, MI_MESH_REDO,
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
+                                     MI_FLOW_LIMIT, MI_E_JUMP,
+#endif
+#if !HAS_INDX()
+                                     MI_SKEW_XY,
+#endif
+                                     MI_BELT_TENSION, MI_SPEED_MAP, MI_DAMPING,
+#if HAS_MMU2()
+                                     MI_MMU_USB,
+#endif
+                                     MI_PAIR_PRINTFORGE, MI_UI_MEASURE> {
 public:
     ScreenMenuFeatures();
 };
 
+#if !HAS_INDX() // régulation MPC (OD3D_MPCTEMP) et compensation de dilatation (F2) : CORE One et CORE One L
 class ScreenNozzleTemperature final : public BasicScreenMenu<MI_NOZZLE_CONTROL, MI_MPC_CALIBRATE, MI_FLOW_TEMP, MI_FLOW_TEMP_THRESHOLD, MI_FLOW_TEMP_MAX_BOOST, MI_FLOW_TEMP_BOOST,
                                        MI_NOZZLE_THERMAL_COMPENSATION, MI_NOZZLE_THERMAL_CORRECTION, MI_NOZZLE_EXPANSION> {
 public:
     ScreenNozzleTemperature();
 };
+#endif
 
+#if HAS_MMU2()
 class ScreenSpoolJoin final : public BasicScreenMenu<MI_SPOOL_JOIN,
                                   MI_SPOOL_JOIN_TARGET_N<0>, MI_SPOOL_JOIN_TARGET_N<1>, MI_SPOOL_JOIN_TARGET_N<2>, MI_SPOOL_JOIN_TARGET_N<3>, MI_SPOOL_JOIN_TARGET_N<4>> {
 public:
     ScreenSpoolJoin();
 };
+#endif
 
 } // namespace od3d

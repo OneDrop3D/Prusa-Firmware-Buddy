@@ -37,6 +37,7 @@
 
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
+#include <option/has_od3d_ui.h>
 
 #if HAS_MINI_DISPLAY()
     #include "st7789v.hpp"
@@ -48,7 +49,7 @@
 
 #include <gui/od3d/perf_od3d.hpp> // OneDrop3D (lot UI-0) : latence entre l'entrée et la fin du dessin
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     #include <gui/od3d/sleep_gui_od3d.hpp> // OneDrop3D (F39) : mode veille
     #define OD3D_SLEEP() 1
 #else

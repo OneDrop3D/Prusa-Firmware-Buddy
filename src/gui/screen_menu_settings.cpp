@@ -14,7 +14,7 @@ ScreenMenuSettings::ScreenMenuSettings()
     , old_action(gui::knob::GetLongPressScreenAction()) { // backup hold action
     gui::knob::RegisterLongPressScreenAction([]() { Screens::Access()->Open(ScreenFactory::Screen<ScreenMenuExperimentalSettings>); }); // new hold action
     EnableLongHoldScreenAction();
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     // OneDrop3D (interface G) : une ligne d'explication sous chaque sous-menu de Prusa
     Item<od3d::MI_PRINTER_INFO>().SetLabel(_("Printer info\nVersion, statistics, sensors"));
     Item<MI_TOOLHEAD_SETTINGS>().SetLabel(_("Printhead\nNozzle diameter and type, sock"));

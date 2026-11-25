@@ -6,6 +6,7 @@
 #include <filament.hpp>
 #include <module/prusa/spool_join.hpp>
 #include <module/prusa/tool_mapper.hpp>
+#include <option/has_mmu2.h>
 #include <tool_index.hpp>
 #include <variant>
 
@@ -61,7 +62,8 @@ namespace {
 } // namespace
 
 void apply_persistent_spool_joins() {
-    if (!config_store().od3d_spool_join.get()) {
+    // INDX : pas de MMU ; les relais entre têtes ne sont ni réglables à l'écran ni essayés : comme Prusa
+    if (!HAS_MMU2() || !config_store().od3d_spool_join.get()) {
         return;
     }
     // shortcut: un seul tour dans l'ordre des emplacements ; une chaîne réglée à rebours (4 → 2 puis 1 → 4) perd son 2e maillon, faire deux tours si on le voit

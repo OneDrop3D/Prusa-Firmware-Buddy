@@ -13,6 +13,7 @@
 #include <option/has_gearbox_alignment.h>
 #include <option/has_mmu2.h>
 #include <option/has_loadcell.h>
+#include <option/has_nozzle_thermal_compensation.h>
 #include <option/has_mmu2.h>
 #include <option/has_toolchanger.h>
 #include <option/has_side_leds.h>
@@ -399,9 +400,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
             break;
     #endif
 #endif
+#if HAS_LOADCELL() && HAS_MMU2() // OneDrop3D : mesures par emplacement du MMU (pas sur l'INDX)
         case 1994: // OneDrop3D (F4)
             PrusaGcodeSuite::M1994();
             break;
+#endif
 #if HAS_CHAMBER_API()
         case 1998: // OneDrop3D (F29)
             PrusaGcodeSuite::M1998();
@@ -415,21 +418,27 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
             PrusaGcodeSuite::M2002();
             break;
 #endif
+#if HAS_LOADCELL() && HAS_MMU2()
         case 1995: // OneDrop3D (F5)
             PrusaGcodeSuite::M1995();
             break;
         case 1996: // OneDrop3D (F6)
             PrusaGcodeSuite::M1996();
             break;
+#endif
         case 2001: // OneDrop3D (N3)
             PrusaGcodeSuite::M2001();
             break;
+#if HAS_LOADCELL() && HAS_MMU2() && HAS_NOZZLE_THERMAL_COMPENSATION()
         case 2003: // OneDrop3D : dilatation de la buse
             PrusaGcodeSuite::M2003();
             break;
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
         case 2000: // OneDrop3D : accélération du filament
             PrusaGcodeSuite::M2000();
             break;
+#endif
         case 2010: // OneDrop3D (lot UI-0) : mesure de l'écran
             PrusaGcodeSuite::M2010();
             break;

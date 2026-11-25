@@ -26,7 +26,8 @@
 #include <gui/screen/dialog_safety_timer.hpp>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#include <option/has_od3d_ui.h>
+#if HAS_OD3D_UI()
     #include <gui/od3d/screen_printing_od3d.hpp> // OneDrop3D : interface G
     #include <marlin_client.hpp>
     #include <gui/od3d/screen_progress_od3d.hpp>
@@ -170,7 +171,7 @@ struct FSMScreenDef : public FSMScreenDefBase {
         }
     }
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     /// OneDrop3D : nos onglets (Screens::CloseAll) peuvent fermer l'écran de la machine à états depuis un écran ouvert
     /// au-dessus (« Changer les filaments » de l'association des outils, par exemple) alors qu'elle attend une réponse :
     /// plus rien ne l'affichait et l'imprimante restait bloquée. Il est rouvert, avec ses dernières données.
@@ -257,7 +258,7 @@ struct FSMPrintDef {
         } else
 #endif
             if constexpr (fsm == ClientFSM::Printing) {
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
             // OneDrop3D : l'impression redevient la machine du dessus après un changement d'outil, une alerte... :
             // l'utilisateur reste où il est (la pastille de l'en-tête ramène à l'écran Impression)
             if (shown) {
@@ -288,7 +289,7 @@ struct FSMPrintDef {
     }
 
     static void close() {
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
         if constexpr (fsm == ClientFSM::Printing) {
             // OneDrop3D : seulement recouverte par une autre machine (changement d'outil du MMU, alerte...) : Prusa
             // fermait tous les écrans à chaque fois, l'utilisateur perdait sa place pendant toute l'impression
@@ -310,12 +311,12 @@ struct FSMPrintDef {
         return true;
     }
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     static inline bool shown = false; ///< OneDrop3D : écran Impression déjà ouvert pour cette impression
 #endif
 };
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
 /// OneDrop3D : l'écran de progression peut être réduit dans l'en-tête (island_od3d.hpp). Réduit, il n'est plus sur la
 /// pile : les nouvelles données vont à la pastille, et l'écran revient dès que Prusa attend l'utilisateur.
 struct FSMLoadUnloadDef : public FSMScreenDef<ClientFSM::Load_unload, od3d::ScreenLoadUnload> {
@@ -365,7 +366,7 @@ struct FSMLoadUnloadDef : public FSMScreenDef<ClientFSM::Load_unload, od3d::Scre
 };
 #endif
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
 /// OneDrop3D : le « Patientez » (origine, palpage) peut être réduit dans l'en-tête (dialog_wait_od3d.hpp) ; pendant nos
 /// processus, il y reste d'emblée. Réduit, le dialogue n'existe pas : la machine n'attend jamais l'utilisateur, ses
 /// alertes sont d'autres machines, qui s'ouvrent par-dessus. Ouvert ou fermé ici seulement, hors de ses événements.
@@ -400,7 +401,7 @@ struct FSMWaitDef : public FSMDialogDef<ClientFSM::Wait, od3d::DialogWait> {
 };
 #endif
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
 /// OneDrop3D : pendant une série de l'assistant de calibration, les assistants de Prusa qu'elle lance sans question
 /// (M1959 A, M1977 U A) ne prennent pas l'écran : on garde la main (retour, onglets), l'écran de l'assistant les suit en
 /// direct, la pastille de l'en-tête montre l'étape. Son « Annuler » leur envoie « Abandonner ».
@@ -453,7 +454,7 @@ struct FSMDisplayConfigDef {
 };
 
 using FSMDisplayConfig = FSMDisplayConfigDef<
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     FSMWaitDef, // OneDrop3D : réductible dans l'en-tête
 #else
     FSMDialogDef<ClientFSM::Wait, window_dlg_wait_t>,
@@ -462,7 +463,7 @@ using FSMDisplayConfig = FSMDisplayConfigDef<
 #if HAS_SERIAL_PRINT()
     FSMPrintDef<ClientFSM::Serial_printing>,
 #endif
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     FSMLoadUnloadDef, // OneDrop3D : même machine, apparence G, réductible dans l'en-tête
 #else
     FSMScreenDef<ClientFSM::Load_unload, ScreenFilamentChange>,
@@ -490,14 +491,14 @@ using FSMDisplayConfig = FSMDisplayConfigDef<
     FSMScreenDef<ClientFSM::ColdPull, ScreenColdPull>,
 #endif
 #if HAS_PHASE_STEPPING_CALIBRATION()
-    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    #if HAS_OD3D_UI()
     FSMAssistantDef<ClientFSM::PhaseSteppingCalibration, ScreenPhaseSteppingCalibration>, // OneDrop3D : pastille pendant l'assistant
     #else
     FSMScreenDef<ClientFSM::PhaseSteppingCalibration, ScreenPhaseSteppingCalibration>,
     #endif
 #endif
 #if HAS_INPUT_SHAPER_CALIBRATION()
-    #if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+    #if HAS_OD3D_UI()
     FSMAssistantDef<ClientFSM::InputShaperCalibration, ScreenInputShaperCalibration>, // OneDrop3D : pastille pendant l'assistant
     #else
     FSMScreenDef<ClientFSM::InputShaperCalibration, ScreenInputShaperCalibration>,
@@ -601,7 +602,7 @@ void DialogHandler::Loop() {
 void DialogHandler::update_screen() {
     const auto new_top = marlin_vars().peek_fsm_states([](const auto &states) { return states.get_top(); });
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     // OneDrop3D : impression finie pendant qu'une autre machine la recouvrait (son close() n'a pas été appelé) : la
     // suivante doit rouvrir l'écran Impression
     if (FSMPrintDef<ClientFSM::Printing>::shown && !marlin_vars().peek_fsm_states([](const auto &states) { return states.is_active(ClientFSM::Printing); })) {

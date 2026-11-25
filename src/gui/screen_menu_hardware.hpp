@@ -14,6 +14,7 @@
 #include <option/has_chamber_vents.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
+#include <option/has_od3d_ui.h>
 #include <option/has_phase_stepping.h>
 #include <option/has_15gt_belts.h>
 #include <option/has_sheet_profiles.h>
@@ -37,7 +38,7 @@
     #include "menu_item/specific/menu_items_xbuddy_extension.hpp"
 #endif
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     #include <gui/od3d/screen_calib_assistant_od3d.hpp> // OneDrop3D : notre assistant de calibration
 #endif
 
@@ -103,7 +104,7 @@ using ScreenMenuHardwareBase = BasicScreenMenu<
 #if HAS_SWITCHABLE_HOMING_CALIBRATION()
     MI_AUTO_PRECISE_HOMING_CALIBRATION,
 #endif
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     // OneDrop3D (retour du 23/11 : « on a le nôtre qui est mieux ») : l'assistant fait l'input shaper (choix du filtre
     // F46) et le phase stepping, accéléromètre posé et retiré. Les menus de Prusa restent après lui (audit X-14) : sur
     // CORE One, c'est le seul endroit pour couper le phase stepping ou revenir à ses valeurs d'origine si une valeur

@@ -478,9 +478,12 @@ struct CurrentStore
     /// OneDrop3D (F4-b) : « Grand motif PA » en un clic (repères, choix à l'œil) ; false (par défaut) : motif compact
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D PA Large")> od3d_pa_large;
     /// OneDrop3D (F44) : maillage du plateau gardé (points majeurs, conditions et date du palpage) et « Réutiliser le
-    /// maillage » : âge maximal en heures, 0 = désactivé
+    /// maillage » : âge maximal en heures, 0 = désactivé. CORE One seulement : OD3D_MESH_MEMORY() de
+    /// mesh_memory_od3d.hpp (le Record garde la grille 7 × 7 ; celle de la CORE One L est en 9 × 9)
+    #if PRINTER_IS_PRUSA_COREONE()
     StoreItem<od3d::mesh_memory::Record, od3d::mesh_memory::Record {}, ItemFlag::calibrations, journal::hash("OD3D Bed Mesh")> od3d_mesh;
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Bed Mesh Reuse Hours")> od3d_mesh_reuse_hours;
+    #endif
     /// OneDrop3D (F5, F6) : débit maximal et température minimale mesurés par emplacement, effacés au changement de bobine.
     StoreItemArray<od3d::calib::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Spool Calib"), 8, VirtualToolIndex::count> od3d_spool_calib;
     /// OneDrop3D (F5) : « limiter au débit mesuré » (coupé par défaut)
@@ -531,17 +534,21 @@ struct CurrentStore
     /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible »
     StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::base_tests> od3d_calib_done;
     StoreItem<od3d::calib_registry::Accelerometer, od3d::calib_registry::Accelerometer::unknown, ItemFlag::features, journal::hash("OD3D Accelerometer")> od3d_accelerometer;
+#if HAS_MMU2() // INDX : pas de MMU, et sans eux son config_store déborde (2 597 o pour 2 550)
     /// OneDrop3D (F43) : emplacement chargé jusqu'à la buse, sa matière et la date (filament_memory_od3d.hpp), repris
     /// au démarrage du MMU si les capteurs sont d'accord
     StoreItem<od3d::filament_memory::Record, od3d::filament_memory::Record {}, ItemFlag::printer_state, journal::hash("OD3D Loaded Filament")> od3d_loaded_filament;
+#endif
     /// OneDrop3D (assistant de calibration, bilan chiffré) : chiffres du dernier succès de chaque test (indice = Test),
     /// le « avant » de la fois suivante (od3d::calib_registry::Values)
     StoreItemArray<od3d::calib_registry::Values, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Values"), 16, od3d::calib_registry::base_tests> od3d_calib_values;
+#if HAS_MMU2()
     /// OneDrop3D (N4) : vitesse de la poulie du MMU mesurée par M2002 et durée d'un cycle avant / après
     /// (od3d::mmu_speed::Saved), renvoyée au MMU à chaque démarrage
     StoreItem<od3d::mmu_speed::Saved, od3d::mmu_speed::Saved {}, ItemFlag::calibrations, journal::hash("OD3D MMU Speeds")> od3d_mmu_speeds;
     /// OneDrop3D (F10) : pointe du filament par emplacement (od3d::tip::Stats), écrite à la fin de chaque impression
     StoreItemArray<od3d::tip::Stats, AnyDefaultConstructor {}, ItemFlag::stats, journal::hash("OD3D Tip Stats"), 8, VirtualToolIndex::count> od3d_tip_stats;
+#endif
     // Should we verify gcode (CRC & similar)?
     StoreItem<bool, true, ItemFlag::features, journal::hash("Verify Gcode")> verify_gcode;
 

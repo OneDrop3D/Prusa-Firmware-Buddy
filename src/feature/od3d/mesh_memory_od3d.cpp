@@ -21,6 +21,7 @@
     #include <feature/chamber/chamber.hpp>
 #endif
 
+#if OD3D_MESH_MEMORY()
 static_assert(GRID_MAJOR_POINTS_X == od3d::mesh_memory::majors_x && GRID_MAJOR_POINTS_Y == od3d::mesh_memory::majors_y);
 static_assert(GRID_BORDER + (GRID_MAJOR_POINTS_X - 1) * GRID_MAJOR_STEP == GRID_MAX_POINTS_X - 1 - GRID_BORDER);
 static_assert(GRID_BORDER + (GRID_MAJOR_POINTS_Y - 1) * GRID_MAJOR_STEP == GRID_MAX_POINTS_Y - 1 - GRID_BORDER);
@@ -231,3 +232,22 @@ void on_probed(bool extend, bool print_area, bool reused) {
 }
 
 } // namespace od3d::mesh_memory
+
+#else // CORE One L, INDX : rien n'est gardé ni repris (mesh_memory_od3d.hpp)
+
+namespace od3d::mesh_memory {
+
+uint8_t max_age_hours() { return 0; }
+void set_max_age_hours(uint8_t) {}
+void forget() {}
+bool has_mesh() { return false; }
+bool offered() { return false; }
+void choose_for_next_print(bool) {}
+void on_print_request() {}
+uint64_t restore(const PrintArea::rect_t &) { return 0; }
+bool verify(uint64_t) { return false; }
+void on_probed(bool, bool, bool) {}
+
+} // namespace od3d::mesh_memory
+
+#endif

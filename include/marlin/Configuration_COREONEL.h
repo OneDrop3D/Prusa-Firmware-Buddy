@@ -229,7 +229,15 @@
     #define STEADY_STATE_HOTEND_LINEAR_COOLING_TERM 0.322f
     #define STEADY_STATE_HOTEND_QUADRATIC_COOLING_TERM 0.0002f
     #define STEADY_STATE_HOTEND_FAN_COOLING_TERM 9.24f
+
+    #if !HAS_INDX()
+        // OneDrop3D (F7) : régulation MPC de la buse, comme sur la CORE One (Configuration_COREONE.h)
+        #define OD3D_MPCTEMP
+    #endif
 #endif // PIDTEMP
+
+// OneDrop3D (F26) : ventilateur pièce appliqué en avance, comme sur la CORE One (src/feature/od3d/lookahead_od3d.hpp)
+#define OD3D_FAN_LEAD
 
 //===========================================================================
 //============================= PID > Bed Temperature Control ===============
@@ -868,6 +876,8 @@ static constexpr float EXTRUDER_SERVICE_MOVE_E_FACTOR = static_cast<float>(CALIB
 #define Y_MAX_POS (Y_BED_SIZE)
 #define Y_MAX_PRINT_POS Y_MAX_POS
 #define Y_MIN_PRINT_POS Y_MIN_POS
+// OneDrop3D (F15) : correction d'équerrage XY, comme sur la CORE One sans INDX (src/feature/od3d/skew_od3d.hpp)
+#define OD3D_SKEW_CORRECTION_XY
 #endif
 
 #ifdef USE_PRUSA_EEPROM_AS_SOURCE_OF_DEFAULT_VALUES

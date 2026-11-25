@@ -204,3 +204,30 @@ TEST_CASE("mémoire du filament : enregistrement, date gardée tant que rien ne 
     const Record l = make_record(Record {}, 0, "ABCDEFGHIJKLMNOP", 1);
     CHECK(l.material.back() == '\0');
 }
+
+TEST_CASE("bobine qui convient au fichier : comme le contrôle de matière de Prusa") {
+    CHECK(material_fits("PETG", "PETG"));
+    CHECK_FALSE(material_fits("PETG", "PLA"));
+    CHECK_FALSE(material_fits("PETG", "---")); // emplacement sans matière
+    CHECK(material_fits("", "PLA")); // matière absente du fichier : pas de contrôle
+    CHECK(material_fits("---", "PLA"));
+}
+
+TEST_CASE("retour du 25/11 au soir : G-code mono-outil, emplacement 3 voulu, pas l'emplacement 1 de Prusa") {
+    // Emplacements 1 à 5 : PLA, PLA, PETG, ASA, PETG ; fichier PETG
+    const std::array<const char *, slots> spools { "PLA", "PLA", "PETG", "ASA", "PETG" };
+    const auto petg = [&](uint8_t s) { return material_fits("PETG", spools[s]); };
+    CHECK(single_tool_choice(uint8_t(2), petg) == 2); // l'emplacement 3 dans la buse : gardé, pas déchargé
+    CHECK(single_tool_choice(std::nullopt, petg) == 2); // buse vide : la 1re bobine de PETG, pas le PLA de l'emplacement 1
+    CHECK(single_tool_choice(uint8_t(4), petg) == 4); // l'autre PETG dans la buse : gardé aussi
+    CHECK(single_tool_choice(uint8_t(0), petg) == 2); // PLA dans la buse : déchargé, le PETG chargé
+    CHECK(single_tool_choice(uint8_t(no_slot), petg) == 2);
+    // Aucune bobine de la matière : l'emplacement 1, où Prusa et « Avant l'impression » signalent la différence
+    CHECK(single_tool_choice(uint8_t(2), [&](uint8_t s) { return material_fits("PC", spools[s]); }) == 0);
+    // Matière absente du fichier : le filament dans la buse, sinon l'emplacement 1 comme Prusa
+    const auto any = [&](uint8_t s) { return material_fits("", spools[s]); };
+    CHECK(single_tool_choice(uint8_t(3), any) == 3);
+    CHECK(single_tool_choice(std::nullopt, any) == 0);
+    // PLA dans le fichier et sur l'emplacement 1 : rien ne change par rapport à Prusa
+    CHECK(single_tool_choice(std::nullopt, [&](uint8_t s) { return material_fits("PLA", spools[s]); }) == 0);
+}

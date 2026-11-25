@@ -55,6 +55,15 @@ std::optional<uint8_t> loaded_slot() {
     });
 }
 
+uint8_t single_tool_slot(const char *file_material) {
+    if (!MMU2::mmu2.Enabled()) {
+        return 0; // MMU absent ou qui ne répond pas : l'outil unique de Prusa
+    }
+    return single_tool_choice(loaded_slot(), [&](uint8_t s) {
+        return material_fits(file_material, material_of(s).data());
+    });
+}
+
 namespace {
     std::atomic<bool> print_start_tool_change = false;
 }

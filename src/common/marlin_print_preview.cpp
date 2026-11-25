@@ -44,6 +44,7 @@
 #include <option/has_mmu2.h>
 #if HAS_MMU2()
     #include <feature/prusa/MMU2/mmu2_mk4.h>
+    #include <feature/od3d/filament_memory_od3d.hpp>
 #endif
 
 #include <option/has_selftest.h>
@@ -67,6 +68,25 @@
 namespace {
 /// OneDrop3D : ce départ vient de « Imprimer maintenant » (print_start_od3d.hpp), lu au début de l'aperçu
 bool od3d_auto_unload = false;
+
+#if HAS_MMU2()
+/// OneDrop3D : emplacement où l'impression commence quand le G-code n'utilise qu'un outil (association des outils
+/// comprise) ; nullopt s'il en utilise plusieurs ou si son outil n'est associé à aucun emplacement
+std::optional<uint8_t> od3d_only_slot() {
+    std::optional<uint8_t> slot;
+    for (auto gcode_tool : GcodeToolIndex::all()) {
+        if (!GCodeInfo::getInstance().get_extruder_info(gcode_tool).used()) {
+            continue;
+        }
+        const auto virtual_tool = stdext::get_optional<VirtualToolIndex>(gcode_tool.to_virtual());
+        if (slot || !virtual_tool) {
+            return std::nullopt;
+        }
+        slot = virtual_tool->to_raw();
+    }
+    return slot;
+}
+#endif
 } // namespace
 
 namespace {
@@ -245,15 +265,20 @@ IPrintPreview::State PrintPreview::stateFromFilamentPresence() const {
         // with MMU, its only possible to check that filament is properly unloaded, no check of filaments presence in each "tool"
         if (FSensors_instance().MMUReadyToPrint()) {
             return State::checks_done;
-        } else if (GCodeInfo::getInstance().is_singletool_gcode()
-            && FSensors_instance().WhereIsFilament() == MMU2::FilamentState::AT_FSENSOR
-            // only allow this shortcut print start if filament type is matching
-            && !report.failed(buddy::gcode_compatibility::VirtualToolCheck::filament_type) //
-        ) {
+        } else if (const auto only_slot = od3d_only_slot();
+                   FSensors_instance().WhereIsFilament() == MMU2::FilamentState::AT_FSENSOR
+                   // only allow this shortcut print start if filament type is matching
+                   && !report.failed(buddy::gcode_compatibility::VirtualToolCheck::filament_type)
+                   // OneDrop3D : seulement si le filament dans la buse est sûrement celui de l'emplacement où l'impression
+                   // commence. Prusa ne regardait pas lequel : le contrôle de matière portait sur l'outil associé (l'emplacement
+                   // 1 par défaut) et l'impression partait avec un autre filament, ou celui gardé par F43 était déchargé
+                   && only_slot && od3d::filament_memory::loaded_slot() == only_slot) {
             // beware: State::checks_done shows the toolmapping screen.
             // We don't want that in MMU mode printing a single material gcode with filament already loaded in the nozzle.
             // In such a case we want to avoid toolmapping and start the print right away instead -> set State::done and not checks_done
-            return State::done;
+            // OneDrop3D : G-code multi-matériaux d'un seul outil : ses contrôles et son association (checks_done), puis son
+            // T du départ garde le filament (F43, MMU2::tool_change), sans « Décharger le filament maintenant ? »
+            return GCodeInfo::getInstance().is_singletool_gcode() ? State::done : State::checks_done;
         } else {
             // Request removal of the inserted filament, esp. when:
             // - starting a multi-material print
@@ -940,6 +965,22 @@ IPrintPreview::State PrintPreview::stateFromPrinterCheck() {
             single.has_value() && single->to_raw() != 0) {
             tool_mapper.reset();
             tool_mapper.set_mapping(GcodeToolIndex::from_raw(0), *single);
+            tool_mapper.set_enable(true);
+        }
+    }
+#endif
+
+#if HAS_MMU2()
+    // OneDrop3D : « Imprimer maintenant » d'un G-code mono-outil (préréglage d'imprimante sans MMU3 dans PrusaSlicer) :
+    // son T0 sur l'emplacement que montre « Avant l'impression » (filament chargé ou bobine de la même matière), pas
+    // l'emplacement 1 de Prusa quelle que soit sa bobine. Échangé avec l'outil du G-code de cet emplacement : chaque
+    // emplacement garde un outil, le M702 de mmu_filament_inserted_wait_user retrouve celui du filament à décharger
+    if (od3d_auto_unload && !tool_mapper.is_enabled() && GCodeInfo::getInstance().is_singletool_gcode()) {
+        const uint8_t slot = od3d::filament_memory::single_tool_slot(GCodeInfo::getInstance().get_extruder_info(GcodeToolIndex::from_raw(0)).filament_name.data());
+        if (slot != 0) {
+            tool_mapper.reset();
+            tool_mapper.set_mapping(GcodeToolIndex::from_raw(0), VirtualToolIndex::from_raw(slot));
+            tool_mapper.set_mapping(GcodeToolIndex::from_raw(slot), VirtualToolIndex::from_raw(0));
             tool_mapper.set_enable(true);
         }
     }

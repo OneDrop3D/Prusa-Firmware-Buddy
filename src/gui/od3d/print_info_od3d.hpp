@@ -21,9 +21,12 @@ struct FileInfo {
     std::array<std::array<char, 8>, max_tools> types {}; ///< matière par outil (« PLA »)
     std::array<int16_t, max_tools> nozzle {}; ///< température de buse par outil (« temperature », hors 1re couche) [°C] ; 0 : absente
     uint8_t used = 0; ///< bit i : l'outil i sert (au moins 0,0003 g, comme GCodeInfo::ExtruderInfo::used)
+    uint8_t given = 0; ///< outils listés dans « filament used [g] »
 
     float total_grams() const;
     bool is_used(uint8_t tool) const { return used & (1 << tool); }
+    /// G-code mono-outil (comme GCodeInfo::is_singletool_gcode) : un seul outil listé, le T0, utilisé
+    bool single_tool() const { return given == 1 && is_used(0); }
 };
 
 /// Prend une ligne « nom = valeur » des métadonnées ; les autres noms sont ignorés

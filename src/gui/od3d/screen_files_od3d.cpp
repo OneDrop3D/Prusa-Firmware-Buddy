@@ -27,6 +27,7 @@
     #include <feature/od3d/spool_calib_od3d.hpp>
 #endif
 #if HAS_MMU2()
+    #include <feature/od3d/filament_memory_od3d.hpp>
     #include <feature/od3d/spool_usage_od3d.hpp>
 #endif
 #include <gcode/gcode_reader_any.hpp>
@@ -174,6 +175,17 @@ namespace {
     bool can_print() {
         // Comme le serveur : un nouveau départ est accepté aussi après une impression finie ou arrêtée
         return marlin_vars().media_inserted && !marlin_client::is_printing();
+    }
+
+    /// Emplacement de l'outil t du fichier. Un G-code mono-outil n'en nomme aucun : son T0 s'imprime sur celui que
+    /// « Imprimer maintenant » lui associe (filament_memory::single_tool_slot), pas forcément l'emplacement 1
+    uint8_t slot_of([[maybe_unused]] const FileInfo &info, uint8_t t) {
+#if HAS_MMU2()
+        if (t == 0 && info.single_tool()) {
+            return filament_memory::single_tool_slot(info.types[0].data());
+        }
+#endif
+        return t;
     }
 
     /// « Maillage » de l'« Avant l'impression » ouvert : true repris, false palpé en entier ; nullopt s'il n'est pas proposé
@@ -699,7 +711,7 @@ void FileTile::unconditionalDraw() {
         size_t i = 4;
         for (uint8_t t = 0; t < print_info::max_tools; ++t) {
             if (info.is_used(t)) {
-                spool::Look look = Slot::read(t).look;
+                spool::Look look = Slot::read(slot_of(info, t)).look;
                 look.fill_percent = 100;
                 draw_spool({ parts[i].Left(), parts[i].Top() }, look, d, bg);
                 ++i;
@@ -1511,17 +1523,18 @@ void ScreenPreview::draw_column(Rect16 area) {
         if (!info.is_used(t)) {
             continue;
         }
-        const Slot slot = Slot::read(t);
+        const uint8_t s = slot_of(info, t);
+        const Slot slot = Slot::read(s);
         draw_spool({ parts[i].Left(), parts[i].Top() }, slot.look, 16, style::screen);
-        snprintf(text.data(), text.size(), "%d%s%s", t + 1, dot, slot.material.data());
+        snprintf(text.data(), text.size(), "%d%s%s", s + 1, dot, slot.material.data());
         draw_text(parts[i + 1], string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
         // PA : la valeur mesurée ; « PA ? » en jaune si le PA de l'imprimante prime et qu'il manque (sinon le
         // trancheur décide : rien)
         Color pa_color = style::text_muted;
 #if HAS_LOADCELL() && HAS_MMU2() // INDX : pas de PA mesuré par tête
-        if (const auto k = pa::k_for_slot(t)) {
+        if (const auto k = pa::k_for_slot(s)) {
             snprintf(text.data(), text.size(), "%.3f", double(*k));
-        } else if (pa::needs_measure(t) && slot.look.filament) {
+        } else if (pa::needs_measure(s) && slot.look.filament) {
             strlcpy(text.data(), "PA ?", text.size());
             pa_color = style::warning;
         } else {
@@ -1532,7 +1545,7 @@ void ScreenPreview::draw_column(Rect16 area) {
 #endif
         draw_text(parts[i + 2], string_view_utf8::MakeRAM(text.data()), Font::small, pa_color, style::screen);
 #if HAS_MMU2() // F13 : poids des bobines du MMU
-        const auto usage = spool_usage::report(t);
+        const auto usage = spool_usage::report(s);
         const bool too_little = usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g);
 #else
         constexpr bool too_little = false;
@@ -1551,14 +1564,16 @@ void ScreenPreview::draw_alerts(Rect16 area) {
         if (!info.is_used(t)) {
             continue;
         }
-        const Slot slot = Slot::read(t);
+        // Indices des alertes : l'outil du fichier ; slot_of donne son emplacement (bobine, PA, mesures, numéro affiché)
+        const uint8_t s = slot_of(info, t);
+        const Slot slot = Slot::read(s);
 #if HAS_LOADCELL() && HAS_MMU2()
-        if (pa_missing < 0 && !pa::k_for_slot(t) && pa::needs_measure(t) && slot.look.filament) {
+        if (pa_missing < 0 && !pa::k_for_slot(s) && pa::needs_measure(s) && slot.look.filament) {
             pa_missing = t;
         }
 #endif
 #if HAS_MMU2() // F13 : poids des bobines du MMU
-        if (const auto usage = spool_usage::report(t); shortage < 0 && usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g)) {
+        if (const auto usage = spool_usage::report(s); shortage < 0 && usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g)) {
             shortage = t;
             shortage_left = usage->remaining_g;
         }
@@ -1569,7 +1584,7 @@ void ScreenPreview::draw_alerts(Rect16 area) {
         }
 #if HAS_LOADCELL() && HAS_MMU2()
         // F6 : le fichier imprime cette bobine sous la température minimale mesurée (même buse, même matière)
-        if (too_cold < 0 && slot.look.filament && calib::below_min_temperature(info.nozzle[t], calib::record(t))) {
+        if (too_cold < 0 && slot.look.filament && calib::below_min_temperature(info.nozzle[t], calib::record(s))) {
             too_cold = t;
         }
 #endif
@@ -1583,20 +1598,20 @@ void ScreenPreview::draw_alerts(Rect16 area) {
     string_view_utf8 warnings[4];
     int count = 0;
     if (shortage >= 0) {
-        warnings[count++] = _("Slot %d: %d g needed, about %d g left").formatted(shortage_params, shortage + 1, int(std::lround(info.grams[shortage])), int(shortage_left));
+        warnings[count++] = _("Slot %d: %d g needed, about %d g left").formatted(shortage_params, slot_of(info, shortage) + 1, int(std::lround(info.grams[shortage])), int(shortage_left));
     }
     if (mismatch >= 0) {
         // La matière de la bobine posée sur l'emplacement, pas ce qui est dans la buse (« chargé » se lisait ainsi, 25/11)
-        warnings[count++] = _("Slot %d: %s in the file, %s spool").formatted(mismatch_params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
+        warnings[count++] = _("Slot %d: %s in the file, %s spool").formatted(mismatch_params, slot_of(info, mismatch) + 1, info.types[mismatch].data(), mismatch_slot.material.data());
     }
 #if HAS_LOADCELL() && HAS_MMU2()
     if (too_cold >= 0) {
-        warnings[count++] = _("Slot %d: %d° requested, measured minimum %d°").formatted(cold_params, too_cold + 1, int(info.nozzle[too_cold]), int(calib::record(too_cold).min_temperature));
+        warnings[count++] = _("Slot %d: %d° requested, measured minimum %d°").formatted(cold_params, slot_of(info, too_cold) + 1, int(info.nozzle[too_cold]), int(calib::record(slot_of(info, too_cold)).min_temperature));
     }
 #endif
     if (pa_missing >= 0) {
         // F4 : « PA à mesurer » ; le M572 du trancheur reste utilisé pour cet emplacement
-        warnings[count++] = _("Slot %d: PA to measure (slicer value used)").formatted(pa_params, pa_missing + 1);
+        warnings[count++] = _("Slot %d: PA to measure (slicer value used)").formatted(pa_params, slot_of(info, pa_missing) + 1);
     }
     count = std::min(count, 2); // deux lignes au plus : les alertes de filament d'abord
     // Le bandeau entier d'une passe : le fond seul, une alerte sur deux lignes, ou deux d'une ligne

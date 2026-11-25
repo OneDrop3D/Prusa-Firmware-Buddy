@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 namespace od3d::filament_memory {
 
@@ -162,6 +163,29 @@ constexpr StartLoad start_load(uint8_t requested, uint8_t prusa_slot, uint8_t ch
     // Filament inconnu vu par un capteur : à décharger, comme Prusa le faisait à l'arrêt (sinon le MMU attend en vain
     // que l'extrudeur le relâche, ou le croit déjà là si c'est le même emplacement)
     return prusa_slot < slots || finda || extruder ? StartLoad::unload_first : StartLoad::load;
+}
+
+/// La bobine (matière de l'emplacement) convient à la matière du fichier, comme le contrôle de Prusa
+/// (CompatibilityReport, VirtualToolCheck::filament_type) : même nom, ou matière absente du fichier (vide ou « --- »)
+constexpr bool material_fits(std::string_view file_material, std::string_view spool_material) {
+    return file_material.empty() || file_material == "---" || file_material == spool_material;
+}
+
+/// G-code mono-outil (préréglage d'imprimante sans MMU3 dans PrusaSlicer) : il n'a qu'un T0 et ne dit pas sur quel
+/// emplacement l'imprimer ; Prusa prend l'emplacement 1 et compare sa bobine. On prend l'emplacement chargé dans la buse
+/// (sûr, loaded_slot) si sa bobine convient, sinon le premier dont la bobine convient (le 1er d'abord, comme Prusa),
+/// sinon le 1er, où la différence est signalée. fits(s) : la bobine de l'emplacement s convient (material_fits)
+template <class Fits>
+constexpr uint8_t single_tool_choice(std::optional<uint8_t> loaded, Fits &&fits) {
+    if (loaded && *loaded < slots && fits(*loaded)) {
+        return *loaded;
+    }
+    for (uint8_t s = 0; s < slots; ++s) {
+        if (fits(s)) {
+            return s;
+        }
+    }
+    return 0;
 }
 
 } // namespace od3d::filament_memory

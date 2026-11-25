@@ -51,6 +51,7 @@ void parse_metadata(FileInfo &info, std::string_view name, std::string_view valu
             if (info.grams[i] > 0.0003f) {
                 info.used |= 1 << i;
             }
+            info.given = uint8_t(i + 1);
         });
     } else if (name == "filament used [mm]") {
         info.millimeters = 0;

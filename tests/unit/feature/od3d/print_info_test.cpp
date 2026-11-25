@@ -134,3 +134,17 @@ TEST_CASE("od3d files: the folder window is borrowed before the thumbnails (P-04
     plan = plan_caches(60000, reserve, folder, 0, 0);
     CHECK((plan.folder && !plan.infos && plan.thumbs == 0));
 }
+
+TEST_CASE("métadonnées : G-code mono-outil ou multi-matériaux (préréglage d'imprimante de PrusaSlicer)") {
+    FileInfo single; // préréglage sans MMU3 : un seul outil listé
+    parse_metadata(single, "filament used [g]", "12.30");
+    CHECK(single.single_tool());
+
+    FileInfo slot3; // préréglage MMU3, objet sur l'extrudeur 3 : les cinq listés
+    parse_metadata(slot3, "filament used [g]", "0.00, 0.00, 12.30, 0.00, 0.00");
+    CHECK_FALSE(slot3.single_tool());
+    FileInfo slot1;
+    parse_metadata(slot1, "filament used [g]", "12.30, 0.00, 0.00, 0.00, 0.00");
+    CHECK_FALSE(slot1.single_tool());
+    CHECK_FALSE(FileInfo {}.single_tool()); // métadonnées absentes
+}

@@ -25,6 +25,11 @@ namespace od3d::filament_memory {
 /// l'outil unique sauf si la tête voit qu'il n'y a rien. Lisible de toute tâche
 std::optional<uint8_t> loaded_slot();
 
+/// Emplacement où imprimer le T0 d'un G-code mono-outil de matière file_material (single_tool_choice), MMU actif ;
+/// l'emplacement 1 sinon. « Avant l'impression » le montre, « Imprimer maintenant » y associe le T0
+/// (marlin_print_preview). Lisible de toute tâche
+uint8_t single_tool_slot(const char *file_material);
+
 /// Boucle de Marlin (marlin_server, idle) : décision au démarrage du MMU, puis mémoire tenue à jour
 void step();
 

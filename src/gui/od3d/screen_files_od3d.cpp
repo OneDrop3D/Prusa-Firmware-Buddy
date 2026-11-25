@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <bit>
-#include <buddy/fatfs.h>
 #include <cmath>
 #include <common/marlin_vars.hpp>
 #include <common/thumbnail_sizes.hpp>
@@ -52,6 +51,12 @@
 #if HAS_TOUCH()
     #include <hw/touchscreen/touchscreen.hpp>
 #endif
+
+// FatFS et dirent.h (lazyfilelist) déclarent chacun un DIR : celui de FatFS est renommé, seul le montage est lu ici (comme
+// l'accueil)
+#define DIR FATFS_DIR
+#include <buddy/fatfs.h>
+#undef DIR
 
 // Durées des lectures de la clé, en ms (M331 od3d_files pour les activer) : dir = liste du dossier, info = métadonnées
 // d'un fichier (ouverture comprise), thumb = vignette (de l'ouverture du fichier à sa dernière bande, pauses comprises),

@@ -592,21 +592,20 @@ float k_from_e4(uint16_t e4) {
     return e4 == k_none ? NAN : float(e4) * 1e-4f;
 }
 
-uint8_t slots_to_measure(AutoMode mode, uint8_t used, uint8_t known, uint8_t has_k) {
-    const uint8_t candidates = used & known;
-    switch (mode) {
-    case AutoMode::off:
-        return 0;
-    case AutoMode::first_print:
-        return candidates & uint8_t(~has_k);
-    case AutoMode::every_print:
-        return candidates;
+AutoChoice auto_choice(AutoMode mode, uint8_t used, uint8_t settled, std::optional<uint8_t> first) {
+    AutoChoice c;
+    if (mode == AutoMode::off) {
+        return c;
     }
-    return 0;
+    c.uncalibrated = uint8_t(used & ~settled);
+    if (first && *first < 8 && c.uncalibrated == uint8_t(1u << *first)) {
+        c.slot = first;
+    }
+    return c;
 }
 
 std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern::Rect &print, float w, float h, std::span<const float> xs,
-    std::span<const float> ys, float grow_x, float grow_y, float clearance, std::span<const pattern::Rect> taken) {
+    std::span<const float> ys, float grow_x, float grow_y, float clearance) {
     constexpr pattern::Rect purge_probe { 150.f, 0.f, 250.f, 20.f };
     const pattern::Rect kept = print.grown(clearance, clearance);
     const pattern::Rect kept_purge = purge_probe.grown(clearance, clearance);
@@ -618,7 +617,6 @@ std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern:
     };
     const auto is_free = [&](const pattern::Rect &r) {
         return !pattern::overlaps(r, kept) && !pattern::overlaps(r, kept_purge)
-            && std::none_of(taken.begin(), taken.end(), [&](const pattern::Rect &t) { return pattern::overlaps(r, t.grown(clearance, clearance)); })
             && !(near(xs, probed.x0, probed.x1, r.x0, r.x1) && near(ys, probed.y0, probed.y1, r.y0, r.y1));
     };
     if (!(w > 0.f) || !(h > 0.f) || w > zone.width() || h > zone.height()) {
@@ -646,9 +644,6 @@ std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern:
         };
         consider(kept.x1);
         consider(kept_purge.x1);
-        for (const pattern::Rect &t : taken) {
-            consider(t.x1 + clearance);
-        }
         for (const float x : xs) {
             consider(x + clearance);
         }
@@ -659,23 +654,14 @@ std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern:
     return std::nullopt;
 }
 
-size_t auto_spots(std::span<pattern::Rect> out, uint8_t &along_y, const pattern::Rect &zone, const pattern::Rect &print, float w, float h,
+std::optional<pattern::Rect> auto_place(bool &along_y, const pattern::Rect &zone, const pattern::Rect &print, float w, float h,
     std::span<const float> xs, std::span<const float> ys, float grow_x, float grow_y, float clearance) {
-    along_y = 0;
-    size_t n = 0;
-    for (; n < out.size() && n < 8; ++n) {
-        const std::span<const pattern::Rect> taken(out.data(), n);
-        auto r = auto_spot(zone, print, w, h, xs, ys, grow_x, grow_y, clearance, taken);
-        if (!r) {
-            r = auto_spot(zone, print, h, w, xs, ys, grow_x, grow_y, clearance, taken);
-            if (!r) {
-                break; // blocs de même taille : les suivants ne tiendraient pas non plus
-            }
-            along_y |= uint8_t(1u << n);
-        }
-        out[n] = *r;
+    along_y = false;
+    if (const auto r = auto_spot(zone, print, w, h, xs, ys, grow_x, grow_y, clearance)) {
+        return r;
     }
-    return n;
+    along_y = true;
+    return auto_spot(zone, print, h, w, xs, ys, grow_x, grow_y, clearance);
 }
 
 namespace {
@@ -748,14 +734,6 @@ bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament,
     size_t n = 0;
     return (!filament || ((!level_first || append(out, n, "M1994 A2\n")) && load_line(out, n, slot, filament) && append(out, n, "\n")))
         && append(out, n, "M1994 P%u A1", unsigned(slot));
-}
-
-bool auto_restore_sequence(std::span<char> out, std::optional<uint8_t> initial, std::optional<uint8_t> loaded, const char *filament) {
-    size_t n = 0;
-    if (initial == loaded) {
-        return append(out, n, "%s", "");
-    }
-    return initial ? load_line(out, n, *initial, filament) : append(out, n, "%sM702 W2", park);
 }
 
 } // namespace od3d::pa

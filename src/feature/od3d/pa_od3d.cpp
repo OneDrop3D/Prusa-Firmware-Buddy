@@ -47,6 +47,7 @@
 #include <tool/hotend/hotend.hpp>
 #include <tool_index.hpp>
 #include <utils/string_builder.hpp>
+#include <utils/variant_utils.hpp>
 
 METRIC_DEF(metric_od3d_pa, "od3d_pa", METRIC_VALUE_CUSTOM, 0, METRIC_DISABLED);
 
@@ -957,8 +958,8 @@ void set_large_pattern(bool set) {
 }
 
 AutoMode auto_mode() {
-    const uint8_t v = config_store().od3d_pa_auto.get();
-    return v < auto_mode_count ? AutoMode(v) : AutoMode::off;
+    // L'ancien « à chaque impression » (2) suit la même règle : jamais une couleur qui a déjà un K
+    return config_store().od3d_pa_auto.get() ? AutoMode::first_print : AutoMode::off;
 }
 
 void set_auto_mode(AutoMode mode) {
@@ -970,99 +971,61 @@ void set_auto_mode(AutoMode mode) {
 
 namespace {
 
-    /// Mesure automatique en cours : décidée par M1994 A, faite étape par étape (chargement de Prusa, puis M1994 P<n> A1)
+    /// Mesure automatique en cours : une seule bobine, celle de la première couche (auto_choice()), décidée par M1994 A,
+    /// palpage de son bloc avant un chargement (M1994 A2), puis sa mesure (M1994 P<n> A1)
     struct AutoPlan {
-        std::array<uint8_t, VirtualToolIndex::count> order {}; ///< emplacements à mesurer, dans l'ordre
-        uint8_t count = 0;
-        uint8_t next = 0; ///< prochaine étape
-        std::optional<uint8_t> initial; ///< filament laissé dans la buse à la fin (mesuré en dernier s'il l'est)
-        std::array<pattern::Rect, VirtualToolIndex::count> blocks {}; ///< place du bloc de chaque étape
-        uint8_t along_y = 0; ///< bit i : bloc de l'étape i tourné de 90° (lignes parallèles à Y)
-        pattern::Rect area {}; ///< rectangle qui contient tous les blocs : palpé une fois
+        uint8_t slot = 0; ///< bobine mesurée ; elle reste dans la buse pour l'impression
+        pattern::Rect block {}; ///< place de son bloc (purge, puis lignes), palpée
+        bool along_y = false; ///< bloc tourné de 90° (lignes parallèles à Y)
         int16_t bed = 0;
         int16_t nozzle = 0; ///< buse : première couche du fichier pour une impression d'une seule matière ; 0 : celle de la matière
         int16_t probe = 0; ///< buse pendant le palpage
-        bool leveled = false; ///< zone palpée par une étape précédente (maillage en mémoire)
-        bool skip = false; ///< « Passer » pendant le palpage d'avant le premier chargement (M1994 A2)
+        bool leveled = false; ///< bloc palpé (maillage en mémoire)
+        bool skip = false; ///< « Passer » pendant le palpage d'avant le chargement (M1994 A2)
         bool active = false;
     };
     AutoPlan plan;
 
-    /// Lignes de l'étape i (un bloc par emplacement : purge, puis lignes), dans son bloc ; tourné : X et Y échangés
-    /// autour du départ des lignes (pattern::Lines::at())
-    pattern::Lines auto_lines_of(size_t i, uint8_t slot) {
-        const pattern::Rect one = auto_block(slot);
-        const pattern::Rect &b = plan.blocks[i];
-        const bool along_y = plan.along_y & (1u << i);
-        pattern::Lines lines = along_y ? lines_for(auto_request(slot), compact_cap, b.x0 + auto_lead, b.y0 - one.x0)
-                                       : lines_for(auto_request(slot), compact_cap, b.x0 - one.x0, b.y0 + auto_lead);
-        lines.along_y = along_y;
+    /// Lignes de la mesure, dans le bloc ; tourné : X et Y échangés autour du départ des lignes (pattern::Lines::at())
+    pattern::Lines auto_lines() {
+        const pattern::Rect one = auto_block(plan.slot);
+        const pattern::Rect &b = plan.block;
+        pattern::Lines lines = plan.along_y ? lines_for(auto_request(plan.slot), compact_cap, b.x0 + auto_lead, b.y0 - one.x0)
+                                            : lines_for(auto_request(plan.slot), compact_cap, b.x0 - one.x0, b.y0 + auto_lead);
+        lines.along_y = plan.along_y;
         return lines;
     }
 
-    /// Départ de la ligne de purge d'un bloc (sous les lignes, dans leur sens)
+    /// Départ de la ligne de purge du bloc (sous les lignes, dans leur sens)
     pattern::Point auto_purge_point(const pattern::Lines &lines) {
         return lines.at(lines.x0, lines.y0 - auto_purge_gap);
     }
 
-    /// Place du chargement de l'étape i, dans son bloc (palpé) : au départ de sa ligne de purge, que la purge emporte en
-    /// partant (buse à purge_z au-dessus, puis descente en s'en éloignant) ; after_purge (filament remis à la fin) :
-    /// après la fin de la purge déjà faite, sous les lignes, dans le bloc
-    session::LoadSpot auto_load_spot(size_t i, bool after_purge = false) {
-        const pattern::Lines lines = auto_lines_of(i, plan.order[i]);
-        const float along = after_purge ? std::min(session::purge_length + 8.f, lines.length + lines.marks - 4.f) : 0.f;
-        const pattern::Point p = lines.at(lines.x0 + std::max(0.f, along), lines.y0 - auto_purge_gap);
+    /// Place du chargement, dans le bloc palpé : au départ de sa ligne de purge, que la purge emporte en partant (buse à
+    /// purge_z au-dessus, puis descente en s'en éloignant)
+    session::LoadSpot auto_load_spot() {
+        const pattern::Point p = auto_purge_point(auto_lines());
         return { p.x, p.y, session::load_z };
     }
 
-    /// L'impression continue (pas d'arrêt en cours) : la mesure automatique peut mettre la suite en file
+    /// L'impression continue (pas d'arrêt en cours)
     bool print_goes_on() {
         return marlin_server::is_printing() && !marlin_server::aborting_or_aborted();
     }
 
-    /// Met en file l'étape suivante avant le reste de l'impression ; après la dernière, le filament remis comme au départ
-    void auto_next() {
-        char filament[16];
-        bool ok;
-        // Chaque chargement (et le déchargement de la fin) se pose sur une place palpée de son bloc, pas en l'air
-        // (retour du 24/11) ; avant le premier, le plateau est palpé à part (M1994 A2, qui pose la place)
-        std::optional<session::LoadSpot> spot;
-        if (plan.next < plan.count) {
-            const uint8_t slot = plan.order[plan.next];
-            const bool load = loaded_slot() != slot;
-            ok = auto_step_sequence(sequence, slot, load ? filament_param(slot, filament) : nullptr, load && !plan.leveled);
-            if (load && plan.leveled) {
-                spot = auto_load_spot(plan.next);
-            }
-        } else {
-            plan.active = false;
-            start_hold = { .active = plan.leveled }; // la buse est chaude : le G-code de départ ne la fait pas redescendre
-            ok = auto_restore_sequence(sequence, plan.initial, loaded_slot(), plan.initial ? filament_param(*plan.initial, filament) : "");
-            if (plan.initial != loaded_slot() && plan.leveled && plan.count) {
-                spot = auto_load_spot(plan.count - 1, true);
-            }
-        }
-        session::set_load_spot(ok ? spot : std::nullopt);
-        if (!ok || !inject_sequence()) {
-            session::set_load_spot(std::nullopt);
-            plan.active = false; // file d'injection pleine : l'impression continue avec le PA du trancheur
-            log_slot(plan.next < plan.count ? plan.order[plan.next] : 0xff, Error::mmu);
-        }
-    }
-
-    /// Mesure de l'emplacement slot (étape i), filament dans la buse ; stopped : « Passer », pause ou arrêt
-    Error measure_auto_slot(uint8_t slot, size_t i, bool &stopped) {
-        const Request rq = auto_request(slot);
-        const pattern::Lines lines = auto_lines_of(i, slot);
-        Temperatures t = temperatures_for(auto_type(slot).parameters(), plan.nozzle, plan.bed);
+    /// Mesure de la bobine du plan, dans la buse ; stopped : « Passer », pause ou arrêt
+    Error measure_auto_slot(bool &stopped) {
+        const Request rq = auto_request(plan.slot);
+        const pattern::Lines lines = auto_lines();
+        Temperatures t = temperatures_for(auto_type(plan.slot).parameters(), plan.nozzle, plan.bed);
         t.probe = plan.probe;
         st_temperature = t.nozzle;
 
         // Réglages remis à la fin ; « Passer » sur l'écran Impression arrête la mesure, l'impression continue
         session::Session session(stop_requested, true);
         fast_moves(rq.params);
-        // Maillage palpé par une étape précédente de cette impression, gardé en mémoire : pas de palpage, la buse monte
-        // déjà pendant le plateau ; sinon (1re étape, origine perdue, maillage refusé) départ complet
+        // Bloc palpé avant le chargement (M1994 A2), maillage gardé en mémoire : pas de palpage, la buse monte déjà
+        // pendant le plateau ; sinon (bobine déjà dans la buse, origine perdue, maillage refusé) départ complet
         Error e = Error::none;
         bool reuse = plan.leveled && !axes_need_homing();
         if (reuse) {
@@ -1074,7 +1037,7 @@ namespace {
             }
         }
         if (e == Error::none && !reuse) {
-            e = prepare_bed(session, plan.area, t);
+            e = prepare_bed(session, plan.block, t);
             plan.leveled = e == Error::none;
         }
 
@@ -1095,6 +1058,30 @@ namespace {
         return e;
     }
 
+    /// Emplacement de la première couche : celui de l'outil de départ (premier T du fichier, T[initial_tool] du G-code de
+    /// départ de PrusaSlicer), sinon celui de la seule couleur d'un fichier sans T ; après la correspondance des outils
+    std::optional<uint8_t> first_layer_slot(uint8_t used) {
+        if (const std::optional<uint8_t> tool = GCodeInfo::getInstance().get_first_tool()) {
+            if (*tool < GcodeToolIndex::count) {
+                if (const auto virtual_tool = stdext::get_optional<VirtualToolIndex>(GcodeToolIndex::from_raw(*tool).to_virtual())) {
+                    return virtual_tool->to_raw();
+                }
+            }
+            return std::nullopt;
+        }
+        return std::popcount(used) == 1 ? std::optional<uint8_t>(uint8_t(std::countr_zero(used))) : std::nullopt;
+    }
+
+    /// Dit une fois pourquoi la règle ne mesure rien : plusieurs couleurs à calibrer, ou la seule hors de la première couche
+    void tell_not_measured(uint8_t uncalibrated) {
+        StringViewUtf8Parameters<16> params;
+        if (const int n = std::popcount(uncalibrated); n > 1) {
+            tell(_("PA not measured: %d colors to calibrate, measure them on their sheets").formatted(params, n));
+        } else if (n == 1) {
+            tell(_("PA not measured: slot %d not on the 1st layer, see its sheet").formatted(params, std::countr_zero(uncalibrated) + 1));
+        }
+    }
+
 } // namespace
 
 void calibrate_auto() {
@@ -1104,10 +1091,8 @@ void calibrate_auto() {
         return;
     }
 
-    // Emplacements de l'impression (après la correspondance des outils), matière connue, K déjà là
-    uint8_t used = 0, known = 0, has_k = 0;
-    // Une seule matière dans le fichier : sa température de première couche vaut pour la mesure (F4-b ; le fichier ne
-    // donne pas la température de chaque outil)
+    // Emplacements de l'impression (après la correspondance des outils) ; une seule matière dans le fichier : sa
+    // température de première couche vaut pour la mesure (F4-b ; le fichier ne donne pas la température de chaque outil)
     struct {
         uint8_t used = 0;
         const char *material = nullptr;
@@ -1120,162 +1105,118 @@ void calibrate_auto() {
         scan.single_material = scan.single_material && (!scan.material || info.filament_name == scan.material);
         scan.material = info.filament_name.data();
     });
-    used = scan.used;
-    const bool single_material = scan.single_material;
+    // Rien à mesurer pour une couleur qui a un K valable (même critère que « PA à mesurer » et l'assistant), ni pour un
+    // flexible (jamais mesuré, M-09)
+    uint8_t settled = 0;
     for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-        if (VirtualToolIndex::from_raw(slot).is_enabled() && auto_type(slot) && !flexible(slot)) { // M-09 : jamais un flexible
-            known |= uint8_t(1u << slot);
-        }
-        if (record(slot).has_k()) {
-            has_k |= uint8_t(1u << slot);
+        if (measured(slot) || flexible(slot)) {
+            settled |= uint8_t(1u << slot);
         }
     }
-    // Matière inconnue même du fichier : pas de température sûre, pas de mesure ; on le dit
-    const uint8_t unknown = uint8_t(slots_to_measure(mode, used, 0xff, has_k) & ~known);
-    for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-        if (unknown & (1u << slot)) {
-            report_slot(slot, Error::not_loaded);
-        }
-    }
-    const uint8_t todo = slots_to_measure(mode, used, known, has_k);
-    if (!todo) {
+    const AutoChoice choice = auto_choice(mode, scan.used, settled, first_layer_slot(scan.used));
+    if (!choice.slot) {
+        tell_not_measured(choice.uncalibrated);
         return;
     }
-    const auto skip_all = [&](Error e, const string_view_utf8 &message) {
-        for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-            if (todo & (1u << slot)) {
-                log_slot(slot, e);
-            }
-        }
+    const uint8_t slot = *choice.slot;
+    // Matière inconnue même du fichier : pas de température sûre, pas de mesure ; on le dit
+    if (!VirtualToolIndex::from_raw(slot).is_enabled() || !auto_type(slot)) {
+        report_slot(slot, Error::not_loaded);
+        return;
+    }
+    const auto skip = [slot](Error e, const string_view_utf8 &message) {
+        log_slot(slot, e);
         tell(message);
     };
     if (!mmu_ready()) {
-        skip_all(Error::mmu, _("PA not measured: MMU not ready"));
+        skip(Error::mmu, _("PA not measured: MMU not ready"));
         return;
     }
     const auto area = GCodeInfo::getInstance().get_bed_preheat_area(); // M555 du fichier, lu avant l'impression
     if (!area) {
-        skip_all(Error::no_area, _("PA not measured: no print area in the G-code"));
+        skip(Error::no_area, _("PA not measured: no print area in the G-code"));
         return;
     }
 
-    // Ordre : en dernier, celle qui doit rester dans la buse : la bobine d'une impression d'une seule matière (le T du
-    // G-code de départ la reprend telle quelle : ni déchargement ni rechargement après la mesure, retour du 24/11 :
-    // « après le PA [...] le décharge puis le recharge »), sinon celle chargée au départ (elle est remise à la fin)
-    const std::optional<uint8_t> initial = std::popcount(used) == 1 ? std::optional<uint8_t>(uint8_t(std::countr_zero(used))) : loaded_slot();
-    std::array<uint8_t, VirtualToolIndex::count> order;
-    size_t count = 0;
-    for (uint8_t slot = 0; slot < VirtualToolIndex::count; ++slot) {
-        if ((todo & (1u << slot)) && initial != slot) {
-            order[count++] = slot;
-        }
-    }
-    if (initial && (todo & (1u << *initial))) {
-        order[count++] = *initial;
-    }
-
-    // Place : un bloc par emplacement (purge, puis lignes), chacun à sa place libre autour de la pièce (tourné de 90°
-    // s'il ne tient pas droit), autant d'emplacements qu'il en tient (demande du 24/11)
-    const pattern::Rect one = auto_block(order[0]);
+    // Place du bloc (purge, puis lignes) libre autour de la pièce, tourné de 90° s'il ne tient pas droit
+    const pattern::Rect one = auto_block(slot);
     std::array<float, 2 * GRID_MAX_POINTS_X> xs; // M1994 A n'attend rien : pas besoin de mémoire statique
     std::array<float, 2 * GRID_MAX_POINTS_Y> ys;
     const size_t nx = major_points(xs, GRID_MAX_POINTS_X, unified_bed_leveling::mesh_index_to_xpos);
     const size_t ny = major_points(ys, GRID_MAX_POINTS_Y, unified_bed_leveling::mesh_index_to_ypos);
     const pattern::Rect print { area->a.x, area->a.y, area->b.x, area->b.y };
-    const size_t fitting = auto_spots(std::span(plan.blocks.data(), count), plan.along_y, session::printable_zone(), print, one.width(), one.y1,
-        std::span(xs.data(), nx), std::span(ys.data(), ny), MESH_X_DIST * GRID_MAJOR_STEP, MESH_Y_DIST * GRID_MAJOR_STEP);
-    if (fitting == 0) {
-        skip_all(Error::no_room, _("PA not measured: no room beside the print"));
+    const auto block = auto_place(plan.along_y, session::printable_zone(), print, one.width(), one.y1, std::span(xs.data(), nx), std::span(ys.data(), ny),
+        MESH_X_DIST * GRID_MAJOR_STEP, MESH_Y_DIST * GRID_MAJOR_STEP);
+    if (!block) {
+        skip(Error::no_room, _("PA not measured: no room beside the print"));
         return;
-    }
-    for (size_t i = fitting; i < count; ++i) {
-        report_slot(order[i], Error::no_room); // pas la place pour tous : à la prochaine impression
     }
 
     // Températures de l'impression : plateau du fichier (M140), buse du fichier pour une seule matière (sinon celle de
-    // chaque matière), buse de palpage la plus basse ; un seul palpage pour tous les blocs
-    plan.probe = session::max_temperature;
-    plan.area = plan.blocks[0];
-    for (size_t i = 0; i < fitting; ++i) {
-        plan.order[i] = order[i];
-        plan.probe = std::min(plan.probe, temperatures_for(auto_type(order[i]).parameters(), 0, 0).probe);
-        const pattern::Rect &b = plan.blocks[i];
-        plan.area = { std::min(plan.area.x0, b.x0), std::min(plan.area.y0, b.y0), std::max(plan.area.x1, b.x1), std::max(plan.area.y1, b.y1) };
-    }
-    const FilamentTypeParameters first_material = auto_type(order[0]).parameters();
-    plan.bed = temperatures_for(first_material, 0, int16_t(GCodeInfo::getInstance().get_bed_preheat_temp().value_or(0))).bed;
-    plan.nozzle = single_material ? int16_t(GCodeInfo::getInstance().get_hotend_preheat_temp().value_or(0)) : 0;
-    plan.count = uint8_t(fitting);
-    plan.initial = initial;
+    // la matière), palpage à la température de palpage de la matière
+    const FilamentTypeParameters material = auto_type(slot).parameters();
+    plan.slot = slot;
+    plan.block = *block;
+    plan.probe = temperatures_for(material, 0, 0).probe;
+    plan.bed = temperatures_for(material, 0, int16_t(GCodeInfo::getInstance().get_bed_preheat_temp().value_or(0))).bed;
+    plan.nozzle = scan.single_material ? int16_t(GCodeInfo::getInstance().get_hotend_preheat_temp().value_or(0)) : 0;
     plan.active = true;
-    thermalManager.setTargetBed(plan.bed); // chaud entre les étapes : chacune remet cette consigne à sa fin
-    auto_next();
+    thermalManager.setTargetBed(plan.bed); // chauffe pendant le palpage et le chargement
+
+    // Bobine pas dans la buse : bloc palpé d'abord (M1994 A2), puis chargement de Prusa sur sa place palpée, pas en l'air
+    // (retour du 24/11) ; puis la mesure, avant les lignes du fichier
+    char filament[16];
+    const bool load = loaded_slot() != slot;
+    if (!auto_step_sequence(sequence, slot, load ? filament_param(slot, filament) : nullptr, load) || !inject_sequence()) {
+        plan.active = false; // file d'injection pleine : l'impression continue avec le PA du trancheur
+        log_slot(slot, Error::mmu);
+    }
 }
 
 void calibrate_auto_level() {
-    if (!plan.active || plan.leveled || plan.next >= plan.count || !print_goes_on()) {
+    if (!plan.active || plan.leveled || !print_goes_on()) {
         return;
     }
-    const uint8_t slot = plan.order[plan.next];
-    Temperatures t = temperatures_for(auto_type(slot).parameters(), plan.nozzle, plan.bed);
+    Temperatures t = temperatures_for(auto_type(plan.slot).parameters(), plan.nozzle, plan.bed);
     t.probe = plan.probe;
     stop_requested = false;
     running = true;
     ScopeGuard not_running = [] { running = false; };
-    begin(slot);
+    begin(plan.slot);
     {
         session::Session session(stop_requested, true);
-        plan.leveled = prepare_bed(session, plan.area, t) == Error::none;
+        plan.leveled = prepare_bed(session, plan.block, t) == Error::none;
         plan.skip = must_stop(); // avant la fin de la session (« Passer » n'est lu que pendant)
     }
-    // Palpage raté : le chargement se fait à la position de Prusa, l'étape refera le palpage complet
+    // Palpage raté : le chargement se fait à la position de Prusa, la mesure refera le palpage complet
     if (plan.leveled && !plan.skip) {
-        session::set_load_spot(auto_load_spot(plan.next));
+        session::set_load_spot(auto_load_spot());
     }
 }
 
 void calibrate_auto_step(uint8_t slot) {
-    if (!plan.active || plan.next >= plan.count || plan.order[plan.next] != slot) {
-        return; // pas l'étape attendue (G-code tapé à la main, impression d'avant)
+    if (!plan.active || plan.slot != slot) {
+        return; // pas la mesure attendue (G-code tapé à la main, impression d'avant)
     }
-    const size_t i = plan.next++;
+    plan.active = false;
+    session::set_load_spot(std::nullopt); // pas prise (chargement sauté) : ne servira pas à un chargement plus tard
     if (!print_goes_on()) {
-        // Impression arrêtée pendant le chargement : plus rien (Prusa s'occupe de la fin)
-        for (size_t j = i; j < plan.count; ++j) {
-            log_slot(plan.order[j], Error::stopped);
-        }
-        plan.active = false;
+        log_slot(slot, Error::stopped); // impression arrêtée pendant le chargement : Prusa s'occupe de la fin
         return;
     }
-
-    session::set_load_spot(std::nullopt); // pas prise (chargement sauté) : ne servira pas à un chargement plus tard
     stop_requested = false;
     running = true;
     ScopeGuard not_running = [] { running = false; ++runs; };
     begin(slot);
-    // « Passer » pendant le palpage d'avant le premier chargement : comme pendant la mesure
+    // « Passer » pendant le palpage d'avant le chargement : comme pendant la mesure
     bool stopped = plan.skip;
     // Chargement de Prusa déjà tenté : sans la bobine dans la buse, pas de seconde tentative
-    const Error e = stopped ? Error::stopped : loaded_slot() == slot ? measure_auto_slot(slot, i, stopped) : Error::load_failed;
+    const Error e = stopped ? Error::stopped : loaded_slot() == slot ? measure_auto_slot(stopped) : Error::load_failed;
     fail(e);
     report_slot(slot, e);
-
-    // Mesure ratée sur ses lignes : on passe à la suivante ; sinon (« Passer », chauffe, palpage, chargement) les
-    // emplacements restants gardent le PA du trancheur, et le filament est remis comme au départ
-    const bool next_slot = !stopped
-        && (e == Error::none || e == Error::weak_signal || e == Error::no_crossing || e == Error::too_few_points || e == Error::out_of_range
-            || e == Error::low_confidence);
-    if (!next_slot) {
-        for (size_t j = plan.next; j < plan.count; ++j) {
-            log_slot(plan.order[j], Error::stopped);
-        }
-        plan.next = plan.count;
-    }
-    if (print_goes_on()) {
-        auto_next();
-    } else {
-        plan.active = false;
-    }
+    // La bobine reste dans la buse : le T de départ du G-code la reprend telle quelle. La buse est chaude : le G-code de
+    // départ ne la fait pas redescendre pour le palpage (N-01, M-03)
+    start_hold = { .active = plan.leveled && print_goes_on() };
 }
 
 } // namespace od3d::pa

@@ -147,6 +147,9 @@ private:
         std::optional<uint16_t> bed_preheat_temp { std::nullopt }; ///< Holds bed preheat temperature
         std::optional<PrintArea::rect_t> bed_preheat_area { std::nullopt }; ///< Holds bed preheat area
         std::optional<uint16_t> hotend_preheat_temp { std::nullopt }; ///< Holds hotend preheat temperatureF
+        /// OneDrop3D : first T of the G-code (initial tool, the one that starts the first layer: PrusaSlicer's
+        /// T[initial_tool] in the start G-code)
+        std::optional<uint8_t> first_tool { std::nullopt };
 #if EXTRUDERS > 1
         std::optional<uint16_t> total_toolchanges { std::nullopt }; ///< Total number of toolchanges over the whole print (INDX nozzle-cleaner wastebin fill estimation)
 #endif
@@ -197,6 +200,7 @@ public:
     const std::optional<uint16_t> &get_bed_preheat_temp() const { return info_.bed_preheat_temp; } ///< Get info about bed preheat temperature
     const std::optional<PrintArea::rect_t> &get_bed_preheat_area() const { return info_.bed_preheat_area; } ///< Get info about G-preheat area
     inline const std::optional<uint16_t> &get_hotend_preheat_temp() const { return info_.hotend_preheat_temp; }
+    std::optional<uint8_t> get_first_tool() const { return info_.first_tool; } ///< OneDrop3D : first T of the G-code (G-code tool index)
 #if EXTRUDERS > 1
     std::optional<uint16_t> get_total_toolchanges() const { return info_.total_toolchanges; } ///< Total toolchanges parsed from gcode metadata (std::nullopt if absent)
     std::optional<float> get_filament_wipe_tower_g() const { return info_.filament_wipe_tower_g; } ///< filament used for wipe tower

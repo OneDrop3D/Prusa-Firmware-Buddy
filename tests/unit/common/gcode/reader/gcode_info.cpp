@@ -86,6 +86,21 @@ TEST_CASE("GCodeInfo::total_toolchanges") {
     CHECK(load(NEW_PLAIN) == std::nullopt);
 }
 
+TEST_CASE("GCodeInfo::first_tool") {
+    auto load = [](const char *filename) {
+        AnyGcodeFormatReader reader(filename);
+        REQUIRE(reader.is_open());
+        GCodeInfo info;
+        info.load(*reader.get());
+        return info.get_first_tool();
+    };
+
+    // OneDrop3D : the first T<n> line (not the T parameter of M104, not Tc, not the later T0)
+    CHECK(load(TOTAL_TOOLCHANGES) == std::optional<uint8_t>(1));
+    // Single-tool gcode without any T -> unset
+    CHECK(load(NEW_PLAIN) == std::nullopt);
+}
+
 TEST_CASE("GCodeInfo::is_valid_for_print", "[slow]") {
     struct stat st;
     REQUIRE(stat(NEW_ENCRYPTED, &st) == 0);

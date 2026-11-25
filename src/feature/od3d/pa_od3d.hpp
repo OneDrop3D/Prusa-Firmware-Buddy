@@ -19,12 +19,12 @@
 ///   J1, et rend la main : le MMU n'est jamais piloté depuis la pile de M1994 (débordement de la pile de Marlin en
 ///   8.0.2.23). Le filament reste chargé à la fin.
 /// - Automatique (réglage « PA automatique », comme la calibration de la dynamique du débit des Bambu) : M1994 A, mis
-///   en file au départ de l'impression (PrintInit), choisit les emplacements utilisés sans K (ou tous ; matière de
-///   l'imprimante, sinon celle du fichier) et la place libre du bloc de chacun autour de la pièce, tourné de 90° s'il
-///   ne tient pas droit (auto_spots()) ; puis, une étape à la fois par la file d'injection (avant les lignes du fichier) :
-///   « Charger dans la buse » de Prusa, M1994 P<n> A1 (mesure courte, 5 lignes) ; enfin le filament remis comme avant
-///   (M702 W2 en général). Le G-code de départ fait ensuite tout comme d'habitude. Un échec ou un « Passer » ne bloque
-///   jamais l'impression : le PA du trancheur reste, et un message le dit.
+///   en file au départ de l'impression (PrintInit), ne mesure que si une seule couleur de l'impression n'a pas de K
+///   valable et que c'est celle de la première couche (règle du 25/11, auto_choice()), sinon il le dit ; la place libre
+///   de son bloc autour de la pièce, tourné de 90° s'il ne tient pas droit (auto_place()) ; puis, par la file
+///   d'injection (avant les lignes du fichier) : « Charger dans la buse » de Prusa s'il le faut, M1994 P<n> A1 (mesure
+///   courte). La bobine reste dans la buse : le T de départ du G-code la reprend telle quelle. Un échec ou un « Passer »
+///   ne bloque jamais l'impression : le PA du trancheur reste, et un message le dit.
 /// - Deux motifs (F4-b, demande du 22/11) : **compact** (par défaut, et toujours pour la mesure automatique) : lignes
 ///   courtes et serrées sans repères, K cherché ligne après ligne (next_k() : 4 à 6 lignes au lieu de 11) ; **grand**
 ///   (mode manuel, réglage « Grand motif PA ») : balayage complet, repères, choix à l'œil.
@@ -173,17 +173,18 @@ void set_large_pattern(bool set);
 AutoMode auto_mode();
 void set_auto_mode(AutoMode mode);
 
-/// Corps de M1994 A, au départ d'une impression : choisit les emplacements à mesurer et leur place, puis met en file,
-/// avant les lignes du fichier, une étape par emplacement (chargement de Prusa, puis M1994 P<n> A1) ; jamais bloquant
+/// Corps de M1994 A, au départ d'une impression : applique la règle (auto_choice : une seule couleur à calibrer, celle
+/// de la première couche), sinon le dit une fois ; puis la place du bloc, et met en file avant les lignes du fichier le
+/// chargement de Prusa s'il le faut et M1994 P<n> A1 ; jamais bloquant
 void calibrate_auto();
 
-/// Corps de M1994 P<n> A1 : mesure courte de l'emplacement chargé par l'étape, puis met en file l'étape suivante, ou
-/// à la fin le filament remis comme au départ ; un échec ou « Passer » laisse le PA du trancheur, l'impression continue
+/// Corps de M1994 P<n> A1 : mesure courte de l'emplacement chargé ; il reste dans la buse pour l'impression. Un échec ou
+/// « Passer » laisse le PA du trancheur, l'impression continue
 void calibrate_auto_step(uint8_t slot);
 
-/// Corps de M1994 A2, avant le premier chargement de la mesure automatique : palpe la zone de tous les blocs, puis
-/// pose la place du chargement (session::set_load_spot) au départ de la ligne de purge de l'étape : le plastique qui
-/// sort du chargement tombe sur le plateau, pas dans le vide
+/// Corps de M1994 A2, avant le chargement de la mesure automatique : palpe la zone du bloc, puis pose la place du
+/// chargement (session::set_load_spot) au départ de sa ligne de purge : le plastique qui sort du chargement tombe sur
+/// le plateau, pas dans le vide
 void calibrate_auto_level();
 
 /// M104 S, M109 S/R (fil de Marlin) : consigne à appliquer. Après une mesure automatique, jusqu'à la chauffe

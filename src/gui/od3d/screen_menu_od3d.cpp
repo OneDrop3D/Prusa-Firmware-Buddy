@@ -143,9 +143,7 @@ string_view_utf8 MI_PA_AUTO::build_item_text(int index, StringViewUtf8ParamBase 
     case pa::AutoMode::off:
         return _("Disabled");
     case pa::AutoMode::first_print:
-        return _("New spool");
-    case pa::AutoMode::every_print:
-        return _("Every print");
+        return _("New spool"); // règle du 25/11 : une seule couleur à calibrer, celle de la première couche
     }
     return string_view_utf8::MakeNULLSTR();
 }

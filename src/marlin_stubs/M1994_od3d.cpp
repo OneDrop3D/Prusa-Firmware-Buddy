@@ -25,9 +25,10 @@
  *#### Parameters
  *
  * - `A` - mesure automatique au départ d'une impression (mise en file par l'imprimante si le réglage « PA automatique »
- *   est actif) : choisit les emplacements utilisés à mesurer et leur place à côté de la zone d'impression (M555), puis
- *   met en file pour chacun « Charger dans la buse » de Prusa et `M1994 P<n> A1` (sa mesure courte), enfin le filament
- *   remis comme avant ; un échec ou « Passer » laisse le PA du trancheur, l'impression continue
+ *   est actif) : mesure seulement si une seule couleur de l'impression n'a pas de K valable et que c'est celle de la
+ *   première couche (sinon un message le dit) ; place son bloc à côté de la zone d'impression (M555), puis met en file
+ *   « Charger dans la buse » de Prusa s'il le faut et `M1994 P<n> A1` (sa mesure courte) ; la bobine reste dans la buse
+ *   pour l'impression. Un échec ou « Passer » laisse le PA du trancheur, l'impression continue
  * - `P` - emplacement 0 à 4 ; s'il n'est pas dans la buse, « Charger dans la buse » de Prusa est mis en file (l'autre
  *   filament est déchargé) après l'origine si besoin et la position de chargement levée (G28 O I, G27 W2), suivi du
  *   même M1994 avec J1 ; sans P, l'emplacement chargé

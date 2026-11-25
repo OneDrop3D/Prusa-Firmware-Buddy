@@ -228,32 +228,36 @@ static_assert(sizeof(Record) == 4);
 
 // ---- Mesure automatique au départ d'une impression (comme la calibration de la dynamique du débit des Bambu) ----
 
-/// Réglage « PA automatique » (config_store « OD3D PA Auto »)
+/// Réglage « PA automatique » (config_store « OD3D PA Auto ») ; l'ancien « à chaque impression » (2) est lu comme
+/// first_print : la règle ne mesure jamais une couleur qui a déjà un K
 enum class AutoMode : uint8_t {
     off = 0,
-    first_print = 1, ///< à la 1re impression d'une bobine : emplacements utilisés sans K
-    every_print = 2, ///< à chaque impression : tous les emplacements utilisés
+    first_print = 1, ///< à la 1re impression d'une bobine (auto_choice)
 };
-inline constexpr uint8_t auto_mode_count = 3;
+inline constexpr uint8_t auto_mode_count = 2;
 
-/// Emplacements à mesurer (bit n : emplacement n) parmi ceux qu'utilise l'impression (used) et dont la matière est
-/// connue (known) ; has_k : ceux qui ont déjà un K
-uint8_t slots_to_measure(AutoMode mode, uint8_t used, uint8_t known, uint8_t has_k);
+/// Règle de la mesure automatique (retour du 25/11 : « le PA automatique ne se fait que quand il n'y a qu'une couleur
+/// qui n'est pas calibrée et que cette couleur est sur la première couche ») : used, settled : emplacements de
+/// l'impression, et ceux qui n'attendent pas de mesure (K valable, ou flexible : jamais mesuré) ; first : emplacement
+/// de la première couche (outil de départ), s'il est connu. La bobine mesurée reste dans la buse pour l'impression.
+struct AutoChoice {
+    uint8_t uncalibrated = 0; ///< emplacements de l'impression qui attendent une mesure (bit n : emplacement n)
+    std::optional<uint8_t> slot; ///< à mesurer : la seule couleur à calibrer, si c'est celle de la première couche
+};
+AutoChoice auto_choice(AutoMode mode, uint8_t used, uint8_t settled, std::optional<uint8_t> first);
 
 /// Où imprimer un motif de w × h avant l'impression sans la gêner : dans zone, à clearance au moins de la zone
 /// d'impression print (M555), de la zone que le G-code de départ de PrusaSlicer pour la CORE One palpe près de sa
 /// purge (G29 P1 X150 Y0 W100 H20 C ; l'origine Z y est aussi) et de chaque point que Prusa palpera autour de la pièce
-/// (points majeurs xs × ys de la grille dans print agrandie de grow_x, grow_y : G29 P1), et des rectangles déjà pris
-/// (taken). Le plus à l'avant possible, contre le bord gauche, sinon le droit ; si rien ne tient contre un bord, le
-/// plus à l'avant puis le plus à gauche ailleurs ; vide si rien ne tient.
+/// (points majeurs xs × ys de la grille dans print agrandie de grow_x, grow_y : G29 P1). Le plus à l'avant possible,
+/// contre le bord gauche, sinon le droit ; si rien ne tient contre un bord, le plus à l'avant puis le plus à gauche
+/// ailleurs ; vide si rien ne tient.
 std::optional<pattern::Rect> auto_spot(const pattern::Rect &zone, const pattern::Rect &print, float w, float h, std::span<const float> xs,
-    std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f, std::span<const pattern::Rect> taken = {});
+    std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f);
 
-/// Places des blocs de la mesure automatique, un par emplacement dans l'ordre (demande du 24/11) : chaque bloc de
-/// w × h cherche la sienne (auto_spot()), les blocs déjà placés devenant interdits ; s'il ne tient pas, le bloc tourné
-/// de 90° (h × w, bit n de along_y : lignes parallèles à Y). Rend le nombre de blocs placés, les premiers de out (8 au
-/// plus) : les blocs ont la même taille, le premier qui ne tient pas arrête la recherche.
-size_t auto_spots(std::span<pattern::Rect> out, uint8_t &along_y, const pattern::Rect &zone, const pattern::Rect &print, float w, float h,
+/// Place du bloc de la mesure automatique (w × h) : auto_spot(), sinon le bloc tourné de 90° (h × w, along_y : lignes
+/// parallèles à Y) ; vide si rien ne tient
+std::optional<pattern::Rect> auto_place(bool &along_y, const pattern::Rect &zone, const pattern::Rect &print, float w, float h,
     std::span<const float> xs, std::span<const float> ys, float grow_x, float grow_y, float clearance = 5.f);
 
 // ---- Demande de mesure (M1994) ----
@@ -325,9 +329,9 @@ std::optional<float> next_k(std::span<const SweepPoint> done, const Search &s, c
 /// demande avec J1 (chargement tenté : pas de seconde tentative)
 bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament, int bed = 0);
 
-/// Mesure automatique, étape de slot : son chargement comme ci-dessus si filament (sinon : déjà dans la buse), puis
-/// M1994 P<n> A1. level_first (premier chargement) : M1994 A2 avant, le plateau palpé d'abord, pour que le chargement
-/// se pose sur une place que le palpage ne touchera plus
+/// Mesure automatique de slot : son chargement comme ci-dessus si filament (sinon : déjà dans la buse), puis
+/// M1994 P<n> A1. level_first : M1994 A2 avant le chargement, le plateau palpé d'abord, pour que le chargement se pose
+/// sur une place que le palpage ne touchera plus
 bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first = false);
 
 /// Après la mesure automatique, la buse reste chaude pendant le G-code de départ (retour du 24/11 : « passe après le PA
@@ -365,9 +369,5 @@ constexpr HoldStep start_hold_step(StartHold &hold, int16_t requested, int16_t c
     hold = {};
     return { requested, back };
 }
-
-/// Fin de la mesure automatique : filament remis comme au départ. Vide si c'est déjà le cas ; M702 W2 (« Décharger »
-/// de Prusa) s'il n'y en avait pas ; sinon le chargement de initial (filament : sa matière)
-bool auto_restore_sequence(std::span<char> out, std::optional<uint8_t> initial, std::optional<uint8_t> loaded, const char *filament);
 
 } // namespace od3d::pa

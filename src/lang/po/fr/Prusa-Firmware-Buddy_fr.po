@@ -13039,3 +13039,13 @@ msgstr "Emplacement %d : %d° demandés, minimum mesuré %d°"
 #: src/gui/od3d/screen_mmu_speed_od3d.cpp
 msgid "Preload the spool, then Start: up to 7 cycles from 95 to 120 mm/s, the level before the last clean one is kept (~4 min)."
 msgstr "Bobine préchargée, puis Démarrer : jusqu'à 7 cycles de 95 à 120 mm/s, le palier avant le dernier sans erreur est gardé (~4 min)."
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "PA not measured: %d colors to calibrate, measure them on their sheets"
+msgstr "PA non mesuré : %d couleurs à calibrer, mesurez-les sur leur fiche"
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "PA not measured: slot %d not on the 1st layer, see its sheet"
+msgstr "PA non mesuré : emplacement %d pas en 1re couche, voir sa fiche"

@@ -442,6 +442,15 @@ void GCodeInfo::parse_gcode(GcodeBuffer::String cmd, uint32_t &gcode_counter) {
         cmd.skip([](auto c) -> bool { return isdigit(c) || isspace(c); });
     }
 
+    // OneDrop3D : first T<n> of the file, the initial tool that starts the first layer (Tx, Tc, T? are not tools)
+    if (cmd.len() > 1 && cmd.front() == 'T' && isdigit(static_cast<unsigned char>(cmd.begin[1]))) {
+        if (!info_.first_tool) {
+            cmd.pop_front();
+            info_.first_tool = uint8_t(std::min<uint32_t>(cmd.get_uint(), UINT8_MAX));
+        }
+        return;
+    }
+
     if (cmd.skip_gcode(gcode_info::m862)) {
         parse_m862(cmd);
     }

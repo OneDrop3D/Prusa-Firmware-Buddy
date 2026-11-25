@@ -472,8 +472,8 @@ struct CurrentStore
     /// OneDrop3D (F4) : « le PA de l'imprimante prime » sur le M572 du trancheur (actif par défaut, X-04 : le K mesuré sert
     /// dès qu'il est valable pour la buse et la matière)
     StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D PA Printer Wins")> od3d_pa_printer_wins;
-    /// OneDrop3D (F4) : « PA automatique » (od3d::pa::AutoMode : 0 désactivé, 1 à la 1re impression d'une bobine, 2 à
-    /// chaque impression)
+    /// OneDrop3D (F4) : « PA automatique » (od3d::pa::AutoMode : 0 désactivé, 1 à la 1re impression d'une bobine ; 2,
+    /// l'ancien « à chaque impression », est lu comme 1)
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D PA Auto")> od3d_pa_auto;
     /// OneDrop3D (F4-b) : « Grand motif PA » en un clic (repères, choix à l'œil) ; false (par défaut) : motif compact
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D PA Large")> od3d_pa_large;

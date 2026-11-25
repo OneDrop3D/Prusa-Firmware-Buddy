@@ -8,7 +8,11 @@ M73 P0 R0
 G21
 G90
 M83
+M104 T0 R170
+Tc
+T1
 G1 Z0.2 F720
 G1 X0 Y0 E1 F1200
+T0
 ; prusaslicer_config = begin
 ; prusaslicer_config = end

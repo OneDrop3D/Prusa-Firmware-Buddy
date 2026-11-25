@@ -11,6 +11,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -425,16 +426,40 @@ TEST_CASE("motif : cordon, repères, lignes, palpage") {
     CHECK(pattern::Rect { 0.f, 0.f, 10.f, 10.f }.clipped({ 20.f, 20.f, 30.f, 30.f }).empty());
 }
 
-TEST_CASE("od3d pa: emplacements de la mesure automatique", "[od3d][pa]") {
-    // Impression : emplacements 1 et 3 (bits 0 et 2) ; matières connues : 1, 2, 3 ; K déjà mesuré : 1
-    const uint8_t used = 0b00101, known = 0b00111, has_k = 0b00001;
-    CHECK(pa::slots_to_measure(pa::AutoMode::off, used, known, has_k) == 0);
-    CHECK(pa::slots_to_measure(pa::AutoMode::first_print, used, known, has_k) == 0b00100);
-    CHECK(pa::slots_to_measure(pa::AutoMode::every_print, used, known, has_k) == 0b00101);
-    // Matière inconnue : jamais mesurée
-    CHECK(pa::slots_to_measure(pa::AutoMode::every_print, 0b10000, known, 0) == 0);
-    // Tout est déjà mesuré : rien à la 1re impression
-    CHECK(pa::slots_to_measure(pa::AutoMode::first_print, used, known, 0b11111) == 0);
+TEST_CASE("od3d pa: règle de la mesure automatique, une seule couleur à calibrer, celle de la première couche", "[od3d][pa]") {
+    constexpr auto on = pa::AutoMode::first_print;
+    // Retour du 25/11 : « le PA automatique ne se fait que quand il n'y a qu'une couleur qui n'est pas calibrée et que
+    // cette couleur est sur la première couche ». Impression : emplacements 1 et 3 (bits 0 et 2)
+    const uint8_t used = 0b00101;
+
+    // Emplacement 1 calibré, 3 pas : mesuré si c'est la première couche
+    auto c = pa::auto_choice(on, used, 0b00001, 2);
+    CHECK(c.slot == std::optional<uint8_t>(2));
+    CHECK(c.uncalibrated == 0b00100);
+    // ... sinon rien : la couleur à calibrer n'est pas sur la première couche
+    c = pa::auto_choice(on, used, 0b00001, 0);
+    CHECK_FALSE(c.slot.has_value());
+    CHECK(c.uncalibrated == 0b00100); // le message nomme l'emplacement 3
+    // Première couche inconnue : rien
+    CHECK_FALSE(pa::auto_choice(on, used, 0b00001, std::nullopt).slot.has_value());
+
+    // Deux couleurs à calibrer : rien, même celle de la première couche
+    c = pa::auto_choice(on, used, 0, 0);
+    CHECK_FALSE(c.slot.has_value());
+    CHECK(std::popcount(c.uncalibrated) == 2);
+
+    // Tout calibré, ou réglage coupé : rien, sans message
+    c = pa::auto_choice(on, used, 0b11111, 0);
+    CHECK_FALSE(c.slot.has_value());
+    CHECK(c.uncalibrated == 0);
+    c = pa::auto_choice(pa::AutoMode::off, used, 0, 0);
+    CHECK_FALSE(c.slot.has_value());
+    CHECK(c.uncalibrated == 0);
+
+    // Une seule couleur dans le fichier, pas encore calibrée : mesurée
+    CHECK(pa::auto_choice(on, 0b01000, 0, 3).slot == std::optional<uint8_t>(3));
+    // Un flexible (jamais mesuré) compte comme réglé : il n'empêche pas la mesure de la couleur de la première couche
+    CHECK(pa::auto_choice(on, 0b00011, 0b00010, 0).slot == std::optional<uint8_t>(0));
 }
 
 namespace {
@@ -520,18 +545,14 @@ TEST_CASE("od3d pa: place du motif automatique à côté de l'impression", "[od3
         const pattern::Rect print { 85.f, 70.f, 165.f, 150.f };
         CHECK_FALSE(pa::auto_spot(zone, print, w, 3.f * h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
     }
-    SECTION("rien contre un bord : la place libre entre deux blocs déjà pris") {
-        const pattern::Rect band { 10.f, 10.f, 240.f, 50.f }; // bande étroite : un bloc par rangée
-        const pattern::Rect print { 100.f, 180.f, 150.f, 200.f }; // loin : aucun point palpé dans la bande
-        const pattern::Rect taken[] { { 10.f, 10.f, 70.f, 50.f }, { 170.f, 10.f, 240.f, 50.f } };
-        const auto r = pa::auto_spot(band, print, 60.f, 27.f, g.xs, g.ys, g.grow_x, g.grow_y, 5.f, taken);
+    SECTION("rien contre un bord : la place libre entre la pièce et le palpage de la purge") {
+        const pattern::Rect band { 10.f, 10.f, 240.f, 40.f }; // bande étroite : une seule rangée
+        const pattern::Rect print { 10.f, 10.f, 30.f, 40.f }; // bord gauche pris ; bord droit : palpage près de la purge
+        const auto r = pa::auto_spot(band, print, 60.f, 27.f, g.xs, g.ys, g.grow_x, g.grow_y);
         REQUIRE(r.has_value());
-        CHECK(r->x0 == 75.f); // contre le bloc de gauche, à 5 mm
+        check_free(*r, band, print, g);
+        CHECK(r->x0 == 56.f); // contre le point palpé à X 50,7, à 5 mm
         CHECK(r->y0 == 10.f);
-        CHECK(r->x1 <= 145.f); // hors de la zone palpée près de la purge
-        for (const pattern::Rect &t : taken) {
-            CHECK_FALSE(overlap(*r, t.grown(5.f, 5.f)));
-        }
     }
 }
 
@@ -554,19 +575,9 @@ pattern::Lines compact_lines(float x, float y) {
     return l;
 }
 
-/// Blocs placés : chacun libre (check_free) et à 5 mm au moins des autres
-void check_blocks(std::span<const pattern::Rect> blocks, const pattern::Rect &zone, const pattern::Rect &print, const Grid &g) {
-    for (size_t i = 0; i < blocks.size(); ++i) {
-        check_free(blocks[i], zone, print, g);
-        for (size_t j = 0; j < i; ++j) {
-            CHECK_FALSE(overlap(blocks[i], blocks[j].grown(5.f, 5.f)));
-        }
-    }
-}
-
 } // namespace
 
-TEST_CASE("od3d pa: un bloc par emplacement, chacun à sa place, tourné s'il le faut", "[od3d][pa]") {
+TEST_CASE("od3d pa: place du bloc de la mesure automatique, tourné s'il le faut", "[od3d][pa]") {
     const Grid g;
     const pattern::Rect zone { 10.f, 10.f, 240.f, 210.f };
     const pattern::Rect one = compact_lines(0.f, lead).area(); // bloc droit en (0, 0)
@@ -575,59 +586,37 @@ TEST_CASE("od3d pa: un bloc par emplacement, chacun à sa place, tourné s'il le
     REQUIRE(w < 95.f);
     REQUIRE(h > 20.f);
     REQUIRE(h < 30.f);
-    std::array<pattern::Rect, 5> out;
-    uint8_t along_y = 0xff;
+    bool along_y = true;
 
-    SECTION("pièce à l'avant : trois blocs derrière elle, couchés") {
+    SECTION("pièce à l'avant : bloc derrière elle, couché") {
         const pattern::Rect print { 20.f, 0.f, 230.f, 60.f };
-        const size_t n = pa::auto_spots(std::span(out.data(), 3), along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
-        REQUIRE(n == 3);
-        CHECK(along_y == 0);
-        check_blocks(std::span(out.data(), n), zone, print, g);
-        for (size_t i = 0; i < n; ++i) {
-            CHECK(out[i].y0 >= print.y1);
-            CHECK_THAT(out[i].width(), WithinAbs(w, 1e-4));
-        }
-        // Le 1er comme avant (une seule bobine : même place que l'ancien bloc unique)
-        const auto first = pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
-        REQUIRE(first.has_value());
-        CHECK(out[0].x0 == first->x0);
-        CHECK(out[0].y0 == first->y0);
+        const auto r = pa::auto_place(along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(r.has_value());
+        CHECK_FALSE(along_y);
+        check_free(*r, zone, print, g);
+        CHECK(r->y0 >= print.y1);
+        CHECK_THAT(r->width(), WithinAbs(w, 1e-4));
     }
-    SECTION("pièce large au milieu : devant et derrière, pas une colonne") {
-        const pattern::Rect print { 20.f, 60.f, 230.f, 150.f };
-        // Une colonne de deux blocs ne tient nulle part (ancien comportement : une seule bobine mesurée)
-        CHECK_FALSE(pa::auto_spot(zone, print, w, 2.f * h + 5.f, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
-        const size_t n = pa::auto_spots(std::span(out.data(), 3), along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
-        REQUIRE(n == 3);
-        check_blocks(std::span(out.data(), n), zone, print, g);
-        CHECK(out[0].y1 <= print.y0);
-        CHECK(out[1].y0 >= print.y1);
-        CHECK(out[2].y0 >= print.y1);
-    }
-    SECTION("pièce sur toute la profondeur : blocs debout dans la bande de gauche, le 3e reporté") {
+    SECTION("pièce sur toute la profondeur : bloc debout dans la bande de gauche") {
         const pattern::Rect print { 80.f, 0.f, 240.f, 220.f }; // reste 65 mm à gauche : un bloc couché n'y tient pas
         CHECK_FALSE(pa::auto_spot(zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
-        const size_t n = pa::auto_spots(std::span(out.data(), 3), along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
-        REQUIRE(n == 2);
-        CHECK(along_y == 0b11);
-        check_blocks(std::span(out.data(), n), zone, print, g);
-        for (size_t i = 0; i < n; ++i) {
-            CHECK_THAT(out[i].width(), WithinAbs(h, 1e-4)); // tourné : h × w
-            CHECK_THAT(out[i].height(), WithinAbs(w, 1e-4));
-            CHECK(out[i].x1 <= print.x0);
-        }
+        const auto r = pa::auto_place(along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y);
+        REQUIRE(r.has_value());
+        CHECK(along_y);
+        check_free(*r, zone, print, g);
+        CHECK_THAT(r->width(), WithinAbs(h, 1e-4)); // tourné : h × w
+        CHECK_THAT(r->height(), WithinAbs(w, 1e-4));
+        CHECK(r->x1 <= print.x0);
     }
-    SECTION("rien ne tient : aucun bloc") {
+    SECTION("rien ne tient : pas de mesure") {
         const pattern::Rect print { 0.f, 0.f, 250.f, 220.f };
-        CHECK(pa::auto_spots(out, along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y) == 0);
-        CHECK(along_y == 0);
+        CHECK_FALSE(pa::auto_place(along_y, zone, print, w, h, g.xs, g.ys, g.grow_x, g.grow_y).has_value());
     }
 }
 
 TEST_CASE("motif : bloc tourné de 90°, lignes et purge le long de Y", "[od3d][pattern]") {
     const pattern::Rect one = compact_lines(0.f, lead).area();
-    // Bloc debout (comme pa_od3d.cpp, auto_lines_of()) : X et Y échangés autour du départ des lignes
+    // Bloc debout (comme pa_od3d.cpp, auto_lines()) : X et Y échangés autour du départ des lignes
     const pattern::Rect b { 20.f, 30.f, 20.f + one.y1, 30.f + one.width() };
     pattern::Lines lines = compact_lines(b.x0 + lead, b.y0 - one.x0);
     lines.along_y = true;
@@ -697,26 +686,12 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         REQUIRE(pa::auto_step_sequence(out, 3, nullptr, true)); // rien à charger : pas de palpage à part
         CHECK(text() == "M1994 P3 A1");
     }
-    SECTION("fin automatique : filament remis comme au départ") {
-        REQUIRE(pa::auto_restore_sequence(out, std::nullopt, std::nullopt, ""));
-        CHECK(text().empty());
-        REQUIRE(pa::auto_restore_sequence(out, 1, 1, "#7"));
-        CHECK(text().empty());
-        REQUIRE(pa::auto_restore_sequence(out, std::nullopt, 2, ""));
-        CHECK(text() == "G28 O I\nG27 W2\nM702 W2");
-        REQUIRE(pa::auto_restore_sequence(out, 1, 3, "#7"));
-        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#7\" W2 P1");
-        REQUIRE(pa::auto_restore_sequence(out, 1, std::nullopt, "#7"));
-        CHECK(text() == "G28 O I\nG27 W2\nM701 S\"#7\" W2 P1");
-    }
-    SECTION("jamais de M701 ni de M702 avant l'origine et la position de chargement levée") {
+    SECTION("jamais de M701 avant l'origine et la position de chargement levée") {
         pa::Request rq;
         REQUIRE(pa::oneclick_sequence(out, rq, "#5"));
         CHECK(text().rfind("G28 O I\nG27 W2\nM701 ", 0) == 0);
         REQUIRE(pa::auto_step_sequence(out, 4, "#5"));
         CHECK(text().rfind("G28 O I\nG27 W2\nM701 ", 0) == 0);
-        REQUIRE(pa::auto_restore_sequence(out, std::nullopt, 0, ""));
-        CHECK(text().rfind("G28 O I\nG27 W2\nM702 ", 0) == 0);
         // Tous les paramètres changés : la ligne tient encore dans le tampon de M1994 (256)
         rq.slot = 4;
         rq.k_min = 0.01f;

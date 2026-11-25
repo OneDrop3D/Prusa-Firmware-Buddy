@@ -5,7 +5,9 @@
 #include <cstdio>
 #include <device/hal.h>
 #include <feature/od3d/force_probe_od3d.hpp>
+#include <FreeRTOS.h>
 #include <freertos/critical_section.hpp>
+#include <heap.h>
 #include <timing.h>
 #include <version/version.hpp>
 
@@ -19,7 +21,11 @@ uint32_t cycles() {
 
 namespace {
 
-    constexpr size_t ring_rows = 64; // 64 × 28 o en RAM
+    constexpr size_t ring_rows = 16; // 16 × 28 o en RAM (64 avant : 1,3 Ko rendus au tas, 25/11)
+
+    // Tas libre le plus bas vu à la fin d'un dessin (écran bleu « Out of heap memory » du 25/11). La part que newlib n'a
+    // jamais prise (heap_bytes_remaining) ne fait que baisser : elle est déjà son plus bas, toutes tâches comprises
+    uint32_t heap_free_min = UINT32_MAX;
 
     std::array<Row, ring_rows> rows;
     uint32_t written = 0; ///< lignes écrites depuis le dernier vidage (la dernière est rows[(written - 1) % ring_rows])
@@ -66,6 +72,7 @@ void draw_begin() {
 
 void draw_end(uint32_t screen) {
     const uint32_t draw_cycles = cycles() - begin_cycles;
+    heap_free_min = std::min<uint32_t>(heap_free_min, xPortGetFreeHeapSize());
     const Row row {
         .t_ms = begin_ms,
         .screen = screen,
@@ -115,6 +122,10 @@ bool dump(const char *path) {
     }
     ok &= force_probe::csv_printf(f, "# OneDrop3D UI %s, at %lu ms, %lu rows, %lu lost\n", version::project_version_full,
               static_cast<unsigned long>(ticks_ms()), static_cast<unsigned long>(kept), static_cast<unsigned long>(count - kept))
+        > 0;
+    ok &= force_probe::csv_printf(f, "# heap free now %lu B, lowest at a draw %lu B, never used %lu B of %lu B\n",
+              static_cast<unsigned long>(xPortGetFreeHeapSize()), static_cast<unsigned long>(heap_free_min),
+              static_cast<unsigned long>(heap_bytes_remaining()), static_cast<unsigned long>(heap_total_size()))
         > 0;
     for (uint32_t i = count - kept; i < count; ++i) {
         const Row &r = rows[i % ring_rows];

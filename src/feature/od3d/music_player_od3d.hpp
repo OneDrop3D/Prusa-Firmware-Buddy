@@ -28,6 +28,7 @@ enum class Status : uint8_t {
     no_notes, ///< aucune note à jouer
     printing, ///< refusé : une impression est en cours
     no_room, ///< pas assez de course sur l'axe à cette hauteur
+    no_memory, ///< pas la place sur le tas pour lire le fichier
 };
 
 /// Corps de M1991 : joue le fichier choisi sur les moteurs choisis (motors_override < motors_count : à la place

@@ -38,8 +38,8 @@ namespace {
     constexpr size_t plot_bins = (fan_response::baseline_ms + fan_response::high_ms) / 50;
     static_assert(plot_bins <= fan_response::max_bins);
 
-    /// Hauteur de la courbe par colonne (-1 : pas encore mesuré), calculée une fois par dessin
-    std::array<int8_t, curve_rect.Width()> curve_heights;
+    /// Hauteur de la courbe par colonne (-1 : pas encore mesuré), calculée une fois par dessin dans le tampon partagé
+    using CurveHeights = std::array<int8_t, curve_rect.Width()>;
     static_assert(curve_rect.Height() <= INT8_MAX);
 
     void draw_panel_back(Rect16 r) {
@@ -122,6 +122,7 @@ void FanResponseCurve::unconditionalDraw() {
         top = std::max(top, float(edges[i]));
     }
     top = std::max(top, 6850.f / lookahead::fan_rpm(1.f)) * 1.1f;
+    CurveHeights &curve_heights = scratch_as<CurveHeights>();
     for (int x = 0; x < w; ++x) {
         const size_t i = size_t(x) * plot_bins / size_t(w);
         curve_heights[x] = i < bins ? int8_t(std::lround(float(edges[i]) / top * float(h - 1))) : int8_t(-1);

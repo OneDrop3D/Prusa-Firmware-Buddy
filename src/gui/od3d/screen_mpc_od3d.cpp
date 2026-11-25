@@ -178,6 +178,8 @@ namespace {
             return _("The temperature does not settle");
         case mpc::Error::bad_result:
             return _("Inconsistent measurements, try again");
+        case mpc::Error::no_memory:
+            return _("Not enough memory, try again later.");
         }
         return string_view_utf8::MakeNULLSTR();
     }

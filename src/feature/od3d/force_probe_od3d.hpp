@@ -27,11 +27,19 @@ inline constexpr uint8_t decimation = 2; ///< échantillons de la cellule moyenn
 void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float y_mm);
 
 /// Efface la trace et commence l'enregistrement (fil de Marlin) ; le premier échantillon sert de zéro (force et
-/// position). La trace garde la position X, ou Y si along_y (lignes parallèles à Y : motif tourné de la mesure automatique)
-void start(bool along_y = false);
+/// position). La trace garde la position X, ou Y si along_y (lignes parallèles à Y : motif tourné de la mesure automatique).
+/// Sa mémoire (6 Ko) est prise au tas s'il le faut (reserve()) : false s'il n'y a pas la place (fenêtre de mesure seule,
+/// trace vide)
+bool start(bool along_y = false);
+
+/// Prend au tas la mémoire de la trace (6 Ko), avant une mesure qui en a besoin : false s'il n'y a pas la place
+bool reserve();
 
 /// Arrête l'enregistrement ; la trace reste lisible jusqu'au prochain start()
 void stop();
+
+/// Fin de la mesure (session::Session) : arrête l'enregistrement et rend la mémoire de la trace au tas
+void release();
 
 bool recording();
 

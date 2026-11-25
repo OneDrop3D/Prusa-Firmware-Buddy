@@ -1,6 +1,7 @@
 /// @file
 #include "measure_session_od3d.hpp"
 #include "filament_memory_od3d.hpp"
+#include "force_probe_od3d.hpp"
 #include "flow_limit_od3d.hpp"
 #include "live_od3d.hpp"
 
@@ -328,6 +329,7 @@ Session::~Session() {
 #endif
     skip_guard.reset();
     active_stop = nullptr;
+    force_probe::release(); // la trace de la cellule (6 Ko) retourne au tas
 }
 
 float Session::smooth_time() const {

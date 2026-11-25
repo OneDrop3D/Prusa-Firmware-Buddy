@@ -35,7 +35,8 @@ std::optional<print_info::FileInfo> cached_file_info(const char *path);
 /// Oublie les métadonnées lues (clé retirée ou changée)
 void forget_file_infos();
 
-/// Une impression lit la clé : l'interface ne l'ouvre pas (ni vignette, ni métadonnées, ni dossier de l'accueil)
+/// Une impression lit la clé, ou un transfert réseau l'écrit : l'interface ne l'ouvre pas (ni vignette, ni métadonnées,
+/// ni dossier de l'accueil)
 bool print_uses_usb();
 
 /// Grandes vignettes (accueil, Avant l'impression, Impression) : la 313 × 173 du G-code réduite selon params, lue sur la
@@ -60,6 +61,10 @@ namespace big_thumb {
 
     /// Assez de mémoire pour garder une image
     bool can_keep();
+
+    /// Destructeur d'un écran qui s'en sert (accueil, Avant l'impression, Impression) : la mémoire des images est rendue
+    /// au tas, sauf pour l'écran Impression
+    void release();
 
     /// La case box (fond des vignettes, coins arrondis selon corners) peinte autour de l'image img, sans passer dessous
     void draw_box(Rect16 box, Rect16 img, uint8_t corners);

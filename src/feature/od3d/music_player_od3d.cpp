@@ -11,6 +11,9 @@
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
+#include <cstdlib>
+#include <heap.h>
+#include <new>
 #include <Marlin.h>
 #include <gcode/gcode.h>
 #include <module/motion.h>
@@ -63,8 +66,6 @@ namespace {
     private:
         FILE *file;
     };
-
-    Reader reader; ///< ~1 Ko en mémoire statique plutôt que sur la pile de Marlin
 
     /// Arrêt demandé par l'interface, arrêt de Marlin (exception de G-code), ou impression lancée pendant la musique
     bool must_stop() {
@@ -232,6 +233,17 @@ void play(uint8_t motors_override) {
     ScopeGuard close_file = [&] { fclose(file); };
     setvbuf(file, nullptr, _IONBF, 0);
     FileSource source(file);
+    // ~1,2 Ko pris au tas le temps du morceau (ni la pile de Marlin, ni la RAM statique : elle manquait au réseau, 25/11)
+    void *const block = malloc_fallible(sizeof(Reader));
+    if (!block) {
+        last_status = Status::no_memory;
+        return;
+    }
+    Reader &reader = *new (block) Reader();
+    ScopeGuard free_reader = [&] {
+        reader.~Reader();
+        free(block);
+    };
     if (reader.open(source) != Error::none) {
         last_status = Status::bad_file;
         return;

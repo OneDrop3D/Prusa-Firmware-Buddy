@@ -9,10 +9,13 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <new>
 
 #include <common/marlin_server.hpp>
 #include <config_store/store_instance.hpp>
 #include <fanctl.hpp>
+#include <heap.h>
 #include <i18n.h>
 #include <selftest_fans.hpp>
 #include <selftest_fans_config.hpp>
@@ -363,8 +366,9 @@ namespace {
     constexpr uint8_t window_tries = 3;
     constexpr size_t values_index = size_t(calib_registry::Test::fan_response);
 
-    /// Une transformée en un point par fréquence (ToneBank, vibration_math_od3d.hpp) ; ~0,8 Ko hors de la pile de Marlin
-    ToneBank bank;
+    /// Une transformée en un point par fréquence (ToneBank, vibration_math_od3d.hpp) ; ~0,8 Ko hors de la pile de Marlin,
+    /// pris au tas par run() le temps de la mesure (statique avant : RAM rendue au réseau, 25/11)
+    ToneBank *bank = nullptr;
 
     constexpr const char *fan_text[fan_count] = {
         N_("Print fan alone at %d%%: vibration at its speed"),
@@ -445,7 +449,7 @@ namespace {
         const auto frequencies = bin_frequencies(f0);
         const uint32_t want = uint32_t(window_s / period);
         for (uint8_t attempt = 0; attempt < window_tries; ++attempt) {
-            bank.start(frequencies, period);
+            bank->start(frequencies, period);
             accelerometer.clear();
             uint32_t n = 0;
             bool lost = false;
@@ -457,7 +461,7 @@ namespace {
                 accelerometer::Acceleration a;
                 switch (read(accelerometer, a)) {
                 case Read::sample: {
-                    bank.add(a.val[0] - mean[0], a.val[1] - mean[1], a.val[2] - mean[2]);
+                    bank->add(a.val[0] - mean[0], a.val[1] - mean[1], a.val[2] - mean[2]);
                     ++n;
                     continue;
                 }
@@ -477,7 +481,7 @@ namespace {
             if (lost) {
                 continue;
             }
-            out = tone(bank.magnitudes());
+            out = tone(bank->magnitudes());
             return Status::done;
         }
         return Status::failed;
@@ -608,6 +612,17 @@ void run() {
     };
     measurement = {};
     progress = 0;
+    void *const block = malloc_fallible(sizeof(ToneBank));
+    if (!block) {
+        last_status = Status::failed; // pas la place sur le tas : rien n'a bougé
+        return;
+    }
+    bank = new (block) ToneBank();
+    ScopeGuard free_bank = [block] {
+        bank->~ToneBank();
+        bank = nullptr;
+        free(block);
+    };
     last_status = Status::running;
     last_status = measure();
 }

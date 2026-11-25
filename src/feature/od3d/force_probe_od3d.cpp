@@ -5,12 +5,17 @@
 #include <atomic>
 #include <cmath>
 #include <cstdarg>
+#include <cstdlib>
+#include <heap.h>
 
 namespace od3d::force_probe {
 
 namespace {
 
-    force::TracePoint buffer[capacity];
+    /// 6 Ko pris au tas par reserve() ou start(), rendus par release() à la fin de la mesure (session::Session) : statiques avant,
+    /// ils manquaient au réseau (écran bleu « Out of heap memory » du 25/11). L'interruption n'écrit que si armed est
+    /// vrai, et release() le remet à faux avant de libérer : elle ne peut pas l'interrompre au milieu d'une écriture.
+    std::atomic<force::TracePoint *> buffer = nullptr;
 
     std::atomic<bool> armed = false;
     std::atomic<uint16_t> count = 0;
@@ -77,8 +82,9 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float y_mm)
         ++window_count;
     }
     const uint16_t n = count.load(std::memory_order_relaxed);
-    if (n < capacity) {
-        buffer[n] = force::make_point(point_force, sum_x / float(summed) - base_x);
+    force::TracePoint *const points = buffer.load(std::memory_order_relaxed);
+    if (points && n < capacity) {
+        points[n] = force::make_point(point_force, sum_x / float(summed) - base_x);
         last_us.store(time_us, std::memory_order_relaxed);
         count.store(n + 1, std::memory_order_release);
     } else {
@@ -89,10 +95,18 @@ void on_loadcell_sample(uint32_t time_us, float force_g, float x_mm, float y_mm)
     summed = 0;
 }
 
-void start(bool along_y) {
+bool reserve() {
+    if (!buffer.load(std::memory_order_relaxed)) {
+        buffer.store(static_cast<force::TracePoint *>(malloc_fallible(capacity * sizeof(force::TracePoint))), std::memory_order_relaxed);
+    }
+    return buffer.load(std::memory_order_relaxed) != nullptr;
+}
+
+bool start(bool along_y) {
     armed.store(false, std::memory_order_release);
     window_on.store(false, std::memory_order_release);
     // L'interruption ne touche plus à son état (armed faux) : on peut le remettre à zéro
+    const bool traced = reserve();
     use_y = along_y;
     have_base = false;
     sum_force = 0;
@@ -101,12 +115,19 @@ void start(bool along_y) {
     last_x = NAN;
     count.store(0, std::memory_order_relaxed);
     overflow.store(false, std::memory_order_relaxed);
-    armed.store(true, std::memory_order_release);
+    armed.store(true, std::memory_order_release); // après buffer : l'interruption le voit avec lui
+    return traced;
 }
 
 void stop() {
     armed.store(false, std::memory_order_release);
     window_on.store(false, std::memory_order_release);
+}
+
+void release() {
+    stop();
+    count.store(0, std::memory_order_relaxed);
+    free(buffer.exchange(nullptr));
 }
 
 void window_begin() {
@@ -137,7 +158,8 @@ bool recording() {
 }
 
 force::Trace trace() {
-    return force::Trace(buffer, count.load(std::memory_order_acquire));
+    force::TracePoint *const points = buffer.load(std::memory_order_relaxed);
+    return force::Trace(points, points ? count.load(std::memory_order_acquire) : 0);
 }
 
 float dt() {

@@ -13039,3 +13039,10 @@ msgstr "Emplacement %d : %d° demandés, minimum mesuré %d°"
 #: src/gui/od3d/screen_mmu_speed_od3d.cpp
 msgid "Preload the spool, then Start: up to 7 cycles from 95 to 120 mm/s, the level before the last clean one is kept (~4 min)."
 msgstr "Bobine préchargée, puis Démarrer : jusqu'à 7 cycles de 95 à 120 mm/s, le palier avant le dernier sans erreur est gardé (~4 min)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#: src/gui/od3d/screen_mpc_od3d.cpp
+#: src/gui/od3d/screen_music_od3d.cpp
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Not enough memory, try again later."
+msgstr "Mémoire insuffisante, réessayez plus tard."

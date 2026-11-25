@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <initializer_list>
+#include <memory>
 #include <optional>
 #include <span>
 #include <utils/abstract_byte_reader.hpp>
@@ -19,6 +22,8 @@
 #if HAS_E2EE_SUPPORT()
     #include <e2ee/e2ee.hpp>
 #endif
+
+extern "C" void *malloc_fallible(size_t size); // heap.h (déclaré ici : les tests qui incluent ce fichier n'ont pas heap.h)
 
 class IGcodeReader {
 public:
@@ -256,9 +261,17 @@ protected:
 public:
     /// OneDrop3D : lecture par blocs de size octets. Sans cela, newlib lit la clé secteur par secteur (st_blksize = 512),
     /// une commande USB par 512 octets. À appeler juste après l'ouverture, avant toute lecture ; le tampon est libéré à
-    /// la fermeture.
+    /// la fermeture. Pris par malloc_fallible, sinon 512 octets, sinon aucun : le malloc de newlib ne peut pas échouer,
+    /// et 4 Ko demandés tas plein (envoi par Connect) faisaient l'écran bleu « Out of heap memory » (25/11).
     void set_read_buffer(size_t size) {
-        setvbuf(file.get(), nullptr, _IOFBF, size);
+        for (const size_t want : { size, size_t(512) }) {
+            if (char *buffer = static_cast<char *>(malloc_fallible(want))) {
+                read_buffer.reset(buffer);
+                setvbuf(file.get(), buffer, _IOFBF, want);
+                return;
+            }
+        }
+        setvbuf(file.get(), nullptr, _IONBF, 0);
     }
 
     void set_validity(std::optional<transfers::PartialFile::State> validity) {
@@ -322,6 +335,9 @@ protected:
     }
 
 protected:
+    /// OneDrop3D : tampon de set_read_buffer(), déclaré avant file : libéré après la fermeture du fichier
+    std::unique_ptr<char, void (*)(void *)> read_buffer { nullptr, free };
+
     unique_file_ptr file;
 
     /// nullopt -> everything available; empty state -> error

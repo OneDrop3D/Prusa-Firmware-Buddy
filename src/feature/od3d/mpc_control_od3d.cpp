@@ -7,9 +7,12 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <new>
 #include <numbers>
 
 #include <common/marlin_server.hpp>
+#include <heap.h>
 #include <config_store/store_instance.hpp>
 #include <i18n.h>
 #include <inc/MarlinConfig.h>
@@ -46,7 +49,6 @@ namespace {
 
     // Fil de Marlin
     Params active_params {};
-    Autotune autotune; ///< ~0,9 Ko en mémoire statique plutôt que sur la pile de Marlin
 
     // Lus depuis l'interface
     std::atomic<Override> tune_override = Override::none;
@@ -121,6 +123,8 @@ namespace {
             return "inconsistent measurements";
         case Error::refused:
             return "not while printing";
+        case Error::no_memory:
+            return "not enough memory";
         }
         return "?";
     }
@@ -339,6 +343,20 @@ void run_autotune(float tune_temp) {
         tune_error = Error::refused;
         return;
     }
+    // ~0,9 Ko pris au tas le temps de la calibration : ni la pile de Marlin, ni la RAM statique, qui manquait au réseau
+    // (écran bleu « Out of heap memory » du 25/11)
+    void *const block = malloc_fallible(sizeof(Autotune));
+    if (!block) {
+        echo("?MPC calibration: not enough memory");
+        tune_phase = Phase::failed;
+        tune_error = Error::no_memory;
+        return;
+    }
+    Autotune &autotune = *new (block) Autotune();
+    ScopeGuard free_autotune = [&] {
+        autotune.~Autotune();
+        free(block);
+    };
 
     static_assert(PhysicalToolIndex::count == 1);
     Hotend &hotend = Hotend::for_tool(PhysicalToolIndex::from_raw(0));

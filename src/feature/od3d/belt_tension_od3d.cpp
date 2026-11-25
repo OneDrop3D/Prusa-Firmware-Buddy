@@ -9,8 +9,11 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <new>
 
 #include <common/marlin_server.hpp>
+#include <heap.h>
 #include <i18n.h>
 #include <option/has_indx.h> // utilisé par manual_belt_tuning_config.hpp
 #include <feature/manual_belt_tuning/manual_belt_tuning_config.hpp>
@@ -47,8 +50,10 @@ namespace {
     constexpr const char *csv_path = "/usb/OD3D_BELTS.CSV";
 
     /// Gain par axe (X, Y, Z) des points de la courroie en cours, NAN si pas mesuré. Écrit sur la clé à la fin de son
-    /// balayage, jamais entre deux points : une pause des moteurs fausserait le point suivant (M958.cpp, measure())
-    std::array<std::array<float, 3>, sweep_points> axis_gains;
+    /// balayage, jamais entre deux points : une pause des moteurs fausserait le point suivant (M958.cpp, measure()).
+    /// ~1,1 Ko pris au tas par run() le temps de la mesure (statique avant : RAM rendue au réseau, 25/11)
+    using AxisGains = std::array<std::array<float, 3>, sweep_points>;
+    AxisGains *axis_gains = nullptr;
 
     void write_csv_header(bool live) {
         if (FILE *f = fopen(csv_path, "a")) {
@@ -70,7 +75,7 @@ namespace {
         }
         const auto &spectrum = measurement.spectra[uint8_t(belt)];
         for (size_t i = 0; i < sweep_points; ++i) {
-            const auto &g = axis_gains[i];
+            const auto &g = (*axis_gains)[i];
             if (!std::isnan(g[0])) {
                 force_probe::csv_printf(f, "%c,%.1f,%.5f,%.5f,%.5f,%.6f\n", belt == Belt::a ? 'A' : 'B', double(sweep_start_hz + float(i) * sweep_step_hz),
                     double(g[0]), double(g[1]), double(g[2]), double(spectrum[i]));
@@ -168,7 +173,7 @@ namespace {
         if (!args.setup(restorer)) {
             return Status::failed;
         }
-        for (auto &g : axis_gains) {
+        for (auto &g : *axis_gains) {
             g[0] = NAN;
         }
         bool complete = false;
@@ -214,7 +219,7 @@ namespace {
             current_stage = belt == Belt::a ? Stage::belt_a : Stage::belt_b;
             auto &spectrum = measurement.spectra[index];
             spectrum[i] = result->gain_square();
-            axis_gains[i] = { result->gain[0], result->gain[1], result->gain[2] };
+            (*axis_gains)[i] = { result->gain[0], result->gain[1], result->gain[2] };
             if (full && i % coarse_stride == 0 && i > 0 && measurement.points[index] <= i) {
                 spectrum[i - 1] = (spectrum[i - 2] + spectrum[i]) / 2.f; // 1er passage : le point sauté, en attendant
             }
@@ -391,6 +396,18 @@ void run(uint8_t harmonic, bool live, bool prusa_excitation, bool ringing, bool 
         live_on = false;
         compare_on = false;
         running = false;
+    };
+
+    void *const block = malloc_fallible(sizeof(AxisGains));
+    if (!block) {
+        last_status = Status::no_memory; // refusée sans bouger
+        ++revisions;
+        return;
+    }
+    axis_gains = new (block) AxisGains();
+    ScopeGuard free_gains = [block] {
+        axis_gains = nullptr;
+        free(block);
     };
 
     live_on = !compare && live && measurement.harmonic == 1; // en direct : on repart des pics de la dernière mesure

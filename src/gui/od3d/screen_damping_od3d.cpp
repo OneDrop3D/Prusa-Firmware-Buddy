@@ -63,8 +63,8 @@ namespace {
         return std::fabs(a - b) > 0.0005f; // l'écran montre 3 décimales
     }
 
-    /// Hauteur de chaque courbe par colonne, calculée une fois par dessin (voir screen_belts_od3d.cpp)
-    std::array<std::array<int8_t, curves_rect.Width() + 1>, damping::axis_count> curve_heights;
+    /// Hauteur de chaque courbe par colonne, calculée une fois par dessin dans le tampon partagé (voir screen_belts_od3d.cpp)
+    using CurveHeights = std::array<std::array<int8_t, curves_rect.Width() + 1>, damping::axis_count>;
     static_assert(curves_rect.Height() <= INT8_MAX);
 
     void draw_panel_back(Rect16 r) {
@@ -141,6 +141,7 @@ void DampingCurves::unconditionalDraw() {
     const int w = r.Width(), h = r.Height();
 
     // Chaque courbe à sa propre échelle : c'est la largeur du pic qui compte, pas sa hauteur
+    CurveHeights &curve_heights = scratch_as<CurveHeights>();
     for (uint8_t a = 0; a < damping::axis_count; ++a) {
         float scale = 0.f;
         for (size_t i = 0; i < std::min<size_t>(m.points[a], damping::sweep_points); ++i) {

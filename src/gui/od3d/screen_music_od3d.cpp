@@ -115,6 +115,8 @@ namespace {
             return _("Not while printing.");
         case music::Status::no_room:
             return _("No room on this axis");
+        case music::Status::no_memory:
+            return _("Not enough memory, try again later.");
         }
         return string_view_utf8::MakeNULLSTR();
     }

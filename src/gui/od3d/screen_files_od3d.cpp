@@ -1,5 +1,6 @@
 /// @file
 #include "screen_files_od3d.hpp"
+#include "screen_printing_od3d.hpp"
 #include "layout_od3d.hpp"
 #include "sleep_gui_od3d.hpp"
 #include "spool_draw.hpp"
@@ -36,6 +37,7 @@
 #include <sound.hpp>
 #include <strings.h>
 #include <timing.h>
+#include <transfers/monitor.hpp>
 
 #if HAS_TOUCH()
     #include <hw/touchscreen/touchscreen.hpp>
@@ -192,7 +194,8 @@ void open_preview(const char *path) {
 
 namespace {
 
-    /// Métadonnées des derniers fichiers lus, repérés par une empreinte de leur chemin (FNV-1a) ; ~1,3 Ko
+    /// Métadonnées des derniers fichiers lus, repérés par une empreinte de leur chemin (FNV-1a) ; ~1,3 Ko, pris au tas
+    /// avec le cache des vignettes de la grille (open_thumb_cache), statiques avant (RAM rendue au réseau, 25/11)
     struct InfoCache {
         static constexpr size_t size = 16;
         std::array<uint32_t, size> keys {}; ///< 0 : place libre
@@ -224,7 +227,17 @@ namespace {
         }
     };
 
-    InfoCache info_cache;
+    InfoCache *info_cache = nullptr;
+
+    /// Écran bleu « Out of heap memory » du 25/11, juste après un envoi de PrusaSlicer : les caches de l'interface ne
+    /// prennent le tas ni pendant un transfert réseau (TLS de Connect, PrusaLink, fichier qui s'écrit), ni s'il n'en
+    /// resterait pas heap_reserve. Prusa dimensionne son réseau pour son tas d'origine (~76 Ko libres) ; le TLS de Connect
+    /// (poignée de main, certificats) et un transfert en prennent une vingtaine de Ko, plus les fichiers ouverts (~1 Ko
+    /// chacun, pris sans repli) : 32 Ko leur restent toujours.
+    constexpr size_t heap_reserve = 32 * 1024;
+    bool heap_allows(size_t bytes) {
+        return !transfers::Monitor::instance.id().has_value() && xPortGetFreeHeapSize() >= bytes + heap_reserve;
+    }
 
 } // namespace
 
@@ -243,7 +256,9 @@ namespace {
                 print_info::parse_metadata(info, std::string_view(&*name.begin, name.len()), std::string_view(&*value.begin, value.len()));
             }
         }
-        info_cache.put(path, info);
+        if (info_cache) {
+            info_cache->put(path, info);
+        }
         return info;
     }
 
@@ -258,14 +273,18 @@ namespace {
     // redessine sans relire la clé. Avant (8.0.2.26), chaque rangée relisait ses 4 vignettes, même les 2 encore à l'écran.
     // RAM : 104 × 57 en RGB565 = 11,9 Ko par vignette (47 Ko la page : impossible) ; en QOI ~2,5 Ko (mesuré sur une
     // vignette PrusaSlicer). Emprunté au tas tant que la grille ou son « Avant l'impression » est ouvert, rendu ensuite
-    // (pas pendant une impression), et seulement s'il reste au moins heap_margin pour le reste (réseau, ouvertures de
-    // fichiers par 4 Ko) : 16 Ko (~6 vignettes, la page et une rangée), sinon 8 Ko, sinon rien (lecture comme avant).
+    // (pas pendant une impression), et seulement si heap_allows() : 16 Ko (~6 vignettes, la page et une rangée), sinon
+    // 8 Ko, sinon rien (lecture comme avant). Les métadonnées (InfoCache) vivent avec lui.
     QoiCache *thumb_cache = nullptr;
-    constexpr size_t heap_margin = 16 * 1024;
 
     void open_thumb_cache() {
+        if (!info_cache && heap_allows(sizeof(InfoCache))) {
+            if (void *block = malloc_fallible(sizeof(InfoCache))) {
+                info_cache = new (block) InfoCache();
+            }
+        }
         for (const size_t bytes : { 16 * 1024, 8 * 1024 }) {
-            if (thumb_cache || xPortGetFreeHeapSize() < sizeof(QoiCache) + bytes + heap_margin) {
+            if (thumb_cache || !heap_allows(sizeof(QoiCache) + bytes)) {
                 continue;
             }
             if (void *block = malloc_fallible(sizeof(QoiCache) + bytes)) {
@@ -280,10 +299,18 @@ namespace {
 
     /// Rendu au tas quand ni la grille ni son « Avant l'impression » ne sont plus dans la pile des écrans
     void close_thumb_cache() {
-        if (thumb_cache && !Screens::Access()->IsScreenOnStack<ScreenFiles>()) {
+        if (Screens::Access()->IsScreenOnStack<ScreenFiles>()) {
+            return;
+        }
+        if (thumb_cache) {
             thumb_cache->~QoiCache();
             free(thumb_cache);
             thumb_cache = nullptr;
+        }
+        if (info_cache) {
+            info_cache->~InfoCache();
+            free(info_cache);
+            info_cache = nullptr;
         }
     }
 
@@ -303,13 +330,13 @@ namespace {
 
     // Grandes vignettes : accueil 187 × 103, Avant l'impression et Impression 156 × 86, en QOI (4,7 et 3,5 Ko mesurés sur
     // une vignette PrusaSlicer). Avant, chaque retour à l'accueil relisait la sienne sur la clé d'un bloc (0,1 à 0,2 s
-    // figé, estimé), et l'écran Impression ~86 fois par impression. Pris au tas à la première image et gardé ensuite
-    // (pas de fragmentation), avec la même marge que la grille : 12 Ko (les deux images), sinon 8, sinon rien.
+    // figé, estimé), et l'écran Impression ~86 fois par impression. Pris au tas à la première image si heap_allows() :
+    // 12 Ko (les deux images), sinon 8, sinon rien ; rendu en quittant l'écran qui s'en sert (big_thumb::release).
     QoiCache *big_cache = nullptr;
 
     QoiCache *open_big_cache() {
         for (const size_t bytes : { 12 * 1024, 8 * 1024 }) {
-            if (big_cache || xPortGetFreeHeapSize() < sizeof(QoiCache) + bytes + heap_margin) {
+            if (big_cache || !heap_allows(sizeof(QoiCache) + bytes)) {
                 continue;
             }
             if (void *block = malloc_fallible(sizeof(QoiCache) + bytes)) {
@@ -339,18 +366,20 @@ namespace {
 } // namespace
 
 std::optional<FileInfo> cached_file_info(const char *path) {
-    if (const FileInfo *hit = info_cache.find(path)) {
+    if (const FileInfo *hit = info_cache ? info_cache->find(path) : nullptr) {
         return *hit;
     }
     return std::nullopt;
 }
 
 void forget_file_infos() {
-    info_cache.keys = {};
+    if (info_cache) {
+        info_cache->keys = {};
+    }
     if (thumb_cache) {
         thumb_cache->clear();
     }
-    if (big_cache && !print_uses_usb()) {
+    if (big_cache && !marlin_client::is_printing()) {
         big_cache->clear(); // pendant une impression, l'image de l'écran Impression reste (la clé ne peut pas la relire)
     }
 }
@@ -367,7 +396,7 @@ bool open_gcode(AnyGcodeFormatReader &gcode, const char *path) {
 }
 
 FileInfo read_file_info(const char *path) {
-    if (const FileInfo *hit = info_cache.find(path)) {
+    if (const auto hit = cached_file_info(path)) {
         return *hit;
     }
     if (print_uses_usb()) {
@@ -384,7 +413,9 @@ FileInfo read_file_info(const char *path) {
 }
 
 bool print_uses_usb() {
-    return marlin_client::is_printing();
+    // Un transfert réseau aussi (envoi par Connect ou PrusaLink) : la clé est au fichier qui s'écrit, le tas au TLS ;
+    // la carte de l'accueil et la grille relisent après lui (ChangedPath)
+    return marlin_client::is_printing() || transfers::Monitor::instance.id().has_value();
 }
 
 namespace big_thumb {
@@ -464,6 +495,17 @@ namespace big_thumb {
 
     bool can_keep() {
         return open_big_cache();
+    }
+
+    void release() {
+        // Gardée seulement pour l'écran Impression : il reprend l'image d'« Avant l'impression », et ne peut plus relire
+        // la clé une fois l'impression partie (pendant elle, tant que le tas le permet)
+        const bool for_print = Screens::Access()->IsScreenOpened<ScreenPrinting>() || (print_active() && heap_allows(0));
+        if (big_cache && !for_print) {
+            big_cache->~QoiCache();
+            free(big_cache);
+            big_cache = nullptr;
+        }
     }
 
     void draw_box(Rect16 box, Rect16 img, uint8_t corners) {
@@ -666,7 +708,7 @@ ScreenFiles::ScreenFiles()
     , tabs(this, TabBar::Tab::print) {
     instance = this;
     open_thumb_cache();
-    if (xPortGetFreeHeapSize() >= sizeof(DirWindow) + heap_margin) {
+    if (heap_allows(sizeof(DirWindow))) {
         if (void *block = malloc_fallible(sizeof(DirWindow))) {
             view = dir_window = new (block) DirWindow();
         }
@@ -1133,6 +1175,7 @@ PreviewThumb::PreviewThumb(window_t *parent, Rect16 rect, const char *path)
 
 PreviewThumb::~PreviewThumb() {
     big_thumb::stop(scaler);
+    big_thumb::release();
 }
 
 void PreviewThumb::unconditionalDraw() {

@@ -61,8 +61,8 @@ namespace {
     }
 
     /// Hauteur de la courbe par colonne (une de plus pour le segment de la dernière), -1 sans point : calculées une fois
-    /// par dessin plutôt qu'à chaque pixel
-    std::array<std::array<int8_t, curve_rect.Width() + 1>, belts::belt_count> curve_heights;
+    /// par dessin plutôt qu'à chaque pixel, dans le tampon partagé (scratch_as)
+    using CurveHeights = std::array<std::array<int8_t, curve_rect.Width() + 1>, belts::belt_count>;
     static_assert(curve_rect.Height() <= INT8_MAX);
 
     void draw_panel_back(Rect16 r) {
@@ -186,6 +186,7 @@ void SpectrumCurve::unconditionalDraw() {
         }
     }
     scale *= 1.08f; // un peu d'air au-dessus du pic
+    CurveHeights &curve_heights = scratch_as<CurveHeights>();
     for (uint8_t b = 0; b < belts::belt_count; ++b) {
         for (int x = 0; x <= w; ++x) {
             curve_heights[b][x] = int8_t(belts::curve_height(m.spectra[b], m.points[b], x, w, h, scale));
@@ -329,6 +330,9 @@ void ScreenBelts::show_info() {
         case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
             text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min.");
             break;
+        case Status::no_memory:
+            text = _("Not enough memory, try again later.");
+            break;
         }
     }
     info.SetText(text);
@@ -383,9 +387,9 @@ void ScreenBelts::update() {
         }
         // V-03 : la comparaison finie, tous ses pics, à confronter à l'appli de Prusa (aussi au bilan de l'assistant)
         if (full_done && belts::compared() == belts::compare_modes.size() && !HasDialog() && !calibration_series_running()) {
-            static char peaks[320]; // la boîte le lit tant qu'elle est ouverte
+            const std::span<char> peaks = message_text(); // la boîte le lit tant qu'elle est ouverte
             belt_peaks_text(peaks);
-            MsgBoxInfo(string_view_utf8::MakeRAM(peaks), Responses_Ok);
+            MsgBoxInfo(string_view_utf8::MakeRAM(peaks.data()), Responses_Ok);
         }
         // Hors de la plage après une mesure complète : le réglage en direct est proposé (retour du 23/11)
         const belts::Measurement &m = belts::last();

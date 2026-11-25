@@ -53,6 +53,7 @@ enum class Status : uint8_t {
     no_accelerometer, ///< l'accéléromètre ne répond pas (texte de Prusa)
     failed, ///< la mesure a échoué en cours de route (accéléromètre)
     not_homed, ///< pas d'origine : refusé (jamais prise accéléromètre fixé)
+    no_memory, ///< refusé sans bouger : pas la place sur le tas
 };
 
 /// Étape en cours, pour l'interface

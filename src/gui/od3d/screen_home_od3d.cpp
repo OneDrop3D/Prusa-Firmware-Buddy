@@ -218,6 +218,7 @@ FileCard::FileCard(window_t *parent)
 
 FileCard::~FileCard() {
     big_thumb::stop(scaler);
+    big_thumb::release(); // l'accueil relira sa vignette au retour plutôt que de garder le tas
 }
 
 bool FileCard::set(bool usb, const char *latest) {

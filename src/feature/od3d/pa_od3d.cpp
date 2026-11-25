@@ -817,6 +817,10 @@ void calibrate(const Request &rq, bool load_tried) {
     last = no_run;
     last.slot = rq.slot;
 
+    if (!force_probe::reserve()) { // rendue au tas par la fin de la session
+        fail(Error::no_memory);
+        return;
+    }
     // Réglages remis à la fin, même sur un arrêt de Marlin : PA, mouvements, consignes, maillage (session commune)
     session::Session session(stop_requested);
     fast_moves(rq.params);
@@ -1045,6 +1049,9 @@ namespace {
         t.probe = plan.probe;
         st_temperature = t.nozzle;
 
+        if (!force_probe::reserve()) { // rendue au tas par la fin de la session
+            return Error::no_memory;
+        }
         // Réglages remis à la fin ; « Passer » sur l'écran Impression arrête la mesure, l'impression continue
         session::Session session(stop_requested, true);
         fast_moves(rq.params);

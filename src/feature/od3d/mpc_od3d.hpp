@@ -172,6 +172,7 @@ enum class Error : uint8_t {
     hold_timeout, ///< la température ne s'est pas stabilisée
     bad_result, ///< mesures incohérentes : paramètres hors des bornes
     refused, ///< pas lancée : impression en cours (M306 T)
+    no_memory, ///< pas lancée : pas la place sur le tas
 };
 
 /// Ce que la calibration demande à la buse

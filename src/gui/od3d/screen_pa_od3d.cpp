@@ -355,6 +355,9 @@ void ScreenPa::show_note() {
         case pa::Error::flexible:
             text = _("Flexible filament: not measured.");
             break;
+        case pa::Error::no_memory:
+            text = _("Not enough memory, try again later.");
+            break;
         default:
             text = _("Invalid request.");
             break;

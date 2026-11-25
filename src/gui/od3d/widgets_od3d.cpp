@@ -514,6 +514,27 @@ void draw_spinner(Rect16 box, uint8_t w, uint8_t step, Color bg, std::optional<u
     }
 }
 
+// ---- Tampons partagés ----
+
+namespace {
+    // Un seul tampon par usage au lieu d'un par écran (2,7 Ko de courbes et 1,2 Ko de textes statiques avant). Jamais
+    // deux utilisateurs à la fois : tous sont dans le fil de l'interface et un seul écran existe à la fois. Une courbe
+    // remplit puis lit ses hauteurs dans un même unconditionalDraw(), sans rien dessiner d'autre entre les deux ; les pics
+    // des courroies de l'assistant sont bâtis et copiés dans son texte au clic, hors de tout dessin de courbe (autre
+    // écran). Les boîtes de message sont modales : celle qui est ouverte capte les entrées, aucune autre de ces boîtes ne
+    // s'ouvre avant sa fermeture (clics bloqués, et update() des courroies attend !HasDialog()).
+    std::array<std::byte, scratch_size> scratch;
+    std::array<char, message_size> message;
+} // namespace
+
+std::byte *scratch_bytes() {
+    return scratch.data();
+}
+
+std::span<char> message_text() {
+    return message;
+}
+
 // ---- Éléments ----
 
 Spinner::Spinner(window_t *parent, point_i16_t at)

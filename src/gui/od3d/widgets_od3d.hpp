@@ -9,6 +9,8 @@
 #include "style_od3d.hpp"
 
 #include <array>
+#include <cstddef>
+#include <new>
 #include <optional>
 #include <span>
 #include <raster_opfn.hpp>
@@ -106,6 +108,24 @@ protected:
 /// Anneau d'attente (spinner_od3d.hpp) de bord w dans le carré box, au fond bg, l'arc à la position step : tout, ou
 /// seulement ce qui a changé depuis la position from (les deux bouts de l'arc)
 void draw_spinner(Rect16 box, uint8_t w, uint8_t step, Color bg, std::optional<uint8_t> from = std::nullopt);
+
+// ---- Tampons partagés (RAM statique rendue au tas, 25/11 ; voir widgets_od3d.cpp pour l'exclusivité) ----
+
+/// Le temps d'un dessin : hauteurs par colonne d'une courbe (courroies, amortissement, ventilateur, dilatation), ou le
+/// temps de bâtir le détail d'un test de l'assistant (pics des courroies)
+inline constexpr size_t scratch_size = 882;
+std::byte *scratch_bytes();
+
+/// Le tampon vu comme un T (tableau d'octets, non initialisé)
+template <typename T>
+T &scratch_as() {
+    static_assert(sizeof(T) <= scratch_size && alignof(T) == 1);
+    return *new (scratch_bytes()) T;
+}
+
+/// Texte d'une boîte de message tant qu'elle est ouverte (détail et bilan de l'assistant, pics des courroies)
+inline constexpr size_t message_size = 448;
+std::span<char> message_text();
 
 // ---- Navigation ----
 

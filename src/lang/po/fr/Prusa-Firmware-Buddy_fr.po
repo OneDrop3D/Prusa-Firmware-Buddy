@@ -13091,3 +13091,10 @@ msgstr "Démarrer prend d'abord l'origine."
 #: src/gui/od3d/screen_settings_od3d.cpp
 msgid "Filament\nFilament sensors"
 msgstr "Filament\nCapteurs de filament"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#: src/gui/od3d/screen_mpc_od3d.cpp
+#: src/gui/od3d/screen_music_od3d.cpp
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Not enough memory, try again later."
+msgstr "Mémoire insuffisante, réessayez plus tard."

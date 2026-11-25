@@ -782,9 +782,11 @@ namespace {
             break;
         case Test::belts: {
             if (belts::compared()) { // V-03 : les pics de chaque mode, ceux de la mesure habituelle compris
-                static char peaks[288]; // titre et quatre modes, en français avec des pics à trois chiffres
+                // Titre et quatre modes, en français avec des pics à trois chiffres : bâtis dans le tampon partagé,
+                // aussitôt copiés dans le texte
+                auto &peaks = scratch_as<std::array<char, 288>>();
                 belt_peaks_text(peaks);
-                w.add("%s", peaks);
+                w.add("%s", peaks.data());
             } else {
                 w.label(N_("Belts:"));
                 pair(a, "AB", 10, " Hz");
@@ -1268,12 +1270,12 @@ namespace {
 
     /// Le détail d'un test du bilan ; vrai pour le refaire
     bool show_details(Test test) {
-        static char text[448]; // la boîte le lit tant qu'elle est ouverte ; ventilateurs : une ligne chacun
+        const std::span<char> text = message_text(); // la boîte le lit tant qu'elle est ouverte ; ventilateurs : une ligne chacun
         Writer w(text);
         build_details(test, w);
         const bool can_retry = assistant::result(test) != Result::ok;
         const PhaseResponses responses = can_retry ? PhaseResponses { Response::Retry, Response::Ok, Response::_none, Response::_none } : Responses_Ok;
-        return MsgBoxInfo(string_view_utf8::MakeRAM(text), responses, can_retry ? 1 : 0) == Response::Retry; // « OK » par défaut
+        return MsgBoxInfo(string_view_utf8::MakeRAM(text.data()), responses, can_retry ? 1 : 0) == Response::Retry; // « OK » par défaut
     }
 
     template <size_t... I>
@@ -1816,10 +1818,10 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     case Stage::summary:
         if (tag == tag_b) {
             // Le bilan complet : gains, raisons des échecs, alertes (la ligne de l'écran n'en montre que le compte)
-            static char summary[448]; // + la raison d'un échec du tube PTFE et de la dilatation de la buse, l'alerte des ventilateurs
+            const std::span<char> summary = message_text(); // + la raison d'un échec du tube PTFE et de la dilatation de la buse, l'alerte des ventilateurs
             Writer w(summary);
             build_summary(w);
-            MsgBoxInfo(string_view_utf8::MakeRAM(summary), Responses_Ok);
+            MsgBoxInfo(string_view_utf8::MakeRAM(summary.data()), Responses_Ok);
         } else {
             flow.stage = Stage::idle;
             Screens::Access()->close_screen();

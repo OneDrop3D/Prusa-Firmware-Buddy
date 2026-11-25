@@ -132,6 +132,7 @@ enum class Error : uint8_t {
     load_failed, ///< le chargement de Prusa n'a pas mis la bobine dans la buse (pas de seconde tentative)
     no_force, ///< aucune force dès les premières lignes : la buse ne touche pas le plateau (pa::in_air)
     flexible, ///< M-09 : filament flexible, jamais mesuré (débits fixes de la mesure trop forts pour lui)
+    no_memory, ///< pas la place sur le tas pour la trace de la cellule : rien n'a bougé
 };
 
 struct Status {

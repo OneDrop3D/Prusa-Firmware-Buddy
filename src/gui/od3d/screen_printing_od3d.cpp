@@ -207,6 +207,7 @@ PrintThumb::~PrintThumb() {
     if (loading) {
         big_thumb::stop(screen.scaler);
     }
+    big_thumb::release();
 }
 
 void PrintThumb::set_progress(uint8_t percent) {

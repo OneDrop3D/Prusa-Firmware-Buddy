@@ -108,8 +108,8 @@ namespace {
         display::draw_rounded_rect(r, style::screen, style::surface, style::radius_big, MIC_ALL_CORNERS);
     }
 
-    /// Hauteur des droites par colonne (calculée une fois par dessin) ; -1 : hors du graphique
-    std::array<std::array<int8_t, chart_rect.Width() + 1>, 2> line_heights;
+    /// Hauteur des droites par colonne (calculée une fois par dessin, dans le tampon partagé) ; -1 : hors du graphique
+    using LineHeights = std::array<std::array<int8_t, chart_rect.Width() + 1>, 2>;
 
 } // namespace
 
@@ -209,6 +209,7 @@ void ExpansionChart::unconditionalDraw() {
     hi += margin;
     const auto row = [&](float z) { return std::isfinite(z) ? int(std::lround((z - lo) / (hi - lo) * float(h - 1))) : -1; };
     const auto col_t = [&](int x) { return chart_t0 + (chart_t1 - chart_t0) * float(x) / float(w - 1); };
+    LineHeights &line_heights = scratch_as<LineHeights>();
     for (int x = 0; x <= w; ++x) {
         const float t = col_t(x);
         line_heights[0][x] = int8_t(p.line.valid ? std::clamp(row(p.line.slope * t + p.line.intercept), -1, h - 1) : -1);

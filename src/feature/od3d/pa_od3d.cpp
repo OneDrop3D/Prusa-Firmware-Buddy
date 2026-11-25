@@ -155,6 +155,7 @@ namespace {
 } // namespace
 
 void on_tool_change() {
+    release_start_hold(); // T de départ sans M109 après la levée du verrou : le filament reculé revient avant la purge
     calib::refresh_flow_limit(); // F5 : limite de débit de l'emplacement chargé
     e_jump::refresh(); // M2000 : F de l'emplacement (même K : set_axis_e_config ne serait pas appelé)
     if (!printer_wins()) {
@@ -216,6 +217,14 @@ int16_t start_nozzle_target(int16_t requested) {
     const HoldStep step = start_hold_step(start_hold, requested, current, can_retract());
     hidden_e_move(step.e_mm);
     return step.target;
+}
+
+void release_start_hold() {
+    if (!marlin_server::is_printing()) {
+        start_hold = {}; // impression finie ou arrêtée : rien à remettre
+        return;
+    }
+    hidden_e_move(start_hold_release(start_hold));
 }
 
 void on_print_start(bool from_file) {
@@ -1214,9 +1223,21 @@ void calibrate_auto_step(uint8_t slot) {
     const Error e = stopped ? Error::stopped : loaded_slot() == slot ? measure_auto_slot(stopped) : Error::load_failed;
     fail(e);
     report_slot(slot, e);
-    // La bobine reste dans la buse : le T de départ du G-code la reprend telle quelle. La buse est chaude : le G-code de
-    // départ ne la fait pas redescendre pour le palpage (N-01, M-03)
-    start_hold = { .active = plan.leveled && print_goes_on() };
+    // La bobine reste dans la buse : le T de départ du G-code la reprend telle quelle. La buse reste chaude (la session ne
+    // remet pas la consigne d'avant) : le G-code de départ ne la fait pas redescendre pour le palpage (N-01, M-03) ; le
+    // recul laissé par la mesure revient avec celui du verrou, avant la purge du départ
+    const bool hold = plan.leveled && print_goes_on();
+    start_hold = { .active = hold, .carry_mm = hold ? session::left_retracted_mm() : 0.f };
+    if (hold && can_retract()) {
+        // Recul tout de suite : avant le nettoyage de la buse et le premier palpage, quel que soit l'ordre des demandes
+        // de température du G-code de départ (retour du 25/11 : « quand l'imprimante nivelle le plateau tout soit bien »)
+        start_hold.retracted = true;
+        hidden_e_move(-start_hold_retract_mm);
+    }
+}
+
+bool auto_active() {
+    return plan.active;
 }
 
 } // namespace od3d::pa

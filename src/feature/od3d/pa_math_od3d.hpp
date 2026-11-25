@@ -346,16 +346,18 @@ inline constexpr float start_hold_retract_mm = 6.f;
 
 struct StartHold {
     bool active = false; ///< mesure automatique faite, chauffe d'impression pas encore demandée
-    bool retracted = false; ///< filament reculé de start_hold_retract_mm
+    bool retracted = false; ///< filament reculé de start_hold_retract_mm, pas encore remis
+    float carry_mm = 0.f; ///< recul laissé par la fin de la mesure (sa rétraction contre le suintement), remis avec lui
 };
 
 struct HoldStep {
     int16_t target; ///< consigne à poser
-    float e_mm; ///< filament à bouger en plus [mm], sans changer sa position logique (négatif : recul)
+    float e_mm; ///< filament à reculer en plus [mm], sans changer sa position logique (négatif)
 };
 
 /// Demande de consigne requested (M104 S, M109 S/R), consigne actuelle current ; can_retract : filament dans la buse,
-/// buse assez chaude, pas un flexible. Le filament recule une fois, à une demande ignorée, et revient à la levée.
+/// buse assez chaude, pas un flexible. Le filament recule une fois : dès la fin de la mesure (pa_od3d, retracted déjà
+/// vrai), sinon à la première demande ignorée ; à la levée du verrou il reste reculé jusqu'à start_hold_release().
 constexpr HoldStep start_hold_step(StartHold &hold, int16_t requested, int16_t current, bool can_retract) {
     if (!hold.active) {
         return { requested, 0.f };
@@ -365,9 +367,20 @@ constexpr HoldStep start_hold_step(StartHold &hold, int16_t requested, int16_t c
         hold.retracted = hold.retracted || retract;
         return { current, retract ? -start_hold_retract_mm : 0.f };
     }
-    const float back = hold.retracted ? start_hold_retract_mm : 0.f;
+    hold.active = false;
+    return { requested, 0.f };
+}
+
+/// Filament à remettre [mm], une fois le verrou levé, le plus tard possible : à la fin de l'attente de chauffe (M109)
+/// qui suit, ou au T de départ, avant le premier mouvement qui extrude (retour du 25/11 : « après la calibration du
+/// plateau il y a du filament qui suinte de la buse ») ; 0 tant que le verrou tient
+constexpr float start_hold_release(StartHold &hold) {
+    if (hold.active) {
+        return 0.f;
+    }
+    const float back = (hold.retracted ? start_hold_retract_mm : 0.f) + hold.carry_mm;
     hold = {};
-    return { requested, back };
+    return back;
 }
 
 } // namespace od3d::pa

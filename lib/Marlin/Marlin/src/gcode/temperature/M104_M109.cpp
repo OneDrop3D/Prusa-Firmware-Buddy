@@ -150,6 +150,9 @@ void M109_no_parser(PhysicalToolIndex tool, const M109Flags& flags) {
   if (set_temp || flags.early_return_temperature.has_value()) {
     (void)thermalManager.wait_for_hotend(tool, { .no_wait_for_cooling = no_wait_for_cooling, .fan_cooling = flags.autotemp, .early_return_temperature = flags.early_return_temperature });
   }
+  #if HAS_LOADCELL() && HAS_MMU2()
+    od3d::pa::release_start_hold(); // OneDrop3D (N-01) : filament remis seulement à la fin de l'attente qui suit la levée du verrou
+  #endif
 
   return;
 }

@@ -111,8 +111,13 @@ struct LoadSpot {
 };
 
 /// Hauteur du chargement de la mesure automatique au départ d'une impression : le plastique (~70 mm³ au plus : ramming
-/// de 20 mm de l'ancien filament, 10 mm du nouveau) se pose sur le plateau, la buse reste au-dessus du petit tas
+/// de 20 mm de l'ancien filament, 10 mm du nouveau, poussés à l'arrêt par le MMU de Prusa) se pose sur le plateau, la
+/// buse reste au-dessus du petit tas
 inline constexpr float load_z = 5.f;
+
+/// Recul laissé par la dernière session à sa fin [mm] (sa rétraction contre le suintement) : le PA automatique le remet
+/// avec le sien, avant la purge du G-code de départ
+float left_retracted_mm();
 
 /// Série : au-dessus de la ligne de purge réservée, à purge_z. Sinon la place posée par set_load_spot(), rendue une
 /// seule fois (le M701 ou M702 qui la prend). nullopt : position de chargement de Prusa
@@ -185,6 +190,9 @@ public:
     /// Rétraction contre le suintement (une seule fois tant que le filament n'est pas remis), de
     /// pattern::retract_mm() selon la matière dans la buse
     void retract();
+    /// Rétraction de parking de Prusa (STANDARD_RETRACT_LENGTH en tout), avant un trajet et une attente buse chaude ;
+    /// jamais pour un flexible
+    void park_retract();
     /// Remet le filament rétracté (rien sinon)
     void deretract();
 };

@@ -71,7 +71,9 @@ namespace {
     int16_t saved_bed = 0;
     bool saved_leveling = false;
     bool z_homed = false; ///< origine Z refaite par home() dans cette session
-    bool retracted = false;
+    float retracted_by = 0.f; ///< filament reculé par la session [mm], remis par deretract()
+    bool print_session = false; ///< mesure automatique au départ d'une impression (Session in_print)
+    float left_retracted = 0.f; ///< recul laissé par la dernière session à sa fin [mm]
     std::optional<BlockEStallDetection> block_estall; ///< la détection de filament coincé lirait nos paliers comme des à-coups
     std::optional<SkippableGCode::Guard> skip_guard; ///< en impression : « Passer » sur l'écran Impression
 #if HAS_CRASH_DETECTION()
@@ -286,7 +288,8 @@ Session::Session(const std::atomic<bool> &stop_requested, bool in_print) {
     saved_bed = thermalManager.degTargetBed();
     saved_leveling = planner.leveling_active;
     z_homed = false;
-    retracted = false;
+    retracted_by = 0.f;
+    print_session = in_print;
     const auto tool = VirtualToolIndex::currently_selected_opt();
     retract_mm = pattern::retract_mm(tool && FilamentType::for_tool(*tool).parameters().is_flexible);
     block_estall.emplace();
@@ -304,6 +307,7 @@ Session::~Session() {
         }
         planner.synchronize();
     }
+    left_retracted = retracted_by;
     if (!planner.draining()) {
         pressure_advance::set_axis_e_config(saved_pa);
         if (planner.leveling_active != saved_leveling) {
@@ -314,8 +318,10 @@ Session::~Session() {
     planner.set_stealth_mode(saved_stealth);
     // Série : plateau gardé chaud, et la buse aussi avec une bobine dedans ; le test suivant va directement à sa
     // température (retour du 23/11 : la buse redescendait entre deux tests). Buse vide (dilatation, finie à 260 °C) :
-    // consigne d'avant. La série coupe tout à sa fin
-    if (!series.active || !filament_memory::loaded_slot()) {
+    // consigne d'avant. La série coupe tout à sa fin. Mesure automatique au départ d'une impression : la buse reste chaude
+    // pour le G-code de départ (retour du 25/11 : « après avoir calibré il redescend en température pour ensuite
+    // remonter » ; sans chargement avant la mesure, la consigne d'avant était 0)
+    if (!print_session && (!series.active || !filament_memory::loaded_slot())) {
         hotend().set_nozzle_target_temp(saved_target);
     }
     if (!series.active) {
@@ -577,23 +583,38 @@ bool Session::print_to(float x, float y, float e_per_mm, float speed) {
 }
 
 void Session::retract() {
-    if (retracted || !hot() || !(retract_mm > 0.f)) {
+    if (retracted_by > 0.f || !hot() || !(retract_mm > 0.f)) {
         return;
     }
     xyze_pos_t target = current_position;
     target.e -= retract_mm;
     queue_to(target, pattern::retract_speed);
-    retracted = true;
+    retracted_by = retract_mm;
 }
 
-void Session::deretract() {
-    if (!retracted) {
+void Session::park_retract() {
+    constexpr float park = STANDARD_RETRACT_LENGTH;
+    if (retracted_by >= park || !hot() || !(retract_mm > 0.f)) { // retract_mm à 0 : flexible, jamais reculé
         return;
     }
     xyze_pos_t target = current_position;
-    target.e += retract_mm;
+    target.e -= park - retracted_by;
     queue_to(target, pattern::retract_speed);
-    retracted = false;
+    retracted_by = park;
+}
+
+void Session::deretract() {
+    if (!(retracted_by > 0.f)) {
+        return;
+    }
+    xyze_pos_t target = current_position;
+    target.e += retracted_by;
+    queue_to(target, pattern::retract_speed);
+    retracted_by = 0.f;
+}
+
+float left_retracted_mm() {
+    return left_retracted;
 }
 
 } // namespace od3d::session

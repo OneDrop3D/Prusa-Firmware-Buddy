@@ -40,6 +40,9 @@ inline constexpr uint32_t bed_timeout_ms = 12 * 60 * 1000;
 inline constexpr float purge_x = 249.f;
 inline constexpr float purge_y = -2.5f;
 inline constexpr float purge_z = 15.f; ///< hauteur de départ, au-dessus du début de la purge
+/// Mesure automatique au départ d'une impression : buse au-dessus du départ de la purge pendant la chauffe [mm] ; le
+/// cordon est ensuite posé à sa hauteur, en mouvement (retour du 25/11 : « une purge sur le plateau »)
+inline constexpr float purge_hover = 1.f;
 inline constexpr float purge_length = 50.f; ///< longueur de la purge le long de X, essuyage compris
 
 enum class Result : uint8_t {
@@ -111,8 +114,13 @@ struct LoadSpot {
 };
 
 /// Hauteur du chargement de la mesure automatique au départ d'une impression : le plastique (~70 mm³ au plus : ramming
-/// de 20 mm de l'ancien filament, 10 mm du nouveau) se pose sur le plateau, la buse reste au-dessus du petit tas
+/// de 20 mm de l'ancien filament, 10 mm du nouveau, poussés à l'arrêt par le MMU de Prusa) se pose sur le plateau, la
+/// buse reste au-dessus du petit tas
 inline constexpr float load_z = 5.f;
+
+/// Recul laissé par la dernière session à sa fin [mm] (sa rétraction contre le suintement) : le PA automatique le remet
+/// avec le sien, avant la purge du G-code de départ
+float left_retracted_mm();
 
 /// Série : au-dessus de la ligne de purge réservée, à purge_z. Sinon la place posée par set_load_spot(), rendue une
 /// seule fois (le M701 ou M702 qui la prend). nullopt : position de chargement de Prusa
@@ -163,13 +171,15 @@ public:
     Result heat(int16_t temperature, float tolerance = 2.f, uint32_t hold_ms = 3000, uint32_t timeout_ms = heat_timeout_ms, bool extrude = true);
 
     /// Va au-dessus du départ de la ligne de purge (bord avant droit par défaut), à purge_z du plateau ; dir : sens de
-    /// la purge qui suivra (sa fin doit rester dans la course) ; along_y : purge le long de Y
+    /// la purge qui suivra (sa fin doit rester dans la course) ; along_y : purge le long de Y. Mesure automatique au
+    /// départ d'une impression : filament reculé d'abord (park_retract), buse à purge_hover
     Result go_to_purge(float x = purge_x, float y = purge_y, float dir = -1.f, bool along_y = false);
 
     /// Ligne de purge du G-code de départ de la CORE One depuis le départ x (à l'Y actuel), le long de X dans le sens
     /// dir (-1 : vers la gauche, comme Prusa au bord avant) ; false s'il faut s'arrêter. Série : sa place est libérée
     /// de la réservation (la suivante en prendra une autre). along_y (motif tourné de la mesure automatique) : départ
-    /// y = x à l'X actuel, le long de Y
+    /// y = x à l'X actuel, le long de Y. Mesure automatique : filament remis au-dessus du départ, puis tout le cordon posé
+    /// à sa hauteur, en mouvement
     bool purge(float x = purge_x, float dir = -1.f, bool along_y = false);
 
     /// Déplacement au-dessus du motif : rétraction, levée de hop au-dessus de z, (x, y), puis descente à z si lower
@@ -185,6 +195,9 @@ public:
     /// Rétraction contre le suintement (une seule fois tant que le filament n'est pas remis), de
     /// pattern::retract_mm() selon la matière dans la buse
     void retract();
+    /// Rétraction de parking de Prusa (STANDARD_RETRACT_LENGTH en tout), avant un trajet et une attente buse chaude ;
+    /// jamais pour un flexible
+    void park_retract();
     /// Remet le filament rétracté (rien sinon)
     void deretract();
 };

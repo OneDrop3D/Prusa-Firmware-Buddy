@@ -685,6 +685,12 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         CHECK(text() == "M1994 A2\nG28 O I\nG27 W2\nM701 S\"#5\" W2 P3\nM1994 P3 A1");
         REQUIRE(pa::auto_step_sequence(out, 3, nullptr, true)); // rien à charger : pas de palpage à part
         CHECK(text() == "M1994 P3 A1");
+        // Place du chargement dans le bloc : la buse y va avant M701 (qui ne se gare pas quand rien n'est chargé)
+        REQUIRE(pa::auto_step_sequence(out, 3, "#5", true, pa::LoadPark { 120.f, 30.5f, 5.f }));
+        CHECK(text() == "M1994 A2\nG28 O I\nG27 X120.0 Y30.5 Z5.0 P1\nM701 S\"#5\" W2 P3\nM1994 P3 A1");
+        // Bobine déjà dans la buse : ni chargement ni purge de Prusa, la mesure seule (sa purge posée amorce)
+        REQUIRE(pa::auto_step_sequence(out, 3, nullptr, false, pa::LoadPark { 120.f, 30.5f, 5.f }));
+        CHECK(text() == "M1994 P3 A1");
     }
     SECTION("jamais de M701 avant l'origine et la position de chargement levée") {
         pa::Request rq;
@@ -979,42 +985,68 @@ TEST_CASE("PA : K retrouvé avec des lignes alternées (grand motif et compact)"
 }
 
 TEST_CASE("pa: nozzle kept hot after the automatic measurement, filament retracted while probing (N-01, M-03)") {
-    pa::StartHold hold { .active = true };
+    // Recul laissé par la fin de la mesure (rétraction de la session), remis avec celui du verrou
+    constexpr float carry = 0.8f;
+    pa::StartHold hold { .active = true, .carry_mm = carry };
     float moved = 0.f; // filament bougé en plus, cumulé [mm]
     const auto request = [&](int16_t requested, int16_t current = 230, bool can_retract = true) {
         const pa::HoldStep s = pa::start_hold_step(hold, requested, current, can_retract);
         moved += s.e_mm;
         return s.target;
     };
+    // Fin de l'attente d'un M109, ou T de départ : le filament ne revient qu'une fois le verrou levé
+    const auto release = [&] {
+        moved += pa::start_hold_release(hold);
+    };
 
     // G-code de départ de PrusaSlicer (CORE One MMU3), PLA à 215 °C après une mesure à 230 °C (bobine PETG)
-    CHECK(request(170) == 230); // M109 R170 : ignorée, le filament recule une fois
+    CHECK(request(170) == 230); // M109 R170 : ignorée, le filament recule une fois, avant G28 et le palpage
+    CHECK(moved == -pa::start_hold_retract_mm);
+    release(); // fin de son attente : le verrou tient, rien ne revient
     CHECK(moved == -pa::start_hold_retract_mm);
     CHECK(request(100) == 230); // M104 S100 (attente) : ignorée, pas de second recul
     CHECK(request(170) == 230); // M109 R170 : ignorée
+    release();
     CHECK(request(175) == 230); // palpage des PET
     CHECK(request(160) == 230); // MBL160
     CHECK(moved == -pa::start_hold_retract_mm);
     CHECK(hold.active);
-    CHECK(request(215) == 215); // M104 S215 (première couche) : suivie, verrou levé, filament remis
+    CHECK(request(215) == 215); // M104 S215 (première couche) : suivie, verrou levé, le filament reste reculé
     CHECK_FALSE(hold.active);
-    CHECK(moved == 0.f);
+    CHECK(moved == -pa::start_hold_retract_mm); // pendant G0 X249 Y-2.5 Z15 et l'attente : rien ne suinte
     CHECK(request(215) == 215); // M109 S215
+    release(); // à la fin de son attente : tout revient, recul de la mesure compris (E logique inchangé)
+    CHECK_THAT(moved, WithinAbs(carry, 1e-5));
+    CHECK(hold.active == false);
+    release(); // une seule fois
     CHECK(request(170) == 170); // verrou levé : tout est suivi
     CHECK(request(0) == 0); // M104 S0 de fin
+    CHECK_THAT(moved, WithinAbs(carry, 1e-5));
+
+    // Recul fait dès la fin de la mesure (avant G28, quel que soit l'ordre du départ) : pas de second recul ensuite
+    moved = -pa::start_hold_retract_mm;
+    hold = { .active = true, .retracted = true };
+    CHECK(request(100) == 230);
+    CHECK(request(170) == 230);
+    CHECK(moved == -pa::start_hold_retract_mm);
+    CHECK(request(215) == 215);
+    release();
     CHECK(moved == 0.f);
 
-    // M104 S0 avant toute chauffe d'impression : suivie, filament remis
+    // M109 S215 d'emblée (levée par la chauffe elle-même) : le filament revient à la fin de son attente
+    moved = 0.f;
     hold = { .active = true };
     CHECK(request(170) == 230);
-    CHECK(request(0) == 0);
-    CHECK_FALSE(hold.active);
+    CHECK(request(215) == 215);
+    CHECK(moved == -pa::start_hold_retract_mm);
+    release();
     CHECK(moved == 0.f);
 
     // Palpage chaud de PrusaSlicer (PC, PA : première couche − 25 ; FLEX : 210) : suivi d'emblée, rien ne recule
     hold = { .active = true };
     CHECK(request(250, 275) == 250);
     CHECK_FALSE(hold.active);
+    release();
     CHECK(moved == 0.f);
 
     // Flexible, ou filament pas dans la buse : la consigne est gardée, rien ne recule ni ne revient
@@ -1022,6 +1054,7 @@ TEST_CASE("pa: nozzle kept hot after the automatic measurement, filament retract
     CHECK(request(170, 230, false) == 230);
     CHECK(moved == 0.f);
     CHECK(request(230) == 230);
+    release();
     CHECK(moved == 0.f);
 
     // Buse encore froide à la première demande ignorée : le recul attend la suivante, puis revient en entier
@@ -1030,6 +1063,7 @@ TEST_CASE("pa: nozzle kept hot after the automatic measurement, filament retract
     CHECK(request(100) == 230);
     CHECK(moved == -pa::start_hold_retract_mm);
     CHECK(request(220) == 220);
+    release();
     CHECK(moved == 0.f);
 
     // Consigne actuelle plus basse que la demande : suivie (rien à garder chaud), verrou levé
@@ -1037,9 +1071,10 @@ TEST_CASE("pa: nozzle kept hot after the automatic measurement, filament retract
     CHECK(request(170, 150) == 170);
     CHECK_FALSE(hold.active);
 
-    // Sans mesure automatique : tout passe tel quel
+    // Sans mesure automatique : tout passe tel quel, rien ne revient
     hold = {};
     CHECK(request(170) == 170);
+    release();
     CHECK(moved == 0.f);
 }
 

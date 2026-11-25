@@ -13034,7 +13034,6 @@ msgstr "PA non mesuré : emplacement %d pas en 1re couche, voir sa fiche"
 #, c-format
 msgid "Slot %d: %s in the file, %s spool"
 msgstr "Emplacement %d : %s dans le fichier, bobine %s"
-
 #: src/gui/od3d/screen_resume_od3d.cpp
 msgid "Clean resume\nPrime inside the infill first"
 msgstr "Reprise sans cicatrice\nAmorce d'abord dans le remplissage"

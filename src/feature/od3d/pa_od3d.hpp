@@ -192,6 +192,13 @@ void calibrate_auto_level();
 /// du palpage (pa_math : start_hold_step) ; sinon requested
 int16_t start_nozzle_target(int16_t requested);
 
+/// Fin de l'attente de M109, ou changement d'outil (fil de Marlin) : verrou levé, le filament reculé revient, le plus
+/// tard possible avant le premier mouvement qui extrude (pa_math : start_hold_release)
+void release_start_hold();
+
+/// La mesure automatique est en cours (de M1994 A jusqu'à sa mesure) : son chargement ne demande pas la couleur
+bool auto_active();
+
 /// Dernière mesure (en mémoire vive seulement), pour l'écran : K de chaque ligne imprimée **dans l'ordre des lignes**
 /// (ligne 1 à l'avant), retard, coût, et forme moyenne d'un créneau au K le plus bas, au meilleur coût et au K le plus
 /// haut. Lire quand is_running() est faux.

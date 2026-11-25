@@ -108,7 +108,8 @@ void filament_gcodes::M701_load(const M701LoadArgs &args) {
     // OneDrop3D : chargement de l'assistant de calibration et de la mesure automatique du PA au départ d'une impression
     // au-dessus d'une place libre du plateau (départ de la ligne de purge) : ce qui sort de la buse s'y pose au lieu de
     // pendre de la buse garée en hauteur (od3d/measure_session_od3d.hpp)
-    if (const auto spot = do_purge_only ? std::nullopt : od3d::session::take_load_spot()) {
+    const auto spot = do_purge_only ? std::nullopt : od3d::session::take_load_spot();
+    if (spot) {
         park_position.x = spot->x;
         park_position.y = spot->y;
         park_position.z = spot->z; // absolu : l'origine est faite (G28 O I avant)
@@ -124,7 +125,12 @@ void filament_gcodes::M701_load(const M701LoadArgs &args) {
 
 #ifndef DO_NOT_RESTORE_Z_AXIS
     // Has to be set before last Pause operation, otherwise it unparks and parks again inbetween operations
-    settings.SetResumePoint(current_position_tmp);
+    // OneDrop3D : chargement posé sur sa place (série, mesure automatique) : la tête y reste, pas de retour filament au
+    // bout de la buse ; la mesure automatique recule le filament avant de bouger (retour du 25/11 : « après il n'y a pas
+    // de rétraction donc ça suinte »)
+    if (!spot) {
+        settings.SetResumePoint(current_position_tmp);
+    }
 #endif
 
     const bool do_resume_print = args.resume_print_request && marlin_server::printer_paused();

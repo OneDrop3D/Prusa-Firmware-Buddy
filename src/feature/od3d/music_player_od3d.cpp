@@ -108,7 +108,8 @@ namespace {
         float max_speed; ///< vitesse du moteur
     };
 
-    /// Pas complets par mm : les micro-pas réglés comptent (la CORE One : 100 micro-pas par mm, 16 par pas, 6,25)
+    /// Pas complets par mm, lus dans le planificateur : les micro-pas réglés et le type de courroie comptent (CORE One :
+    /// 100 micro-pas par mm, 16 par pas, 6,25 ; courroies 1,5GT de la Gen2 : 101,587, soit 6,35)
     float full_steps_per_mm(AxisEnum axis) {
         return 4.f * planner.qsteps_per_mm(axis);
     }

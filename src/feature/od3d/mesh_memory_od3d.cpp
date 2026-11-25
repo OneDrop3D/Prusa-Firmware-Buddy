@@ -8,7 +8,9 @@
 
 #include <config_store/store_instance.hpp>
 #include <feature/bedlevel/bedlevel.h>
-#include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+#if OD3D_MESH_MEMORY() // l'INDX n'a pas la compensation de dilatation
+    #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+#endif
 #include <metric.h>
 #include <module/motion.h>
 #include <module/probe.h>

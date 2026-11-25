@@ -70,9 +70,12 @@ namespace {
     void take(fsm::BaseData data) {
         last_data = data;
         // MMU_ERRWaitingForUser porte un pointeur vers l'erreur, pas d'avancement (et rouvre l'écran de toute façon)
-        if (GetEnumFromPhaseIndex<PhasesLoadUnload>(data.GetPhase()) != PhasesLoadUnload::MMU_ERRWaitingForUser) {
-            last_progress = fsm::deserialize_data<FSMLoadUnloadData>(data.GetData()).progress;
+#if HAS_MMU2()
+        if (GetEnumFromPhaseIndex<PhasesLoadUnload>(data.GetPhase()) == PhasesLoadUnload::MMU_ERRWaitingForUser) {
+            return;
         }
+#endif
+        last_progress = fsm::deserialize_data<FSMLoadUnloadData>(data.GetData()).progress;
     }
 
     PreheatLatch preheat_latch;

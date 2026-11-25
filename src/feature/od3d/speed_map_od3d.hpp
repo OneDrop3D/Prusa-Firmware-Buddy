@@ -19,9 +19,10 @@ namespace od3d::speed_map {
 
 inline constexpr float speed_start = 20.f; ///< mm/s
 inline constexpr float speed_step = 5.f;
-/// 20 à 80 mm/s (V-07, étude F34) : la fréquence des pas complets des moteurs vaut 6,25 × v Hz (500 Hz à 80 mm/s) et
-/// approche au-delà la moitié de l'échantillonnage de l'accéléromètre (~1 344 Hz), qui ne la capte plus : une carte
-/// plus haute ne serait pas fiable. Le pas de 5 mm/s garde des voisines de chaque côté pour la base locale.
+/// 20 à 80 mm/s (V-07, étude F34) : la fréquence des pas complets des moteurs vaut 6,25 × v Hz (500 Hz à 80 mm/s ;
+/// 6,35 × v avec les courroies 1,5GT de la Gen2, 101,587 pas/mm) et approche au-delà la moitié de l'échantillonnage de
+/// l'accéléromètre (~1 344 Hz), qui ne la capte plus : une carte plus haute ne serait pas fiable. Rien n'en est calculé :
+/// les vitesses sont mesurées. Le pas de 5 mm/s garde des voisines de chaque côté pour la base locale.
 inline constexpr size_t speed_count = 13;
 inline constexpr float speed_end = speed_start + (speed_count - 1) * speed_step;
 static_assert(speed_end == 80.f);

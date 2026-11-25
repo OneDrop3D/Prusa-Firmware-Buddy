@@ -30,6 +30,31 @@ enum class Cause : uint8_t {
     none, ///< animation, LOOP, invalidation sans entrée
     knob,
     touch,
+    usb, ///< lecture de la clé par l'onglet Imprimer (Step), pas un dessin
+    heap, ///< tas libre à l'ouverture de la grille des fichiers
+};
+
+/// Demandes à la clé USB (USBH_read), cumulées depuis le démarrage, toutes tâches confondues (AUDIT_PERF_IMPRIMER.md)
+struct Usb {
+    uint32_t commands = 0; ///< demandes envoyées à la clé
+    uint32_t sectors = 0; ///< secteurs lus (512 octets)
+    uint32_t us = 0; ///< temps passé à attendre la clé [µs]
+    uint32_t split = 0; ///< demandes d'un secteur dues à un tampon décalé (une seule demande aurait suffi)
+};
+extern Usb usb;
+
+inline Usb operator-(const Usb &a, const Usb &b) {
+    return { a.commands - b.commands, a.sectors - b.sectors, a.us - b.us, a.split - b.split };
+}
+
+/// Étapes de l'onglet Imprimer : colonne screen des lignes « u » (plus 256 × les demandes d'un secteur de split)
+enum class Step : uint8_t {
+    heap = 0, ///< ligne « h » : tas libre à l'ouverture de la grille
+    folder = 1, ///< lecture du dossier
+    card = 2, ///< une carte : ouverture, métadonnées, recherche et bandes de sa vignette
+    page = 3, ///< page complète : de son affichage à sa dernière vignette
+    preview = 4, ///< « Avant l'impression » : métadonnées et nom, avant son premier dessin
+    preview_image = 5, ///< image d'« Avant l'impression »
 };
 
 /// Une ligne de l'anneau : un dessin, ou plusieurs dessins sans entrée cumulés
@@ -63,6 +88,33 @@ inline bool merge(Row &last, const Row &next, uint32_t end_ms) {
     ++last.draws;
     return true;
 }
+
+/// Ajoute la tranche piece à row si c'est la même étape commencée au même moment (une carte lue en plusieurs tranches) :
+/// travail, octets, demandes et attente s'additionnent ; la plus longue tranche (input_10us) et la fin (span_ms) sont
+/// gardées. false si row est une autre ligne
+inline bool merge_step(Row &row, const Row &piece) {
+    if (row.cause != Cause::usb || piece.cause != Cause::usb || row.t_ms != piece.t_ms || (row.screen & 0xff) != (piece.screen & 0xff)
+        || row.draws == UINT8_MAX) {
+        return false;
+    }
+    row.screen = (row.screen & 0xff) | (((row.screen >> 8) + (piece.screen >> 8)) << 8);
+    row.draw_us += piece.draw_us;
+    row.bytes += piece.bytes;
+    row.dma_wait_us += piece.dma_wait_us;
+    row.windows = uint16_t(std::min<uint32_t>(uint32_t(row.windows) + piece.windows, UINT16_MAX));
+    row.span_ms = std::max(row.span_ms, piece.span_ms);
+    row.input_10us = std::max(row.input_10us, piece.input_10us);
+    ++row.draws;
+    return true;
+}
+
+/// Une tranche de l'étape step commencée à start_ms : us de travail (l'écran ne répondait pas), delta lu sur la clé.
+/// Ajoutée à la ligne de son étape si elle est parmi les dernières de l'anneau, sinon une ligne « u » de plus
+void note(Step step, uint32_t start_ms, uint32_t us, const Usb &delta);
+
+/// Ligne « h » : tas libre à l'ouverture de la grille, avant et après ses blocs ; caches : bits 1 fenêtre du dossier,
+/// 2 métadonnées, 4 vignettes (thumbs_kb Ko de place)
+void note_heap(uint32_t free_before, uint32_t free_after, uint8_t caches, uint8_t thumbs_kb);
 
 /// Entrée reçue (molette ou toucher) : la latence court jusqu'à la fin du prochain dessin
 void input(Cause cause);

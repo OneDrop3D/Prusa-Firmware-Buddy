@@ -2,6 +2,7 @@
 #include "screen_files_od3d.hpp"
 #include "screen_printing_od3d.hpp"
 #include "layout_od3d.hpp"
+#include "perf_od3d.hpp"
 #include "sleep_gui_od3d.hpp"
 #include "spool_draw.hpp"
 
@@ -15,6 +16,7 @@
 #include <cstring>
 #include <display.hpp>
 #include <display_helper.h>
+#include <filename_type.hpp>
 #include <FreeRTOS.h>
 #include <feature/od3d/print_start_od3d.hpp>
 #include <feature/od3d/mesh_memory_od3d.hpp>
@@ -43,15 +45,23 @@
 #include <sound.hpp>
 #include <strings.h>
 #include <timing.h>
+#include <transfers/changed_path.hpp>
 #include <transfers/monitor.hpp>
 
 #if HAS_TOUCH()
     #include <hw/touchscreen/touchscreen.hpp>
 #endif
 
+// FatFS et dirent.h (lazyfilelist) déclarent chacun un DIR : celui de FatFS est renommé, seul le montage est lu ici (comme
+// l'accueil)
+#define DIR FATFS_DIR
+#include <buddy/fatfs.h>
+#undef DIR
+
 // Durées des lectures de la clé, en ms (M331 od3d_files pour les activer) : dir = liste du dossier, info = métadonnées
 // d'un fichier (ouverture comprise), thumb = vignette (de l'ouverture du fichier à sa dernière bande, pauses comprises),
-// band = la plus longue bande de cette vignette (temps où l'interface ne répond pas), ready = de l'affichage de la page
+// band = la plus longue tranche de cette carte : ouverture, métadonnées, recherche de la vignette ou bande (temps où
+// l'interface ne répond pas), ready = de l'affichage de la page
 // à sa dernière vignette, scroll = rangée ou page tournée (dossier relu si besoin et cartes), step = d'un cran de molette
 // à l'écran repeint (attente du dessin compris, 40 ms au plus), cache = octets du cache des vignettes (0 : pas assez de
 // mémoire libre), window = entrées du dossier gardées en mémoire (4 : pas assez de mémoire libre, relu à chaque rangée)
@@ -85,8 +95,9 @@ namespace {
     constexpr uint16_t band_rows = 8;
     constexpr ScaledQoiReader::Params grid_params { .factor = grid_factor, .back = style::thumb_back, .radius = 0, .outside = style::thumb_back };
 
-    /// Lectures après la dernière molette ou le dernier toucher : l'écran répond d'abord
-    constexpr int32_t input_pause_ms = 250;
+    /// Lectures après la dernière molette ou le dernier toucher : l'écran répond d'abord. 250 ms avant que la lecture
+    /// d'une carte soit coupée en tranches (P-07) : une tranche ne retient plus la molette que quelques dizaines de ms
+    constexpr int32_t input_pause_ms = 120;
 
     // Doigt : la grille suit dès 10 px (comme le défilement de Prusa) ; une rangée d'inertie toutes les 70 ms
     constexpr int16_t drag_min = 10;
@@ -193,15 +204,25 @@ namespace {
 
 } // namespace
 
-void open_preview(const char *path) {
-    strlcpy(ScreenPreview::path.data(), path, ScreenPreview::path.size());
+void open_preview(const char *path, const char *name) {
+    auto &buffer = ScreenPreview::path;
+    const size_t len = strlcpy(buffer.data(), path, buffer.size());
+    // P-05 : le nom affiché rangé après le chemin, dans le même tampon (0 octet de plus) ; vide s'il n'y tient pas en
+    // entier ou s'il n'est pas connu : l'écran le cherche alors dans le dossier, comme avant
+    if (len + 1 < buffer.size()) {
+        char *after = buffer.data() + len + 1;
+        const size_t room = buffer.size() - len - 1;
+        if (!name || strlcpy(after, name, room) >= room) {
+            after[0] = '\0';
+        }
+    }
     open_screen<ScreenPreview>();
 }
 
 namespace {
 
     /// Métadonnées des derniers fichiers lus, repérés par une empreinte de leur chemin (FNV-1a) ; ~1,3 Ko, pris au tas
-    /// avec le cache des vignettes de la grille (open_thumb_cache), statiques avant (RAM rendue au réseau, 25/11)
+    /// avec le cache des vignettes de la grille (open_caches), statiques avant (RAM rendue au réseau, 25/11)
     struct InfoCache {
         static constexpr size_t size = 16;
         std::array<uint32_t, size> keys {}; ///< 0 : place libre
@@ -245,6 +266,38 @@ namespace {
         return !transfers::Monitor::instance.id().has_value() && xPortGetFreeHeapSize() >= bytes + heap_reserve;
     }
 
+    /// Montage de la clé : FatFS numérote ses montages (0 : pas montée). Un autre numéro : une autre clé, ou la même
+    /// rebranchée (comme l'accueil)
+    uint16_t usb_mount() {
+        return USBHFatFS.fs_type ? USBHFatFS.id : 0;
+    }
+
+    /// Change à chaque fichier envoyé ou effacé par PrusaLink ou Connect (comme l'accueil)
+    uint32_t usb_changes() {
+        return transfers::ChangedPath::instance.change_chain_hash("/usb");
+    }
+
+    /// P-08 : usb_changes() quand le dossier de la grille a été lu ; la grille le relit quand il change
+    uint32_t folder_changes = 0;
+
+    /// Redessine w sans repeindre son fond s'il est encore à l'écran (comme Card::invalidate_content) ; sinon (premier
+    /// dessin, dialogue refermé, réveil) tout est repeint
+    void invalidate_content(window_t &w) {
+        const bool background_valid = w.HasValidBackground();
+        w.Invalidate();
+        if (background_valid) {
+            w.ValidateBackground();
+        }
+    }
+
+    /// P-03 : la vignette d'un .bgcode se lit ensuite d'un trait, par 4 Ko alignés sur les secteurs de la clé (le fichier
+    /// s'ouvre avec 64 octets pour sauter de bloc en bloc, open_gcode). Un .gcode garde ses 4 Ko de l'ouverture.
+    void stream_image(AnyGcodeFormatReader &gcode, const char *path) {
+        if (filename_is_bgcode(path)) {
+            static_cast<GcodeReaderCommon *>(gcode.get())->set_stream_buffer(4096);
+        }
+    }
+
 } // namespace
 
 namespace {
@@ -280,31 +333,58 @@ namespace {
     // RAM : 104 × 57 en RGB565 = 11,9 Ko par vignette (47 Ko la page : impossible) ; en QOI ~2,5 Ko (mesuré sur une
     // vignette PrusaSlicer). Emprunté au tas tant que la grille ou son « Avant l'impression » est ouvert, rendu ensuite
     // (pas pendant une impression), et seulement si heap_allows() : 16 Ko (~6 vignettes, la page et une rangée), sinon
-    // 8 Ko, sinon rien (lecture comme avant). Les métadonnées (InfoCache) vivent avec lui.
+    // 8 ou 4 Ko, sinon rien (lecture comme avant). Les métadonnées (InfoCache) vivent avec lui.
     QoiCache *thumb_cache = nullptr;
 
-    void open_thumb_cache() {
-        if (!info_cache && heap_allows(sizeof(InfoCache))) {
+    // Fenêtre du dossier : 24 entrées en mémoire au lieu des 4 de la page. Avant (8.0.2.33), chaque rangée (deux crans de
+    // molette) relisait tout le dossier sur la clé : LazyDirView n'avance sa fenêtre qu'en le relisant. Un dossier de 23
+    // fichiers au plus n'est plus relu après son ouverture ; un plus grand, une fois toutes les 10 rangées. ~5 Ko du tas,
+    // pris avant les autres blocs (P-04), sinon la page seule, comme avant. Gardée tant que la grille est dans la pile des
+    // écrans (P-05) : le retour d'« Avant l'impression » ne relit pas le dossier.
+    struct DirCache {
+        LazyDirView<24> view;
+        uint16_t mount = 0; ///< montage de la clé lue dans view (usb_mount), 0 : pas encore lue
+    };
+    DirCache *dir_cache = nullptr;
+
+    /// P-04 : emprunte au tas ce qui manque, dans l'ordre d'utilité (print_info::plan_caches) : fenêtre du dossier,
+    /// métadonnées, vignettes ; rien pendant un envoi. true si la fenêtre du dossier vient d'être prise.
+    bool open_caches() {
+        if (transfers::Monitor::instance.id().has_value() || (dir_cache && info_cache && thumb_cache)) {
+            return false;
+        }
+        const print_info::CachePlan plan = print_info::plan_caches(xPortGetFreeHeapSize(), heap_reserve, dir_cache ? 0 : sizeof(DirCache),
+            info_cache ? 0 : sizeof(InfoCache), thumb_cache ? 0 : sizeof(QoiCache));
+        bool folder = false;
+        if (plan.folder) {
+            if (void *block = malloc_fallible(sizeof(DirCache))) {
+                dir_cache = new (block) DirCache();
+                folder = true;
+            }
+        }
+        if (plan.infos) {
             if (void *block = malloc_fallible(sizeof(InfoCache))) {
                 info_cache = new (block) InfoCache();
             }
         }
-        for (const size_t bytes : { 16 * 1024, 8 * 1024 }) {
-            if (thumb_cache || !heap_allows(sizeof(QoiCache) + bytes)) {
-                continue;
-            }
-            if (void *block = malloc_fallible(sizeof(QoiCache) + bytes)) {
-                thumb_cache = new (block) QoiCache(std::span(static_cast<std::byte *>(block) + sizeof(QoiCache), bytes));
-                metric_record_custom(&metric_od3d_files, " cache=%ui", unsigned(bytes));
+        if (plan.thumbs) {
+            if (void *block = malloc_fallible(sizeof(QoiCache) + plan.thumbs)) {
+                thumb_cache = new (block) QoiCache(std::span(static_cast<std::byte *>(block) + sizeof(QoiCache), plan.thumbs));
             }
         }
-        if (!thumb_cache) {
-            metric_record_custom(&metric_od3d_files, " cache=0i");
+        return folder;
+    }
+
+    void release_folder() {
+        if (dir_cache) {
+            dir_cache->~DirCache();
+            free(dir_cache);
+            dir_cache = nullptr;
         }
     }
 
     /// Rendu au tas quand ni la grille ni son « Avant l'impression » ne sont plus dans la pile des écrans
-    void close_thumb_cache() {
+    void close_caches() {
         if (Screens::Access()->IsScreenOnStack<ScreenFiles>()) {
             return;
         }
@@ -318,17 +398,13 @@ namespace {
             free(info_cache);
             info_cache = nullptr;
         }
+        release_folder();
     }
-
-    // Fenêtre du dossier : 24 entrées en mémoire au lieu des 4 de la page. Avant (8.0.2.33), chaque rangée (deux crans de
-    // molette) relisait tout le dossier sur la clé : LazyDirView n'avance sa fenêtre qu'en le relisant. Un dossier de 23
-    // fichiers au plus n'est plus relu après son ouverture ; un plus grand, une fois toutes les 10 rangées. ~5 Ko du tas
-    // tant que la grille est ouverte, avec la même marge que le cache des vignettes ; sinon la page seule, comme avant.
-    using DirWindow = LazyDirView<24>;
-    DirWindow *dir_window = nullptr;
 
     /// Taille de la vignette de la grille (la 313 × 173 réduite au tiers), centrée dans sa case
     constexpr uint16_t grid_img_w = thumb_w / grid_factor, grid_img_h = thumb_h / grid_factor;
+    static_assert((tile_body(0).Width() - grid_img_w) / 2 <= (tile_body(0).Width() - 16) / 2 && (tile_thumb_h - grid_img_h) / 2 <= (tile_thumb_h - 16) / 2,
+        "P-06 : l'icône d'une case est dans la place de son image, seule repeinte d'une rangée à l'autre");
 
 } // namespace
 
@@ -395,9 +471,10 @@ bool open_gcode(AnyGcodeFormatReader &gcode, const char *path) {
         return false;
     }
     // PlainGcodeReader et PrusaPackGcodeReader dérivent de GcodeReaderCommon (ClosedReader seul n'en dérive pas, et il
-    // n'est pas ouvert). 4 Ko : de l'en-tête à la vignette 313 × 173 d'un .bgcode en une lecture, puis 8 secteurs par
-    // commande USB.
-    static_cast<GcodeReaderCommon *>(gcode.get())->set_read_buffer(4096);
+    // n'est pas ouvert). P-02 : un .bgcode se lit en sautant de bloc en bloc jusqu'aux métadonnées et à la vignette, et
+    // newlib jette son tampon à chaque saut : 64 octets suffisent (FatFS garde le secteur courant), l'image passe
+    // ensuite à 4 Ko alignés (stream_image). Un .gcode se lit d'un trait : 4 Ko, 8 secteurs par demande à la clé.
+    static_cast<GcodeReaderCommon *>(gcode.get())->set_read_buffer(filename_is_bgcode(path) ? 64 : 4096);
     return true;
 }
 
@@ -458,6 +535,7 @@ namespace big_thumb {
         band_gcode.emplace();
         if (open_gcode(*band_gcode, path)) {
             if (AbstractByteReader *qoi = (*band_gcode)->stream_thumbnail_start(thumb_w, thumb_h, IGcodeReader::ImgType::QOI)) {
+                stream_image(*band_gcode, path);
                 scaler.emplace(*qoi, params);
                 if (scaler->open()) {
                     if (QoiCache *cache = open_big_cache()) {
@@ -547,18 +625,18 @@ void FileTile::set(Kind k, uint8_t index_in_view) {
             if (const auto cached = cached_file_info(path.data())) {
                 info = *cached;
             } else {
-                info_pending = true; // lu avec la vignette (ScreenFiles::start_load)
+                info_pending = true; // lu avec la vignette (ScreenFiles::meta_slice)
             }
         }
     }
     set_enabled(kind != Kind::none);
-    Invalidate();
+    invalidate_content(*this); // P-06 : marge et coins restent à l'écran d'une rangée à l'autre
 }
 
 void FileTile::set_info(const FileInfo &set) {
     info = set;
     info_pending = false;
-    Invalidate(); // la partie basse seulement : la vignette est une autre fenêtre
+    invalidate_content(*this); // la partie basse seulement : la vignette est une autre fenêtre
 }
 
 void FileTile::unconditionalDraw() {
@@ -568,9 +646,16 @@ void FileTile::unconditionalDraw() {
     if (kind == Kind::none) {
         display::fill_rect(Rect16(outer.Left(), outer.Top() + style::ring + tile_thumb_h, outer.Width(), outer.Height() - style::ring - tile_thumb_h), style::screen);
         draw_margin(outer, style::screen);
+        body_shown = false;
         return;
     }
-    draw_margin(outer, style::screen);
+    // P-06 : corps déjà peint et fond encore valide (pas de focus changé, de dialogue refermé ni de réveil, qui invalident
+    // tout) : sa marge et ses deux coins du bas, de mêmes couleurs, restent ; seul l'intérieur se repeint
+    const bool inner = body_shown && HasValidBackground();
+    body_shown = true;
+    if (!inner) {
+        draw_margin(outer, style::screen);
+    }
 
     const Rect16 body(outer.Left() + style::ring, outer.Top() + style::ring, outer.Width() - 2 * style::ring, outer.Height() - 2 * style::ring);
     const Rect16 text_area(body.Left(), body.Top() + tile_thumb_h, body.Width(), body.Height() - tile_thumb_h);
@@ -596,8 +681,10 @@ void FileTile::unconditionalDraw() {
     style::for_each_gap(text_area, std::span<const Rect16>(parts.data(), count), [&](Rect16 gap) {
         display::fill_rect(gap, bg);
     });
-    draw_pixels(left_corner, [&](int px, int py) { return spool::mix_quarters(bg, style::screen, spool::corner_beyond_quarters(px, r - 1 - py, r)); });
-    draw_pixels(right_corner, [&](int px, int py) { return spool::mix_quarters(bg, style::screen, spool::corner_beyond_quarters(pad - 1 - px, r - 1 - py, r)); });
+    if (!inner) {
+        draw_pixels(left_corner, [&](int px, int py) { return spool::mix_quarters(bg, style::screen, spool::corner_beyond_quarters(px, r - 1 - py, r)); });
+        draw_pixels(right_corner, [&](int px, int py) { return spool::mix_quarters(bg, style::screen, spool::corner_beyond_quarters(pad - 1 - px, r - 1 - py, r)); });
+    }
 
     std::array<char, 32> name;
     display_name(screen.display_name(*this), kind == Kind::file, name, w / width(Font::small));
@@ -663,18 +750,31 @@ void FileThumb::unconditionalDraw() {
     screen.thumb_cleared(tile);
     if (tile.kind == FileTile::Kind::none) {
         display::fill_rect(box, style::screen);
+        box_shown = false;
         return;
     }
-    if (tile.kind == FileTile::Kind::file && screen.draw_cached(tile, box)) {
+    // P-06 : la case déjà peinte, fond encore valide (ni premier dessin, ni dialogue refermé, ni réveil : ils invalident
+    // tout), ne change pas d'une rangée à l'autre : seule la place de l'image (104 × 57, l'icône est dedans) se repeint
+    const bool inner = box_shown && HasValidBackground();
+    box_shown = true;
+    if (tile.kind == FileTile::Kind::file && screen.draw_cached(tile, box, inner)) {
         image_drawn = true;
         return;
     }
     // La case et son icône ; pour un fichier, l'image vient ensuite par bandes (ScreenFiles::load_next), ou l'icône reste
-    display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    const Rect16 icon_rect(box.Left() + (box.Width() - 16) / 2, box.Top() + (box.Height() - 16) / 2, 16, 16);
+    if (inner) {
+        const Rect16 img(box.Left() + (box.Width() - grid_img_w) / 2, box.Top() + (box.Height() - grid_img_h) / 2, grid_img_w, grid_img_h);
+        style::for_each_gap(img, std::span<const Rect16>(&icon_rect, 1), [](Rect16 gap) {
+            display::fill_rect(gap, style::thumb_back);
+        });
+    } else {
+        display::draw_rounded_rect(box, style::screen, style::thumb_back, style::radius_big, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    }
     const img::Resource &icon = tile.kind == FileTile::Kind::file ? img::print_16x16
         : tile.kind == FileTile::Kind::folder                    ? img::folder_full_16x16
                                                                   : img::folder_up_16x16;
-    draw_icon({ int16_t(box.Left() + (box.Width() - 16) / 2), int16_t(box.Top() + (box.Height() - 16) / 2) }, icon, style::thumb_back);
+    draw_icon({ icon_rect.Left(), icon_rect.Top() }, icon, style::thumb_back);
 }
 
 GridScroll::GridScroll(ScreenFiles &screen, Rect16 rect)
@@ -713,23 +813,24 @@ ScreenFiles::ScreenFiles()
     , scroll(*this, scroll_rect)
     , tabs(this, TabBar::Tab::print) {
     instance = this;
-    open_thumb_cache();
-    if (heap_allows(sizeof(DirWindow))) {
-        if (void *block = malloc_fallible(sizeof(DirWindow))) {
-            view = dir_window = new (block) DirWindow();
-        }
+    const uint32_t free_before = xPortGetFreeHeapSize();
+    open_caches(); // au retour d'« Avant l'impression », ils sont déjà là (P-05)
+    if (dir_cache) {
+        view = &dir_cache->view;
     }
-    metric_record_custom(&metric_od3d_files, " window=%ii", view->WindowSize());
+    const size_t thumbs_bytes = thumb_cache ? thumb_cache->capacity() : 0;
+    metric_record_custom(&metric_od3d_files, " cache=%ui,window=%ii", unsigned(thumbs_bytes), view->WindowSize());
+    perf::note_heap(free_before, xPortGetFreeHeapSize(), uint8_t((dir_cache ? 1 : 0) | (info_cache ? 2 : 0) | (thumb_cache ? 4 : 0)), uint8_t(thumbs_bytes / 1024));
 }
 
 ScreenFiles::~ScreenFiles() {
     stop_load();
-    close_thumb_cache();
-    if (dir_window) {
-        dir_window->~DirWindow();
-        free(dir_window);
-        dir_window = nullptr;
+    // P-05 : la fenêtre du dossier reste pour le retour d'« Avant l'impression », sauf si elle prendrait la place de son
+    // image, que l'écran Impression reprend (big_thumb) : le dossier est alors relu au retour, comme avant
+    if (dir_cache && !big_cache && !heap_allows(sizeof(QoiCache) + 8 * 1024)) {
+        release_folder();
     }
+    close_caches();
     if (instance == this) {
         instance = nullptr;
     }
@@ -741,7 +842,7 @@ void ScreenFiles::InitState(screen_init_variant var) {
         strlcpy(dir.data(), "/usb", dir.size());
         first = 0;
     }
-    load();
+    load(var.GetPosition().has_value()); // P-05 : au retour, la fenêtre gardée sans relire la clé
     if (var.GetPosition()) {
         Screen::InitState(var);
     } else if (tiles[0].IsEnabled()) {
@@ -757,13 +858,24 @@ int ScreenFiles::item_count() const {
     return view->TotalFilesCount() - 1 + (in_subfolder() ? 1 : 0); // la liste compte toujours « .. »
 }
 
-void ScreenFiles::load() {
+void ScreenFiles::load(bool reuse) {
     loaded = true;
-    const uint32_t start_ms = ticks_ms();
-    view->ChangeDirectory(dir.data(), FileSort::SortPolicy::BY_CRMOD_DATETIME);
+    // P-05 : la fenêtre gardée montre encore ce dossier si la clé est la même et que le réseau n'y a rien changé
+    const bool kept = reuse && dir_cache && view == &dir_cache->view && dir_cache->mount != 0 && dir_cache->mount == usb_mount()
+        && folder_changes == usb_changes();
+    if (!kept) {
+        const uint32_t start_ms = ticks_ms(), start_us = ticks_us();
+        const perf::Usb usb_before = perf::usb;
+        view->ChangeDirectory(dir.data(), FileSort::SortPolicy::BY_CRMOD_DATETIME);
+        if (dir_cache && view == &dir_cache->view) {
+            dir_cache->mount = usb_mount();
+        }
+        folder_changes = usb_changes();
+        perf::note(perf::Step::folder, start_ms, ticks_us() - start_us, perf::usb - usb_before);
+        metric_record_custom(&metric_od3d_files, " dir=%ui,n=%ii", unsigned(ticks_diff(ticks_ms(), start_ms)), item_count());
+    }
     first = grid::clamp_first(item_count(), cols, rows, first);
     fill();
-    metric_record_custom(&metric_od3d_files, " dir=%ui,n=%ii", unsigned(ticks_diff(ticks_ms(), start_ms)), item_count());
     // Dans un sous-dossier, le retour (et le balayage) remonte d'un dossier : Prusa ne doit pas fermer l'écran à sa place
     // (balayage sans preneur, délai des menus) ; à la racine, il ferme l'écran
     if (in_subfolder()) {
@@ -784,7 +896,12 @@ void ScreenFiles::fill() {
     const int count = item_count();
     const int last = view->TotalFilesCount() - 2;
     const int wanted = first - (in_subfolder() ? 1 : 0);
+    const uint32_t start_ms = ticks_ms(), start_us = ticks_us();
+    const perf::Usb usb_before = perf::usb;
     const int start = view->set_window_offset(grid::window_start(view->TotalFilesCount(), view->WindowSize(), view->window_offset(), wanted, tiles_count));
+    if (const perf::Usb read = perf::usb - usb_before; read.commands) {
+        perf::note(perf::Step::folder, start_ms, ticks_us() - start_us, read); // la fenêtre du dossier recalée : relu
+    }
     const bool was_shown = tiles[0].HasVisibleFlag();
     for (FileTile &t : tiles) {
         const int entry = wanted + t.index;
@@ -798,7 +915,7 @@ void ScreenFiles::fill() {
         t.set(kind, index);
         t.set_visible(count > 0);
         thumbs[t.index].set_visible(count > 0);
-        thumbs[t.index].Invalidate();
+        invalidate_content(thumbs[t.index]); // P-06 : la case reste, seule la place de l'image se repeint
     }
     if (was_shown != (count > 0)) {
         Invalidate(); // message « Pas de fichier » (ou sa place à repeindre)
@@ -866,7 +983,7 @@ void ScreenFiles::open(const FileTile &t) {
     switch (t.kind) {
     case FileTile::Kind::file:
         if (entry_path(t, path)) {
-            open_preview(path.data());
+            open_preview(path.data(), display_name(t)); // P-05 : le nom long connu, pas relu sur la clé
         }
         break;
     case FileTile::Kind::folder:
@@ -914,7 +1031,7 @@ void ScreenFiles::thumb_cleared(const FileTile &tile) {
     }
 }
 
-bool ScreenFiles::draw_cached(const FileTile &tile, Rect16 box) const {
+bool ScreenFiles::draw_cached(const FileTile &tile, Rect16 box, bool inner) const {
     std::array<char, filename_defs::path_buffer_size> path;
     if (!thumb_cache || !entry_path(tile, path)) {
         return false;
@@ -923,10 +1040,12 @@ bool ScreenFiles::draw_cached(const FileTile &tile, Rect16 box) const {
     if (!image) {
         return false;
     }
-    // La case autour de l'image, puis l'image : une rangée qui revient ne clignote pas
+    // La case autour de l'image (si elle n'est pas déjà à l'écran), puis l'image : une rangée qui revient ne clignote pas
     const Rect16 img(box.Left() + (box.Width() - grid_img_w) / 2, box.Top() + (box.Height() - grid_img_h) / 2, grid_img_w, grid_img_h);
     static_assert(style::radius_big <= (tile_body(0).Width() - grid_img_w) / 2);
-    big_thumb::draw_box(box, img, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    if (!inner) {
+        big_thumb::draw_box(box, img, MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    }
     display::draw_img(point_ui16(img.Left(), img.Top()), *image);
     return true;
 }
@@ -1003,28 +1122,45 @@ void ScreenFiles::stop_load() {
     loading = -1;
 }
 
-void ScreenFiles::start_load(FileTile &tile) {
-    FileThumb &thumb = thumbs[tile.index];
+// P-07 : la lecture d'une carte en tranches, une par LOOP : ouverture, métadonnées, recherche de la vignette, puis ses
+// bandes. Avant, les trois premières étaient d'un seul tenant (jusqu'à ~0,25 s sans réponse de la molette, estimé).
+
+void ScreenFiles::open_slice(FileTile &tile) {
     std::array<char, filename_defs::path_buffer_size> path;
     load_start_ms = ticks_ms();
     longest_band_ms = 0;
     band_gcode.emplace();
     if (!entry_path(tile, path) || !open_gcode(*band_gcode, path.data())) {
         tile.set_info({});
-        thumb.set_drawn(); // l'icône reste
+        thumbs[tile.index].set_drawn(); // l'icône reste
         stop_load();
         return;
     }
-    if (tile.needs_info()) {
-        // Les métadonnées d'un .bgcode sont avant ses vignettes, dans le même tampon de 4 Ko
-        tile.set_info(read_metadata(*band_gcode, path.data()));
-        metric_record_custom(&metric_od3d_files, " info=%ui", unsigned(ticks_diff(ticks_ms(), load_start_ms)));
+    loading = tile.index;
+    stage = tile.needs_info() ? Stage::meta : Stage::find;
+}
+
+void ScreenFiles::meta_slice() {
+    // Les métadonnées d'un .bgcode sont avant ses vignettes : le même fichier ouvert
+    FileTile &tile = tiles[loading];
+    std::array<char, filename_defs::path_buffer_size> path;
+    tile.set_info(entry_path(tile, path) ? read_metadata(*band_gcode, path.data()) : FileInfo {});
+    metric_record_custom(&metric_od3d_files, " info=%ui", unsigned(ticks_diff(ticks_ms(), load_start_ms)));
+    stage = Stage::find;
+    if (!thumbs[loading].missing()) {
+        stop_load(); // image déjà là (cache) : la carte est complète
     }
-    if (thumb.missing()) {
+}
+
+void ScreenFiles::find_slice() {
+    FileThumb &thumb = thumbs[loading];
+    std::array<char, filename_defs::path_buffer_size> path;
+    if (entry_path(tiles[loading], path)) {
         if (AbstractByteReader *qoi = (*band_gcode)->stream_thumbnail_start(thumb_w, thumb_h, IGcodeReader::ImgType::QOI)) {
+            stream_image(*band_gcode, path.data());
             scaler.emplace(*qoi, grid_params);
             if (scaler->open()) {
-                loading = tile.index; // les bandes aux LOOP suivants
+                stage = Stage::bands; // les bandes aux LOOP suivants
                 if (thumb_cache) {
                     thumb_cache->start(InfoCache::key(path.data()), scaler->width(), scaler->height());
                     scaler->record = thumb_cache; // gardée en dessinant
@@ -1032,19 +1168,47 @@ void ScreenFiles::start_load(FileTile &tile) {
                 return;
             }
         }
-        thumb.set_drawn(); // pas de vignette : l'icône reste
     }
+    thumb.set_drawn(); // pas de vignette : l'icône reste
     stop_load();
+}
+
+bool ScreenFiles::idle_upkeep() {
+    // P-08 : un fichier envoyé ou effacé par le réseau : le dossier est relu (une lecture) ; images et métadonnées
+    // gardées sont oubliées, un fichier remplacé garderait sinon son ancienne vignette
+    if (folder_changes != usb_changes()) {
+        forget_file_infos();
+        load();
+        return true;
+    }
+    // P-04 : ce qui manque encore (grille ouverte pendant un envoi, tas revenu depuis) ; la page passe dans la fenêtre du
+    // dossier, relu une fois
+    if (open_caches() && view == &page_view) {
+        view = &dir_cache->view;
+        load();
+        return true;
+    }
+    return false;
 }
 
 void ScreenFiles::load_next() {
     const uint32_t now = ticks_ms();
-    // La molette ou le doigt viennent de servir : la clé attend, l'écran répond d'abord. Écran en veille (F39) : rien
-    // n'est dessiné. Pendant une impression, la clé est à elle : les vignettes déjà gardées seulement.
-    if (touching || dragging || fling || ticks_diff(now, last_input_ms) < input_pause_ms || sleep::screen_off() || print_uses_usb()) {
+    // P-08 : la clé est à une impression ou à un envoi (le tas au TLS), ou l'écran dort : rien d'ouvert, ni fichier ni
+    // tampon ; la carte en cours reprendra du début. Pendant une impression, les vignettes déjà gardées seulement.
+    if (print_uses_usb() || sleep::screen_off()) {
+        stop_load();
         return;
     }
+    // La molette ou le doigt viennent de servir : la clé attend, l'écran répond d'abord
+    if (touching || dragging || fling || ticks_diff(now, last_input_ms) < input_pause_ms) {
+        return;
+    }
+    const uint32_t start_us = ticks_us();
+    const perf::Usb usb_before = perf::usb;
     if (loading < 0) {
+        if (idle_upkeep()) {
+            return;
+        }
         // Carte ciblée d'abord, puis les autres dans l'ordre ; une carte pas encore dessinée attend son dessin
         FileTile *next = nullptr;
         const window_t *focused = get_focused_child_window();
@@ -1061,10 +1225,15 @@ void ScreenFiles::load_next() {
             if (!ready_logged && std::ranges::none_of(thumbs, &FileThumb::missing)) {
                 ready_logged = true;
                 metric_record_custom(&metric_od3d_files, " ready=%ui", unsigned(ticks_diff(now, shown_ms)));
+                perf::note(perf::Step::page, shown_ms, 0, {});
             }
             return;
         }
-        start_load(*next); // ouverture et métadonnées : une tranche
+        open_slice(*next);
+    } else if (stage == Stage::meta) {
+        meta_slice();
+    } else if (stage == Stage::find) {
+        find_slice();
     } else if (FileThumb &thumb = thumbs[loading]; !thumb.IsInvalid()) {
         // Une bande de la vignette, dessinée à sa place dans la case
         const Rect16 box = thumb.GetRect();
@@ -1072,16 +1241,21 @@ void ScreenFiles::load_next() {
         if (scaler->band(band_rows)) {
             display::draw_img(point_ui16(box.Left() + (box.Width() - scaler->width()) / 2, box.Top() + (box.Height() - scaler->height()) / 2 + row), *scaler);
         }
-        longest_band_ms = std::max<uint32_t>(longest_band_ms, ticks_diff(ticks_ms(), now));
         if (scaler->done() || scaler->row() == row) { // fini, ou la source s'arrête avant
             if (thumb_cache) {
                 thumb_cache->finish(); // gardée si elle est complète
             }
             thumb.set_drawn();
+            longest_band_ms = std::max<uint32_t>(longest_band_ms, ticks_diff(ticks_ms(), now));
             metric_record_custom(&metric_od3d_files, " thumb=%ui,band=%ui", unsigned(ticks_diff(ticks_ms(), load_start_ms)), unsigned(longest_band_ms));
             stop_load();
         }
+    } else {
+        gui_reset_loop_timer(); // la case à dessiner d'abord
+        return;
     }
+    longest_band_ms = std::max<uint32_t>(longest_band_ms, ticks_diff(ticks_ms(), now));
+    perf::note(perf::Step::card, load_start_ms, ticks_us() - start_us, perf::usb - usb_before);
     gui_reset_loop_timer(); // la tranche suivante après le dessin et les entrées, sans attendre 100 ms
 }
 
@@ -1200,13 +1374,28 @@ void PreviewThumb::unconditionalDraw() {
 }
 
 void PreviewThumb::load_step() {
-    if (image_drawn || print_uses_usb()) {
-        return; // pendant une impression, la case et son icône restent
+    if (image_drawn) {
+        return;
+    }
+    if (print_uses_usb() || sleep::screen_off()) {
+        // P-08 : la clé est à une impression ou à un envoi, ou l'écran dort : rien d'ouvert (fichier, tampon de 4 Ko) ;
+        // la case et son icône restent, la lecture reprendra du début
+        if (loading) {
+            big_thumb::stop(scaler);
+            loading = false;
+        }
+        return;
     }
     if (!IsInvalid()) {
         // Par bandes de 8 lignes, comme la grille : l'écran répond pendant la lecture (avant : figé d'un bloc)
+        const uint32_t start_us = ticks_us();
+        const perf::Usb usb_before = perf::usb;
+        if (!loading) {
+            load_start_ms = ticks_ms();
+        }
         loading = loading ? big_thumb::step(scaler, point_ui16(preview_img.Left(), preview_img.Top())) : big_thumb::start(path, preview_params, scaler);
         image_drawn = !loading; // fini, ou pas de vignette (l'icône reste)
+        perf::note(perf::Step::preview_image, load_start_ms, ticks_us() - start_us, perf::usb - usb_before);
     }
     if (!image_drawn) {
         gui_reset_loop_timer(); // la case à dessiner d'abord, ou la bande suivante : sans attendre 100 ms
@@ -1245,19 +1434,30 @@ ScreenPreview::ScreenPreview()
     , mesh(this, mesh_body, mesh_offered)
     , map(this, map_body, map_colours, false)
     , tabs(this, TabBar::Tab::print)
-    , info(read_file_info(path.data())) {
+    , column(*this, Rect16::fromLTRB(info_x, style::top, style::screen_w - style::margin, warning_y), false)
+    , alert_band(*this, Rect16(style::margin, warning_y, style::screen_w - 2 * style::margin, 2 * height(Font::small)), true) {
     // Par défaut le réglage (désactivé : nouveau) ; pour cette impression seulement
     mesh_reuse = mesh_offered ? std::optional(mesh_memory::max_age_hours() != 0) : std::nullopt;
-    std::array<char, filename_defs::path_buffer_size> sfn = path; // get_LFN veut un chemin modifiable
+    const uint32_t start_ms = ticks_ms(), start_us = ticks_us();
+    const perf::Usb usb_before = perf::usb;
+    info = read_file_info(path.data()); // en général déjà lu par la grille (cache)
+    // P-05 : le nom affiché, rangé après le chemin par la grille (open_preview) ; sinon (accueil) cherché dans le dossier
+    const size_t len = strlen(path.data());
+    const char *given = len + 1 < path.size() ? path.data() + len + 1 : "";
     std::array<char, filename_defs::filename_buffer_size> lfn;
-    get_LFN(lfn.data(), lfn.size(), sfn.data());
-    display_name(lfn.data(), true, name, (style::screen_w - style::margin - info_x) / width(Font::normal));
+    if (!given[0]) {
+        std::array<char, filename_defs::path_buffer_size> sfn = path; // get_LFN veut un chemin modifiable
+        get_LFN(lfn.data(), lfn.size(), sfn.data());
+        given = lfn.data();
+    }
+    display_name(given, true, name, (style::screen_w - style::margin - info_x) / width(Font::normal));
+    perf::note(perf::Step::preview, start_ms, ticks_us() - start_us, perf::usb - usb_before);
     update_buttons();
     print.SetFocus();
 }
 
 ScreenPreview::~ScreenPreview() {
-    close_thumb_cache(); // ouvert depuis la grille : le cache reste pour son retour, sinon il est rendu
+    close_caches(); // ouvert depuis la grille : les caches restent pour son retour, sinon ils sont rendus
 }
 
 void ScreenPreview::update_buttons() {
@@ -1266,29 +1466,55 @@ void ScreenPreview::update_buttons() {
     map.set_active(active);
 }
 
-void ScreenPreview::unconditionalDraw() {
-    Screen::unconditionalDraw();
+ScreenPreview::InfoPanel::InfoPanel(ScreenPreview &screen, Rect16 rect, bool alerts)
+    : window_t(&screen, rect)
+    , screen(screen)
+    , alerts(alerts) {}
 
-    const uint16_t w = style::screen_w - style::margin - info_x;
-    draw_text(Rect16(info_x, style::top, w, height(Font::normal)), string_view_utf8::MakeRAM(name.data()), Font::normal, style::text_strong, style::screen);
+void ScreenPreview::InfoPanel::unconditionalDraw() {
+    if (alerts) {
+        screen.draw_alerts(GetRect());
+    } else {
+        screen.draw_column(GetRect());
+    }
+}
+
+void ScreenPreview::draw_column(Rect16 area) {
+    const uint16_t w = area.Width();
+    const Rect16 name_rect(info_x, style::top, w, height(Font::normal));
+    const Rect16 summary_rect(info_x, style::top + 23, w, height(Font::small));
+    // Une ligne par emplacement utilisé : bobine, « n · matière chargée », PA mesuré (F4), grammes du fichier (en
+    // jaune s'ils dépassent le reste de la bobine, F13). P-09 : les morceaux relevés d'abord, le fond peint une fois
+    // entre eux, puis chacun avec son fond
+    std::array<Rect16, 2 + 4 * print_info::max_tools> parts { name_rect, summary_rect };
+    size_t n = 2;
+    for (uint8_t t = 0, row = 0; t < print_info::max_tools; ++t) {
+        if (info.is_used(t)) {
+            const int16_t y = style::top + 42 + 19 * row++;
+            parts[n++] = Rect16(info_x, y, 16, 16);
+            parts[n++] = Rect16(info_x + 22, y, 100, height(Font::small));
+            parts[n++] = Rect16(info_x + 124, y, 56, height(Font::small));
+            parts[n++] = Rect16(info_x + 182, y, w - 182, height(Font::small));
+        }
+    }
+    style::for_each_gap(area, std::span<const Rect16>(parts.data(), n), [](Rect16 gap) {
+        display::fill_rect(gap, style::screen);
+    });
+
+    draw_text(name_rect, string_view_utf8::MakeRAM(name.data()), Font::normal, style::text_strong, style::screen);
     std::array<char, 40> text;
     summary(info, true, text);
-    draw_text(Rect16(info_x, style::top + 23, w, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::screen);
+    draw_text(summary_rect, string_view_utf8::MakeRAM(text.data()), Font::small, style::text_muted, style::screen);
 
-    // Une ligne par emplacement utilisé : bobine, « n · matière chargée », PA mesuré (F4), grammes du fichier (en
-    // jaune s'ils dépassent le reste de la bobine, F13)
-    int row = 0, mismatch = -1, shortage = -1, pa_missing = -1, too_cold = -1;
-    float shortage_left = 0;
-    Slot mismatch_slot;
+    size_t i = 2;
     for (uint8_t t = 0; t < print_info::max_tools; ++t) {
         if (!info.is_used(t)) {
             continue;
         }
-        const int16_t y = style::top + 42 + 19 * row++;
         const Slot slot = Slot::read(t);
-        draw_spool({ info_x, y }, slot.look, 16, style::screen);
+        draw_spool({ parts[i].Left(), parts[i].Top() }, slot.look, 16, style::screen);
         snprintf(text.data(), text.size(), "%d%s%s", t + 1, dot, slot.material.data());
-        draw_text(Rect16(info_x + 22, y, 100, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
+        draw_text(parts[i + 1], string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
         // PA : la valeur mesurée ; « PA ? » en jaune si le PA de l'imprimante prime et qu'il manque (sinon le
         // trancheur décide : rien)
         Color pa_color = style::text_muted;
@@ -1298,28 +1524,45 @@ void ScreenPreview::unconditionalDraw() {
         } else if (pa::needs_measure(t) && slot.look.filament) {
             strlcpy(text.data(), "PA ?", text.size());
             pa_color = style::warning;
-            if (pa_missing < 0) {
-                pa_missing = t;
-            }
         } else {
             text[0] = '\0';
         }
 #else
         text[0] = '\0';
 #endif
-        draw_text(Rect16(info_x + 124, y, 56, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, pa_color, style::screen);
+        draw_text(parts[i + 2], string_view_utf8::MakeRAM(text.data()), Font::small, pa_color, style::screen);
 #if HAS_MMU2() // F13 : poids des bobines du MMU
         const auto usage = spool_usage::report(t);
         const bool too_little = usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g);
-        if (too_little && shortage < 0) {
-            shortage = t;
-            shortage_left = usage->remaining_g;
-        }
 #else
         constexpr bool too_little = false;
 #endif
         snprintf(text.data(), text.size(), "%.0f g", double(info.grams[t]));
-        draw_text(Rect16(info_x + 182, y, w - 182, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, too_little ? style::warning : style::text_muted, style::screen, Align_t::RightCenter());
+        draw_text(parts[i + 3], string_view_utf8::MakeRAM(text.data()), Font::small, too_little ? style::warning : style::text_muted, style::screen, Align_t::RightCenter());
+        i += 4;
+    }
+}
+
+void ScreenPreview::draw_alerts(Rect16 area) {
+    int mismatch = -1, shortage = -1, pa_missing = -1, too_cold = -1;
+    float shortage_left = 0;
+    Slot mismatch_slot;
+    for (uint8_t t = 0; t < print_info::max_tools; ++t) {
+        if (!info.is_used(t)) {
+            continue;
+        }
+        const Slot slot = Slot::read(t);
+#if HAS_LOADCELL() && HAS_MMU2()
+        if (pa_missing < 0 && !pa::k_for_slot(t) && pa::needs_measure(t) && slot.look.filament) {
+            pa_missing = t;
+        }
+#endif
+#if HAS_MMU2() // F13 : poids des bobines du MMU
+        if (const auto usage = spool_usage::report(t); shortage < 0 && usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g)) {
+            shortage = t;
+            shortage_left = usage->remaining_g;
+        }
+#endif
         if (mismatch < 0 && info.types[t][0] && slot.look.filament && strcasecmp(info.types[t].data(), slot.material.data()) != 0) {
             mismatch = t;
             mismatch_slot = slot;
@@ -1356,12 +1599,14 @@ void ScreenPreview::unconditionalDraw() {
         warnings[count++] = _("Slot %d: PA to measure (slicer value used)").formatted(pa_params, pa_missing + 1);
     }
     count = std::min(count, 2); // deux lignes au plus : les alertes de filament d'abord
-    const uint16_t warning_w = style::screen_w - 2 * style::margin;
-    if (count == 1) {
-        render_text_align(Rect16(style::margin, warning_y, warning_w, 2 * height(Font::small)), warnings[0], Font::small, style::screen, style::warning, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
+    // Le bandeau entier d'une passe : le fond seul, une alerte sur deux lignes, ou deux d'une ligne
+    if (count == 0) {
+        display::fill_rect(area, style::screen);
+    } else if (count == 1) {
+        render_text_align(area, warnings[0], Font::small, style::screen, style::warning, {}, text_flags(Align_t::LeftTop(), is_multiline::yes));
     } else {
         for (int i = 0; i < count; ++i) {
-            draw_text(Rect16(style::margin, warning_y + i * height(Font::small), warning_w, height(Font::small)), warnings[i], Font::small, style::warning, style::screen);
+            draw_text(Rect16(area.Left(), area.Top() + i * height(Font::small), area.Width(), height(Font::small)), warnings[i], Font::small, style::warning, style::screen);
         }
     }
 }
@@ -1370,8 +1615,8 @@ void ScreenPreview::windowEvent(window_t *sender, GUI_event_t event, void *param
     if (event == GUI_event_t::LOOP || event == GUI_event_t::MEDIA) {
         update_buttons();
     }
-    if (event == GUI_event_t::LOOP && !GetFirstDialog() && !sleep::screen_off()) {
-        thumb.load_step(); // après le premier dessin de l'écran
+    if (event == GUI_event_t::LOOP && !GetFirstDialog()) {
+        thumb.load_step(); // après le premier dessin de l'écran ; rien d'ouvert pendant la veille
     }
     Screen::windowEvent(sender, event, param);
 }

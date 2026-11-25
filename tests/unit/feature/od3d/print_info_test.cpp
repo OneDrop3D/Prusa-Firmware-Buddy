@@ -103,3 +103,34 @@ TEST_CASE("frise de l'écran Impression : un pas ne repeint que les colonnes qui
     CHECK(strip_part(w / 2, 10, w, h, 50) == StripPart::cursor);
     CHECK(strip_part(w / 2, 0, w, h, 0) == StripPart::outside); // au-dessus de la piste
 }
+
+TEST_CASE("od3d files: the folder window is borrowed before the thumbnails (P-04)") {
+    constexpr size_t reserve = 32 * 1024, folder = 5200, infos = 1348, overhead = 560;
+
+    // 45 000 o libres : l'ancien ordre prenait métadonnées et 8 Ko de vignettes, puis plus de place pour la fenêtre du
+    // dossier (relu tous les deux crans) ; maintenant la fenêtre d'abord, et les vignettes avec ce qui reste
+    CachePlan plan = plan_caches(45000, reserve, folder, infos, overhead);
+    CHECK(plan.folder);
+    CHECK(plan.infos);
+    CHECK(plan.thumbs == 4 * 1024);
+
+    plan = plan_caches(60000, reserve, folder, infos, overhead);
+    CHECK((plan.folder && plan.infos && plan.thumbs == 16 * 1024));
+
+    plan = plan_caches(48100, reserve, folder, infos, overhead); // 8 Ko dès 48 068 o
+    CHECK((plan.folder && plan.infos && plan.thumbs == 8 * 1024));
+
+    // Juste la fenêtre : les métadonnées ne laisseraient plus la réserve
+    plan = plan_caches(folder + reserve, reserve, folder, infos, overhead);
+    CHECK((plan.folder && !plan.infos && plan.thumbs == 0));
+
+    // Rien sous la réserve : le réseau garde ses 32 Ko
+    plan = plan_caches(reserve + 1000, reserve, folder, infos, overhead);
+    CHECK((!plan.folder && !plan.infos && plan.thumbs == 0));
+
+    // Déjà pris (taille 0) : seulement ce qui manque, au repos après un envoi
+    plan = plan_caches(52000, reserve, 0, 0, overhead);
+    CHECK((!plan.folder && !plan.infos && plan.thumbs == 16 * 1024));
+    plan = plan_caches(60000, reserve, folder, 0, 0);
+    CHECK((plan.folder && !plan.infos && plan.thumbs == 0));
+}

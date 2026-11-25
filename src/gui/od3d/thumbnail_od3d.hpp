@@ -92,6 +92,9 @@ public:
 
     void clear();
 
+    /// Place pour les images [o]
+    size_t capacity() const { return pool.size(); }
+
     /// Commence l'image key de w × h pixels (une autre en cours est abandonnée, l'ancienne image key oubliée)
     void start(uint32_t key, uint16_t w, uint16_t h);
     void push(Color c); ///< pixel suivant de l'image en cours (rien sans image en cours)

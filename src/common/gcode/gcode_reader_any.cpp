@@ -60,21 +60,29 @@ bool AnyGcodeFormatReader::open(const char *filename, bool allow_decryption
     // check if file is partially downloaded file
     bool is_partial = false;
 
-    if (stat(path.as_destination(), &info) != 0) {
-        return false;
-    }
+    // OneDrop3D (P-01) : un fichier complet s'ouvre d'abord et sa taille vient de fstat : FatFS ne parcourt le dossier
+    // qu'une fois (stat puis fopen le parcouraient deux fois, une demande à la clé par secteur du dossier). Sinon (dossier
+    // d'un envoi en cours, fichier absent, fstat refusé), exactement comme avant : stat, puis le fichier partiel.
+    unique_file_ptr file = unique_file_ptr(fopen(path.as_destination(), "rb"));
+    if (!file || fstat(fileno(file.get()), &info) != 0 || !S_ISREG(info.st_mode)) {
+        file.reset();
 
-    if (S_ISDIR(info.st_mode)) {
-        if (stat(path.as_partial(), &info) != 0) {
+        if (stat(path.as_destination(), &info) != 0) {
             return false;
         }
 
-        is_partial = true;
-    }
+        if (S_ISDIR(info.st_mode)) {
+            if (stat(path.as_partial(), &info) != 0) {
+                return false;
+            }
 
-    unique_file_ptr file = unique_file_ptr(fopen(is_partial ? path.as_partial() : path.as_destination(), "rb"));
-    if (!file) {
-        return false;
+            is_partial = true;
+        }
+
+        file = unique_file_ptr(fopen(is_partial ? path.as_partial() : path.as_destination(), "rb"));
+        if (!file) {
+            return false;
+        }
     }
 
     if (filename_is_bgcode(filename)) {

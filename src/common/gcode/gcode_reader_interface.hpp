@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -272,6 +273,42 @@ public:
             }
         }
         setvbuf(file.get(), nullptr, _IONBF, 0);
+    }
+
+    /// Début du secteur (512 octets) qui contient pos
+    static constexpr long sector_start(long pos) {
+        return pos & ~511L;
+    }
+
+    /// OneDrop3D (P-02, P-03) : la suite se lit d'un trait (image d'une vignette) : tampon de size octets (multiple de 512),
+    /// recalé sur le début du secteur courant. Un .bgcode s'ouvre avec un petit tampon, car newlib jette le sien à chaque
+    /// fseek et la recherche d'une vignette saute de bloc en bloc ; et un tampon qui commence au milieu d'un secteur fait
+    /// lire la clé secteur par secteur (adresse décalée pour le DMA de l'USB). Appelable en cours de lecture : la position
+    /// lue ne change pas. false (même tampon, même position) si la mémoire manque ou si la clé ne répond pas.
+    bool set_stream_buffer(size_t size) {
+        FILE *f = file.get();
+        const long pos = ftell(f);
+        char *buffer = pos < 0 ? nullptr : static_cast<char *>(malloc_fallible(size));
+        if (!buffer) {
+            return false;
+        }
+        // setvbuf vide l'ancien tampon (newlib le permet en cours de lecture), le fseek absolu replace le fichier
+        if (setvbuf(f, buffer, _IOFBF, size) != 0) {
+            free(buffer);
+            return false;
+        }
+        read_buffer.reset(buffer); // l'ancien tampon, que newlib n'utilise plus
+        bool ok = fseek(f, sector_start(pos), SEEK_SET) == 0;
+        for (long skip = pos - sector_start(pos); ok && skip > 0;) {
+            std::array<char, 64> discard;
+            const size_t got = fread(discard.data(), 1, std::min<size_t>(skip, discard.size()), f);
+            ok = got > 0;
+            skip -= long(got);
+        }
+        if (!ok) {
+            fseek(f, pos, SEEK_SET);
+        }
+        return ok;
     }
 
     void set_validity(std::optional<transfers::PartialFile::State> validity) {

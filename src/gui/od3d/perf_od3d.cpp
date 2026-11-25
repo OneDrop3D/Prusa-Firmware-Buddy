@@ -14,6 +14,7 @@
 namespace od3d::perf {
 
 Counters counters;
+Usb usb;
 
 uint32_t cycles() {
     return DWT->CYCCNT; // actif dans toutes les compilations (main.cpp)
@@ -99,6 +100,52 @@ void draw_end(uint32_t screen) {
     }
 }
 
+void note(Step step, uint32_t start_ms, uint32_t us, const Usb &delta) {
+    const Row piece {
+        .t_ms = start_ms,
+        .screen = uint32_t(step) | delta.split << 8,
+        .draw_us = us,
+        .bytes = delta.sectors * 512,
+        .dma_wait_us = delta.us,
+        .windows = sat16(delta.commands),
+        .span_ms = sat16(ticks_ms() - start_ms),
+        .input_10us = sat16(us / 10),
+        .draws = 1,
+        .cause = Cause::usb,
+    };
+    freertos::CriticalSection lock; // M2010 lit l'anneau depuis le fil de Marlin
+    if (dumping) {
+        return;
+    }
+    // Les dessins de la carte (ligne « durée · grammes ») s'intercalent entre ses tranches : sa ligne est cherchée parmi
+    // les dernières
+    for (uint32_t back = 1; back <= std::min<uint32_t>(written, 4); ++back) {
+        if (merge_step(rows[(written - back) % ring_rows], piece)) {
+            return;
+        }
+    }
+    rows[written++ % ring_rows] = piece;
+}
+
+void note_heap(uint32_t free_before, uint32_t free_after, uint8_t caches, uint8_t thumbs_kb) {
+    const Row row {
+        .t_ms = ticks_ms(),
+        .screen = uint32_t(Step::heap),
+        .draw_us = 0,
+        .bytes = free_before,
+        .dma_wait_us = free_after,
+        .windows = caches,
+        .span_ms = 0,
+        .input_10us = 0,
+        .draws = thumbs_kb,
+        .cause = Cause::heap,
+    };
+    freertos::CriticalSection lock;
+    if (!dumping) {
+        rows[written++ % ring_rows] = row;
+    }
+}
+
 bool dump(const char *path) {
     FILE *probe = fopen(path, "r");
     const bool fresh = !probe;
@@ -127,13 +174,19 @@ bool dump(const char *path) {
               static_cast<unsigned long>(xPortGetFreeHeapSize()), static_cast<unsigned long>(heap_free_min),
               static_cast<unsigned long>(heap_bytes_remaining()), static_cast<unsigned long>(heap_total_size()))
         > 0;
+    // Onglet Imprimer (AUDIT_PERF_IMPRIMER.md) : lignes « u » et « h », colonnes réutilisées
+    ok &= force_probe::csv_printf(f, "# u: screen=step (1 folder 2 card 3 page 4 preview 5 preview image)+256*split reads, "
+                                     "draw_us=work, input_ms=longest slice, draws=slices, bytes=read, windows=USB reads, "
+                                     "dma_wait_us=USB wait; h: bytes=free heap before, dma_wait_us=after, windows=1 folder "
+                                     "2 infos 4 thumbs, draws=thumbs KB\n")
+        > 0;
     for (uint32_t i = count - kept; i < count; ++i) {
         const Row &r = rows[i % ring_rows];
         char input[12] = "";
-        if (r.cause != Cause::none) {
+        if (r.cause != Cause::none && r.cause != Cause::heap) {
             snprintf(input, sizeof(input), "%u.%02u", unsigned(r.input_10us / 100), unsigned(r.input_10us % 100));
         }
-        static constexpr char cause_letter[] = { '-', 'k', 't' };
+        static constexpr char cause_letter[] = { '-', 'k', 't', 'u', 'h' };
         ok &= force_probe::csv_printf(f, "%lu,0x%08lx,%c,%s,%u,%u,%lu,%lu,%u,%lu\n", static_cast<unsigned long>(r.t_ms),
                   static_cast<unsigned long>(r.screen), cause_letter[uint8_t(r.cause)], input, unsigned(r.draws), unsigned(r.span_ms),
                   static_cast<unsigned long>(r.draw_us), static_cast<unsigned long>(r.bytes), unsigned(r.windows),

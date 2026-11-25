@@ -441,23 +441,20 @@ static int stat_r(struct _reent *r, const char *path, struct stat *st) {
     return 0;
 }
 
-static int fstat_r(struct _reent *r, __attribute__((unused)) void *fileStruct, __attribute__((unused)) struct stat *st) {
-#ifdef FATFS_FSTAT
-    // #error dead code found by automatic analyses (see BFW-5461)
-    PREPARE_FIL_EX(f, fileStruct);
-    if (f->path) {
-        int res = stat_r(r, f->path, st);
-        if (res == 0 && f->fil.flag & FA_READ) {
-            // File is opened for write only, remove read flag
-            st->st_mode &= ~IS_IRALL;
-        }
-        return res;
+static int fstat_r(struct _reent *r, void *fileStruct, struct stat *st) {
+    // OneDrop3D (P-01) : type et taille du fichier ouvert, sans relire le dossier sur la clé (AnyGcodeFormatReader ouvre,
+    // puis demande la taille ici au lieu d'un stat qui parcourait encore le dossier). Ni date ni st_blksize : à 0,
+    // newlib garde son tampon de 1 Ko par défaut pour les fichiers qui ne choisissent pas le leur, comme avant.
+    PREPARE_FIL_EX(f, static_cast<FIL_EX *>(fileStruct));
+    memset(st, 0, sizeof(struct stat));
+    st->st_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH;
+    if (f->fil.flag & FA_WRITE) {
+        st->st_mode |= IS_IWALL;
     }
-    r->_errno = ENOENT;
-#else
-    r->_errno = ENOTSUP;
-#endif
-    return -1;
+    st->st_dev = device;
+    st->st_size = f_size(&f->fil);
+    st->st_blocks = 1;
+    return 0;
 }
 
 static int link_r(struct _reent *r, __attribute__((unused)) const char *existing, __attribute__((unused)) const char *newLink) {

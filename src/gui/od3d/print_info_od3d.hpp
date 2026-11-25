@@ -51,4 +51,16 @@ StripPart strip_part(int x, int y, int w, int h, int percent);
 /// Colonnes [first, second) de la frise qui changent de from à to % : tout ce qui diffère est dedans
 std::pair<int, int> strip_changed(int w, int from, int to);
 
+/// Ce que la grille des fichiers emprunte au tas (P-04)
+struct CachePlan {
+    bool folder = false; ///< fenêtre du dossier
+    bool infos = false; ///< métadonnées
+    uint16_t thumbs = 0; ///< place des vignettes [o], 0 : aucune
+};
+
+/// Par ordre d'utilité : la fenêtre du dossier (sans elle, le dossier est relu sur la clé tous les deux crans de molette),
+/// les métadonnées, puis les vignettes avec ce qui reste (16, 8 ou 4 Ko de place, plus thumbs_overhead). Un bloc n'est
+/// pris que s'il reste reserve octets libres après lui ; une taille 0 : bloc déjà pris (ou pas voulu)
+CachePlan plan_caches(size_t free, size_t reserve, size_t folder, size_t infos, size_t thumbs_overhead);
+
 } // namespace od3d::print_info

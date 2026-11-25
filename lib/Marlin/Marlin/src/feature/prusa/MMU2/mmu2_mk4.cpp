@@ -724,7 +724,8 @@ bool MMU2::tool_change_full(uint8_t slot) {
         return false;
     }
 
-    if (slot != extruder) {
+    // OneDrop3D (F43) : comme tool_change, sauté seulement si Prusa est sûr que cet emplacement est déjà chargé
+    if (slot != od3d::filament_memory::certain_slot(get_current_tool(), get_tool_change_tool())) {
         planner_synchronize();
 
         pos3d resume_pos = planner_current_position();

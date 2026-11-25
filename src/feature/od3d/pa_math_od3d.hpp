@@ -168,7 +168,7 @@ uint16_t k_to_e4(float k);
 float k_from_e4(uint16_t e4);
 
 /// M-02 : clé de validité d'une mesure par emplacement (K, débit maximal, température minimale) : la buse (diamètre en
-/// µm, haut débit) et la matière (son nom). 7 bits, jamais 0 : 0 est une mesure d'avant la clé, à refaire.
+/// µm, haut débit) et la matière (son nom). 7 bits, jamais 0 : 0 est une mesure d'avant la clé (adopt()).
 /// shortcut: empreinte de 7 bits (deux contextes sur 127 se confondent) ; une vraie clé demande de la place dans le
 /// config_store, plein
 constexpr uint8_t make_key(uint16_t nozzle_um, bool high_flow, std::string_view material) {
@@ -188,6 +188,18 @@ constexpr uint8_t make_key(uint16_t nozzle_um, bool high_flow, std::string_view 
 template <class R>
 constexpr R if_key(const R &r, uint8_t key) {
     return r.key == key ? r : R {};
+}
+
+/// Mesure d'avant la clé (clé 0 : 8.0.3.37 et avant) : adoptée une fois avec la clé de maintenant key (0 : matière
+/// inconnue, rien n'est adopté) ; elle compte alors comme mesurée avec la configuration présente (retour du 25/11 :
+/// « Remesurer le PA » après la mise à jour). has_data : r garde une valeur. true : r a pris la clé, à enregistrer
+template <class R>
+constexpr bool adopt(R &r, uint8_t key, bool has_data) {
+    if (r.key != 0 || key == 0 || !has_data) {
+        return false;
+    }
+    r.key = key;
+    return true;
 }
 
 /// M-10 : un K ne remplace le PA du trancheur qu'à partir de cette confiance ; il est enregistré dès 30 (mesure validée

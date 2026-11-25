@@ -1101,6 +1101,33 @@ TEST_CASE("pa: validity key of a slot measurement, nozzle and material (M-02)") 
     CHECK_FALSE(pa::if_key(r, pa::make_key(400, false, "PETG")).has_k());
 }
 
+TEST_CASE("pa: a measurement from before the key is adopted once, never asked again after the update") {
+    // Retour du 25/11 : K mesuré avec la .37, « Remesurer le PA » après la mise à jour
+    const uint8_t pla = pa::make_key(400, false, "PLA");
+    pa::Record legacy { .k_e4 = 400, .confidence = 80 };
+    REQUIRE(legacy.key == 0);
+
+    // Matière inconnue (clé 0) : rien à adopter, la mesure reste telle quelle
+    pa::Record r = legacy;
+    CHECK_FALSE(pa::adopt(r, 0, r.has_k()));
+    CHECK(pa::if_key(r, 0).has_k());
+
+    // Première lecture avec la configuration présente : la mesure prend sa clé (à enregistrer une seule fois)
+    CHECK(pa::adopt(r, pla, r.has_k()));
+    CHECK(r.key == pla);
+    CHECK(pa::if_key(r, pla).k_e4 == 400); // mesurée pour la configuration présente
+    CHECK_FALSE(pa::adopt(r, pla, r.has_k())); // déjà adoptée : plus rien à écrire
+
+    // Ensuite seulement, une autre buse ou une autre matière l'écarte
+    CHECK_FALSE(pa::adopt(r, pa::make_key(600, false, "PLA"), r.has_k()));
+    CHECK_FALSE(pa::if_key(r, pa::make_key(600, false, "PLA")).has_k());
+
+    // Rien de mesuré : rien à écrire
+    pa::Record empty;
+    CHECK_FALSE(pa::adopt(empty, pla, empty.has_k()));
+    CHECK(empty.key == 0);
+}
+
 TEST_CASE("pa: only a confident K replaces the slicer PA (M-10)") {
     pa::Record r { .k_e4 = 400, .confidence = 59 };
     CHECK(r.has_k()); // enregistré (dès une confiance de 30), montré « incertain »

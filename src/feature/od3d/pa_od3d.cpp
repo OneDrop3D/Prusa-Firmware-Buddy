@@ -55,16 +55,29 @@ namespace od3d::pa {
 // ---- Mémoire ----
 
 uint8_t key_for_slot(uint8_t slot) {
+    const FilamentType type = FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot));
+    if (!type) {
+        return 0; // matière inconnue : pas de clé (une mesure d'avant la clé attend d'être adoptée)
+    }
     const PhysicalToolIndex tool = PhysicalToolIndex::from_raw(0);
     const auto nozzle_um = uint16_t(std::lround(std::clamp(config_store().get_nozzle_diameter(tool), 0.f, 5.f) * 1000.f));
-    return make_key(nozzle_um, config_store().get_nozzle_is_high_flow(tool), FilamentType::for_tool_heuristic(VirtualToolIndex::from_raw(slot)).parameters().name);
+    return make_key(nozzle_um, config_store().get_nozzle_is_high_flow(tool), type.parameters().name);
 }
 
 Record record(uint8_t slot) {
     if (slot >= VirtualToolIndex::count) {
         return {};
     }
-    return if_key(config_store().od3d_pa.get(slot), key_for_slot(slot)); // M-02 : autre buse ou autre matière : rien
+    Record r = config_store().od3d_pa.get(slot);
+    const uint8_t key = key_for_slot(slot);
+    if (adopt(r, key, r.has_k())) {
+        config_store().od3d_pa.set(slot, r); // une seule fois : mesure d'avant la clé, gardée pour cette configuration
+    }
+    return if_key(r, key); // M-02 : autre buse ou autre matière : rien
+}
+
+bool measured(uint8_t slot) {
+    return record(slot).has_k();
 }
 
 std::optional<float> k_for_slot(uint8_t slot) {

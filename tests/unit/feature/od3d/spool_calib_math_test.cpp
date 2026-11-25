@@ -285,10 +285,13 @@ TEST_CASE("od3d F5/F6: values of another nozzle or material are ignored (M-02)",
         CHECK(purge_feedrate(3.f, other, 40.f, 2.4053f) == 3.f); // purge de Prusa
     }
 
-    // Mesure d'avant la clé (octet de réserve à 0) : à refaire
+    // Mesure d'avant la clé (octet de réserve à 0) : adoptée une fois avec la clé de maintenant, puis lue normalement
     Record legacy = r;
     legacy.key = 0;
     CHECK_FALSE(pa::if_key(legacy, r.key).has_flow());
+    CHECK(pa::adopt(legacy, r.key, legacy.has_flow() || legacy.has_min_temperature()));
+    CHECK(pa::if_key(legacy, r.key).has_flow());
+    CHECK(pa::if_key(legacy, r.key).min_temperature == 190);
 }
 
 TEST_CASE("od3d F6: alert before printing under the measured minimum temperature", "[od3d][calib]") {

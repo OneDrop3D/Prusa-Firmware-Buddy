@@ -41,7 +41,12 @@ Record record(uint8_t slot) {
     if (slot >= VirtualToolIndex::count) {
         return {};
     }
-    return pa::if_key(config_store().od3d_spool_calib.get(slot), pa::key_for_slot(slot)); // M-02 : autre buse ou matière : rien
+    Record r = config_store().od3d_spool_calib.get(slot);
+    const uint8_t key = pa::key_for_slot(slot);
+    if (pa::adopt(r, key, r.has_flow() || r.has_min_temperature())) {
+        config_store().od3d_spool_calib.set(slot, r); // une seule fois : mesure d'avant la clé, gardée pour cette configuration
+    }
+    return pa::if_key(r, key); // M-02 : autre buse ou matière : rien
 }
 
 void set_record(uint8_t slot, const Record &r) {

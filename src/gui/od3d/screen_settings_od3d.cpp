@@ -18,14 +18,14 @@ ScreenSetPrinting::ScreenSetPrinting()
     : BasicScreenMenu(_("Printing")) {}
 
 MI_SET_FILAMENT::MI_SET_FILAMENT()
-    : IWindowMenuItem(_("Filament and MMU\nSensors, MMU, cutter, OpenPrintTag"), &img::spool_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(HAS_MMU2() ? _("Filament and MMU\nSensors, MMU, cutter, OpenPrintTag") : _("Filament\nFilament sensors"), &img::spool_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_SET_FILAMENT::click(IWindowMenu &) {
     open_screen<ScreenSetFilament>();
 }
 
 ScreenSetFilament::ScreenSetFilament()
-    : BasicScreenMenu(_("Filament and MMU")) {}
+    : BasicScreenMenu(HAS_MMU2() ? _("Filament and MMU") : _("Filament")) {} // INDX : pas de MMU
 
 MI_SET_CHAMBER::MI_SET_CHAMBER()
     : IWindowMenuItem(_("Chamber\nFiltration, lights, camera"), &img::enclosure_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}

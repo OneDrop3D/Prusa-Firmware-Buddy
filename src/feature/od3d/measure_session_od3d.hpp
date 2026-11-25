@@ -22,6 +22,8 @@
 #include <atomic>
 #include <cstdint>
 #include <optional>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
 
 namespace od3d::session {
 
@@ -124,7 +126,11 @@ float left_retracted_mm();
 
 /// Série : au-dessus de la ligne de purge réservée, à purge_z. Sinon la place posée par set_load_spot(), rendue une
 /// seule fois (le M701 ou M702 qui la prend). nullopt : position de chargement de Prusa
+#if HAS_LOADCELL() && HAS_MMU2()
 std::optional<LoadSpot> take_load_spot();
+#else
+inline std::optional<LoadSpot> take_load_spot() { return std::nullopt; } // INDX : ni série ni PA automatique
+#endif
 
 /// Mesure automatique au départ d'une impression : le prochain M701 ou M702 se fait là ; nullopt : retirée
 void set_load_spot(std::optional<LoadSpot> spot);

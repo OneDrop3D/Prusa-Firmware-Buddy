@@ -11,6 +11,9 @@
 
 #include "calib_registry_od3d.hpp"
 
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+
 #include <array>
 #include <cstdint>
 
@@ -113,7 +116,11 @@ const Numbers &numbers_before(Test test);
 const Numbers &numbers_after(Test test);
 
 /// Fil de Marlin : chiffre écrit par un assistant de Prusa (M1959, M1977)
+#if HAS_LOADCELL() && HAS_MMU2()
 void set_number(Test test, bool after, uint8_t index, int16_t value);
+#else
+inline void set_number(Test, bool, uint8_t, int16_t) {} // INDX : pas d'assistant, pas de bilan chiffré
+#endif
 
 /// Vérification avant les tests à l'accéléromètre (M1989 A)
 enum class Check : uint8_t {

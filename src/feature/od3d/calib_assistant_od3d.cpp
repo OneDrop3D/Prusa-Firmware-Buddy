@@ -1,5 +1,6 @@
 /// @file
 #include "calib_assistant_od3d.hpp"
+#include <option/has_attachable_accelerometer.h>
 
 #include "accelerometer_od3d.hpp"
 #include "belt_tension_od3d.hpp"
@@ -474,6 +475,7 @@ namespace {
 Context context() {
     Context ctx;
     ctx.accelerometer = accelerometer();
+    ctx.accelerometer_clipped = HAS_ATTACHABLE_ACCELEROMETER();
     ctx.mmu = config_store().mmu2_enabled.get();
     ctx.flow_limit = calib::flow_limit_enabled();
     ctx.mpc = config_store().od3d_mpc_enabled.get(); // M-16
@@ -575,7 +577,8 @@ std::array<Record, max_tests> records() {
 }
 
 Accelerometer accelerometer() {
-    return config_store().od3d_accelerometer.get();
+    // CORE One L : l'accéléromètre est dans la tête, il est toujours là (rien à demander)
+    return HAS_ATTACHABLE_ACCELEROMETER() ? config_store().od3d_accelerometer.get() : Accelerometer::yes;
 }
 
 void set_accelerometer(Accelerometer value) {

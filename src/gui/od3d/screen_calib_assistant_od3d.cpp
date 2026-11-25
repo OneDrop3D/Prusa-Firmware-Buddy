@@ -41,6 +41,7 @@
 #include <feature/od3d/vibration_od3d.hpp>
 #include <filament.hpp>
 #include <Marlin/src/feature/input_shaper/input_shaper_config.hpp>
+#include <option/has_attachable_accelerometer.h>
 #include <option/has_hotend_type_support.h>
 #include <tool_index.hpp>
 #include <i18n.h>
@@ -287,7 +288,9 @@ namespace {
         bool abortable = false;
         if (w->fsm == ClientFSM::InputShaperCalibration) {
             switch (GetEnumFromPhaseIndex<PhasesInputShaperCalibration>(w->phase)) {
+#if HAS_ATTACHABLE_ACCELEROMETER() // Prusa n'attend la buse froide que pour un accéléromètre à fixer
             case PhasesInputShaperCalibration::wait_for_extruder_temperature:
+#endif
             case PhasesInputShaperCalibration::measuring_x_axis:
             case PhasesInputShaperCalibration::measuring_y_axis:
             case PhasesInputShaperCalibration::computing:
@@ -298,7 +301,9 @@ namespace {
             }
         } else {
             switch (GetEnumFromPhaseIndex<PhasesPhaseStepping>(w->phase)) {
+#if HAS_ATTACHABLE_ACCELEROMETER()
             case PhasesPhaseStepping::wait_for_extruder_temperature:
+#endif
             case PhasesPhaseStepping::calib_x:
             case PhasesPhaseStepping::calib_y:
                 abortable = true;
@@ -346,6 +351,17 @@ namespace {
         flow.stage = Stage::cooling;
     }
 
+    /// « Continuer » une fois l'accéléromètre fixé : M1989 A le vérifie
+    void start_check() {
+        flow.checks_at_request = assistant::check_count();
+        marlin_client::gcode("M1989 A");
+        flow.stage = Stage::checking;
+    }
+
+    /// Accéléromètre à fixer le temps des tests (CORE One) : chaussette, pose, retrait. Celui de la CORE One L est dans
+    /// la tête : ni question, ni étape de pose ou de retrait
+    constexpr bool attachable = HAS_ATTACHABLE_ACCELEROMETER();
+
     /// Lance les tests restants de la série à froid, accéléromètre fixé (accel : la réponse du ventilateur y passe aussi,
     /// avant « Retirez l'accéléromètre »), ou tous les autres
     void run_part(bool accel) {
@@ -368,6 +384,8 @@ namespace {
             && m.peaks[1].found && belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets()).verdict == belts::Verdict::adjust;
     }
 
+    void next_after_accel();
+
     /// Fin d'une série à l'accéléromètre : réglage en direct des courroies proposé, puis les autres tests à
     /// l'accéléromètre, puis « Retirez l'accéléromètre » (l'accélération max utile n'est qu'une information : V-01)
     void after_accel_part() {
@@ -376,8 +394,10 @@ namespace {
             flow.stage = Stage::belts_adjust;
         } else if (!flow.cancelled && (flow.mask & cold_tests() & ~flow.started)) {
             run_part(true);
-        } else {
+        } else if (attachable) {
             flow.stage = Stage::detach; // aussi après « Annuler » : l'accéléromètre est encore sur la buse
+        } else {
+            next_after_accel();
         }
     }
 
@@ -407,7 +427,7 @@ namespace {
         flow.cancelled = flow.check_failed = false;
         if (!(mask & accel_tests())) {
             next_after_accel();
-        } else if (ask || assistant::accelerometer() != Accelerometer::yes) {
+        } else if (attachable && (ask || assistant::accelerometer() != Accelerometer::yes)) {
             flow.stage = Stage::ask_accel;
         } else {
             enter_cooling();
@@ -442,7 +462,7 @@ namespace {
         case Stage::belts_adjust:
             // Chaussette retirée, accéléromètre peut-être fixé : les remettre en ordre avant toute chauffe
             marlin_client::gcode("M107");
-            flow.stage = Stage::detach;
+            flow.stage = attachable ? Stage::detach : Stage::summary;
             break;
         default:
             flow.stage = Stage::summary;
@@ -1526,7 +1546,9 @@ void ScreenCalibAssistant::show() {
         text = _("Do you have the accelerometer (input shaper kit)? It is clipped on the nozzle only during its tests.");
         break;
     case Stage::cooling:
-        text = !cold() ? _("Nozzle %d\xC2\xB0""C: cooling below 40\xC2\xB0""C before attaching the accelerometer (fan on).").formatted(info_params, int(nozzle()))
+        text = !cold() ? (attachable ? _("Nozzle %d\xC2\xB0""C: cooling below 40\xC2\xB0""C before attaching the accelerometer (fan on).")
+                                     : _("Nozzle %d\xC2\xB0""C: cooling below 40\xC2\xB0""C before the accelerometer tests (fan on)."))
+                             .formatted(info_params, int(nozzle()))
             : marlin_vars().is_processing.get() ? _("Nozzle %d\xC2\xB0""C. Homing, please wait.").formatted(info_params, int(nozzle()))
                                                 : _("Nozzle %d\xC2\xB0""C, below 40\xC2\xB0""C. Continue.").formatted(info_params, int(nozzle()));
         break;
@@ -1534,14 +1556,16 @@ void ScreenCalibAssistant::show() {
         text = _("Remove the silicone sock from the nozzle.");
         break;
     case Stage::attach:
-        text = flow.check_failed ? _("The accelerometer does not answer. Check it is attached and plugged in, then Continue.")
+        text = !attachable       ? _("The accelerometer in the printhead does not answer. Continue to try again, or Skip its tests.")
+            : flow.check_failed ? _("The accelerometer does not answer. Check it is attached and plugged in, then Continue.")
                                  : _("Firmly attach the accelerometer to the extruder and plug it into the board, then Continue.");
         break;
     case Stage::checking:
         text = _("Checking the accelerometer...");
         break;
     case Stage::rehome:
-        text = _("Home position lost. Remove the accelerometer, then Continue: the head homes again.");
+        text = attachable ? _("Home position lost. Remove the accelerometer, then Continue: the head homes again.")
+                          : _("Home position lost. Continue: the head homes again.");
         break;
     case Stage::accel_run:
     case Stage::cell_run:
@@ -1562,7 +1586,8 @@ void ScreenCalibAssistant::show() {
         char a[8], b[8];
         snprintf(a, sizeof(a), "%.1f", double(m.peaks[0].frequency));
         snprintf(b, sizeof(b), "%.1f", double(m.peaks[1].frequency));
-        text = _("Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, accelerometer still on, then Continue.")
+        text = (attachable ? _("Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, accelerometer still on, then Continue.")
+                           : _("Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, then Continue."))
                    .formatted(info_params, a, b, int(t.result_min), int(t.result_max));
         break;
     }
@@ -1712,7 +1737,11 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     case Stage::cooling:
         if (tag == tag_a && cold() && !marlin_vars().is_processing.get()) {
             marlin_client::gcode("M107"); // ventilateur de M1989 H
-            flow.stage = has_sock() ? Stage::sock_off : Stage::attach;
+            if (!attachable) {
+                start_check();
+            } else {
+                flow.stage = has_sock() ? Stage::sock_off : Stage::attach;
+            }
         } else if (tag == tag_c) {
             cancel();
         }
@@ -1726,9 +1755,7 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
         break;
     case Stage::attach:
         if (tag == tag_a) {
-            flow.checks_at_request = assistant::check_count();
-            marlin_client::gcode("M1989 A");
-            flow.stage = Stage::checking;
+            start_check();
         } else if (tag == tag_b) {
             flow.mask &= ~accel_tests(); // passés : ils restent à faire pour la prochaine fois
             next_after_accel();

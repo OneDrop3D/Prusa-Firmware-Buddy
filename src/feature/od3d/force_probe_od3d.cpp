@@ -154,19 +154,6 @@ bool overflowed() {
     return overflow.load(std::memory_order_relaxed);
 }
 
-int csv_printf(FILE *file, const char *format, ...) {
-    static char line[256]; // hors de la pile de Marlin (seul fil qui écrit les CSV)
-    va_list args;
-    va_start(args, format);
-    const int n = vsnprintf(line, sizeof(line), format, args);
-    va_end(args);
-    if (n < 0) {
-        return -1;
-    }
-    const size_t length = std::min(size_t(n), sizeof(line) - 1);
-    return fwrite(line, 1, length, file) == length ? int(length) : -1;
-}
-
 bool write_csv(FILE *file, float label) {
     if (!file) {
         return false;

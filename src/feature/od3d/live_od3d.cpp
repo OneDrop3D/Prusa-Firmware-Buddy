@@ -1,8 +1,11 @@
 /// @file
 #include "live_od3d.hpp"
+#include "force_probe_od3d.hpp" // csv_printf
 
 #include <algorithm>
 #include <atomic>
+#include <cstdarg>
+#include <cstdio>
 
 namespace od3d::live {
 
@@ -52,3 +55,22 @@ Line value() {
 }
 
 } // namespace od3d::live
+
+// Défini ici, compilé sur toutes les imprimantes : force_probe_od3d.cpp ne l'est qu'avec la cellule de charge et le MMU,
+// et l'INDX écrit aussi ses CSV (courroies, accéléromètre, mesure de l'écran)
+namespace od3d::force_probe {
+
+int csv_printf(FILE *file, const char *format, ...) {
+    static char line[256]; // hors de la pile de Marlin (seul fil qui écrit les CSV)
+    va_list args;
+    va_start(args, format);
+    const int n = vsnprintf(line, sizeof(line), format, args);
+    va_end(args);
+    if (n < 0) {
+        return -1;
+    }
+    const size_t length = std::min(size_t(n), sizeof(line) - 1);
+    return fwrite(line, 1, length, file) == length ? int(length) : -1;
+}
+
+} // namespace od3d::force_probe

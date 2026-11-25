@@ -13,6 +13,7 @@
 #include <option/has_esp.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
+#include <option/has_od3d_ui.h>
 
 using ScreenMenuNetwork__ = ScreenMenu<EFooter::Off,
     MI_RETURN,
@@ -30,7 +31,7 @@ using ScreenMenuNetwork__ = ScreenMenu<EFooter::Off,
 #if !PRINTER_IS_PRUSA_iX()
     MI_PRUSALINK,
 #endif
-#if !(HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()) // OneDrop3D : dans Système › Diagnostic
+#if !(HAS_OD3D_UI()) // OneDrop3D : dans Système › Diagnostic
     MI_METRICS_SETTINGS,
 #endif
     MI_ALWAYS_HIDDEN>;

@@ -8,12 +8,13 @@
 #include <option/has_internal_storage_flash.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#include <option/has_od3d_ui.h>
+#if HAS_OD3D_UI()
     #include <gui/od3d/menu_items_od3d.hpp>
 #endif
 
 using ScreenMenuSystemBase = BasicScreenMenu<
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     MI_LOAD_SETTINGS,
     od3d::MI_DIAGNOSTICS, // OneDrop3D : vidage, journal, empreinte du QR, métriques (outils de support)
 #else

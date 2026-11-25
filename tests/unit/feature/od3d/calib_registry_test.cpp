@@ -57,6 +57,17 @@ TEST_CASE("calib_registry: accelerometer yes / no / unknown") {
     CHECK_FALSE((accel & test_bit(Test::pa)));
 }
 
+TEST_CASE("calib_registry: built-in accelerometer, no mount check (CORE One L)") {
+    const Records none {};
+    Context ctx = full();
+    ctx.accelerometer_clipped = false;
+    const uint32_t m = select(ctx, none, true);
+    CHECK_FALSE((m & test_bit(Test::accel_mount))); // M2005 vérifie une pince : rien à vérifier dans la tête
+    CHECK((m & test_bit(Test::belts)));
+    CHECK((m & test_bit(Test::input_shaper)));
+    CHECK((select(full(), none, true) & test_bit(Test::accel_mount))); // CORE One : toujours proposée
+}
+
 TEST_CASE("calib_registry: spools and flow limit") {
     const Records none {};
     Context ctx = full();

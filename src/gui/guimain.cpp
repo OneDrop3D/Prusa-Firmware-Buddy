@@ -8,9 +8,11 @@
 #include "marlin_client.hpp"
 #include <screen_error.hpp>
 #include "screen_home.hpp"
+#include <option/has_loadcell.h>
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_thermal_compensation.h>
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#include <option/has_od3d_ui.h>
+#if HAS_OD3D_UI()
     #include <gui/od3d/screen_home_od3d.hpp> // OneDrop3D : interface G
     #include <gui/od3d/screen_calib_assistant_od3d.hpp> // OneDrop3D : assistant de calibration
 #endif
@@ -136,7 +138,7 @@ namespace {
 void init_screens() {
     Screens::Init(ScreenFactory::Screen<ScreenSplash>);
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
     // OneDrop3D : notre accueil (interface G) remplace celui de Prusa au bas de la pile
     Screens::Access()->PushBeforeCurrent(ScreenFactory::Screen<od3d::ScreenHome>);
 #else
@@ -156,7 +158,7 @@ void init_screens() {
     return;
 #endif
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI() && HAS_LOADCELL() && HAS_MMU2() // pas d'assistant sur l'INDX
     // OneDrop3D : calibrations nouvelles ou changées par ce firmware, une seule fois ; empilé en premier, il s'ouvre
     // après les écrans de première mise en route de Prusa (sur une imprimante neuve, ses tests d'abord)
     if (od3d::calibration_prompt_at_boot()) {
@@ -240,7 +242,7 @@ void gui_run(void) {
         // OneDrop3D (interface G) : l'appui long est le retour dans les menus qui l'ont (Réglages, Infos, Système…) ; sur
         // l'accueil seulement, il ouvre toujours Déplacer Z, comme chez Prusa
         Screens &screens = *Screens::Access();
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
         const bool home = screens.IsScreenOpened<od3d::ScreenHome>() || screens.IsScreenOpened<screen_home_data_t>();
 #else
         const bool home = screens.IsScreenOpened<screen_home_data_t>();

@@ -476,8 +476,13 @@ set_feature_for_printers_master_board(
   "COREONEL"
   )
 # Compensation of the nozzle thermal expansion between bed leveling and printing
-# OneDrop3D (F2) : aussi pour la CORE One, qui a la même buse Nextruder que la XL.
-set_feature_for_printers_master_board(HAS_NOZZLE_THERMAL_COMPENSATION "XL" "COREONE")
+# OneDrop3D (F2) : aussi pour la CORE One et la CORE One L, qui ont la même buse Nextruder que la XL. Pas l'INDX : autre
+# tête, et son changeur d'outil n'a pas le crochet de la compensation (static_assert de toolchanger_indx.cpp).
+set_feature_for_printers_master_board(HAS_NOZZLE_THERMAL_COMPENSATION "XL" "COREONE" "COREONEL")
+# OneDrop3D : interface G (src/gui/od3d) à la place des écrans de Prusa ; avec l'INDX, sans ses parties MMU
+set_feature_for_printers_master_board(
+  HAS_OD3D_UI "COREONE" "COREONE_INDX" "COREONEL" "COREONEL_INDX"
+  )
 set_feature_for_printers_master_board(HAS_SHEET_PROFILES "MK3.5" "MINI")
 set_feature_for_printers_master_board(
   HAS_HEATBREAK_TEMP

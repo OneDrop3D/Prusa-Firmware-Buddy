@@ -15,6 +15,14 @@
 #include <cstdint>
 
 #include <feature/print_area.h>
+#include <option/has_mmu2.h>
+#include <printers.h>
+
+/// Le maillage gardé (Record de mesh_memory_math_od3d.hpp : grille 7 × 7, éléments du config_store) n'existe que sur la
+/// CORE One. Ailleurs (CORE One L : grille 9 × 9 ; INDX : config_store plein) rien n'est gardé ni repris, l'interface
+/// n'en parle pas.
+/// shortcut: CORE One seulement ; pour la CORE One L, un Record à la taille de sa grille, dans un nouvel élément.
+#define OD3D_MESH_MEMORY() (HAS_MMU2() && PRINTER_IS_PRUSA_COREONE())
 
 namespace od3d::mesh_memory {
 

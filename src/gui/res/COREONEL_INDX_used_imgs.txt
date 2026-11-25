@@ -2,6 +2,7 @@ ac_heatbed_screw_80x246.png
 arrow_down_12x12.png
 arrow_down_orange_12x12.png
 arrow_left_10x16.png
+arrow_left_16x16.png
 arrow_right_10x16.png
 arrow_up_12x12.png
 arrow_up_orange_12x12.png
@@ -20,6 +21,7 @@ cleaner_calibration_z.png
 clear_60x60.png
 connect_16x16.png
 connect_orange_16x16.png
+cycle_16x16.png
 dash_18x18.png
 disconnect_80x80_disabled.png
 disconnect_80x80_focused.png
@@ -27,11 +29,13 @@ disconnect_80x80.png
 door_sensor_calibration_170x170.png
 enclosure_16x16.png
 error_16x16.png
+error_48x48.png
 error_white_48x48.png
 exposure_times_48x48.png
 fan_16x16.png
 fan_error_48x48.png
 filament_sensor_17x16.png
+finda_16x16.png
 flag_cs_16x11.png
 flag_de_16x11.png
 flag_en_16x11.png
@@ -55,6 +59,7 @@ heatbed_16x16.png
 home_80x80_disabled.png
 home_80x80_focused.png
 home_80x80.png
+home_full_16x16.png
 home_shape_16x16.png
 hourglass0_26x39.png
 hourglass1_26x39.png
@@ -97,6 +102,7 @@ plusminus_60x60.png
 preheat_80x80_disabled.png
 preheat_80x80_focused.png
 preheat_80x80.png
+preheat_white_16x16.png
 print_16x16.png
 print_80x80_disabled.png
 print_80x80_focused.png

@@ -17,9 +17,15 @@
 #include <FreeRTOS.h>
 #include <feature/od3d/print_start_od3d.hpp>
 #include <feature/od3d/mesh_memory_od3d.hpp>
-#include <feature/od3d/pa_od3d.hpp>
-#include <feature/od3d/spool_calib_od3d.hpp>
-#include <feature/od3d/spool_usage_od3d.hpp>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_LOADCELL() && HAS_MMU2()
+    #include <feature/od3d/pa_od3d.hpp>
+    #include <feature/od3d/spool_calib_od3d.hpp>
+#endif
+#if HAS_MMU2()
+    #include <feature/od3d/spool_usage_od3d.hpp>
+#endif
 #include <gcode/gcode_reader_any.hpp>
 #include <gui/event/gui_event.hpp>
 #include <gui/event/knob_event.hpp>
@@ -1243,6 +1249,7 @@ void ScreenPreview::unconditionalDraw() {
         // PA : la valeur mesurée ; « PA ? » en jaune si le PA de l'imprimante prime et qu'il manque (sinon le
         // trancheur décide : rien)
         Color pa_color = style::text_muted;
+#if HAS_LOADCELL() && HAS_MMU2() // INDX : pas de PA mesuré par tête
         if (const auto k = pa::k_for_slot(t)) {
             snprintf(text.data(), text.size(), "%.3f", double(*k));
         } else if (pa::needs_measure(t) && slot.look.filament) {
@@ -1254,23 +1261,32 @@ void ScreenPreview::unconditionalDraw() {
         } else {
             text[0] = '\0';
         }
+#else
+        text[0] = '\0';
+#endif
         draw_text(Rect16(info_x + 124, y, 56, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, pa_color, style::screen);
+#if HAS_MMU2() // F13 : poids des bobines du MMU
         const auto usage = spool_usage::report(t);
         const bool too_little = usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g);
         if (too_little && shortage < 0) {
             shortage = t;
             shortage_left = usage->remaining_g;
         }
+#else
+        constexpr bool too_little = false;
+#endif
         snprintf(text.data(), text.size(), "%.0f g", double(info.grams[t]));
         draw_text(Rect16(info_x + 182, y, w - 182, height(Font::small)), string_view_utf8::MakeRAM(text.data()), Font::small, too_little ? style::warning : style::text_muted, style::screen, Align_t::RightCenter());
         if (mismatch < 0 && info.types[t][0] && slot.look.filament && strcasecmp(info.types[t].data(), slot.material.data()) != 0) {
             mismatch = t;
             mismatch_slot = slot;
         }
+#if HAS_LOADCELL() && HAS_MMU2()
         // F6 : le fichier imprime cette bobine sous la température minimale mesurée (même buse, même matière)
         if (too_cold < 0 && slot.look.filament && calib::below_min_temperature(info.nozzle[t], calib::record(t))) {
             too_cold = t;
         }
+#endif
     }
 
     // Alertes (§3.10) : la bobine n'a pas assez de filament pour le fichier (F13 ; la fin d'une bobine n'arrête pas
@@ -1287,9 +1303,11 @@ void ScreenPreview::unconditionalDraw() {
         // La matière de la bobine posée sur l'emplacement, pas ce qui est dans la buse (« chargé » se lisait ainsi, 25/11)
         warnings[count++] = _("Slot %d: %s in the file, %s spool").formatted(mismatch_params, mismatch + 1, info.types[mismatch].data(), mismatch_slot.material.data());
     }
+#if HAS_LOADCELL() && HAS_MMU2()
     if (too_cold >= 0) {
         warnings[count++] = _("Slot %d: %d° requested, measured minimum %d°").formatted(cold_params, too_cold + 1, int(info.nozzle[too_cold]), int(calib::record(too_cold).min_temperature));
     }
+#endif
     if (pa_missing >= 0) {
         // F4 : « PA à mesurer » ; le M572 du trancheur reste utilisé pour cet emplacement
         warnings[count++] = _("Slot %d: PA to measure (slicer value used)").formatted(pa_params, pa_missing + 1);

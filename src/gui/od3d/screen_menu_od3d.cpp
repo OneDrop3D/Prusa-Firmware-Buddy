@@ -9,19 +9,25 @@
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <cstdio>
-#include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
 #include <feature/od3d/lookahead_od3d.hpp>
 #include <feature/od3d/mesh_memory_od3d.hpp>
-#include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/pairing_od3d.hpp>
-#include <feature/od3d/spool_calib_od3d.hpp>
+#if !HAS_INDX()
+    #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+#endif
+#if HAS_LOADCELL() && HAS_MMU2()
+    #include <feature/od3d/pa_od3d.hpp>
+    #include <feature/od3d/spool_calib_od3d.hpp>
+#endif
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
 #include <window_msgbox.hpp>
 
 namespace od3d {
 
+#if !HAS_INDX()
 namespace nozzle_comp = buddy::nozzle_thermal_compensation;
+#endif
 
 // ---- Calibrage de l'imprimante (« Fonctions OneDrop3D » avant le 25/11) ----
 
@@ -32,19 +38,23 @@ void MI_FEATURES::click(IWindowMenu &) {
     open_screen<ScreenMenuFeatures>();
 }
 
+#if !HAS_INDX()
 MI_NOZZLE_TEMPERATURE::MI_NOZZLE_TEMPERATURE()
     : IWindowMenuItem(_("Nozzle temperature\nExpansion, PID or MPC control"), &img::temperature_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_NOZZLE_TEMPERATURE::click(IWindowMenu &) {
     open_screen<ScreenNozzleTemperature>();
 }
+#endif
 
+#if HAS_MMU2()
 MI_SPOOL_JOIN_SLOTS::MI_SPOOL_JOIN_SLOTS()
     : IWindowMenuItem(_("Spool join\nEmpty spool: another one takes over"), &img::cycle_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_SPOOL_JOIN_SLOTS::click(IWindowMenu &) {
     open_screen<ScreenSpoolJoin>();
 }
+#endif
 
 MI_PAIR_PRINTFORGE::MI_PAIR_PRINTFORGE()
     : IWindowMenuItem(_("Pair PrintForge\n6-digit code to link PrintForge"), &img::connect_16x16, is_enabled_t::yes, is_hidden_t::no) {}
@@ -118,6 +128,7 @@ void MI_FAN_LEAD::click(IWindowMenu &menu) {
     }
 }
 
+#if HAS_LOADCELL() && HAS_MMU2()
 // ---- PA de l'imprimante (F4) ----
 
 // Vaut dès le prochain changement d'outil ou M572 ; la mesure se lance depuis la fiche de la bobine (puce « PA »).
@@ -162,6 +173,9 @@ void MI_PA_LARGE::OnChange(size_t) {
     pa::set_large_pattern(value());
 }
 
+#endif
+
+#if OD3D_MESH_MEMORY()
 // ---- Maillage du plateau gardé (F44) ----
 
 // Vaut dès la prochaine impression (G29 P1 du G-code de départ) ; « Avant l'impression » peut le changer pour une
@@ -196,6 +210,9 @@ void MI_MESH_REDO::click(IWindowMenu &) {
     MsgBoxInfo(_("The saved bed mesh is cleared: the next print probes the whole print area."), Responses_Ok);
 }
 
+#endif
+
+#if HAS_LOADCELL() && HAS_MMU2()
 // ---- Limite de débit (F5) ----
 
 // Vaut dès maintenant pour l'emplacement chargé ; la mesure se lance depuis la fiche de la bobine (PA › Débit, temp.).
@@ -206,6 +223,9 @@ void MI_FLOW_LIMIT::OnChange(size_t) {
     calib::set_flow_limit_enabled(value());
 }
 
+#endif
+
+#if !HAS_INDX()
 // ---- Température de la buse (F2) ----
 
 // Pas pendant une impression : le Z changerait d'un coup (jusqu'à 0,05 mm à 280 °C).
@@ -232,6 +252,9 @@ MI_NOZZLE_THERMAL_CORRECTION::MI_NOZZLE_THERMAL_CORRECTION()
 ScreenNozzleTemperature::ScreenNozzleTemperature()
     : BasicScreenMenu(_("Nozzle temp.")) {}
 
+#endif
+
+#if HAS_MMU2()
 // ---- Relais de bobine (F3) ----
 
 // Les relais sont lus au départ de chaque impression : un changement vaut pour la suivante.
@@ -273,5 +296,6 @@ bool MI_SPOOL_JOIN_TARGET::on_item_selected(const OnItemSelectedArgs &args) {
 
 ScreenSpoolJoin::ScreenSpoolJoin()
     : BasicScreenMenu(_("Spool Join")) {}
+#endif
 
 } // namespace od3d

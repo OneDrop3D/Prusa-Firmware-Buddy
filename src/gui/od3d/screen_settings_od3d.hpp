@@ -20,6 +20,10 @@
 #include <gui/menu_item/specific/menu_items_xbuddy_extension.hpp>
 #include <screen/openprinttag/screen_opt_settings.hpp>
 #include <screen/toolhead/screen_toolhead_settings.hpp>
+#include <option/has_anfc.h>
+#include <option/has_indx.h>
+#include <option/has_mmu2.h>
+#include <option/has_switchable_auto_retract.h>
 #include <option/has_touch.h>
 #if HAS_TOUCH()
     #include <MItem_touch.hpp>
@@ -27,13 +31,30 @@
 
 namespace od3d {
 
-class ScreenSetPrinting final : public BasicScreenMenu<MI_STUCK_FILAMENT_DETECTION, MI_GCODE_INTERRUPTS, MI_CRASH_DETECTION, MI_FAN_CHECK, MI_GCODE_VERIFY,
-                                    MI_AUTO_RETRACT_ENABLE, MI_STEALTH_MODE> {
+// INDX : ni détection du filament coincé de Prusa, ni rétraction automatique réglable, ni MMU (comme ses menus)
+class ScreenSetPrinting final : public BasicScreenMenu<
+#if !HAS_INDX()
+                                    MI_STUCK_FILAMENT_DETECTION,
+#endif
+                                    MI_GCODE_INTERRUPTS, MI_CRASH_DETECTION, MI_FAN_CHECK, MI_GCODE_VERIFY,
+#if HAS_SWITCHABLE_AUTO_RETRACT()
+                                    MI_AUTO_RETRACT_ENABLE,
+#endif
+                                    MI_STEALTH_MODE> {
 public:
     ScreenSetPrinting();
 };
 
-class ScreenSetFilament final : public BasicScreenMenu<MI_FILAMENT_SENSORS, MI_MMU_ENABLE, MI_MMU_BOOTLOADER_RESULT, MI_MMU_CUTTER, buddy::openprinttag::MI_OPT_SETTINGS> {
+class ScreenSetFilament final : public BasicScreenMenu<MI_FILAMENT_SENSORS
+#if HAS_MMU2()
+                                    ,
+                                    MI_MMU_ENABLE, MI_MMU_BOOTLOADER_RESULT, MI_MMU_CUTTER
+#endif
+#if HAS_ANFC() // OpenPrintTag : pas sur l'INDX (comme le menu de Prusa)
+                                    ,
+                                    buddy::openprinttag::MI_OPT_SETTINGS
+#endif
+                                    > {
 public:
     ScreenSetFilament();
 };

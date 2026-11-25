@@ -244,7 +244,8 @@ namespace {
 
     /// Étapes prévues d'une opération lancée depuis l'atelier : tables de Prusa (src/mmu2/mmu2_progress.cpp) et
     /// séquences du firmware du MMU (logic/*.cpp), filament hors de la tête (sinon l'atelier ne les propose pas)
-    std::span<const Phase> plan_for(Op op) {
+    std::span<const Phase> plan_for([[maybe_unused]] Op op) {
+#if HAS_MMU2() // INDX : M701 / M702 de Prusa par tête, sans étapes prévues
         static constexpr Phase load[] = { Phase::WaitingTemp_unstoppable, Phase::MMU_FeedingToFinda, Phase::MMU_FeedingToBondtech,
             Phase::MMU_FeedingToFSensor, Phase::MMU_DisengagingIdler, Phase::Loading_unstoppable };
         static constexpr Phase unload[] = { Phase::WaitingTemp_unstoppable, Phase::Ramming_unstoppable, Phase::MMU_UnloadingToFinda, Phase::MMU_DisengagingIdler };
@@ -265,6 +266,7 @@ namespace {
         case Op::cut:
             return cut;
         }
+#endif
         return {};
     }
 
@@ -556,10 +558,16 @@ namespace {
 
     bool is_notice_phase(Phase phase) {
         switch (phase) {
+#if HAS_MMU2()
         case Phase::MMU_ERRWaitingForUser:
+#endif
+#if HAS_LOADCELL() && HAS_EXTRUDER_FSENSOR()
         case Phase::FilamentStuck:
+#endif
+#if HAS_SIDE_FSENSOR() && HAS_EXTRUDER_FSENSOR()
         case Phase::LoadingObstruction_stoppable:
         case Phase::LoadingObstruction_unstoppable:
+#endif
 #if HAS_ANFC()
         case Phase::OPT_UncommitedUsage:
 #endif
@@ -620,14 +628,19 @@ ScreenLoadUnload::~ScreenLoadUnload() {
 
 void ScreenLoadUnload::Change(fsm::BaseData new_data) {
     const Phase new_phase = GetEnumFromPhaseIndex<Phase>(new_data.GetPhase());
+#if HAS_MMU2()
+    const bool mmu_error = new_phase == Phase::MMU_ERRWaitingForUser;
+#else
+    constexpr bool mmu_error = false; // INDX
+#endif
     // Une autre erreur du MMU garde la même phase : seules ses données (l'erreur) changent
-    const bool phase_changed = !has_data || new_phase != phase || (new_phase == Phase::MMU_ERRWaitingForUser && new_data.GetData() != data.GetData());
+    const bool phase_changed = !has_data || new_phase != phase || (mmu_error && new_data.GetData() != data.GetData());
     data = new_data;
     has_data = true;
 
     // MMU_ERRWaitingForUser porte un pointeur vers l'erreur, toutes les autres phases FSMLoadUnloadData
     bool redraw_header = false;
-    if (new_phase != Phase::MMU_ERRWaitingForUser) {
+    if (!mmu_error) {
         const auto d = fsm::deserialize_data<FSMLoadUnloadData>(new_data.GetData());
         if (valid_mode(d.mode) && d.mode != mode) {
             mode = d.mode;

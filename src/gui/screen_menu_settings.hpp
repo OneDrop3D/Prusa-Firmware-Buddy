@@ -39,14 +39,15 @@
 #endif
 
 #include <option/has_nozzle_thermal_compensation.h>
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#include <option/has_od3d_ui.h>
+#if HAS_OD3D_UI()
     #include <gui/od3d/screen_menu_od3d.hpp>
     #include <gui/od3d/screen_sleep_od3d.hpp>
     #include <gui/od3d/screen_filament_presets_od3d.hpp>
     #include <gui/od3d/menu_items_od3d.hpp>
 #endif
 
-#if HAS_NOZZLE_THERMAL_COMPENSATION() && HAS_MMU2()
+#if HAS_OD3D_UI()
 // OneDrop3D (interface G, retour du 22/11 « clarifier les menus de Prusa ») : 13 lignes au lieu de 23, chacune avec une
 // ligne d'explication ; les interrupteurs de Prusa sont rangés dans « Impression », « Filament et MMU » et « Chambre »
 // (gui/od3d/screen_settings_od3d.hpp), rien n'est retiré. L'ordre de Prusa reste ci-dessous pour les autres imprimantes.

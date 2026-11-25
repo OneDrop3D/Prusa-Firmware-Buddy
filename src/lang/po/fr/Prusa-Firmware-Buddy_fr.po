@@ -13045,3 +13045,49 @@ msgstr "Reprise sans cicatrice\nAprès une pause, dans le remplissage"
 #: src/gui/od3d/screen_resume_od3d.cpp
 msgid "Purge\nSmall, inside the infill"
 msgstr "Purge\nPetite, dans le remplissage"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "The accelerometer in the printhead does not answer. Continue to try again, or Skip its tests."
+msgstr "L'accéléromètre de la tête ne répond pas. Continuer pour réessayer, ou Passer ses tests."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+#, c-format
+msgid "Nozzle %d°C: cooling below 40°C before the accelerometer tests (fan on)."
+msgstr "Buse à %d°C : elle doit descendre sous 40°C avant les tests à l'accéléromètre (ventilateur allumé)."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Home position lost. Continue: the head homes again."
+msgstr "Origine perdue. Continuer : la tête refait son origine."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+#, c-format
+msgid "Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, then Continue."
+msgstr "Courroies hors de la plage : A %s Hz, B %s Hz (cible %d-%d Hz). Réglez-les en direct, puis Continuer."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Start: 4 ways of measuring, about 5 min."
+msgstr "Démarrer : 4 façons de mesurer, 5 min env."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Start: X and Y, about 1 min."
+msgstr "Démarrer : X et Y, 1 min env."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Start: X and Y, about 4 min."
+msgstr "Démarrer : X et Y, 4 min env."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "The accelerometer in the printhead does not answer. Retry?"
+msgstr "L'accéléromètre de la tête ne répond pas. Réessayer ?"
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Homing, please wait..."
+msgstr "Prise d'origine, patientez..."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Start homes the printer first."
+msgstr "Démarrer prend d'abord l'origine."
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Filament\nFilament sensors"
+msgstr "Filament\nCapteurs de filament"

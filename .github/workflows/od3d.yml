@@ -1,5 +1,5 @@
-# Chaîne OneDrop3D : compile le firmware CORE One avec le suffixe -OD3D, lance les tests unitaires de Prusa
-# et, sur un tag od3d-*, publie une release avec notre .bbf et le .bbf officiel de la même version.
+# Chaîne OneDrop3D : compile le firmware des CORE One, CORE One L et de leurs variantes INDX avec le suffixe -OD3D, lance
+# les tests unitaires de Prusa et, sur un tag od3d-*, publie une release avec nos .bbf et les .bbf officiels de la même version.
 name: od3d
 
 on:
@@ -25,6 +25,11 @@ jobs:
           fi
 
   firmware:
+    # Une compilation par imprimante : CORE One (One+, One+ Gen2), CORE One L, et leurs variantes INDX
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [coreone, coreonel, coreone_indx, coreonel_indx]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +44,7 @@ jobs:
           key: deps-${{ hashFiles('utils/bootstrap.py') }}
       - run: pip install requests
       - run: sudo apt-get install -y gettext  # msgfmt, pour les traductions
-      - name: Compiler coreone_release_boot
+      - name: Compiler ${{ matrix.preset }}_release_boot
         # Comme les versions publiées de Prusa (utils/holly/build-pr.jenkins, branches RELEASE-*) : sans les menus de développement.
         # Français et anglais seulement. Le tag od3d-8.0.3.N donne la version « 8.0.3+<build>.OD3D.N », la forme des builds locaux de
         # Prusa (« +1035.LOCAL ») : envoyée à Prusa Connect (INFO, User-Agent-Version), elle se lit comme une version semver ET
@@ -48,14 +53,23 @@ jobs:
         run: |
           build=$(git rev-list --count HEAD)  # le BUILD_NUMBER de cmake/ProjectVersion.cmake
           case "$GITHUB_REF_NAME" in od3d-*.*.*.*) n=".${GITHUB_REF_NAME##*.}" ;; *) n="" ;; esac
-          python utils/build.py --preset coreone --build-type release --bootloader yes --version-suffix="+$build.OD3D$n" --version-suffix-short="-OD3D+$build" --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
-          # Le nom du fichier reste « coreone_release_boot_8.0.3-OD3D.N.bbf » : PrintForge, OneDrop3D et les notes de release y cherchent « -OD3D »
+          python utils/build.py --preset ${{ matrix.preset }} --build-type release --bootloader yes --version-suffix="+$build.OD3D$n" --version-suffix-short="-OD3D+$build" --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
+          # « <préréglage>_release_boot_8.0.3-OD3D.N.bbf » : celui de la CORE One garde son nom (coreone_release_boot_…),
+          # les autres commencent par coreonel_, coreone_indx_ ou coreonel_indx_
           bbf=(build/products/*.bbf)
           [ ${#bbf[@]} -eq 1 ] || { echo "::error::un seul .bbf attendu : ${bbf[*]}"; exit 1; }
-          mv "${bbf[0]}" "build/products/coreone_release_boot_$(cat version.txt)-OD3D$n.bbf"
+          mv "${bbf[0]}" "build/products/${{ matrix.preset }}_release_boot_$(cat version.txt)-OD3D$n.bbf"
+          ls -l build/products/*.bbf
+      - name: Toutes les erreurs de compilation
+        # ninja s'arrête à la 1re erreur : on reprend sans s'arrêter pour les voir toutes en une fois
+        if: failure()
+        run: |
+          cm=$(ls .dependencies/cmake-*/bin/cmake | head -1)
+          "$cm" --build "$(dirname build/*/build.ninja)" -- -k 0 2>&1 | grep -E -B3 -A8 'error:|Error [0-9]' | head -800 || true
       - uses: actions/upload-artifact@v4
         with:
-          name: firmware
+          # « firmware » et « elf-pile » restent les noms de ceux de la CORE One
+          name: ${{ matrix.preset == 'coreone' && 'firmware' || format('firmware-{0}', matrix.preset) }}
           path: build/products/*.bbf
           if-no-files-found: error
       - name: Piles des fonctions (.su de -fstack-usage)
@@ -68,7 +82,7 @@ jobs:
         if: always()
         with:
           # ELF et map pour lire un vidage (dump_buddy.bin), et taille de pile de chaque fonction
-          name: elf-pile
+          name: ${{ matrix.preset == 'coreone' && 'elf-pile' || format('elf-pile-{0}', matrix.preset) }}
           path: |
             build/products/*
             !build/products/*.bbf
@@ -106,19 +120,30 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: firmware
+          pattern: firmware*  # firmware (CORE One) et firmware-<préréglage>
+          merge-multiple: true
           path: sortie
-      - name: Joindre le firmware officiel de la même version (retour arrière)
-        # La version finale si Prusa l'a publiée, sinon sa bêta ou sa RC la plus récente (8.0.3 : seulement v8.0.3-beta au 24/11)
+      - name: Joindre les firmwares officiels de la même version (retour arrière)
+        # La version finale si Prusa l'a publiée, sinon sa bêta ou sa RC la plus récente (8.0.3 : seulement v8.0.3-beta au 24/11).
+        # Celui de la CORE One est obligatoire ; ceux des autres imprimantes seulement s'ils existent (8.0.3-beta : pas de CORE One L,
+        # et Prusa n'a jamais publié de CORE One L INDX).
         run: |
           ver=$(cat version.txt)
           tags=$(gh release list -R prusa3d/Prusa-Firmware-Buddy -L 50 --json tagName -q '.[].tagName')
           if echo "$tags" | grep -qx "v$ver"; then tag="v$ver"; else tag=$(echo "$tags" | grep -E "^v${ver//./\\.}-" | head -1); fi
           echo "Firmware officiel : $tag"
           gh release download "$tag" -R prusa3d/Prusa-Firmware-Buddy -p 'COREONE_COREONE+GEN2_firmware_*.bbf' -D sortie
+          for p in 'COREONE_COREONE+GEN2_INDX_firmware_*.bbf' 'COREONEL_COREONEL+_firmware_*.bbf' 'COREONEL_*INDX*firmware_*.bbf'; do
+            gh release download "$tag" -R prusa3d/Prusa-Firmware-Buddy -p "$p" -D sortie || echo "::notice::pas de $p dans $tag"
+          done
+          ls -l sortie
       - name: Publier
         run: |
-          gh release create "$GITHUB_REF_NAME" sortie/*.bbf --title "$GITHUB_REF_NAME" --notes "Firmware OneDrop3D pour Prusa CORE One, CORE One+ et CORE One+ Gen2, basé sur Prusa $(cat version.txt). Non officiel et non signé : il ne s'installe qu'après avoir cassé l'appendice de la carte xBuddy.
-          - \`coreone_release_boot_*-OD3D*.bbf\` : le firmware OneDrop3D à flasher ;
-          - \`COREONE_COREONE+GEN2_firmware_*.bbf\` : le firmware officiel Prusa de la même version, pour revenir en arrière.
+          gh release create "$GITHUB_REF_NAME" sortie/*.bbf --title "$GITHUB_REF_NAME" --notes "Firmware OneDrop3D basé sur Prusa $(cat version.txt). Non officiel et non signé : il ne s'installe qu'après avoir cassé l'appendice de la carte xBuddy.
+          Le firmware OneDrop3D à flasher, un par imprimante :
+          - \`coreone_release_boot_*-OD3D*.bbf\` : CORE One, CORE One+ et CORE One+ Gen2 ;
+          - \`coreonel_release_boot_*-OD3D*.bbf\` : CORE One L ;
+          - \`coreone_indx_release_boot_*-OD3D*.bbf\` : CORE One avec INDX ;
+          - \`coreonel_indx_release_boot_*-OD3D*.bbf\` : CORE One L avec INDX.
+          Les fichiers en majuscules (\`COREONE_…\`, \`COREONEL_…\`) sont les firmwares officiels Prusa de la même version, pour revenir en arrière, quand Prusa les a publiés.
           Sources : branche od3d/main, licence GPLv3 (graphismes Prusa : CC BY-NC-SA 4.0). Ce n'est pas un produit Prusa Research."

@@ -2,6 +2,7 @@
 #include "screen_belts_od3d.hpp"
 #include "screen_calib_assistant_od3d.hpp" // confirm_stop_measure
 #include "accelerometer_guide_od3d.hpp"
+#include <option/has_attachable_accelerometer.h>
 #include "menu_items_od3d.hpp"
 #include "menu_od3d.hpp"
 #include "thumbnail_od3d.hpp" // draw_pixels
@@ -281,7 +282,7 @@ void ScreenBelts::show_info() {
         switch (shown_status) {
         case Status::idle:
         case Status::running:
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min.");
+            text = shown_homing ? _(shown_homing) : (HAS_ATTACHABLE_ACCELEROMETER() ? _("Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min.") : _("Start: 4 ways of measuring, about 5 min."));
             break;
         case Status::done: {
             if (!belts::advice_validated) { // seulement les fréquences (jauges) ; le réglage chez Prusa
@@ -327,7 +328,7 @@ void ScreenBelts::show_info() {
             text = _("Measurement failed.");
             break;
         case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
-            text = shown_homing ? _(shown_homing) : _("Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min.");
+            text = shown_homing ? _(shown_homing) : (HAS_ATTACHABLE_ACCELEROMETER() ? _("Attach the accelerometer to the extruder, then Start: 4 ways of measuring, about 5 min.") : _("Start: 4 ways of measuring, about 5 min."));
             break;
         }
     }

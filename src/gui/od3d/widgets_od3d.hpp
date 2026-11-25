@@ -172,6 +172,18 @@ namespace chrome {
 
 // ---- Écran ----
 
+/// Bandeau d'un groupe (moteurs du MMU, musique) : fond, titre ; la note de droite est une fenêtre à part (redessinée seule)
+class Panel : public window_t {
+public:
+    Panel(window_t *parent, Rect16 rect, const string_view_utf8 &title);
+
+protected:
+    void unconditionalDraw() override;
+
+private:
+    string_view_utf8 title;
+};
+
 /// Base de nos écrans : fond de la maquette, focus retrouvé au retour d'un sous-écran, appui long = retour
 class Screen : public screen_t {
 public:

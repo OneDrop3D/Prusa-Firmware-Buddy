@@ -71,6 +71,8 @@ struct Run {
 
     const Point &at(size_t i) const { return ring[(first + i) % max_points]; }
     void push(Point p);
+    /// Vide la suite sur place (pas de Run temporaire de ~220 octets sur la pile de Marlin)
+    void clear();
     /// Longueur des points gardés [mm]
     float kept_mm() const;
     float e_per_mm() const { return total_mm > 0 ? total_e / total_mm : NAN; }
@@ -85,6 +87,8 @@ public:
     /// l'appelant peut y poser l'objet en cours (set_object)
     bool move(Point from, float z0, float e0, Point to, float z1, float e1);
     void set_object(int16_t object) { current_.object = object; }
+    /// Tout oublié (départ d'impression), sur place
+    void reset();
 
     /// Z des deux dernières couches imprimées (mouvements qui extrudent dans le plan) ; NAN : pas encore
     float layer_z() const { return layer_z_; }

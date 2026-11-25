@@ -66,7 +66,7 @@ void load() {
 }
 
 void on_print_start() {
-    tracker = Tracker {};
+    tracker.reset();
     feature_marks::enabled = config_store().od3d_clean_resume.get();
 }
 

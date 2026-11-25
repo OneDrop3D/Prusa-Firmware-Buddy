@@ -48,6 +48,15 @@ void Run::push(Point p) {
     }
 }
 
+void Run::clear() {
+    first = 0;
+    count = 0;
+    z = NAN;
+    total_mm = 0;
+    total_e = 0;
+    object = -1;
+}
+
 float Run::kept_mm() const {
     float mm = 0;
     for (size_t i = 1; i < count; ++i) {
@@ -60,7 +69,15 @@ void Tracker::close_run() {
     if (current_.count >= 2 && current_.kept_mm() >= min_run_mm) {
         last_ = current_;
     }
-    current_ = Run {};
+    current_.clear();
+}
+
+void Tracker::reset() {
+    feature_ = 0;
+    current_.clear();
+    last_.clear();
+    layer_z_ = NAN;
+    prev_layer_z_ = NAN;
 }
 
 void Tracker::set_feature(uint8_t feature) {
@@ -102,9 +119,17 @@ bool Tracker::move(Point from, float z0, float e0, Point to, float z1, float e1)
     return !follows;
 }
 
-Refusal plan_infill(const Settings &settings, const Tracker &tracker, float resume_z, float resume_e, float current_e,
+// Pas en ligne : ses variables (~150 octets) quittent la pile de Marlin avant les mouvements de la reprise
+[[gnu::noinline]] Refusal plan_infill(const Settings &settings, const Tracker &tracker, float resume_z, float resume_e, float current_e,
     const Box &limits, bool (*cancelled)(int16_t), InfillPlan &out) {
-    out = InfillPlan {};
+    // Remis à zéro sur place : pas d'InfillPlan temporaire sur la pile
+    out.purge = {};
+    out.z = NAN;
+    out.purge_e = 0;
+    out.line_count = 0;
+    out.e_per_mm = 0;
+    out.retract = 0;
+    out.e_after = NAN;
     const Settings s = settings.clamped();
     if (!s.enabled) {
         return Refusal::disabled;

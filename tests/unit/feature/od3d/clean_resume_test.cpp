@@ -125,6 +125,23 @@ TEST_CASE("reprise : suivi des tracés de remplissage", "[od3d][resume]") {
         CHECK_THAT(t.current().total_mm, WithinAbs(30, 1e-3)); // toute la suite pour le débit
     }
 
+    SECTION("remise à zéro au départ d'une impression") {
+        layer(t, 0.2f, e);
+        layer(t, 0.4f, e);
+        t.set_feature(od3d::feature_marks::infill);
+        e = line(t, { 20, 100 }, { 60, 100 }, 0.4f, e);
+        t.set_feature(od3d::feature_marks::other);
+        REQUIRE(t.last().count == 2);
+        t.reset();
+        CHECK(t.current().count == 0);
+        CHECK(t.last().count == 0);
+        CHECK(std::isnan(t.layer_z()));
+        CHECK(std::isnan(t.prev_layer_z()));
+        // Le type de tracé aussi : sans nouveau M2011, plus de remplissage suivi
+        e = line(t, { 20, 100 }, { 60, 100 }, 0.6f, e);
+        CHECK(t.current().count == 0);
+    }
+
     SECTION("Z qui redescend (objets l'un après l'autre) : les couches repartent") {
         layer(t, 0.2f, e);
         layer(t, 5.0f, e);

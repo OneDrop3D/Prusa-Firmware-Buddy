@@ -92,7 +92,7 @@ namespace {
         const NumericInputConfig &config = numeric_input_config::chamber_temp_with_off();
         const float current = static_cast<float>(chamber.effective_target_temperature().value_or(0));
         if (const auto v = ValueEditor::exec(_("Chamber"), current, config)) {
-            marlin_client::inject(GCodeLiteral("M141 S%f", *v)); // comme MI_CHAMBER_TARGET_TEMP
+            od3d::chamber_climate::request_target(*v); // tout de suite, même pendant une attente (un M141 en file attendait)
         }
     }
 

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <variant>
 
 #include <common/marlin_vars.hpp>
@@ -37,6 +38,7 @@ namespace {
     std::atomic<int16_t> status_target { 0 };
     std::atomic<uint16_t> status_next_s { 0 };
     std::atomic<uint16_t> status_steps_left { 0 };
+    std::atomic<int16_t> requested_target { -1 }; ///< cible choisie à l'écran, pas encore posée ; -1 : rien
 
     Recipe recipe_for(const FilamentType &type, bool follow_name = true) {
         if (const auto *preset = std::get_if<PresetFilamentType>(&type)) {
@@ -143,6 +145,14 @@ void set_params(const CooldownParams &p) {
 // ---- Thread de Marlin ----
 
 void step() {
+    // Cible choisie à l'écran : posée dès ce tour, avant la limite d'une fois par seconde (comme un M141 S, sans attente)
+    if (const int16_t wanted = requested_target.exchange(-1); wanted >= 0) {
+        auto &chamber = buddy::chamber();
+        if (chamber.capabilities().temperature_control_at_this_moment()) {
+            chamber.set_target_temperature(wanted > 0 ? std::optional(buddy::Temperature(wanted)) : std::nullopt);
+        }
+    }
+
     const uint32_t now = ticks_ms();
     if (ticks_diff(now, last_step_ms) < int32_t(step_interval_ms)) {
         return;
@@ -218,6 +228,10 @@ bool start_now() {
 
 void request_stop() {
     stop_requested = true;
+}
+
+void request_target(float celsius) {
+    requested_target = int16_t(std::clamp<long>(std::lround(celsius), 0, 255));
 }
 
 Status status() {

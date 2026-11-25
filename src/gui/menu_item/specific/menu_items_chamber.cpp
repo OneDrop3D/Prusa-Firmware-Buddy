@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include <feature/chamber/chamber.hpp>
+#include <feature/od3d/chamber_climate_od3d.hpp>
 #include <img_resources.hpp>
 #include <marlin/Configuration.h>
 #include <marlin_client.hpp>
@@ -19,7 +20,8 @@ MI_CHAMBER_TARGET_TEMP::MI_CHAMBER_TARGET_TEMP(const char *label)
 }
 
 void MI_CHAMBER_TARGET_TEMP::OnClick() {
-    marlin_client::inject(GCodeLiteral("M141 S%f", value_opt().value_or(0)));
+    // OneDrop3D : posée au prochain tour de Marlin, même pendant une attente (un M141 en file attendait sa fin)
+    od3d::chamber_climate::request_target(value_opt().value_or(0));
 }
 
 void MI_CHAMBER_TARGET_TEMP::Loop() {

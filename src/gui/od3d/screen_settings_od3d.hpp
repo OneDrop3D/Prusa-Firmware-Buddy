@@ -20,6 +20,7 @@
 #include <gui/menu_item/specific/menu_items_xbuddy_extension.hpp>
 #include <screen/openprinttag/screen_opt_settings.hpp>
 #include <screen/toolhead/screen_toolhead_settings.hpp>
+#include <option/has_anfc.h>
 #include <option/has_indx.h>
 #include <option/has_mmu2.h>
 #include <option/has_switchable_auto_retract.h>
@@ -44,11 +45,16 @@ public:
     ScreenSetPrinting();
 };
 
-class ScreenSetFilament final : public BasicScreenMenu<MI_FILAMENT_SENSORS,
+class ScreenSetFilament final : public BasicScreenMenu<MI_FILAMENT_SENSORS
 #if HAS_MMU2()
-                                    MI_MMU_ENABLE, MI_MMU_BOOTLOADER_RESULT, MI_MMU_CUTTER,
+                                    ,
+                                    MI_MMU_ENABLE, MI_MMU_BOOTLOADER_RESULT, MI_MMU_CUTTER
 #endif
-                                    buddy::openprinttag::MI_OPT_SETTINGS> {
+#if HAS_ANFC() // OpenPrintTag : pas sur l'INDX (comme le menu de Prusa)
+                                    ,
+                                    buddy::openprinttag::MI_OPT_SETTINGS
+#endif
+                                    > {
 public:
     ScreenSetFilament();
 };

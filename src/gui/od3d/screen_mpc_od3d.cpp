@@ -253,36 +253,6 @@ ScreenFactory::Creator mpc_calibration_screen() {
     return ScreenFactory::Screen<ScreenMpcCalibration>;
 }
 
-// ---- Réglage entier ----
-
-MI_OD3D_NUMBER::MI_OD3D_NUMBER(const string_view_utf8 &label, const img::Resource *icon, const char *editor_label, const NumericInputConfig &config, const char *unit, Get get, Set set)
-    // Sans icône au constructeur : WI_LAMBDA_LABEL_t réserverait alors à la valeur la place d'une icône
-    : WI_LAMBDA_LABEL_t(label, nullptr, is_enabled_t::yes, is_hidden_t::no, [this](const std::span<char> &buffer) {
-        snprintf(buffer.data(), buffer.size(), "%u %s", unsigned(shown), this->unit);
-    })
-    , editor_label(editor_label)
-    , config(config)
-    , unit(unit)
-    , get(get)
-    , set(set)
-    , shown(get()) {
-    SetIconId(icon);
-}
-
-void MI_OD3D_NUMBER::click(IWindowMenu &menu) {
-    if (const auto v = ValueEditor::exec(_(editor_label), get(), config, nullptr, unit, ValueEditor::row(menu, *this))) {
-        set(static_cast<uint8_t>(std::lround(config.clamp(*v))));
-        Loop();
-    }
-}
-
-void MI_OD3D_NUMBER::Loop() {
-    if (const uint8_t now = get(); now != shown) {
-        shown = now;
-        InValidateExtension();
-    }
-}
-
 // ---- F8 : température selon le débit ----
 
 namespace {

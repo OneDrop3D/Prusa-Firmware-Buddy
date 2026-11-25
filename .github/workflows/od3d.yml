@@ -59,6 +59,7 @@ jobs:
           bbf=(build/products/*.bbf)
           [ ${#bbf[@]} -eq 1 ] || { echo "::error::un seul .bbf attendu : ${bbf[*]}"; exit 1; }
           mv "${bbf[0]}" "build/products/${{ matrix.preset }}_release_boot_$(cat version.txt)-OD3D$n.bbf"
+          ls -l build/products/*.bbf
       - name: Toutes les erreurs de compilation
         # ninja s'arrête à la 1re erreur : on reprend sans s'arrêter pour les voir toutes en une fois
         if: failure()

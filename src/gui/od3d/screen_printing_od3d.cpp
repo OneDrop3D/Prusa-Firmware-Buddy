@@ -38,6 +38,7 @@
 #include <option/has_tool_mapping.h>
 #include <screen_menu_tune.hpp>
 #include <time_tools.hpp>
+#include <tool_index.hpp>
 #include <utils/string_builder.hpp>
 #include <window_msgbox.hpp>
 
@@ -641,7 +642,8 @@ void ScreenPrinting::update_info() {
 
     // Bobine chargée dans la buse
     for (uint8_t i = 0; i < print_info::max_tools; ++i) {
-        if (const Slot slot = Slot::read(i); slot.loaded) {
+        // INDX : chaque tête garde son filament ; celle qui imprime est la tête en service
+        if (const Slot slot = Slot::read(i); slot.loaded && (HAS_MMU2() || VirtualToolIndex::currently_selected_opt() == VirtualToolIndex::from_raw(i))) {
             d.slot = i;
             d.look = slot.look;
             d.material = slot.material;

@@ -288,7 +288,9 @@ namespace {
         bool abortable = false;
         if (w->fsm == ClientFSM::InputShaperCalibration) {
             switch (GetEnumFromPhaseIndex<PhasesInputShaperCalibration>(w->phase)) {
+#if HAS_ATTACHABLE_ACCELEROMETER() // Prusa n'attend la buse froide que pour un accéléromètre à fixer
             case PhasesInputShaperCalibration::wait_for_extruder_temperature:
+#endif
             case PhasesInputShaperCalibration::measuring_x_axis:
             case PhasesInputShaperCalibration::measuring_y_axis:
             case PhasesInputShaperCalibration::computing:
@@ -299,7 +301,9 @@ namespace {
             }
         } else {
             switch (GetEnumFromPhaseIndex<PhasesPhaseStepping>(w->phase)) {
+#if HAS_ATTACHABLE_ACCELEROMETER()
             case PhasesPhaseStepping::wait_for_extruder_temperature:
+#endif
             case PhasesPhaseStepping::calib_x:
             case PhasesPhaseStepping::calib_y:
                 abortable = true;
@@ -379,6 +383,8 @@ namespace {
         return belts::advice_validated && !flow.belts_offered && (flow.started & test_bit(Test::belts)) && assistant::result(Test::belts) == Result::ok && m.peaks[0].found
             && m.peaks[1].found && belts::advise(m.peaks[0].frequency, m.peaks[1].frequency, belts::targets()).verdict == belts::Verdict::adjust;
     }
+
+    void next_after_accel();
 
     /// Fin d'une série à l'accéléromètre : réglage en direct des courroies proposé, puis les autres tests à
     /// l'accéléromètre, puis « Retirez l'accéléromètre » (l'accélération max utile n'est qu'une information : V-01)

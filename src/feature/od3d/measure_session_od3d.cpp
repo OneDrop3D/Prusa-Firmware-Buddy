@@ -502,10 +502,28 @@ Result Session::go_to_purge(float x, float y, float dir, bool along_y) {
         || std::min(y, y_end) < soft_endstop.min.y) {
         return Result::no_room;
     }
-    if (current_position.z < purge_z) {
-        do_blocking_move_to_z(purge_z, travel_speed_z);
+    // Mesure automatique au départ d'une impression (retour du 25/11 : « une purge sur le plateau », « après il n'y a pas
+    // de rétraction donc ça suinte ») : filament reculé comme Prusa à la pause avant le trajet et l'attente de la chauffe,
+    // buse basse au-dessus du départ : la purge se pose sur le plateau dès son début. Sinon (chargement de la série posé au
+    // départ de la purge) : purge de PrusaSlicer, depuis purge_z
+    const float z = print_session ? purge_hover : purge_z;
+    if (print_session) {
+        // Après le palpage à 170 °C, la buse est juste à la limite d'extrusion de Prusa : quelques secondes de montée
+        // (consigne déjà posée) avant de pouvoir reculer
+        for (uint32_t waited = 0; !hot() && waited < 60'000; waited += 100) {
+            if (!wait_ms(100)) {
+                return Result::stopped;
+            }
+        }
+        park_retract();
+    }
+    if (current_position.z < z) {
+        do_blocking_move_to_z(z, travel_speed_z);
     }
     do_blocking_move_to_xy(x, y, travel_speed_xy);
+    if (current_position.z > z) {
+        do_blocking_move_to_z(z, travel_speed_z);
+    }
     return must_stop() ? Result::stopped : Result::ok;
 }
 
@@ -525,6 +543,10 @@ bool Session::purge(float x, float dir, bool along_y) {
         { 47.f, 0.05f, 0.f, 8000.f },
         { purge_length, 0.2f, 0.f, 8000.f },
     };
+    // Mesure automatique : la buse descend à la hauteur du cordon avant d'extruder, tout le cordon est posé en mouvement
+    if (print_session && !move_z(segments[0].z)) {
+        return false;
+    }
     for (const Segment &s : segments) {
         if (must_stop()) { // pas d'attente de la file entre deux tronçons : elle se viderait (à-coups)
             return false;

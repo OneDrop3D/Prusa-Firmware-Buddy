@@ -685,6 +685,12 @@ TEST_CASE("od3d pa: G-codes du chargement par le MMU, hors de la pile de M1994",
         CHECK(text() == "M1994 A2\nG28 O I\nG27 W2\nM701 S\"#5\" W2 P3\nM1994 P3 A1");
         REQUIRE(pa::auto_step_sequence(out, 3, nullptr, true)); // rien à charger : pas de palpage à part
         CHECK(text() == "M1994 P3 A1");
+        // Place du chargement dans le bloc : la buse y va avant M701 (qui ne se gare pas quand rien n'est chargé)
+        REQUIRE(pa::auto_step_sequence(out, 3, "#5", true, pa::LoadPark { 120.f, 30.5f, 5.f }));
+        CHECK(text() == "M1994 A2\nG28 O I\nG27 X120.0 Y30.5 Z5.0 P1\nM701 S\"#5\" W2 P3\nM1994 P3 A1");
+        // Bobine déjà dans la buse : ni chargement ni purge de Prusa, la mesure seule (sa purge posée amorce)
+        REQUIRE(pa::auto_step_sequence(out, 3, nullptr, false, pa::LoadPark { 120.f, 30.5f, 5.f }));
+        CHECK(text() == "M1994 P3 A1");
     }
     SECTION("jamais de M701 avant l'origine et la position de chargement levée") {
         pa::Request rq;

@@ -32,6 +32,7 @@ static_assert(HAS_PAUSE());
 #if HAS_LOADCELL() && HAS_MMU2()
     #include <feature/od3d/spool_calib_od3d.hpp> // OneDrop3D (F5) : purge au débit mesuré
     #include <feature/od3d/measure_session_od3d.hpp> // OneDrop3D : série de l'assistant de calibration
+    #include <feature/od3d/pa_od3d.hpp> // OneDrop3D : mesure automatique du PA au départ d'une impression
 #endif
 
 #include "Marlin/src/lcd/extensible_ui/ui_api.h"
@@ -925,8 +926,9 @@ bool Pause::nozzle_cleaner_purge_sequence() {
 void Pause::color_correct_ask_process(Response response) {
 #if HAS_LOADCELL() && HAS_MMU2()
     // OneDrop3D : pendant une série de l'assistant de calibration, pas de « Couleur correcte ? » (retour du 23/11 : une
-    // série sans intervention) ; la purge du test sur le plateau suit le chargement
-    if (od3d::session::in_series()) {
+    // série sans intervention) ; la purge du test sur le plateau suit le chargement. De même pour la mesure automatique du PA
+    // au départ d'une impression (M-01 ; retour du 25/11 : « pour que tout puisse être automatique »)
+    if (od3d::session::in_series() || od3d::pa::auto_active()) {
         set(LoadState::load_finalize);
         return;
     }

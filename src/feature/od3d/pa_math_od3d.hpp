@@ -329,10 +329,18 @@ std::optional<float> next_k(std::span<const SweepPoint> done, const Search &s, c
 /// demande avec J1 (chargement tenté : pas de seconde tentative)
 bool oneclick_sequence(std::span<char> out, const Request &rq, const char *filament, int bed = 0);
 
+/// Place du chargement de la mesure automatique (Z absolu, après l'origine)
+struct LoadPark {
+    float x;
+    float y;
+    float z;
+};
+
 /// Mesure automatique de slot : son chargement comme ci-dessus si filament (sinon : déjà dans la buse), puis
 /// M1994 P<n> A1. level_first : M1994 A2 avant le chargement, le plateau palpé d'abord, pour que le chargement se pose
-/// sur une place que le palpage ne touchera plus
-bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first = false);
+/// sur une place que le palpage ne touchera plus. at : la buse y va avant M701 (G27 … P1) au lieu de la position de
+/// chargement de Prusa (G27 W2) : M701 ne se gare pas quand rien n'est chargé, il chargerait en hauteur
+bool auto_step_sequence(std::span<char> out, uint8_t slot, const char *filament, bool level_first = false, std::optional<LoadPark> at = std::nullopt);
 
 /// Après la mesure automatique, la buse reste chaude pendant le G-code de départ (retour du 24/11 : « passe après le PA
 /// de 230 à 170 puis va remonter, c'est une grosse perte de temps ») : seules ses consignes de palpage et d'attente

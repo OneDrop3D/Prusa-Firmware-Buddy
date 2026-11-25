@@ -40,6 +40,9 @@ inline constexpr uint32_t bed_timeout_ms = 12 * 60 * 1000;
 inline constexpr float purge_x = 249.f;
 inline constexpr float purge_y = -2.5f;
 inline constexpr float purge_z = 15.f; ///< hauteur de départ, au-dessus du début de la purge
+/// Mesure automatique au départ d'une impression : buse au-dessus du départ de la purge pendant la chauffe [mm] ; le
+/// cordon est ensuite posé à sa hauteur, en mouvement (retour du 25/11 : « une purge sur le plateau »)
+inline constexpr float purge_hover = 1.f;
 inline constexpr float purge_length = 50.f; ///< longueur de la purge le long de X, essuyage compris
 
 enum class Result : uint8_t {
@@ -168,13 +171,15 @@ public:
     Result heat(int16_t temperature, float tolerance = 2.f, uint32_t hold_ms = 3000, uint32_t timeout_ms = heat_timeout_ms, bool extrude = true);
 
     /// Va au-dessus du départ de la ligne de purge (bord avant droit par défaut), à purge_z du plateau ; dir : sens de
-    /// la purge qui suivra (sa fin doit rester dans la course) ; along_y : purge le long de Y
+    /// la purge qui suivra (sa fin doit rester dans la course) ; along_y : purge le long de Y. Mesure automatique au
+    /// départ d'une impression : filament reculé d'abord (park_retract), buse à purge_hover
     Result go_to_purge(float x = purge_x, float y = purge_y, float dir = -1.f, bool along_y = false);
 
     /// Ligne de purge du G-code de départ de la CORE One depuis le départ x (à l'Y actuel), le long de X dans le sens
     /// dir (-1 : vers la gauche, comme Prusa au bord avant) ; false s'il faut s'arrêter. Série : sa place est libérée
     /// de la réservation (la suivante en prendra une autre). along_y (motif tourné de la mesure automatique) : départ
-    /// y = x à l'X actuel, le long de Y
+    /// y = x à l'X actuel, le long de Y. Mesure automatique : filament remis au-dessus du départ, puis tout le cordon posé
+    /// à sa hauteur, en mouvement
     bool purge(float x = purge_x, float dir = -1.f, bool along_y = false);
 
     /// Déplacement au-dessus du motif : rétraction, levée de hop au-dessus de z, (x, y), puis descente à z si lower

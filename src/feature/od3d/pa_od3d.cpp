@@ -1010,10 +1010,13 @@ namespace {
         return lines.at(lines.x0, lines.y0 - auto_purge_gap);
     }
 
-    /// Place du chargement, dans le bloc palpé : au départ de sa ligne de purge, que la purge emporte en partant (buse à
-    /// purge_z au-dessus, puis descente en s'en éloignant)
+    /// Place du chargement, dans le bloc palpé : sur la rangée de la purge, après sa fin (la purge, posée dès son départ,
+    /// ne la touche pas ; les lignes passent à auto_purge_gap). Ce que le MMU pousse à l'arrêt (pointe de l'ancien
+    /// filament, bout du nouveau) tombe là depuis load_z
     session::LoadSpot auto_load_spot() {
-        const pattern::Point p = auto_purge_point(auto_lines());
+        const pattern::Lines lines = auto_lines();
+        const float along = std::min(session::purge_length + 8.f, lines.length + lines.marks - 4.f);
+        const pattern::Point p = lines.at(lines.x0 + along, lines.y0 - auto_purge_gap);
         return { p.x, p.y, session::load_z };
     }
 
@@ -1172,11 +1175,13 @@ void calibrate_auto() {
     plan.active = true;
     thermalManager.setTargetBed(plan.bed); // chauffe pendant le palpage et le chargement
 
-    // Bobine pas dans la buse : bloc palpé d'abord (M1994 A2), puis chargement de Prusa sur sa place palpée, pas en l'air
-    // (retour du 24/11) ; puis la mesure, avant les lignes du fichier
+    // Bobine pas dans la buse : bloc palpé d'abord (M1994 A2), puis chargement de Prusa sur sa place palpée, buse amenée
+    // là même si M701 ne se gare pas (retours du 24/11 et du 25/11) ; puis la mesure, avant les lignes du fichier. Déjà
+    // dans la buse : ni chargement ni purge de Prusa, la purge posée de la mesure amorce
     char filament[16];
     const bool load = loaded_slot() != slot;
-    if (!auto_step_sequence(sequence, slot, load ? filament_param(slot, filament) : nullptr, load) || !inject_sequence()) {
+    const session::LoadSpot spot = auto_load_spot();
+    if (!auto_step_sequence(sequence, slot, load ? filament_param(slot, filament) : nullptr, load, LoadPark { spot.x, spot.y, spot.z }) || !inject_sequence()) {
         plan.active = false; // file d'injection pleine : l'impression continue avec le PA du trancheur
         log_slot(slot, Error::mmu);
     }

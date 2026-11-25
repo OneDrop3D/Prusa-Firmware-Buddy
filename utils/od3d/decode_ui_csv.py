@@ -62,6 +62,21 @@ def pretty(name):
     return name
 
 
+# Onglet Imprimer (AUDIT_PERF_IMPRIMER.md) : lignes « u » (lecture de la clé) et « h » (tas), screen = étape
+STEPS = {0: 'tas', 1: 'dossier', 2: 'carte', 3: 'page', 4: 'aperçu', 5: "image de l'aperçu"}
+
+
+def is_step(row):
+    return len(row) > 2 and row[2] in ('u', 'h')
+
+
+def step_name(row):
+    """L'étape, et pour « u » les demandes d'un secteur dues à un tampon décalé (256 × dans la colonne screen)"""
+    value = int(row[1], 16)
+    name = STEPS.get(value & 0xff, '?')
+    return f'{name} ({value >> 8} décalées)' if row[2] == 'u' and value >> 8 else name
+
+
 def decode(lines, table, out):
     starts = [t[0] for t in table]
     rows = []
@@ -70,7 +85,7 @@ def decode(lines, table, out):
             rows.append(line.rstrip('\n'))
         else:
             rows.append(next(csv.reader([line])))
-    found = sorted({lookup(table, starts, int(r[1], 16)) for r in rows if isinstance(r, list) and r[0] != 't_ms'} - {None})
+    found = sorted({lookup(table, starts, int(r[1], 16)) for r in rows if isinstance(r, list) and r[0] != 't_ms' and not is_step(r)} - {None})
     names = demangle(found)
     writer = csv.writer(out, lineterminator='\n')
     for r in rows:
@@ -78,6 +93,8 @@ def decode(lines, table, out):
             out.write(r + '\n')
         elif r[0] == 't_ms':
             writer.writerow(r + ['screen_name'])
+        elif is_step(r):
+            writer.writerow(r + [step_name(r)])
         else:
             symbol = lookup(table, starts, int(r[1], 16))
             writer.writerow(r + [names[symbol] if symbol else '?'])
@@ -108,11 +125,15 @@ def self_test():
         def write(self, s):
             Out.text += s
 
-    decode(['t_ms,screen,cause\n', '# dump\n', '12,0x08100041,k\n', '13,0x00000004,-\n'], table, Out())
+    decode(['t_ms,screen,cause\n', '# dump\n', '12,0x08100041,k\n', '13,0x00000004,-\n', '14,0x00000f02,u\n', '15,0x00000001,u\n',
+            '16,0x00000000,h\n'], table, Out())
     lines = Out.text.splitlines()
     assert lines[0] == 't_ms,screen,cause,screen_name' and lines[1] == '# dump', lines
     assert lines[2].startswith('12,0x08100041,k,') and lines[2] != '12,0x08100041,k,?', lines
     assert lines[3] == '13,0x00000004,-,?', lines
+    assert lines[4] == '14,0x00000f02,u,carte (15 décalées)', lines
+    assert lines[5] == '15,0x00000001,u,dossier', lines
+    assert lines[6] == '16,0x00000000,h,tas', lines
     print('decode_ui_csv: self-test OK')
 
 

@@ -190,6 +190,11 @@ void gui_redraw(void) {
 
     if (should_sleep) {
         uint32_t sleep = std::clamp(gui_redraw_timer.remaining_cooldown(now), GUI_DELAY_MIN, GUI_DELAY_MAX);
+        // OneDrop3D (AUDIT_PERF_IMPRIMER.md, P-11) : un LOOP est demandé tout de suite (tranche suivante d'une vignette) :
+        // 1 ms seulement, au lieu de 10 pendant les 40 ms qui suivent un dessin
+        if (gui_loop_timer.last_event() == 0) {
+            sleep = GUI_DELAY_MIN;
+        }
         osDelay(sleep);
     }
 }

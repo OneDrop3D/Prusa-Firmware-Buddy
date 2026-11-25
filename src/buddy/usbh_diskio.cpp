@@ -14,6 +14,11 @@
 #include <FreeRTOS.h>
 #include <logging/log.hpp>
 #include <bsod/bsod.h>
+#include <option/has_od3d_ui.h>
+#if HAS_OD3D_UI()
+    #include <gui/od3d/perf_od3d.hpp> // OneDrop3D : demandes à la clé, mesurées pour l'onglet Imprimer
+    #include <timing.h>
+#endif
 
 LOG_COMPONENT_REF(USBHost);
 using Mutex = freertos::Mutex;
@@ -181,6 +186,16 @@ DRESULT USBH_read(BYTE lun, BYTE *buff, DWORD sector, UINT count) {
     MSC_LUNTypeDef info;
     USBH_StatusTypeDef status = USBH_OK;
 
+#if HAS_OD3D_UI()
+    // OneDrop3D (AUDIT_PERF_IMPRIMER.md) : demandes, secteurs et attente, pour OD3D_UI.CSV (M2010) ; toutes tâches
+    // confondues, sans verrou (mesure seulement)
+    const bool misaligned = (DWORD)buff & 3;
+    od3d::perf::usb.commands += misaligned ? count : 1;
+    od3d::perf::usb.sectors += count;
+    od3d::perf::usb.split += misaligned && count > 1 ? count : 0;
+    const uint32_t start_us = ticks_us();
+#endif
+
     if ((DWORD)buff & 3) { // DMA Alignment issue, do single up to aligned buffer
         while ((count--) && (status == USBH_OK)) {
             status = USBH_exec(UsbhMscRequest::UsbhMscRequestOperation::Read, lun, (uint8_t *)scratch, sector + count, 1);
@@ -193,6 +208,9 @@ DRESULT USBH_read(BYTE lun, BYTE *buff, DWORD sector, UINT count) {
     } else {
         status = USBH_exec(UsbhMscRequest::UsbhMscRequestOperation::Read, lun, buff, sector, count);
     }
+#if HAS_OD3D_UI()
+    od3d::perf::usb.us += ticks_us() - start_us;
+#endif
 
     if (status == USBH_OK) {
         res = RES_OK;

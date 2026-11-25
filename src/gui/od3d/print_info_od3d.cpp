@@ -149,4 +149,24 @@ std::pair<int, int> strip_changed(int w, int from, int to) {
     return { std::max(0, std::min(first(from), first(to))), std::min(w, std::max(end(from), end(to))) };
 }
 
+CachePlan plan_caches(size_t free, size_t reserve, size_t folder, size_t infos, size_t thumbs_overhead) {
+    CachePlan plan;
+    const auto take = [&](size_t bytes) {
+        if (bytes == 0 || free < bytes + reserve) {
+            return false;
+        }
+        free -= bytes;
+        return true;
+    };
+    plan.folder = take(folder);
+    plan.infos = take(infos);
+    for (const uint16_t pool : { 16 * 1024, 8 * 1024, 4 * 1024 }) {
+        if (thumbs_overhead && take(thumbs_overhead + pool)) {
+            plan.thumbs = pool;
+            break;
+        }
+    }
+    return plan;
+}
+
 } // namespace od3d::print_info

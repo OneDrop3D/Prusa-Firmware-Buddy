@@ -18,8 +18,9 @@ class AnyGcodeFormatReader;
 
 namespace od3d {
 
-/// Ouvre « Avant l'impression » pour un G-code (chemin canonique, comme celui de la liste des fichiers)
-void open_preview(const char *path);
+/// Ouvre « Avant l'impression » pour un G-code (chemin canonique, comme celui de la liste des fichiers). name : son nom
+/// affiché (nom long) s'il est connu : l'écran ne relit pas alors le dossier sur la clé pour le retrouver
+void open_preview(const char *path, const char *name = nullptr);
 
 /// Ouvre un G-code de la clé, lu par blocs de 4 Ko : newlib lirait la clé secteur par secteur (une commande USB par
 /// 512 octets, ~60 pour une vignette)
@@ -107,6 +108,7 @@ private:
     ScreenFiles &screen;
     print_info::FileInfo info;
     bool info_pending = false;
+    bool body_shown = false; ///< corps peint (pas le fond d'une place vide) : sa marge et ses coins restent à l'écran
 };
 
 /// Haut d'une carte : la case de la vignette et son icône ; l'image y est dessinée par bandes par ScreenFiles, quand
@@ -127,6 +129,7 @@ private:
     ScreenFiles &screen;
     const FileTile &tile;
     bool image_drawn = false;
+    bool box_shown = false; ///< case peinte (pas le fond d'une place vide) : seule la place de l'image change ensuite
 };
 
 /// Indicateur de position de la grille (piste de 4 px et curseur clair, comme les listes), dans la marge droite
@@ -164,8 +167,9 @@ public:
     /// La case d'une vignette vient d'être repeinte : sa lecture en cours est abandonnée (elle reprendra)
     void thumb_cleared(const FileTile &tile);
 
-    /// Dessine la case et la vignette déjà décodée de la carte (cache), d'une passe ; false si elle n'y est pas
-    bool draw_cached(const FileTile &tile, Rect16 box) const;
+    /// Dessine la case et la vignette déjà décodée de la carte (cache), d'une passe ; inner : la case est déjà à l'écran,
+    /// l'image seule. false si elle n'est pas dans le cache
+    bool draw_cached(const FileTile &tile, Rect16 box, bool inner) const;
 
     int item_count() const; ///< entrées affichables, « .. » compris dans un sous-dossier
     int first_item() const { return first; }
@@ -181,7 +185,9 @@ protected:
     void unconditionalDraw() override;
 
 private:
-    void load(); ///< relit le dossier, puis fill()
+    /// Relit le dossier, puis fill() ; reuse (retour d'« Avant l'impression ») : la fenêtre gardée, sans relire la clé, si
+    /// la clé et ce que le réseau y a changé sont les mêmes
+    void load(bool reuse = false);
     void fill(); ///< cartes à partir de first (la liste ne se relit pas en entier)
     void scroll_to(int new_first); ///< la carte ciblée garde sa place dans la grille
     void change_dir(); ///< nouveau dossier : première page, focus sur la première carte
@@ -191,11 +197,24 @@ private:
     void follow_finger(); ///< LOOP : la grille suit le doigt posé sur elle
     void end_drag(); ///< doigt levé après un glissement : inertie
 
-    /// Une bande de vignette (ou l'ouverture d'un fichier) par LOOP, si la molette et le doigt sont au repos ; le LOOP
-    /// suivant est avancé tant qu'il reste à lire
+    /// Une tranche de lecture par LOOP, si la molette et le doigt sont au repos : ouverture d'un fichier, ses métadonnées,
+    /// la recherche de sa vignette, puis une bande de l'image ; le LOOP suivant est avancé tant qu'il reste à lire
     void load_next();
-    void start_load(FileTile &tile);
+    void open_slice(FileTile &tile);
+    void meta_slice();
+    void find_slice();
     void stop_load();
+
+    /// Au repos : le dossier relu si le réseau y a envoyé ou effacé un fichier (true), sinon les blocs du tas qui manquent
+    /// pris s'il y a la place (une grille ouverte pendant un envoi n'en avait pas)
+    bool idle_upkeep();
+
+    /// Tranche suivante de la carte en cours de lecture
+    enum class Stage : uint8_t {
+        meta, ///< métadonnées (durée, grammes)
+        find, ///< recherche de la vignette 313 × 173
+        bands, ///< bandes de l'image
+    };
 
     Header header;
     FileThumb thumbs[tiles_count];
@@ -207,7 +226,8 @@ private:
     std::optional<ScaledQoiReader> scaler; ///< une vignette à la fois ; dans l'écran plutôt que sur la pile (6 Ko)
     bool loaded = false;
     bool ready_logged = false; ///< metric « ready » envoyée pour cette page
-    int8_t loading = -1; ///< carte dont la vignette se dessine par bandes, -1 sans
+    int8_t loading = -1; ///< carte dont le fichier est ouvert (métadonnées, vignette), -1 sans
+    Stage stage = Stage::meta; ///< tranche suivante de la carte loading
     uint32_t step_ms = 0; ///< cran de molette pas encore à l'écran (metric « step »), 0 sans
     uint32_t load_start_ms = 0;
     uint32_t longest_band_ms = 0; ///< metric « band » : le plus long moment sans réponse de l'écran
@@ -238,7 +258,8 @@ public:
     PreviewThumb(window_t *parent, Rect16 rect, const char *path);
     ~PreviewThumb();
 
-    /// LOOP : une bande de la vignette, une fois la case affichée
+    /// LOOP : une bande de la vignette, une fois la case affichée ; rien d'ouvert pendant une impression, un envoi ou la
+    /// veille (la lecture reprend ensuite du début)
     void load_step();
 
 protected:
@@ -247,6 +268,7 @@ protected:
 private:
     const char *path;
     std::optional<ScaledQoiReader> scaler;
+    uint32_t load_start_ms = 0; ///< début de la lecture de l'image (mesure M2010)
     bool image_drawn = false;
     bool loading = false;
 };
@@ -262,9 +284,26 @@ public:
 
 protected:
     void windowEvent(window_t *sender, GUI_event_t event, void *param) override;
-    void unconditionalDraw() override;
 
 private:
+    /// Colonne d'informations (nom, « durée · grammes · mètres », une ligne par emplacement) ou bandeau des alertes :
+    /// chacun peint son rect d'une passe, fond compris. Avant, le fond de l'écran était peint dessous, puis les textes
+    /// par-dessus (deux fois les mêmes pixels, jusqu'à 126 Ko de plus à chaque ouverture)
+    class InfoPanel : public window_t {
+    public:
+        InfoPanel(ScreenPreview &screen, Rect16 rect, bool alerts);
+
+    protected:
+        void unconditionalDraw() override;
+
+    private:
+        ScreenPreview &screen;
+        bool alerts;
+    };
+
+    void draw_column(Rect16 area); ///< nom, résumé, une ligne par emplacement utilisé, et le fond entre eux
+    void draw_alerts(Rect16 area); ///< deux alertes au plus (§3.10), ou le fond
+
     /// Bouton du bas : « Imprimer » (principal, orange) ou « Associer les couleurs » (secondaire)
     class Button : public Card {
     public:
@@ -303,6 +342,8 @@ private:
     TabBar tabs;
     print_info::FileInfo info;
     std::array<char, 32> name {};
+    InfoPanel column;
+    InfoPanel alert_band;
 };
 
 } // namespace od3d

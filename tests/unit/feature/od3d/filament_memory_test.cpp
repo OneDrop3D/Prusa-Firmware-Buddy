@@ -120,6 +120,76 @@ TEST_CASE("mémoire du filament : effacée pendant une commande, pas d'écriture
     CHECK(slot_to_keep(false, false, 0xff) == no_slot);
 }
 
+TEST_CASE("emplacement sûr : jamais l'ancien d'un changement d'outil interrompu") {
+    CHECK(certain_slot(2, no_slot) == 2); // aucun changement commencé (démarrage, reprise)
+    CHECK(certain_slot(2, 2) == 2); // dernier changement fini
+    CHECK(certain_slot(3, 0) == no_slot); // arrêt pendant le changement 3 → 0 : Prusa garde 3, le MMU charge 0
+    CHECK(certain_slot(no_slot, 0) == no_slot);
+    CHECK(certain_slot(no_slot, no_slot) == no_slot);
+}
+
+TEST_CASE("buse : rien de « chargé » pendant ou après un changement d'outil inachevé") {
+    NozzleView v { .mmu_configured = true, .mmu_active = true, .prusa_slot = 3, .changing_slot = 0, .finda = true, .extruder = Sensor::has };
+    CHECK_FALSE(nozzle_slot(v)); // capteurs pleins, mais de quel filament ?
+    v.changing_slot = 3;
+    CHECK(nozzle_slot(v) == uint8_t(3));
+    v.changing_slot = no_slot;
+    CHECK(nozzle_slot(v) == uint8_t(3));
+    // Sans MMU, un ancien changement ne compte pas
+    v = { .mmu_configured = false, .mmu_active = false, .prusa_slot = 0, .changing_slot = 3, .finda = false, .extruder = Sensor::has };
+    CHECK(nozzle_slot(v) == uint8_t(0));
+}
+
+TEST_CASE("mémoire du filament : écrite seulement quand l'emplacement change, matière du chargement gardée") {
+    const Record pla2 = pla_in(2);
+    CHECK_FALSE(record_update(pla2, 2, "PLA", 1'800'000'000)); // rien de neuf
+    CHECK_FALSE(record_update(pla2, 2, "PETG", 1'800'000'000)); // matière changée sur l'emplacement chargé : pas suivie
+    CHECK(record_update(pla2, 4, "PETG", 1'800'000'000) == make_record(pla2, 4, "PETG", 1'800'000'000));
+    CHECK(record_update(pla2, no_slot, "", 1'800'000'000) == Record {});
+    CHECK(record_update(pla2, 0xfe, "", 1'800'000'000) == Record {}); // hors bornes : aucun
+    CHECK_FALSE(record_update(Record {}, no_slot, "", 1'800'000'000));
+}
+
+TEST_CASE("retour du 25/11 : arrêt pendant le changement PETG → PLA, jamais « PETG chargé » ensuite") {
+    // PETG (emplacement 3) gardé dans la buse, enregistré
+    Record stored = make_record(Record {}, 3, "PETG", 1'700'000'000);
+    // Changement vers le PLA (emplacement 0) : la commande efface l'enregistrement
+    stored = *record_update(stored, *slot_to_keep(true, true, certain_slot(3, 0)), "", 1'700'000'100);
+    CHECK(stored.slot == no_slot);
+    // Arrêt de l'impression au milieu : Prusa garde 3, le MMU finit de charger 0. Au repos, rien n'est réécrit
+    const auto keep = slot_to_keep(false, false, certain_slot(3, 0));
+    REQUIRE(keep);
+    CHECK_FALSE(record_update(stored, *keep, "PETG", 1'700'000'200));
+    // Au démarrage suivant (mise à jour, flash du MMU) : rien à restaurer, comportement de Prusa
+    BootView v = agreeing(3);
+    v.stored = stored;
+    CHECK(boot_decision(v) == Boot::forget);
+    // Premier T de l'impression suivante vers le PETG : déchargé puis rechargé, jamais repris tel quel
+    CHECK(start_load(3, 3, 0, true, true) == StartLoad::unload_first);
+}
+
+TEST_CASE("retour du 25/11 : matière de l'emplacement chargé changée, filament oublié au démarrage") {
+    Record stored = pla_in(2);
+    // L'emplacement 2, toujours chargé du PLA, est renommé PETG : l'enregistrement garde le PLA
+    CHECK_FALSE(record_update(stored, *slot_to_keep(false, false, certain_slot(2, 2)), "PETG", 1'800'000'000));
+    BootView v = agreeing(2);
+    v.stored = stored;
+    v.material_matches = make_record(stored, stored.slot, "PETG", stored.time) == stored; // comme step()
+    CHECK_FALSE(v.material_matches);
+    CHECK(boot_decision(v) == Boot::forget);
+}
+
+TEST_CASE("premier T d'une impression : repris seulement s'il est sûr, sinon déchargé") {
+    CHECK(start_load(2, 2, no_slot, true, true) == StartLoad::keep); // restauré au démarrage
+    CHECK(start_load(2, 2, 2, true, true) == StartLoad::keep); // gardé depuis l'impression d'avant
+    CHECK(start_load(2, 1, 1, true, true) == StartLoad::unload_first); // un autre
+    CHECK(start_load(2, 2, 2, true, false) == StartLoad::unload_first); // capteur de l'extrudeur vide : pas sûr
+    CHECK(start_load(2, no_slot, no_slot, true, false) == StartLoad::unload_first); // inconnu vu par FINDA
+    CHECK(start_load(2, no_slot, no_slot, false, true) == StartLoad::unload_first); // inconnu vu par la tête
+    CHECK(start_load(2, no_slot, no_slot, false, false) == StartLoad::load); // buse vide : Prusa
+    CHECK(start_load(2, no_slot, 2, false, false) == StartLoad::load); // chargement interrompu, rien vu
+}
+
 TEST_CASE("mémoire du filament : enregistrement, date gardée tant que rien ne change") {
     const Record r = pla_in(4);
     CHECK(r.slot == 4);

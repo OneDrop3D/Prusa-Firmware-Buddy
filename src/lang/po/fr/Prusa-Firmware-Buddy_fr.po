@@ -9923,10 +9923,6 @@ msgstr "Avant l'impression"
 msgid "Map colours"
 msgstr "Associer les couleurs"
 
-#: src/gui/od3d/screen_files_od3d.cpp
-msgid "Slot %d: %s in the file, %s loaded"
-msgstr "Emplacement %d : %s dans le fichier, %s chargé"
-
 #: src/gui/od3d/screen_printing_od3d.cpp
 msgid "Adjust"
 msgstr "Ajuster"
@@ -13049,3 +13045,8 @@ msgstr "PA non mesuré : %d couleurs à calibrer, mesurez-les sur leur fiche"
 #, c-format
 msgid "PA not measured: slot %d not on the 1st layer, see its sheet"
 msgstr "PA non mesuré : emplacement %d pas en 1re couche, voir sa fiche"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %s in the file, %s spool"
+msgstr "Emplacement %d : %s dans le fichier, bobine %s"

@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 #include <display.hpp>
+#include <feature/od3d/filament_memory_od3d.hpp>
 #include <feature/od3d/spool_usage_od3d.hpp>
 #include <feature/od3d/tip_od3d.hpp>
 #include <i18n.h>
@@ -238,7 +239,7 @@ namespace {
 
         const VirtualToolIndex tool = VirtualToolIndex::from_raw(index);
         const FilamentType type = FilamentType::for_tool(tool);
-        const bool loaded = VirtualToolIndex::currently_selected_opt() == tool;
+        const bool loaded = filament_memory::loaded_slot() == index; // F43 : seulement s'il est sûr (« Décharger »)
         const bool mmu = atelier::mmu_active();
         const bool idle = atelier::can_run();
         // Sans MMU actif, seul le premier emplacement existe : chargement et déchargement de Prusa sans MMU

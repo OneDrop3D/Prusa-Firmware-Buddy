@@ -35,7 +35,7 @@ class ScreenMenuInfo; // menu Info de Prusa
 
 namespace od3d {
 
-/// Ouvre l'écran des fonctions OneDrop3D
+/// Ouvre « Calibrage de l'imprimante » (« Fonctions OneDrop3D » avant le 25/11)
 class MI_FEATURES final : public IWindowMenuItem {
 public:
     MI_FEATURES();

@@ -13081,3 +13081,7 @@ msgstr "Prise d'origine, patientez..."
 #: src/gui/od3d/accelerometer_guide_od3d.cpp
 msgid "Start homes the printer first."
 msgstr "Démarrer prend d'abord l'origine."
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Filament\nFilament sensors"
+msgstr "Filament\nCapteurs de filament"

@@ -45,7 +45,7 @@ protected:
 private:
     void update();
     /// Le texte d'état du port avant : branchement, écriture, résultat
-    void front_state(std::array<char, 64> &text, bool &busy);
+    void front_state(std::array<char, 160> &text, bool &busy);
     void install();
 
     const bool front;
@@ -65,7 +65,7 @@ private:
     };
     Pending pending = Pending::none;
     uint32_t pending_ms = 0;
-    std::array<char, 64> state_text {};
+    std::array<char, 160> state_text {};
     std::array<char, 16> version_text {}; ///< firmware contenu dans l'imprimante, « 3.0.4+940 »
     bool shown = false; ///< premier update() : texte et bouton posés
     bool shown_waiting = true;

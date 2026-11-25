@@ -139,11 +139,12 @@ namespace {
         return connected == Device::none || hUsbHostHS.device.is_disconnected;
     }
 
-    /// Fin du transfert en cours sur `pipe` : faux si le MMU part ou ne répond pas avant `timeout_ms`
+    /// Fin du transfert en cours sur `pipe` : faux si le MMU part ou ne répond pas avant `timeout_ms`. En réception,
+    /// NOTREADY suit une erreur que la HAL relance elle-même (DTERR, XACTERR : canal réactivé) : le transfert continue.
     USBH_URBStateTypeDef wait(uint8_t pipe, uint32_t timeout_ms) {
         for (const uint32_t start = ticks_ms();;) {
             const auto state = USBH_LL_GetURBState(&hUsbHostHS, pipe);
-            if (state != USBH_URB_IDLE) {
+            if (state != USBH_URB_IDLE && (state != USBH_URB_NOTREADY || pipe != pipes.in)) {
                 return state;
             }
             if (gone() || ticks_diff(ticks_ms(), start) > int32_t(timeout_ms)) {
@@ -157,11 +158,15 @@ namespace {
     /// Des octets du chargeur dans `rx` (0 : le paquet vide qui suit un paquet plein)
     bool fill(uint32_t timeout_ms) {
         rx_len = rx_pos = 0;
-        USBH_BulkReceiveData(&hUsbHostHS, rx, sizeof(rx) / pipes.in_size * pipes.in_size, pipes.in);
+        const uint16_t asked = sizeof(rx) / pipes.in_size * pipes.in_size;
+        USBH_BulkReceiveData(&hUsbHostHS, rx, asked, pipes.in);
         if (wait(pipes.in, timeout_ms) != USBH_URB_DONE) {
             return false;
         }
         rx_len = std::min<size_t>(USBH_LL_GetLastXferSize(&hUsbHostHS, pipes.in), sizeof(rx));
+        if (ended_by_empty_packet(rx_len, asked, pipes.in_size)) { // le basculement que la HAL oublie (mmu_flash_od3d.hpp)
+            USBH_LL_SetToggle(&hUsbHostHS, pipes.in, USBH_LL_GetToggle(&hUsbHostHS, pipes.in) ^ 1);
+        }
         return true;
     }
 

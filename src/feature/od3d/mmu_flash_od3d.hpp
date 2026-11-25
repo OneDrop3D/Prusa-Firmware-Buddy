@@ -9,6 +9,7 @@
 /// n'apparaît pas en USB) passe dans son chargeur par son bouton reset ; l'écriture l'attend 30 s.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace od3d::mmu_flash {
@@ -25,6 +26,14 @@ constexpr Device usb_device(uint16_t vid, uint16_t pid) {
         return Device::none;
     }
     return pid == 0x0004 ? Device::firmware : pid == 0x0003 ? Device::bootloader : Device::none;
+}
+
+/// Réception en bloc terminée par un paquet vide : moins d'octets que demandé, en paquets pleins (zéro compris). Caterina
+/// en envoie un après Échap et après une page lue (BootloaderCDC.c de LUFA, fin de CDC_Task). La HAL de ST, en DMA, ne
+/// le compte pas dans le basculement DATA0/DATA1 (stm32f4xx_hal_hcd.c, XFRC) : sans correction, l'hôte jette la réponse
+/// suivante comme un doublon, et la présentation échouait sur « S » (photo du 24/11).
+constexpr bool ended_by_empty_packet(size_t got, size_t asked, size_t packet) {
+    return got < asked && got % packet == 0;
 }
 
 /// Le MMU branché sur le port avant

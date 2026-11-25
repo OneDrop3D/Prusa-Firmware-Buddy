@@ -53,7 +53,7 @@ namespace {
         for (int attempt = 0; attempt < 5; ++attempt) {
             const uint8_t esc = 0x1b;
             if (!s.send({ &esc, 1 })) {
-                return false;
+                return s.fail(Result::no_answer, 'S'); // la présentation : Échap ne s'affiche pas
             }
             s.port.drain();
             const uint8_t ask = 'S';

@@ -218,3 +218,18 @@ TEST_CASE("mmu_flash: only the MMU firmware and its Caterina bootloader are take
     CHECK(usb_device(0x2341, 0x0036) == Device::none); // chargeur Caterina d'Arduino : même protocole, autre carte
     CHECK(usb_device(0x0000, 0x0004) == Device::none);
 }
+
+TEST_CASE("mmu_flash: the IN data toggle follows Caterina through its empty packets") {
+    // Caterina bascule DATA0/DATA1 à chaque paquet envoyé, paquet vide compris ; la HAL de ST en DMA ne compte que les
+    // paquets de données (stm32f4xx_hal_hcd.c, XFRC) ; fill() ajoute le paquet vide
+    using od3d::mmu_flash::ended_by_empty_packet;
+    constexpr size_t packet = 16, asked = 160; // CDC_TXRX_EPSIZE de Caterina, ce que demande fill()
+    size_t device = 0, host = 0; // paquets comptés de chaque côté : leur parité est le basculement
+    for (const size_t n : { 0, 7, 3, 1, 3, 1, 1, 1, 128, 1, 1 }) { // Échap (paquet vide seul), S, b, P, s, A, B, A, g, L, E
+        device += n / packet + 1; // une réponse finit par un paquet court, vide après un paquet plein
+        host += (n + packet - 1) / packet + ended_by_empty_packet(n, asked, packet);
+        CHECK(host % 2 == device % 2);
+    }
+    CHECK_FALSE(ended_by_empty_packet(asked, asked, packet)); // tout reçu : le paquet vide vient seul au transfert suivant
+    CHECK(ended_by_empty_packet(0, 128, 64));
+}

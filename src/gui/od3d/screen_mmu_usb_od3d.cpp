@@ -11,6 +11,7 @@
 #include <feature/od3d/mmu_usb_od3d.hpp>
 #include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <feature/prusa/MMU2/mmu2_state.h>
+#include <fonts.hpp>
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
@@ -23,11 +24,13 @@ namespace od3d {
 
 namespace {
 
-    constexpr Rect16 info_rect = Rect16(style::margin, style::top + 6, style::screen_w - 2 * style::margin, 120);
-    constexpr Rect16 bar_rect = Rect16(style::margin, 170, style::screen_w - 2 * style::margin, 6);
-    constexpr Rect16 state_rect = Rect16(style::margin, 180, style::screen_w - 2 * style::margin, 24);
+    constexpr Rect16 info_rect = Rect16(style::margin, style::top + 6, style::screen_w - 2 * style::margin, 6 * height(Font::normal));
+    constexpr Rect16 bar_rect = Rect16(style::margin, 168, style::screen_w - 2 * style::margin, 6);
+    // Trois lignes : un message d'échec entier (« Le chargeur du MMU ne répond pas... » était coupé sur une ligne)
+    constexpr Rect16 state_rect = Rect16(style::margin, 176, style::screen_w - 2 * style::margin, 3 * height(Font::small));
     constexpr Rect16 install_body = Rect16(192, 226, 136, 44);
     constexpr Rect16 action_body = Rect16(336, 226, 136, 44);
+    static_assert(info_rect.Bottom() < bar_rect.Top() && bar_rect.Bottom() < state_rect.Top() && state_rect.Bottom() < install_body.Top());
     constexpr uint8_t tag_action = 0;
     constexpr uint8_t tag_install = 1;
     constexpr uint32_t pending_timeout_ms = 3'000; ///< file des G-codes pleine ou commande refusée : on cesse d'attendre
@@ -60,7 +63,7 @@ namespace {
         return marlin_client::gcode_try("M709 S2") == marlin_client::GcodeTryResult::Submitted;
     }
 
-    using Text = std::array<char, 64>;
+    using Text = std::array<char, 160>; ///< 122 octets pour le plus long message, en français
 
     void put(Text &text, const string_view_utf8 &label) {
         label.copyToRAM(text);
@@ -107,7 +110,7 @@ ScreenMmuUsb::ScreenMmuUsb()
     , info(this, info_rect, is_multiline::yes, is_closed_on_click_t::no,
           front ? _("Remove the USB drive, then plug the micro-USB of the MMU board into the front USB port of the printer. The printer writes the MMU firmware it carries, then reads it back.")
                 : _("The MMU stays powered and the printer no longer talks to it. Connect the MMU micro-USB to the computer and start the installation in PrintForge or PrusaSlicer."))
-    , state(this, state_rect, is_multiline::no)
+    , state(this, state_rect, is_multiline::yes)
     , bar(this, bar_rect, style::accent, style::surface, 3)
     , install_button(this, install_body, tag_install, Button::Look::primary, _("Install"), nullptr, style::screen)
     , action(this, action_body, tag_action, Button::Look::primary, _("Finish"), nullptr, style::screen)

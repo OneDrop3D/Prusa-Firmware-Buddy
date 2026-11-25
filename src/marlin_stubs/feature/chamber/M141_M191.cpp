@@ -108,6 +108,13 @@ void PrusaGcodeSuite::M141_no_parser(const M141Args &args) {
             break;
         }
 
+        // OneDrop3D : la cible changée à l'écran pendant l'attente est celle qu'on attend ; retirée, plus rien à attendre
+        if (const auto live = chamber().target_temperature()) {
+            target = *live;
+        } else {
+            break;
+        }
+
         const auto current = chamber().current_temperature();
         static const Temperature tolerance = 3;
 

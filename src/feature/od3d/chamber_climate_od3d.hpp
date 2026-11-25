@@ -51,6 +51,10 @@ bool start_now();
 /// Arrêt demandé (interface, M1998 S0) : le plateau est coupé au prochain tour de Marlin
 void request_stop();
 
+/// Cible de la chambre choisie à l'écran (Températures, Ajuster), posée au prochain tour de Marlin, même pendant une
+/// attente (absorption de chaleur, M109, M190, M191) : un M141 mis en file attendait sa fin (retour du 25/11). 0 = sans cible.
+void request_target(float celsius);
+
 struct Status {
     bool active = false;
     int16_t target = 0; ///< consigne du palier en cours

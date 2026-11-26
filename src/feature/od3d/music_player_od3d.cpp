@@ -136,9 +136,11 @@ namespace {
             attack |= (chord.attack & 4u) ? 2u : 0u;
             break;
         case Motors::melody:
-            key[1] = chord.keys[0]; // A et B ensemble : un déplacement en X
-            attack |= (chord.attack & 1u) ? 2u : 0u;
             break;
+        }
+        if (key[1] == 0) { // B n'a rien à jouer : il double la mélodie (deux moteurs, plus fort ; un déplacement en X)
+            key[1] = key[0];
+            attack = uint8_t((attack & ~2u) | ((attack & 1u) ? 2u : 0u));
         }
         float speed[voices];
         for (uint8_t v = 0; v < voices; ++v) {
@@ -209,8 +211,9 @@ namespace {
         if (r < 2.f) {
             return false;
         }
-        s.motion[0] = s.motion[1] = { .bound = int32_t(r * 1000.f) };
-        s.motion[2] = {};
+        // Sens de départ −1 : la première note, qui frappe, part vers +X (comme PrintForge)
+        s.motion[0] = s.motion[1] = { .bound = int32_t(r * 1000.f), .dir = -1 };
+        s.motion[2] = { .dir = -1 };
         s.centre.z = std::max(current_position.z, z_floor);
         if (motors == Motors::three) {
             // La basse sur le plateau : il descend (Z monte) d'abord, jamais plus près de la buse que la hauteur sûre

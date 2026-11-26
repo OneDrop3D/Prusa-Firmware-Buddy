@@ -1,7 +1,7 @@
 /// @file
-/// OneDrop3D (F18) : Contrôle › « Musique des moteurs ». Fichier .mid de la clé (racine), moteurs (X et Y, X seul,
-/// Z), Lire / Arrêter, et « jouer après chaque impression ». La lecture est faite par M1991
-/// (feature/od3d/music_player_od3d.hpp) ; l'écran ne fait que la lancer, l'arrêter et montrer son état.
+/// OneDrop3D (F18) : Contrôle › « Musique des moteurs ». Fichier .mid de la clé (racine), voix, vitesse et hauteur
+/// (retenues par morceau, réglables pendant l'écoute), Lire / Arrêter, et « jouer après chaque impression ». La
+/// lecture est faite par M1991 (feature/od3d/music_player_od3d.hpp) ; l'écran la lance, l'arrête et montre son état.
 #pragma once
 
 #include "atelier_od3d.hpp"
@@ -24,7 +24,8 @@ private:
     void select(int index); ///< montre et retient le fichier n° index
     void update(); ///< état de la lecture, boutons actifs
     void show_status();
-    void show_motors();
+    void show_tuning(); ///< voix, vitesse et hauteur sur leurs boutons
+    void edit_tuning(bool pitch); ///< vitesse (ou hauteur) dans l'éditeur, appliquée en direct et retenue sur la clé
     void show_after_print();
     void play();
 
@@ -35,8 +36,10 @@ private:
     Button previous;
     window_text_t file_name;
     Button next;
-    Panel motors_panel;
-    Button motors[music::motors_count];
+    Panel sound_panel;
+    Button voices_button; ///< un appui passe aux voix suivantes
+    Button tempo_button;
+    Button pitch_button;
     Panel play_panel;
     window_text_t status_note;
     Button play_button;
@@ -47,6 +50,9 @@ private:
     std::array<char, 40> name {}; ///< nom long affiché
     std::array<char, 13> short_name {}; ///< nom court 8.3, retenu dans le config_store
     std::array<char, 12> count_text {};
+    music::Tuning tuning {}; ///< réglages du morceau montré
+    StringViewUtf8Parameters<5> tempo_params;
+    StringViewUtf8Parameters<5> pitch_params;
     int16_t index = -1; ///< fichier montré, -1 aucun
     int16_t count = 0; ///< fichiers .mid à la racine de la clé
     bool media = false; ///< clé présente au dernier passage

@@ -125,6 +125,25 @@ private:
 /// Fréquence d'une note MIDI en Hz (la4 = 69 = 440 Hz)
 float note_frequency(uint8_t key);
 
+/// Réglages d'un morceau (retour du 26/11 : « modifier la vitesse ou autre de la musique depuis l'imprimante et que ça
+/// s'enregistre ») : un par morceau, dans un petit fichier de la clé (le config_store est plein)
+struct Tuning {
+    uint8_t tempo = 100; ///< % de la vitesse écrite dans le fichier
+    int8_t transpose = 0; ///< demi-tons
+};
+inline constexpr uint8_t min_tempo = 25;
+inline constexpr uint8_t max_tempo = 200;
+inline constexpr int8_t max_transpose = 24;
+
+/// La note décalée de semitones, ramenée d'une octave tant qu'elle sort des notes MIDI (1 à 127) ; 0 reste un silence
+uint8_t transposed(uint8_t key, int semitones);
+
+/// Réglages retenus pour le morceau short_name (nom court 8.3) dans le fichier path ; ceux par défaut sinon
+Tuning load_tuning(const char *path, const char *short_name);
+
+/// Retient les réglages du morceau dans path (à sa place s'il y est, sinon à la fin) ; false si l'écriture échoue
+bool save_tuning(const char *path, const char *short_name, Tuning tuning);
+
 /// Vitesse du moteur pour une note : v = f / pas_complets_par_mm, descendue d'une octave tant qu'elle dépasse
 /// max_speed (mm/s), montée d'une octave tant qu'elle est sous min_speed (un moteur ne fait que cliquer sous ~50 Hz).
 /// 0 si les paramètres sont absurdes.

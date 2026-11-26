@@ -24,7 +24,8 @@
  *   et basse sur les moteurs du haut), 2 = la mélodie seule ; sans A, le réglage de l'écran
  *
  * Joue le fichier .mid choisi dans l'écran (racine de la clé, format 0 ou 1 ; à chaque instant la plus aiguë, la
- * 2e plus aiguë et la plus grave, accords de moins de 40 ms lissés), lu en flux. Prise d'origine si nécessaire, hauteur sûre, allers-retours autour du centre de la course,
+ * 2e plus aiguë et la plus grave, accords de moins de 40 ms lissés), lu en flux, à la vitesse et à la hauteur retenues pour ce
+ * morceau (OD3D_MUS.BIN sur la clé, réglables pendant l'écoute). Prise d'origine si nécessaire, hauteur sûre, allers-retours autour du centre de la course,
  * vitesses et accélérations bornées, mode furtif coupé pendant la lecture puis remis. Refusé pendant une
  * impression ; s'arrête depuis l'écran, ou si une impression est lancée.
  */

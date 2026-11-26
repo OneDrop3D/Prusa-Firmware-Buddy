@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <strings.h>
 
 namespace od3d::music {
 
@@ -355,6 +357,93 @@ Chord Smoother::next(const Chord &chord) {
 
 float note_frequency(uint8_t key) {
     return 440.f * std::exp2((float(key) - 69.f) / 12.f);
+}
+
+uint8_t transposed(uint8_t key, int semitones) {
+    if (key == 0) {
+        return 0;
+    }
+    int k = key + semitones;
+    while (k > 127) {
+        k -= 12;
+    }
+    while (k < 1) {
+        k += 12;
+    }
+    return uint8_t(k);
+}
+
+namespace {
+
+    /// Un morceau dans le fichier des réglages : 16 octets, mis à jour sur place
+    struct TuningRecord {
+        char name[13]; ///< nom court 8.3, terminé par 0
+        uint8_t tempo;
+        int8_t transpose;
+        uint8_t mark;
+    };
+    static_assert(sizeof(TuningRecord) == 16);
+    constexpr uint8_t record_mark = 0xD3;
+
+    bool same_song(const TuningRecord &r, const char *short_name) {
+        return r.mark == record_mark && memchr(r.name, '\0', sizeof(r.name)) && strcasecmp(r.name, short_name) == 0;
+    }
+
+    /// Sans tampon de la libc : 1 Ko de tas de moins, et rien à vider avant de passer de la lecture à l'écriture
+    FILE *open_unbuffered(const char *path, const char *mode) {
+        FILE *f = fopen(path, mode);
+        if (f) {
+            setvbuf(f, nullptr, _IONBF, 0);
+        }
+        return f;
+    }
+
+} // namespace
+
+Tuning load_tuning(const char *path, const char *short_name) {
+    Tuning t;
+    FILE *f = open_unbuffered(path, "rb");
+    if (!f) {
+        return t;
+    }
+    TuningRecord r;
+    while (fread(&r, sizeof(r), 1, f) == 1) {
+        if (same_song(r, short_name)) {
+            if (r.tempo >= min_tempo && r.tempo <= max_tempo && r.transpose >= -max_transpose && r.transpose <= max_transpose) {
+                t = { r.tempo, r.transpose };
+            }
+            break;
+        }
+    }
+    fclose(f);
+    return t;
+}
+
+bool save_tuning(const char *path, const char *short_name, Tuning tuning) {
+    TuningRecord r {};
+    if (strlen(short_name) >= sizeof(r.name)) {
+        return false;
+    }
+    strcpy(r.name, short_name);
+    r.tempo = tuning.tempo;
+    r.transpose = tuning.transpose;
+    r.mark = record_mark;
+
+    FILE *f = open_unbuffered(path, "r+b");
+    if (!f) {
+        f = open_unbuffered(path, "w+b");
+    }
+    if (!f) {
+        return false;
+    }
+    // La place du morceau ; sinon la fin du fichier (ou un dernier enregistrement tronqué, réécrit)
+    long at = 0;
+    TuningRecord old;
+    while (fread(&old, sizeof(old), 1, f) == 1 && !same_song(old, short_name)) {
+        at += long(sizeof(old));
+    }
+    const bool written = fseek(f, at, SEEK_SET) == 0 && fwrite(&r, sizeof(r), 1, f) == 1;
+    return fclose(f) == 0 && written;
 }
 
 float note_speed(uint8_t key, float full_steps_per_mm, float max_speed, float min_speed) {

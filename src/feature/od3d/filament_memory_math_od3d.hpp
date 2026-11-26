@@ -165,6 +165,23 @@ constexpr StartLoad start_load(uint8_t requested, uint8_t prusa_slot, uint8_t ch
     return prusa_slot < slots || finda || extruder ? StartLoad::unload_first : StartLoad::load;
 }
 
+/// Purge du départ raccourcie, filament gardé (retour du 26/11) : E5 + 3 × E4 de la ligne du profil de la CORE One sans
+/// MMU, après le désamorçage (sans trajet, gardé tel quel)
+/// shortcut: valeur du profil de PrusaSlicer ; à lire dans le G-code si un autre trancheur ou profil la change
+inline constexpr float short_purge_mm = 17.f;
+
+/// Purge du départ raccourcie : part d'un tracé qui extrude de mm (> 0) à extruder
+/// encore, sur left qui reste (1 : tout, 0 : rien) ; left diminue d'autant
+constexpr float purge_clip(float de, float &left) {
+    if (de <= left) {
+        left -= de;
+        return 1.f;
+    }
+    const float part = left > 0 ? left / de : 0.f;
+    left = 0;
+    return part;
+}
+
 /// La bobine (matière de l'emplacement) convient à la matière du fichier, comme le contrôle de Prusa
 /// (CompatibilityReport, VirtualToolCheck::filament_type) : même nom, ou matière absente du fichier (vide ou « --- »)
 constexpr bool material_fits(std::string_view file_material, std::string_view spool_material) {

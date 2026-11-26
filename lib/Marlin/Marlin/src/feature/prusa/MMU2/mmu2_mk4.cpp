@@ -697,6 +697,7 @@ bool MMU2::tool_change(uint8_t slot) {
         // au bout de la buse et la ligne de purge amorce sur le plateau
         extruder_move(-fm::start_load_mm, 25.f);
         planner_synchronize();
+        fm::start_short_purge(); // retour du 26/11 : la purge qui suit, ramenée à celle sans MMU
         return true;
     }
     // OneDrop3D (F43) : Prusa saute le T vers l'emplacement qu'il croit chargé ; seulement s'il en est sûr. Après un

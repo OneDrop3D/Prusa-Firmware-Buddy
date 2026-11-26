@@ -52,4 +52,17 @@ void on_print_start(bool from_file_start);
 /// MMU2::tool_change : premier changement d'outil depuis on_print_start(), rendu une seule fois
 bool take_print_start_tool_change();
 
+// ---- Purge du départ raccourcie quand le filament est gardé (retour du 26/11) ----
+// La ligne de purge du profil MMU3 de PrusaSlicer, devant le plateau (Y −2,5), extrude 51 mm pour chasser le filament
+// précédent ; celle de l'imprimante sans MMU, 19 mm. Quand le premier T garde le même filament dans la buse, ses tracés
+// n'extrudent que short_purge_mm, comme sans MMU ; le reste du trajet se fait sans extruder. Un autre filament : la
+// purge du profil, entière. Longueur : short_purge_mm (filament_memory_math_od3d.hpp).
+
+/// MMU2::tool_change : le premier T garde le filament, la purge qui suit est raccourcie
+void start_short_purge();
+
+/// G0/G1 (fil de Marlin, E relatif) : part du tracé à extruder, 1 hors de la purge raccourcie. xy : le tracé bouge en
+/// X ou Y ; de : son extrusion ; y_to : Y d'arrivée. Le premier tracé qui quitte la bande de purge (y_to ≥ 0) la finit
+float short_purge_part(bool xy, float de, float y_to);
+
 } // namespace od3d::filament_memory

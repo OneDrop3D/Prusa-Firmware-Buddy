@@ -17,9 +17,10 @@ namespace {
 
     class Display final : public Painter {
     public:
-        Display(PaintPart paint, void *ctx)
+        Display(PaintPart paint, void *ctx, Ground ground)
             : paint(paint)
-            , ctx(ctx) {}
+            , ctx(ctx)
+            , ground(ground) {}
 
         void part(size_t i) override {
             paint(ctx, i);
@@ -29,10 +30,26 @@ namespace {
         }
         void corner(Rect16 sq, uint8_t bit, Rect16 piece) override {
             const bool left = bit & (MIC_TOP_LEFT | MIC_BOT_LEFT), top = bit & (MIC_TOP_LEFT | MIC_TOP_RIGHT);
-            draw_pixels(piece, [&](int x, int y) {
-                const int cx = piece.Left() + x - sq.Left(), cy = piece.Top() + y - sq.Top(); // (0, 0) : coin extérieur
-                return spool::mix_quarters(style::surface, style::veil, spool::corner_beyond_quarters(left ? cx : radius - 1 - cx, top ? cy : radius - 1 - cy, radius));
-            });
+            const auto beyond = [&](int x, int y) { // x, y absolus ; (0, 0) du carré : coin extérieur
+                const int cx = x - sq.Left(), cy = y - sq.Top();
+                return spool::corner_beyond_quarters(left ? cx : radius - 1 - cx, top ? cy : radius - 1 - cy, radius);
+            };
+            if (ground != Ground::screen) {
+                draw_pixels(piece, [&](int x, int y) {
+                    return spool::mix_quarters(style::surface, style::veil, beyond(piece.Left() + x, piece.Top() + y));
+                });
+                return;
+            }
+            // Sur un écran, rien hors de l'arrondi : l'écran s'y voit (retour du 26/11) ; le bord est lissé sur son fond
+            for (int y = piece.Top(); y < piece.Top() + piece.Height(); ++y) {
+                const auto row = corner_row(sq, bit, piece, y);
+                const int x0 = row.first;
+                if (x0 < row.second) {
+                    draw_pixels(Rect16(x0, y, row.second - x0, 1), [&](int x, int) {
+                        return spool::mix_quarters(style::surface, style::screen, beyond(x0 + x, y));
+                    });
+                }
+            }
         }
         void veil(Rect16 r) override {
             display::fill_rect(r, style::veil);
@@ -44,10 +61,9 @@ namespace {
     private:
         PaintPart paint;
         void *ctx;
+        Ground ground;
         int32_t knob = jogwheel.GetEncoder();
     };
-
-    constexpr uint16_t edge_h = 2; ///< liseré sombre au-dessus d'une fenêtre sans voile
 
     Rect16 closed_origin;
     uint32_t closed_ms = 0;
@@ -69,20 +85,16 @@ Rect16 origin() {
     return w ? w->GetRect() : Rect16();
 }
 
-void open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, PaintPart paint, void *ctx, bool veil) {
-    Display painter(paint, ctx);
+void open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, PaintPart paint, void *ctx, Ground ground) {
+    Display painter(paint, ctx, ground);
     // Ouverture instantanée (retour de l'utilisateur, 24/11 : « des animations de changement de page qui ne sont pas
-    // instantanées ») : la fenêtre se peint d'une seule image, à sa place, au lieu de grandir depuis l'élément touché
+    // instantanées ») : la fenêtre se peint d'une seule image, à sa place, au lieu de grandir depuis l'élément touché.
+    // Plus de liseré sombre au-dessus d'une fenêtre posée sur un écran (retour du 26/11 : « une petite ligne noire »)
     (void)from;
-    plan(rect, corners, rect, parts, painter, veil);
-    // Sans voile, l'écran dessous reste visible : le liseré, dans le prolongement des coins lissés sur le sombre, détache
-    // la fenêtre des cartes et des lignes de même couleur qu'elle coupe
-    if (const Rect16 edge(rect.Left(), rect.Top() - edge_h, rect.Width(), edge_h); !veil && style::inside(style::below_header, edge)) {
-        display::fill_rect(edge, style::veil);
-    }
+    plan(rect, corners, rect, parts, painter, ground == Ground::new_veil);
 }
 
-void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, bool veil) {
+void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, Ground ground) {
     struct Parts {
         std::array<window_t *, max_parts> wins;
         std::array<Rect16, max_parts> rects;
@@ -99,7 +111,7 @@ void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, bool veil)
         w->Invalidate();
         w->Draw();
     };
-    open(rect, corners, from, std::span<const Rect16>(parts.rects.data(), parts.n), paint, &parts, veil);
+    open(rect, corners, from, std::span<const Rect16>(parts.rects.data(), parts.n), paint, &parts, ground);
     for (window_t *w = first; w; w = w->GetNext()) {
         w->Draw(); // au-delà de max_parts (jamais avec nos fenêtres) ; les autres sont déjà peints
     }

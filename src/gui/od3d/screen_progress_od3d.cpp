@@ -353,7 +353,7 @@ void ScreenLoadUnload::Box::draw() {
     // L'opération lancée par la fiche d'une bobine s'ouvre depuis la bobine (frost::close() l'a notée), une autre
     // depuis le centre
     const Rect16 from = std::exchange(owner.opened, true) ? GetRect() : frost::take_closed_origin();
-    frost::draw(getFirstNormal(), GetRect(), MIC_ALL_CORNERS, from, !std::exchange(owner.veiled, true));
+    frost::draw(getFirstNormal(), GetRect(), MIC_ALL_CORNERS, from, std::exchange(owner.veiled, true) ? frost::Ground::veil : frost::Ground::new_veil);
 }
 
 void ScreenLoadUnload::Box::windowEvent(window_t *sender, GUI_event_t event, void *param) {

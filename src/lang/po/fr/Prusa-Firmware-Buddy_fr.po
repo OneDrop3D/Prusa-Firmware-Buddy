@@ -13109,7 +13109,7 @@ msgstr "Annuler cet objet"
 
 #: src/gui/od3d/screen_objects_od3d.cpp
 msgid "Printing now"
-msgstr "En cours d'impression"
+msgstr "En impression"
 
 #: src/gui/od3d/screen_objects_od3d.cpp
 msgid "Still to print"
@@ -13117,7 +13117,7 @@ msgstr "Reste à imprimer"
 
 #: src/gui/od3d/screen_objects_od3d.cpp
 msgid "Place not known yet"
-msgstr "Place pas encore connue"
+msgstr "Place inconnue"
 
 #: src/gui/od3d/screen_objects_od3d.cpp
 msgid "Tap an object"

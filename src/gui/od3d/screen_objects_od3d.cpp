@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <common/marlin_vars.hpp>
 #include <cstdio>
+#include <cstring>
 #include <display.hpp>
 #include <feature/cancel_object/cancel_object.hpp>
 #include <i18n.h>
@@ -246,7 +247,9 @@ void ObjectInfo::unconditionalDraw() {
     constexpr int16_t line = height(Font::small) + 4;
     int16_t y = info_rect.Top();
     if (view.object >= 0) {
-        draw_text(Rect16(x, y, w, height(Font::normal)), string_view_utf8::MakeRAM(view.label.data()), Font::normal, style::text_strong, style::screen);
+        // Gras s'il tient (16 caractères), sinon en petit (20) : « 3 · Shape-Box id:2 » se lit encore en entier
+        const Font font = strlen(view.label.data()) * width(Font::normal) <= w ? Font::normal : Font::small;
+        draw_text(Rect16(x, y, w, height(Font::normal)), string_view_utf8::MakeRAM(view.label.data()), font, style::text_strong, style::screen);
         y += height(Font::normal) + 6;
         switch (view.state) {
         case ObjectState::printing:

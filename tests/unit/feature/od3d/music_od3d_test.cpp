@@ -4,7 +4,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <cstdio>
 #include <cstdlib>
+#include <unistd.h>
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -378,4 +380,48 @@ TEST_CASE("musique : trois voix dans un seul déplacement, chacune à sa vitesse
     for (const auto &dd : jouer(x, meme, 7.3f, 0.2f)) {
         CHECK(dd[0] == dd[1]);
     }
+}
+
+TEST_CASE("musique : hauteur décalée, ramenée dans les notes MIDI") {
+    CHECK(transposed(69, 0) == 69);
+    CHECK(transposed(69, 12) == 81);
+    CHECK(transposed(69, -24) == 45);
+    CHECK(transposed(0, 5) == 0); // un silence reste un silence
+    CHECK(transposed(120, 12) == 120); // 132 sort : une octave plus bas, même note
+    CHECK(transposed(3, -5) == 10); // -2 sort : une octave plus haut
+}
+
+TEST_CASE("musique : réglages retenus par morceau dans le fichier de la clé") {
+    char path[] = "/tmp/od3d_mus_XXXXXX";
+    const int fd = mkstemp(path);
+    REQUIRE(fd >= 0);
+    close(fd);
+    std::remove(path); // le premier enregistrement crée le fichier
+
+    // Sans fichier : les réglages d'origine
+    Tuning t = load_tuning(path, "SONG.MID");
+    CHECK(t.tempo == 100);
+    CHECK(t.transpose == 0);
+
+    REQUIRE(save_tuning(path, "SONG.MID", { 80, -3 }));
+    REQUIRE(save_tuning(path, "OTHER~1.MID", { 150, 12 }));
+    REQUIRE(save_tuning(path, "song.mid", { 90, 2 })); // même morceau (FAT ignore la casse) : mis à jour sur place
+
+    t = load_tuning(path, "SONG.MID");
+    CHECK(t.tempo == 90);
+    CHECK(t.transpose == 2);
+    t = load_tuning(path, "OTHER~1.MID");
+    CHECK(t.tempo == 150);
+    CHECK(t.transpose == 12);
+    t = load_tuning(path, "NEW.MID");
+    CHECK(t.tempo == 100);
+
+    FILE *f = fopen(path, "rb");
+    REQUIRE(f);
+    fseek(f, 0, SEEK_END);
+    CHECK(ftell(f) == 32); // deux morceaux, pas trois
+    fclose(f);
+
+    CHECK_FALSE(save_tuning(path, "BEAUCOUP_TROP_LONG.MID", {}));
+    std::remove(path);
 }

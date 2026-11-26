@@ -2,7 +2,9 @@
 #include "screen_music_od3d.hpp"
 #include "menu_items_od3d.hpp"
 #include "menu_od3d.hpp"
+#include "value_editor_od3d.hpp"
 
+#include <cmath>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
 #include <cstdint>
@@ -46,10 +48,24 @@ namespace {
     enum Tag : uint8_t {
         tag_previous = 0,
         tag_next,
-        tag_motors, // tag_motors + 0 à 2
-        tag_play = tag_motors + music::motors_count,
+        tag_voices,
+        tag_tempo,
+        tag_pitch,
+        tag_play,
         tag_stop,
         tag_after_print,
+    };
+
+    constexpr NumericInputConfig tempo_config {
+        .min_value = music::min_tempo,
+        .max_value = music::max_tempo,
+        .step = 5,
+        .unit = Unit::percent,
+    };
+
+    constexpr NumericInputConfig pitch_config {
+        .min_value = -music::max_transpose,
+        .max_value = music::max_transpose,
     };
 
     void setup_note(window_text_t &note) {
@@ -134,12 +150,10 @@ ScreenMusic::ScreenMusic()
     , previous(this, previous_body, tag_previous, Button::Look::secondary, string_view_utf8::MakeCPUFLASH("<"), nullptr, style::surface, 10)
     , file_name(this, name_rect, is_multiline::no)
     , next(this, next_body, tag_next, Button::Look::secondary, string_view_utf8::MakeCPUFLASH(">"), nullptr, style::surface, 10)
-    , motors_panel(this, panel_rect(1), _("Voices"))
-    , motors {
-        { this, button_body(1, 0), tag_motors + 0, Button::Look::secondary, _(motors_labels[0]), nullptr, style::surface, 10 },
-        { this, button_body(1, 1), tag_motors + 1, Button::Look::secondary, _(motors_labels[1]), nullptr, style::surface, 10 },
-        { this, button_body(1, 2), tag_motors + 2, Button::Look::secondary, _(motors_labels[2]), nullptr, style::surface, 10 },
-    }
+    , sound_panel(this, panel_rect(1), _("Sound settings"))
+    , voices_button(this, button_body(1, 0), tag_voices, Button::Look::secondary, {}, nullptr, style::surface, 10)
+    , tempo_button(this, button_body(1, 1), tag_tempo, Button::Look::secondary, {}, nullptr, style::surface, 10)
+    , pitch_button(this, button_body(1, 2), tag_pitch, Button::Look::secondary, {}, nullptr, style::surface, 10)
     , play_panel(this, panel_rect(2), _("Playback"))
     , status_note(this, note_rect(2), is_multiline::no)
     , play_button(this, button_body(2, 0), tag_play, Button::Look::primary, _("Play"), &img::print_16x16, style::surface, 10)
@@ -157,7 +171,6 @@ ScreenMusic::ScreenMusic()
 
     media = marlin_vars().media_inserted.get();
     scan();
-    show_motors();
     show_after_print();
     shown_status = music::status();
     shown_playing = music::is_playing();
@@ -183,6 +196,8 @@ void ScreenMusic::scan() {
         name[0] = '\0';
         short_name[0] = '\0';
     }
+    tuning = index >= 0 ? music::load_tuning(music::tuning_path, short_name.data()) : music::Tuning {};
+    show_tuning();
 
     if (count == 0) {
         file_note.SetText(string_view_utf8::MakeNULLSTR());
@@ -212,10 +227,37 @@ void ScreenMusic::select(int wanted) {
     (void)n;
 }
 
-void ScreenMusic::show_motors() {
+void ScreenMusic::show_tuning() {
     const uint8_t chosen = config_store().od3d_music_motors.get();
-    for (uint8_t i = 0; i < music::motors_count; ++i) {
-        motors[i].set_look(i == chosen ? Button::Look::selected : Button::Look::secondary);
+    voices_button.set(Button::Look::secondary, _(motors_labels[chosen < music::motors_count ? chosen : 0]));
+    tempo_button.set(Button::Look::secondary, _("Speed %d%%").formatted(tempo_params, int(tuning.tempo)));
+    pitch_button.set(Button::Look::secondary, _("Pitch %+d").formatted(pitch_params, int(tuning.transpose)));
+}
+
+void ScreenMusic::edit_tuning(bool pitch) {
+    // Chaque pas s'entend tout de suite si le morceau joue ; Annuler remet la valeur de départ
+    const auto v = pitch
+        ? ValueEditor::exec(_("Pitch (semitones)"), tuning.transpose, pitch_config, [](float v) {
+              auto t = music::live_tuning();
+              t.transpose = int8_t(std::lround(v));
+              music::set_live_tuning(t);
+          })
+        : ValueEditor::exec(_("Speed"), tuning.tempo, tempo_config, [](float v) {
+              auto t = music::live_tuning();
+              t.tempo = uint8_t(std::lround(v));
+              music::set_live_tuning(t);
+          });
+    if (!v) {
+        return;
+    }
+    if (pitch) {
+        tuning.transpose = int8_t(std::lround(*v));
+    } else {
+        tuning.tempo = uint8_t(std::lround(*v));
+    }
+    show_tuning();
+    if (!music::save_tuning(music::tuning_path, short_name.data(), tuning)) {
+        MsgBoxWarning(_("Not saved: the USB drive refused the file."), Responses_Ok);
     }
 }
 
@@ -256,9 +298,10 @@ void ScreenMusic::update() {
     const bool printing = marlin_client::is_printing();
     previous.enable(!busy && count > 1);
     next.enable(!busy && count > 1);
-    for (Button &b : motors) {
-        b.enable(!busy);
-    }
+    voices_button.enable(!busy);
+    // Vitesse et hauteur restent réglables pendant l'écoute
+    tempo_button.enable(index >= 0);
+    pitch_button.enable(index >= 0);
     play_button.enable(!busy && !printing && index >= 0);
     stop_button.enable(busy);
 
@@ -299,9 +342,11 @@ void ScreenMusic::windowEvent(window_t *sender, GUI_event_t event, void *param) 
             select(index - 1);
         } else if (tag == tag_next) {
             select(index + 1);
-        } else if (tag >= tag_motors && tag < tag_motors + music::motors_count) {
-            config_store().od3d_music_motors.set(uint8_t(tag - tag_motors));
-            show_motors();
+        } else if (tag == tag_voices) {
+            config_store().od3d_music_motors.set(uint8_t((config_store().od3d_music_motors.get() + 1) % music::motors_count));
+            show_tuning();
+        } else if (tag == tag_tempo || tag == tag_pitch) {
+            edit_tuning(tag == tag_pitch);
         } else if (tag == tag_play) {
             play();
         } else if (tag == tag_stop) {

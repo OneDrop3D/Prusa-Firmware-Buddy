@@ -1,12 +1,23 @@
 /// @file
 /// OneDrop3D (F18) : musique des moteurs, lecteur côté Marlin (M1991) et commandes de l'interface.
 /// Le fichier, les moteurs et l'option « à la fin de chaque impression » sont dans le config_store
-/// (od3d_music_file, od3d_music_motors, od3d_music_at_print_end).
+/// (od3d_music_file, od3d_music_motors, od3d_music_at_print_end) ; la vitesse et la hauteur de chaque morceau, dans
+/// tuning_path sur la clé.
 #pragma once
+
+#include "music_od3d.hpp"
 
 #include <cstdint>
 
 namespace od3d::music {
+
+/// Réglages par morceau (Tuning), à côté des morceaux
+inline constexpr const char *tuning_path = "/usb/OD3D_MUS.BIN";
+
+/// Réglages de la lecture en cours (l'éditeur de l'écran, à chaque pas) : appliqués dès l'accord suivant. play() part
+/// de ceux retenus pour le morceau.
+void set_live_tuning(Tuning tuning);
+Tuning live_tuning();
 
 /// Voix jouées (CORE One = CoreXY : les moteurs du haut A et B chantent chacun une voix dans un seul déplacement XY ;
 /// le plateau, en Z, une 3e). Les valeurs de od3d_music_motors gardent leur place dans le config_store (plein) : les

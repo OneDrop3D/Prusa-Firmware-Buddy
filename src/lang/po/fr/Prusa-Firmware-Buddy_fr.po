@@ -13157,8 +13157,24 @@ msgid "Cancel object %s? It will not be printed any more. This cannot be undone.
 msgstr "Annuler l'objet %s ? Il ne sera plus imprimé. C'est définitif."
 
 #: src/gui/od3d/screen_music_od3d.cpp
-msgid "Voices"
-msgstr "Voix"
+msgid "Sound settings"
+msgstr "Réglages du son"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Speed %d%%"
+msgstr "Vitesse %d %%"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Pitch %+d"
+msgstr "Hauteur %+d"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Pitch (semitones)"
+msgstr "Hauteur (demi-tons)"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Not saved: the USB drive refused the file."
+msgstr "Non enregistré : la clé USB refuse le fichier."
 
 #: src/gui/od3d/screen_music_od3d.cpp
 msgid "3 voices"

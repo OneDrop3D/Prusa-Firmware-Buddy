@@ -29,6 +29,13 @@ namespace {
     std::atomic<bool> playing = false;
     std::atomic<Status> last_status = Status::idle;
     std::atomic<uint16_t> runs = 0;
+    std::atomic<uint8_t> live_tempo = 100;
+    std::atomic<int8_t> live_transpose = 0;
+
+    /// Durée réelle d'un passage du fichier au tempo réglé
+    float tempo_scale() {
+        return 100.f / float(std::clamp(live_tempo.load(), min_tempo, max_tempo));
+    }
 
     // Limites (PrintForge, musique.rs : 300 mm/s au plus, ±100 mm autour du centre)
     constexpr float max_speed_xy = 300.f; ///< mm/s du moteur ; au-delà, la note descend d'une octave
@@ -123,16 +130,17 @@ namespace {
     /// Joue un accord ; false s'il faut s'arrêter
     bool play_chord(Setup &s, const Chord &chord) {
         // Note et attaque de chaque moteur (A, B, Z) selon les voix choisies
-        uint8_t key[voices] = { chord.keys[0], 0, 0 };
+        const int8_t shift = live_transpose.load();
+        uint8_t key[voices] = { transposed(chord.keys[0], shift), 0, 0 };
         uint8_t attack = chord.attack & 1u;
         switch (s.motors) {
         case Motors::three:
-            key[1] = chord.keys[1];
-            key[2] = chord.keys[2];
+            key[1] = transposed(chord.keys[1], shift);
+            key[2] = transposed(chord.keys[2], shift);
             attack = chord.attack;
             break;
         case Motors::two:
-            key[1] = chord.keys[2]; // la basse sur B
+            key[1] = transposed(chord.keys[2], shift); // la basse sur B
             attack |= (chord.attack & 4u) ? 2u : 0u;
             break;
         case Motors::melody:
@@ -153,7 +161,7 @@ namespace {
             }
         }
 
-        float remaining = float(chord.end_us - chord.start_us) * 1e-6f;
+        float remaining = float(chord.end_us - chord.start_us) * 1e-6f * tempo_scale();
         while (remaining > 1e-6f) {
             if (!wait_queue()) {
                 return false;
@@ -249,6 +257,7 @@ void play(uint8_t motors_override) {
     }
     char path[24];
     snprintf(path, sizeof(path), "/usb/%s", name.data());
+    set_live_tuning(load_tuning(tuning_path, name.data()));
     FILE *file = fopen(path, "rb");
     if (!file) {
         last_status = Status::no_file;
@@ -318,7 +327,7 @@ void play(uint8_t motors_override) {
     uint32_t previous_end = chord.start_us; // pas de silence avant le premier accord
     bool more = true;
     while (more) {
-        const uint32_t silence_ms = chord.start_us > previous_end ? (chord.start_us - previous_end) / 1000 : 0;
+        const uint32_t silence_ms = chord.start_us > previous_end ? uint32_t(float(chord.start_us - previous_end) * tempo_scale() / 1000.f) : 0;
         if (silence_ms >= 1 && !rest(silence_ms)) {
             break;
         }
@@ -333,6 +342,15 @@ void play(uint8_t motors_override) {
 
 void request_stop() {
     stop_requested = true;
+}
+
+void set_live_tuning(Tuning tuning) {
+    live_tempo = tuning.tempo;
+    live_transpose = tuning.transpose;
+}
+
+Tuning live_tuning() {
+    return { live_tempo.load(), live_transpose.load() };
 }
 
 bool is_playing() {

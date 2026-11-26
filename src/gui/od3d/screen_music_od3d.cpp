@@ -121,7 +121,8 @@ namespace {
         return string_view_utf8::MakeNULLSTR();
     }
 
-    constexpr const char *motors_labels[music::motors_count] = { N_("X and Y"), N_("X only"), "Z" };
+    // Retour du 26/11 : les voix (moteurs du haut A et B, plateau en Z) au lieu d'un seul axe
+    constexpr const char *motors_labels[music::motors_count] = { N_("3 voices"), N_("2 voices"), N_("Melody") };
 
 } // namespace
 
@@ -133,11 +134,11 @@ ScreenMusic::ScreenMusic()
     , previous(this, previous_body, tag_previous, Button::Look::secondary, string_view_utf8::MakeCPUFLASH("<"), nullptr, style::surface, 10)
     , file_name(this, name_rect, is_multiline::no)
     , next(this, next_body, tag_next, Button::Look::secondary, string_view_utf8::MakeCPUFLASH(">"), nullptr, style::surface, 10)
-    , motors_panel(this, panel_rect(1), _("Motors"))
+    , motors_panel(this, panel_rect(1), _("Voices"))
     , motors {
         { this, button_body(1, 0), tag_motors + 0, Button::Look::secondary, _(motors_labels[0]), nullptr, style::surface, 10 },
         { this, button_body(1, 1), tag_motors + 1, Button::Look::secondary, _(motors_labels[1]), nullptr, style::surface, 10 },
-        { this, button_body(1, 2), tag_motors + 2, Button::Look::secondary, string_view_utf8::MakeCPUFLASH(motors_labels[2]), nullptr, style::surface, 10 },
+        { this, button_body(1, 2), tag_motors + 2, Button::Look::secondary, _(motors_labels[2]), nullptr, style::surface, 10 },
     }
     , play_panel(this, panel_rect(2), _("Playback"))
     , status_note(this, note_rect(2), is_multiline::no)
@@ -326,7 +327,7 @@ void ScreenMusic::windowEvent(window_t *sender, GUI_event_t event, void *param) 
 // ---- Contrôle › Musique des moteurs ----
 
 MI_MOTOR_MUSIC::MI_MOTOR_MUSIC()
-    : IWindowMenuItem(_("Motor music"), &img::move_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+    : IWindowMenuItem(_("Motor music"), &img::music_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_MOTOR_MUSIC::click(IWindowMenu &) {
     open_screen<ScreenMusic>();

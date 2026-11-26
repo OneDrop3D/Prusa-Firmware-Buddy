@@ -66,14 +66,32 @@ uint8_t single_tool_slot(const char *file_material) {
 
 namespace {
     std::atomic<bool> print_start_tool_change = false;
+    float short_purge_left = -1; ///< ce qu'il reste à extruder de la purge raccourcie ; < 0 : pas de purge raccourcie
 }
 
 void on_print_start(bool from_file_start) {
     print_start_tool_change = from_file_start;
+    short_purge_left = -1; // une purge raccourcie d'une impression arrêtée ne passe pas à la suivante
 }
 
 bool take_print_start_tool_change() {
     return print_start_tool_change.exchange(false);
+}
+
+void start_short_purge() {
+    short_purge_left = short_purge_mm;
+}
+
+float short_purge_part(bool xy, float de, float y_to) {
+    if (short_purge_left < 0) {
+        return 1;
+    }
+    if (y_to >= 0) {
+        short_purge_left = -1; // sortie de la bande de purge, devant le plateau : l'impression commence
+        return 1;
+    }
+    // Désamorçage et « load to the nozzle » (sans trajet), rétractions : tels quels
+    return xy && de > 0 ? purge_clip(de, short_purge_left) : 1;
 }
 
 void step() {

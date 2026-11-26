@@ -231,3 +231,19 @@ TEST_CASE("retour du 25/11 au soir : G-code mono-outil, emplacement 3 voulu, pas
     // PLA dans le fichier et sur l'emplacement 1 : rien ne change par rapport à Prusa
     CHECK(single_tool_choice(std::nullopt, [&](uint8_t s) { return material_fits("PLA", spools[s]); }) == 0);
 }
+
+TEST_CASE("retour du 26/11 : filament gardé, la purge du MMU ramenée à celle sans MMU") {
+    // Tracés de la ligne du profil CORE One MMU3 : E5 X235, X145 E36, X135 E4, X125 E4 (51 mm avec le désamorçage)
+    float left = short_purge_mm;
+    CHECK(purge_clip(5, left) == 1); // le premier, entier
+    CHECK(purge_clip(36, left) == 12.f / 36); // le long tracé extrude ce qui reste (12 mm), puis finit à vide
+    CHECK(left == 0);
+    CHECK(purge_clip(4, left) == 0); // la suite, à vide
+    CHECK(purge_clip(4, left) == 0);
+    // Profil sans MMU (E5, puis 3 × E4) : déjà la ligne courte, rien n'est coupé
+    left = short_purge_mm;
+    for (const float de : { 5.f, 4.f, 4.f, 4.f }) {
+        CHECK(purge_clip(de, left) == 1);
+    }
+    CHECK(left == 0);
+}

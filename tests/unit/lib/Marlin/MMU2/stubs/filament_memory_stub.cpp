@@ -9,4 +9,6 @@ bool take_print_start_tool_change() {
     return false;
 }
 
+void start_short_purge() {}
+
 } // namespace od3d::filament_memory

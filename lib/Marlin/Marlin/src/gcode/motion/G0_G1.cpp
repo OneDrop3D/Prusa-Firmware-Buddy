@@ -43,6 +43,12 @@
   #include <feature/od3d/clean_resume_od3d.hpp> // OneDrop3D (F30)
 #endif
 
+#include <option/has_mmu2.h>
+#if HAS_MMU2()
+  #include <algorithm>
+  #include <feature/od3d/filament_memory_od3d.hpp> // OneDrop3D (F43)
+#endif
+
 extern xyze_pos_t destination;
 
 #if ENABLED(VARIABLE_G0_FEEDRATE)
@@ -123,6 +129,26 @@ void GcodeSuite::G0_G1(TERN_(HAS_FAST_MOVES, const bool fast_move/*=false*/)) {
   #if ANY(POLAR)
     #error Dead code
   #else
+    #if HAS_MMU2()
+      // OneDrop3D (F43, retour du 26/11) : filament gardé au départ, la purge du MMU ramenée à celle sans MMU. Le tracé
+      // extrude sa part, puis finit sans extruder, à la vitesse d'un déplacement ; E relatif seulement (M83 de PrusaSlicer)
+      const float part = axis_is_relative(E_AXIS)
+        ? od3d::filament_memory::short_purge_part(destination.x != current_position.x || destination.y != current_position.y,
+            destination.e - current_position.e, destination.y)
+        : 1.f;
+      if (part < 1.f) {
+        if (part > 0.f) {
+          xyze_pos_t mid = destination;
+          mid.x = current_position.x + (destination.x - current_position.x) * part;
+          mid.y = current_position.y + (destination.y - current_position.y) * part;
+          mid.z = current_position.z + (destination.z - current_position.z) * part;
+          mid.e = current_position.e + (destination.e - current_position.e) * part;
+          prepare_move_to(mid, feedrate_mm_s, { .move = { .is_printing_move = true } });
+        }
+        destination.e = current_position.e; // la suite du tracé, sans extruder
+        prepare_move_to(destination, std::max<feedRate_t>(feedrate_mm_s, MMM_TO_MMS(8000)), { .move = { .is_printing_move = true } });
+      } else
+    #endif
     prepare_move_to(destination, feedrate_mm_s, { .move = { .is_printing_move = true } });
   #endif
 

@@ -93,7 +93,7 @@
 
 **With OneDrop PrintForge (easiest).** The app picks the release, prepares the USB drive or sends the firmware over the network, and updates the MMU3 too.
 
-<p align="center"><img src="doc/od3d/printforge-firmware.webp" alt="PrintForge: installing the printer and MMU3 firmware" width="720"></p>
+<p align="center"><img src="doc/od3d/printforge-firmware-en.png" alt="PrintForge: installing the printer and MMU3 firmware" width="720"></p>
 
 **By hand**
 1. In the [latest release](https://github.com/OneDrop3D/Prusa-Firmware-Buddy/releases/latest), download the file for your printer (see [Compatibility](#compatibility)).

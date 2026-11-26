@@ -13098,3 +13098,7 @@ msgstr "Filament\nCapteurs de filament"
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "Not enough memory, try again later."
 msgstr "Mémoire insuffisante, réessayez plus tard."
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Stop the print"
+msgstr "Arrêter l'impression"

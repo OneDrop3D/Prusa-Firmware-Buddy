@@ -577,6 +577,15 @@ namespace {
         }
     }
 
+    /// L'écran d'erreur du MMU : son « Stop » arrête l'impression (mmu2_reporting.cpp)
+    bool is_mmu_error([[maybe_unused]] Phase phase) {
+#if HAS_MMU2()
+        return phase == Phase::MMU_ERRWaitingForUser;
+#else
+        return false;
+#endif
+    }
+
 } // namespace
 
 bool ScreenLoadUnload::needs_user(fsm::BaseData data) {
@@ -687,12 +696,19 @@ void ScreenLoadUnload::enter_phase() {
             notice_type = std::to_underlying(desc->type);
             // Les boutons du MMU sont à leur place (gauche, milieu, droite) : une erreur à un bouton (« Filament
             // éjecté » : Continuer) l'a au milieu. On les tasse, sinon setup_buttons() n'en voyait aucun et
-            // l'écran restait bloqué derrière un « Annuler » éteint.
+            // l'écran restait bloqué derrière un « Annuler » éteint. Ceux de la phase sont d'abord effacés : un
+            // « Réessayer » seul gardait derrière lui « Lentement » et « Continuer », sans effet (retour du 26/11).
+            responses = {};
             size_t n = 0;
             for (const auto button : desc->buttons) {
                 if (const Response r = MMU2::ButtonOperationToResponse(button); r != Response::_none && n < responses.size()) {
                     responses[n++] = r;
                 }
+            }
+            // Pendant une impression, « Arrêter l'impression » en plus, pour intervenir sur le MMU : l'impression
+            // s'arrête et le MMU redémarre (mmu2_reporting.cpp)
+            if (marlin_client::is_printing() && n < responses.size() && std::ranges::find(responses, Response::Stop) == responses.end()) {
+                responses[n] = Response::Stop;
             }
         }
         kind = Kind::notice;
@@ -791,7 +807,7 @@ void ScreenLoadUnload::setup_buttons() {
         if (r == Response::Stop) {
             // F43 : pendant la purge, l'arrêt ne finit que la purge (le filament reste chargé, Pause de Prusa)
             const bool purge = phase == Phase::Purging_stoppable || phase == Phase::Purging_unstoppable;
-            b.set(Button::Look::outline, purge ? _("Stop purging") : _("Cancel"));
+            b.set(Button::Look::outline, purge ? _("Stop purging") : is_mmu_error(phase) ? _("Stop the print") : _("Cancel"));
         } else {
             b.set(primary_used ? Button::Look::outline : Button::Look::primary, _(get_response_text(r)));
             primary_used = true;
@@ -839,8 +855,8 @@ void ScreenLoadUnload::windowEvent(window_t *sender, GUI_event_t event, void *pa
         return;
     }
     case GUI_event_t::HELD_RELEASED:
-        // L'appui long annule, là où Prusa le permet (SPEC_G.md §3.4)
-        if (std::ranges::find(responses, Response::Stop) != responses.end()) {
+        // L'appui long annule, là où Prusa le permet (SPEC_G.md §3.4) ; jamais l'arrêt d'une impression (erreur du MMU)
+        if (!is_mmu_error(phase) && std::ranges::find(responses, Response::Stop) != responses.end()) {
             respond(Response::Stop);
         }
         return;

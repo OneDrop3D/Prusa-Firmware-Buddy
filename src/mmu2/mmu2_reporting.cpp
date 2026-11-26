@@ -39,6 +39,15 @@ void CheckErrorScreenUserInput() {
     }
 
     const Response rsp = marlin_server::get_response_from_phase(PhasesLoadUnload::MMU_ERRWaitingForUser);
+    if (rsp == Response::Stop) {
+        // OneDrop3D (retour du 26/11) : « Arrêter l'impression » de l'écran d'erreur (screen_progress_od3d.cpp ; chez Prusa,
+        // StopPrint ne faisait rien). Le changement de filament en sort par planner_draining() dans manage_response :
+        // idle() passe par l'arrêt avant de revenir au MMU. Le MMU redémarre pour quitter son erreur ; sinon elle revenait
+        // aussitôt à l'écran, avec seulement « Réessayer », qui relance le chargement
+        marlin_server::print_abort();
+        mmu2.Reset(MMU2::ResetForm::CutThePower);
+        return;
+    }
     if (rsp != Response::_none) {
         SetButtonResponse(ResponseToButtonOperations(rsp));
     }

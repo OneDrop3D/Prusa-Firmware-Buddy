@@ -13098,3 +13098,27 @@ msgstr "Filament\nCapteurs de filament"
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "Not enough memory, try again later."
 msgstr "Mémoire insuffisante, réessayez plus tard."
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Speed\nModes, or set by hand"
+msgstr "Vitesse\nModes, ou réglage à la main"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Quiet\n80%, quieter fans"
+msgstr "Silencieux\n80 %, ventilateurs plus calmes"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Normal\n100%"
+msgstr "Normal\n100 %"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Fast\n130%"
+msgstr "Rapide\n130 %"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Very fast\n160%"
+msgstr "Très rapide\n160 %"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Ultra fast\n250%"
+msgstr "Ultra rapide\n250 %"

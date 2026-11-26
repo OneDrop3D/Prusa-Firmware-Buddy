@@ -34,6 +34,13 @@ public:
     void click(IWindowMenu &) override;
 };
 
+/// Ajuster › « Vitesse » (retour du 26/11) : les modes de vitesse et le réglage à la main (screen_printing_od3d.cpp)
+class MI_SPEED_MODES final : public IWindowMenuItem {
+public:
+    MI_SPEED_MODES();
+    void click(IWindowMenu &) override;
+};
+
 /// Réglages › Fonctions OneDrop3D › « Amortissement des axes » (F33) : ζ et Q de X et Y, à appliquer à l'input shaper
 class MI_DAMPING final : public IWindowMenuItem {
 public:

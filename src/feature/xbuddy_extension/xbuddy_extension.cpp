@@ -9,6 +9,7 @@
 #include <marlin_server.hpp>
 #include <leds/side_strip_handler.hpp>
 #include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
+#include <feature/od3d/speed_mode_od3d.hpp> // OneDrop3D (retour du 26/11) : mode Silencieux
 #include <bsod/bsod.h>
 #include <fanctl/CFanCtl3Wire.hpp> // for FANCTL_START_TIMEOUT
 #include <utils/timing/rate_limiter.hpp>
@@ -111,7 +112,8 @@ void XBuddyExtension::step() {
     if (fan_update_pending && temp.has_value()) {
         last_fan_update_ms = now_ms;
 
-        const auto max_auto_pwm = max_cooling_pwm();
+        // OneDrop3D (retour du 26/11) : mode Silencieux, plafond plus bas ; les secours de surchauffe plus bas restent
+        const auto max_auto_pwm = PWM255 { od3d::speed_mode::chamber_fans_max_pwm(max_cooling_pwm().value, od3d::speed_mode::quiet.load(std::memory_order_relaxed)) };
 
         switch (filtration_backend) {
 

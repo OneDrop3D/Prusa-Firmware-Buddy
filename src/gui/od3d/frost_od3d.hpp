@@ -8,8 +8,10 @@
 ///
 /// Retour du 25/11 (« sur la partie du haut où on voit normalement le fond, on ne voyait que du noir ») : ce voile
 /// était opaque (#0C0C0D) et cachait l'écran dessous, alors que la maquette le veut assombri mais visible. Une fenêtre
-/// posée sur un écran (fiche, éditeur) le laisse donc tel quel, figé, et ne peint qu'un liseré sombre de 2 px au-dessus
-/// d'elle ; seul l'écran de chargement, qui n'a pas d'écran dessous, peint encore le voile autour de son cadre.
+/// posée sur un écran (fiche, éditeur) le laisse donc tel quel, figé ; seul l'écran de chargement, qui n'a pas d'écran
+/// dessous, peint encore le voile autour de son cadre. Retour du 26/11 (« une petite ligne noire [...] qui comprend aussi
+/// les angles, donc on ne profite pas des angles ») : plus de liseré sombre au-dessus d'elle, et ses coins arrondis ne
+/// peignent rien hors de l'arrondi : l'écran s'y voit (Ground::screen).
 ///
 /// La fenêtre s'ouvre depuis l'élément touché : son corps grandit en 4 images depuis le rect de cet élément, et chaque
 /// image ne peint que la couronne nouvelle et ses coins arrondis (r × r). Chaque élément de la fenêtre est peint une
@@ -24,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <utility>
 
 class window_t;
 
@@ -62,19 +65,30 @@ protected:
 /// avec ceux qui le chevauchent, à l'image où le corps l'atteint ; le corps est peint autour d'eux.
 void plan(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, Painter &painter, bool veil);
 
+/// Ligne y (absolue) de piece, dans le carré sq du coin bit (MIC_*) arrondi de radius : [first, second) absolus, les
+/// pixels qui touchent l'arrondi ; ceux du dehors sont au bout extérieur de la ligne. Vide (first == second) : tout dehors
+std::pair<int, int> corner_row(Rect16 sq, uint8_t bit, Rect16 piece, int y);
+
 // ---- Sur l'imprimante ----
+
+/// Sous une fenêtre
+enum class Ground : uint8_t {
+    screen, ///< un écran, qui reste visible tout autour et hors des arrondis (fiche, éditeur)
+    veil, ///< le voile, déjà peint (cadre du chargement repeint)
+    new_veil, ///< le voile, à peindre autour d'elle (cadre du chargement ouvert)
+};
 
 /// Rect de l'élément ciblé (touché ou cliqué), d'où s'ouvre la fenêtre qu'il ouvre ; vide sans élément
 Rect16 origin();
 
-/// Ouvre la fenêtre sur l'afficheur (plan) : paint(ctx, i) repeint tout parts[i]. veil : le voile autour (écran sans
-/// écran dessous : le chargement) ; sinon l'écran dessous reste visible et un liseré sombre borde le haut de la fenêtre
+/// Ouvre la fenêtre sur l'afficheur (plan) : paint(ctx, i) repeint tout parts[i] ; ses coins arrondis sont lissés sur
+/// ce qu'il y a dessous (ground)
 using PaintPart = void (*)(void *ctx, size_t i);
-void open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, PaintPart paint, void *ctx, bool veil = false);
+void open(Rect16 rect, uint8_t corners, Rect16 from, std::span<const Rect16> parts, PaintPart paint, void *ctx, Ground ground = Ground::screen);
 
 /// draw() d'un cadre posé sur un écran ou sur le voile (fiche, cadre du chargement), à repeindre en entier : open() avec
 /// ses fenêtres visibles (first et les suivantes, qui repeignent chacune tout leur rect)
-void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, bool veil = false);
+void draw(window_t *first, Rect16 rect, uint8_t corners, Rect16 from, Ground ground = Ground::screen);
 
 /// Une fenêtre posée sur le voile vient d'être détruite : l'écran dessous repeint d'une passe la place qu'elle couvrait
 /// (style::below_header), en-tête épargné ; tout l'écran au prochain dessin si ce n'est pas possible (un autre dialogue,

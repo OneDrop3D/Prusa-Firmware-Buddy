@@ -1,6 +1,7 @@
 /// @file
 /// Ouverture des fenêtres sur le voile (frost_od3d.hpp) : partie pure, sans l'afficheur
 #include "frost_od3d.hpp"
+#include "spool_draw.hpp"
 
 #include <algorithm>
 #include <array>
@@ -34,6 +35,23 @@ namespace {
     }
 
 } // namespace
+
+std::pair<int, int> corner_row(Rect16 sq, uint8_t bit, Rect16 piece, int y) {
+    const bool left = bit & (MIC_TOP_LEFT | MIC_BOT_LEFT), top = bit & (MIC_TOP_LEFT | MIC_TOP_RIGHT);
+    const int cy = y - sq.Top();
+    const auto outside = [&](int x) { // (0, 0) : coin extérieur ; 4 quarts : tout le pixel hors de l'arrondi
+        const int cx = x - sq.Left();
+        return spool::corner_beyond_quarters(left ? cx : radius - 1 - cx, top ? cy : radius - 1 - cy, radius) >= 4;
+    };
+    int x0 = piece.Left(), x1 = piece.Left() + piece.Width();
+    while (x0 < x1 && outside(x0)) {
+        ++x0;
+    }
+    while (x1 > x0 && outside(x1 - 1)) {
+        --x1;
+    }
+    return { x0, x1 };
+}
 
 Rect16 start(Rect16 origin, Rect16 to, uint16_t side) {
     if (origin == to) {

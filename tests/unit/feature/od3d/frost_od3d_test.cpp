@@ -230,3 +230,36 @@ TEST_CASE("od3d frost: the element under the finger is painted first") {
     REQUIRE_FALSE(rec.part_calls.empty());
     CHECK(rec.part_calls.front() == 1);
 }
+
+TEST_CASE("od3d frost: on a screen, a corner paints nothing outside its rounding") {
+    // Retour du 26/11 : chaque ligne d'un coin ne garde que les pixels qui touchent l'arrondi, d'un seul tenant, du côté
+    // intérieur ; le coin extérieur reste à l'écran dessous
+    constexpr int sx = 100, sy = 50;
+    const Rect16 sq(sx, sy, radius, radius);
+    for (const uint8_t bit : { uint8_t(MIC_TOP_LEFT), uint8_t(MIC_TOP_RIGHT), uint8_t(MIC_BOT_LEFT), uint8_t(MIC_BOT_RIGHT) }) {
+        const bool left = bit & (MIC_TOP_LEFT | MIC_BOT_LEFT), top = bit & (MIC_TOP_LEFT | MIC_TOP_RIGHT);
+        const int inner_edge = left ? sx + radius : sx;
+        int painted = 0;
+        for (int y = sy; y < sy + radius; ++y) {
+            const auto [x0, x1] = corner_row(sq, bit, sq, y);
+            REQUIRE(x0 < x1); // arrondi de 12 : chaque ligne le touche
+            CHECK((left ? x1 : x0) == inner_edge);
+            painted += x1 - x0;
+        }
+        const auto outer = corner_row(sq, bit, sq, top ? sy : sy + radius - 1);
+        CHECK(outer.second - outer.first < radius); // la ligne du bord extérieur laisse le coin à l'écran
+        const auto inner = corner_row(sq, bit, sq, top ? sy + radius - 1 : sy);
+        CHECK(inner.second - inner.first == radius); // la plus intérieure est toute dans l'arrondi
+        CHECK(painted < radius * radius);
+        CHECK(painted > radius * radius * 3 / 4); // hors d'un quart de cercle : ~21 % du carré, bord lissé compris
+    }
+    // Un morceau du carré (un élément de la fenêtre couvre le reste) : la ligne reste dans le morceau
+    constexpr int px = sx + 6, pw = radius - 6;
+    const Rect16 piece(px, sy, pw, radius);
+    for (int y = sy; y < sy + radius; ++y) {
+        const auto [x0, x1] = corner_row(sq, uint8_t(MIC_TOP_LEFT), piece, y);
+        CHECK(px <= x0);
+        CHECK(x0 <= x1);
+        CHECK(x1 == px + pw);
+    }
+}

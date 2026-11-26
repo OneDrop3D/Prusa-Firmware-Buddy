@@ -55,6 +55,7 @@ namespace {
         if (must_stop() || axes_need_homing()) {
             return false;
         }
+        accel::take_head(); // INDX : la tête dont l'accéléromètre mesure ; rien ailleurs
         const float z = std::min(std::max({ min_z, float(Z_SIZE) / 2.f, planner.max_printed_z + above_print }), soft_endstop.max.z - 1.f);
         if (current_position.z < z) {
             do_blocking_move_to_z(z, travel_speed_z);

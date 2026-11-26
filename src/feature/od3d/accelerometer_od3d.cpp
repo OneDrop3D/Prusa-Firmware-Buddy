@@ -6,11 +6,30 @@
 #include <Marlin/src/Marlin.h>
 #include <Marlin/src/module/planner.h>
 #include <Marlin/src/module/prusa/accelerometer.h>
+#include <mapi/motion.hpp>
 #include <timing.h>
+
+#include <option/has_remote_accelerometer.h>
+#include <option/has_toolchanger.h>
+#if HAS_REMOTE_ACCELEROMETER() && HAS_TOOLCHANGER()
+    #include <tool_index.hpp>
+    #include <variant>
+#endif
 
 namespace od3d::accel {
 
+void take_head() {
+    mapi::ensure_tool_with_accelerometer_picked();
+}
+
 bool ready() {
+#if HAS_REMOTE_ACCELEROMETER() && HAS_TOOLCHANGER()
+    // INDX sans tête prise : l'accéléromètre de la tête ne peut pas répondre. Il est dans chaque tête : la mesure en
+    // prend une après l'origine (take_head) et le lit alors ; son échec y est signalé comme une mesure ratée
+    if (std::holds_alternative<NoTool>(PhysicalToolIndex::currently_selected())) {
+        return true;
+    }
+#endif
     planner.synchronize(); // tête à l'arrêt : seule la pesanteur est mesurée
 
     // Comme l'assistant input shaper de Prusa (M1959, info_proceed) : la construction recherche la puce si elle

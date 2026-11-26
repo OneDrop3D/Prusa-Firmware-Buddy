@@ -23,7 +23,11 @@ constexpr bool gravity_plausible(float mean_x, float mean_y, float mean_z) {
 
 /// Fil de Marlin, tête à l'arrêt, avant tout mouvement : l'accéléromètre est détecté (Prusa le recherche à chaque
 /// session, il peut donc être branché après le démarrage), ses échantillons arrivent et montrent la pesanteur.
-/// Dure moins de 0,3 s.
+/// Dure moins de 0,3 s. INDX sans tête prise : vrai sans lire, l'accéléromètre est dans chaque tête (take_head).
 bool ready();
+
+/// INDX (revue du 26/11) : l'accéléromètre est celui de la tête active, lu par MODBUS ; sans tête, il ne répond pas.
+/// Après l'origine, une mesure prend une tête comme l'input shaper de Prusa (M1959) ; ailleurs, rien
+void take_head();
 
 } // namespace od3d::accel

@@ -9,6 +9,7 @@
 #include <WindowMenuSwitch.hpp>
 #include <ScreenHandler.hpp>
 #include <utils/string_builder.hpp>
+#include <gui/od3d/screen_objects_od3d.hpp> // OneDrop3D : plan du plateau
 
 using namespace buddy;
 
@@ -169,5 +170,6 @@ MI_CO_CANCEL_OBJECT::MI_CO_CANCEL_OBJECT()
 }
 
 void MI_CO_CANCEL_OBJECT::click(IWindowMenu & /*window_menu*/) {
-    Screens::Access()->Open(ScreenFactory::Screen<ScreenCancelObjects>);
+    // OneDrop3D (retour du 26/11) : le plan du plateau, où l'on touche l'objet à annuler, à la place de la liste
+    Screens::Access()->Open(ScreenFactory::Screen<od3d::ScreenObjects>);
 }

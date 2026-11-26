@@ -20,6 +20,10 @@ add_executable(
 target_include_directories(print_info_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(print_info_od3d_tests)
 
+add_executable(object_map_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/object_map_test.cpp)
+target_include_directories(object_map_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(object_map_od3d_tests)
+
 add_executable(text_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/text_od3d_test.cpp)
 target_include_directories(text_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(text_od3d_tests)

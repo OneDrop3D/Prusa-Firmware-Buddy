@@ -34,6 +34,10 @@ target_sources(
           value_editor_od3d.cpp
           widgets_od3d.cpp
   )
+if(HAS_CANCEL_OBJECT)
+  # Annuler des objets sur le plan du plateau (retour du 26/11), à la place de la liste de Prusa
+  target_sources(firmware PRIVATE screen_objects_od3d.cpp)
+endif()
 if(NOT HAS_INDX)
   # Régulation MPC (F7, OD3D_MPCTEMP) et équerrage XY (F15, OD3D_SKEW_CORRECTION_XY) : pas avec l'INDX
   target_sources(firmware PRIVATE screen_mpc_od3d.cpp screen_skew_od3d.cpp)

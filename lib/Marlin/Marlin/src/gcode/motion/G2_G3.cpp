@@ -34,6 +34,7 @@
 #include <option/has_cancel_object.h>
 #if HAS_CANCEL_OBJECT()
   #include <feature/cancel_object/cancel_object.hpp>
+  #include <feature/od3d/object_map_od3d.hpp> // OneDrop3D : plan du plateau de « Annuler des objets »
 #endif
 
 #if HAS_CRASH_DETECTION()
@@ -463,6 +464,13 @@ void GcodeSuite::G2_G3(const bool clockwise) {
         SERIAL_ERROR_MSG(STR_ERR_ARC_ARGS);
     #else
       constexpr uint8_t circles_to_do = 0;
+    #endif
+
+    #if HAS_CANCEL_OBJECT()
+      // OneDrop3D : place de l'objet en cours sur le plan du plateau, par les deux bouts de l'arc (son bombé reste près)
+      if (destination.e > current_position.e) {
+        od3d::object_map::on_extrusion(current_position.x, current_position.y, destination.x, destination.y);
+      }
     #endif
 
     // Send the arc to the planner

@@ -13098,3 +13098,32 @@ msgstr "Filament\nCapteurs de filament"
 #: src/gui/od3d/screen_pa_od3d.cpp
 msgid "Not enough memory, try again later."
 msgstr "Mémoire insuffisante, réessayez plus tard."
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Cancel objects"
+msgstr "Annuler des objets"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Cancel this object"
+msgstr "Annuler cet objet"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Printing now"
+msgstr "En cours d'impression"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Still to print"
+msgstr "Reste à imprimer"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Place not known yet"
+msgstr "Place pas encore connue"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Tap an object"
+msgstr "Touchez un objet"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+#, c-format
+msgid "Cancel object %s? It will not be printed any more. This cannot be undone."
+msgstr "Annuler l'objet %s ? Il ne sera plus imprimé. C'est définitif."

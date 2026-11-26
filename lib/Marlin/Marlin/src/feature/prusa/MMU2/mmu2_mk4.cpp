@@ -1230,6 +1230,10 @@ bool MMU2::manage_response(const bool move_axes, const bool turn_off_nozzle) {
         // - finished ok -> proceed with reading other commands
         marlin_idle(true); // calls LogicStep() and remembers its return status
         if (planner_draining()) {
+            // OneDrop3D : impression arrêtée (ou coupure) pendant l'attente : la tête garée et la buse coupée ne sont plus à
+            // reprendre. Sinon la fin d'une commande suivante qui ne la remet pas à zéro (M403, coupe) ramenait la buse sur
+            // la pièce abandonnée, à la hauteur de sa couche (ResumeUnpark)
+            mmu_print_saved = SavedState::None;
             return true; // power panic happening, pretend we finished OK (and hope for the best).
         }
 

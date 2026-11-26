@@ -5,6 +5,8 @@
 
 #include <gcode/gcode.h>
 
+#include <feature/od3d/object_map_od3d.hpp> // OneDrop3D : plan du plateau de « Annuler des objets »
+
 using namespace buddy;
 
 CancelObject &buddy::cancel_object() {
@@ -66,6 +68,7 @@ void CancelObject::set_current_object(ObjectID obj) {
 
     state_.current_object = obj;
     state_.current_object_cancelled = is_object_cancelled_nolock(obj);
+    od3d::object_map::set_current(obj); // OneDrop3D : ses extrusions dessinent sa place sur le plan
 }
 
 uint32_t CancelObject::objects_revision() const {
@@ -113,6 +116,7 @@ void CancelObject::set_state(const State &set) {
     std::lock_guard lg(mutex_);
 
     state_ = set;
+    od3d::object_map::reset(); // OneDrop3D : nouvelle impression ou reprise, places à refaire
 }
 
 void CancelObject::reset() {

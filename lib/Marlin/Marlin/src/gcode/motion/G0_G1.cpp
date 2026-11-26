@@ -36,6 +36,7 @@
 #include <option/has_cancel_object.h>
 #if HAS_CANCEL_OBJECT()
   #include <feature/cancel_object/cancel_object.hpp>
+  #include <feature/od3d/object_map_od3d.hpp> // OneDrop3D : plan du plateau de « Annuler des objets »
 #endif
 
 #include <option/has_pause.h>
@@ -118,6 +119,13 @@ void GcodeSuite::G0_G1(TERN_(HAS_FAST_MOVES, const bool fast_move/*=false*/)) {
     // OneDrop3D (F30) : tracés de remplissage gardés pour la reprise sans cicatrice (rien si l'option est coupée)
     od3d::clean_resume::on_print_move(current_position.x, current_position.y, current_position.z, current_position.e,
       destination.x, destination.y, destination.z, destination.e);
+  #endif
+
+  #if HAS_CANCEL_OBJECT()
+    // OneDrop3D : place de l'objet en cours sur le plan du plateau ; ses extrusions seulement (ni trajets ni essuyages)
+    if (destination.e > current_position.e) {
+      od3d::object_map::on_extrusion(current_position.x, current_position.y, destination.x, destination.y);
+    }
   #endif
 
   #if ANY(POLAR)

@@ -723,7 +723,7 @@ namespace {
         void click(IWindowMenu &) override {
             marlin_client::set_print_speed(speed_mode::percent(M));
             speed_mode::quiet = (M == speed_mode::Mode::quiet);
-            Screens::Access()->Close();
+            Screens::Access()->close_screen();
         }
     };
 

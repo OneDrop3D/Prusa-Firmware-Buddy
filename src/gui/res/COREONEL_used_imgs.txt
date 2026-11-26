@@ -169,3 +169,4 @@ wizard_16x16.png
 x_axis_16x16.png
 y_axis_16x16.png
 z_axis_16x16.png
+music_16x16.png

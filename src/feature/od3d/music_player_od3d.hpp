@@ -8,12 +8,13 @@
 
 namespace od3d::music {
 
-/// Moteurs qui chantent (CORE One = CoreXY : un déplacement en X fait tourner les deux moteurs A et B, une
-/// diagonale X = Y un seul, celui du pilote X)
+/// Voix jouées (CORE One = CoreXY : les moteurs du haut A et B chantent chacun une voix dans un seul déplacement XY ;
+/// le plateau, en Z, une 3e). Les valeurs de od3d_music_motors gardent leur place dans le config_store (plein) : les
+/// anciens « X et Y », « X seul » et « Z » deviennent ces trois-là (retour du 26/11)
 enum class Motors : uint8_t {
-    xy = 0, ///< « X et Y » : déplacement en X, les deux moteurs du haut
-    x = 1, ///< « X seul » : diagonale, le seul moteur du pilote X
-    z = 2, ///< « Z » : le plateau monte et descend sous la buse
+    three = 0, ///< « 3 voix » : mélodie sur A, 2e voix sur B, basse sur Z (le plateau monte et descend)
+    two = 1, ///< « 2 voix » : mélodie sur A, basse sur B
+    melody = 2, ///< « Mélodie » : la plus aiguë seule, sur A et B ensemble (déplacement en X, le plus fort)
 };
 inline constexpr uint8_t motors_count = 3;
 

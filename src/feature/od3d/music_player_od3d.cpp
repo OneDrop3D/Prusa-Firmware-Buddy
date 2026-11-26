@@ -33,7 +33,9 @@ namespace {
     // Limites (PrintForge, musique.rs : 300 mm/s au plus, ±100 mm autour du centre)
     constexpr float max_speed_xy = 300.f; ///< mm/s du moteur ; au-delà, la note descend d'une octave
     constexpr float max_speed_z = 20.f; ///< mm/s (machine : 30, mode furtif : 12)
-    constexpr uint32_t accel_xy = 4000; ///< mm/s² (machine : 10 000)
+    /// mm/s² (machine : 10 000) : la note doit prendre sa hauteur vite, sinon chaque attaque glisse (26/11)
+    constexpr uint32_t accel_xy = 6000;
+    constexpr float min_frequency = 55.f; ///< Hz : en dessous, un moteur ne fait que cliquer ; la note monte d'une octave
     constexpr uint32_t accel_z = 1000; ///< mm/s² (machine : 1 000)
     constexpr float bound_xy = 100.f; ///< mm de part et d'autre du centre
     constexpr float bound_z = 15.f; ///< mm de part et d'autre du centre de la course en Z
@@ -101,12 +103,15 @@ namespace {
         return true;
     }
 
-    /// Géométrie d'une lecture : axe(s), centre et course, pas complets par mm du moteur qui chante
+    /// Géométrie d'une lecture : voix, centre, courses et pas complets par mm des moteurs qui chantent
     struct Setup {
         Motors motors;
-        float bound; ///< mm de part et d'autre du centre, le long de chaque axe qui bouge
-        float full_steps_per_mm;
-        float max_speed; ///< vitesse du moteur
+        xyz_pos_t centre; ///< mm
+        float steps_xy; ///< pas complets par mm d'un moteur du haut (A ou B) le long de sa courroie
+        float steps_z;
+        float max_speed_xy; ///< mm/s d'un moteur
+        float max_speed_z;
+        VoiceMotion motion[voices]; ///< A, B (le long de X+Y et X−Y), Z ; positions autour du centre
     };
 
     /// Pas complets par mm, lus dans le planificateur : les micro-pas réglés et le type de courroie comptent (CORE One :
@@ -115,43 +120,60 @@ namespace {
         return 4.f * planner.qsteps_per_mm(axis);
     }
 
-    /// Joue une note ; false s'il faut s'arrêter
-    bool play_note(const Setup &s, Swing &swing, const Note &note) {
-        const float v = note_speed(note.key, s.full_steps_per_mm, s.max_speed);
-        if (v <= 0.f) {
-            return true;
+    /// Joue un accord ; false s'il faut s'arrêter
+    bool play_chord(Setup &s, const Chord &chord) {
+        // Note et attaque de chaque moteur (A, B, Z) selon les voix choisies
+        uint8_t key[voices] = { chord.keys[0], 0, 0 };
+        uint8_t attack = chord.attack & 1u;
+        switch (s.motors) {
+        case Motors::three:
+            key[1] = chord.keys[1];
+            key[2] = chord.keys[2];
+            attack = chord.attack;
+            break;
+        case Motors::two:
+            key[1] = chord.keys[2]; // la basse sur B
+            attack |= (chord.attack & 4u) ? 2u : 0u;
+            break;
+        case Motors::melody:
+            key[1] = chord.keys[0]; // A et B ensemble : un déplacement en X
+            attack |= (chord.attack & 1u) ? 2u : 0u;
+            break;
         }
-        const float duration_s = float(note.end_us - note.start_us) * 1e-6f;
-        // X seul (diagonale X = Y) : le moteur A parcourt dx + dy, chaque axe la moitié
-        const float axis_share = s.motors == Motors::x ? 0.5f : 1.f;
-        const float axis_speed = v * axis_share;
-        const float feedrate = s.motors == Motors::x ? axis_speed * 1.41421356f : axis_speed;
-        int32_t remaining = int32_t(std::lround(axis_speed * duration_s * 1000.f));
-        const int32_t max_um = std::max<int32_t>(1, int32_t(axis_speed * max_segment_s * 1000.f));
-        while (true) {
+        float speed[voices];
+        for (uint8_t v = 0; v < voices; ++v) {
+            const bool z = v == 2;
+            const float steps = z ? s.steps_z : s.steps_xy;
+            const float max = z ? s.max_speed_z : s.max_speed_xy;
+            speed[v] = key[v] ? 1000.f * note_speed(key[v], steps, max, min_frequency / steps) : 0.f;
+            if (attack & (1u << v)) {
+                s.motion[v].dir = int8_t(-s.motion[v].dir); // une note frappée repart dans l'autre sens : elle s'entend
+            }
+        }
+
+        float remaining = float(chord.end_us - chord.start_us) * 1e-6f;
+        while (remaining > 1e-6f) {
             if (!wait_queue()) {
                 return false;
             }
-            const int32_t d = swing.step(remaining, max_um);
-            if (d == 0) {
+            int32_t d[voices];
+            const float dt = chord_step(s.motion, speed, remaining, max_segment_s, d);
+            if (!(dt > 0.f)) {
                 break;
             }
-            const float mm = float(d) * 1e-3f;
-            switch (s.motors) {
-            case Motors::xy:
-                current_position.x += mm;
-                break;
-            case Motors::x:
-                current_position.x += mm;
-                current_position.y += mm;
-                break;
-            case Motors::z:
-                current_position.z += mm;
-                break;
+            remaining -= dt;
+            if (d[0] == 0 && d[1] == 0 && d[2] == 0) {
+                continue;
             }
-            line_to_current_position(feedrate);
+            // CoreXY : A = X + Y, B = X − Y ; une seule ligne, sa vitesse donne à chaque moteur la sienne
+            const float a = float(s.motion[0].pos) * 1e-3f, b = float(s.motion[1].pos) * 1e-3f;
+            const float x = s.centre.x + (a + b) / 2.f, y = s.centre.y + (a - b) / 2.f, z = s.centre.z + float(s.motion[2].pos) * 1e-3f;
+            const float dx = x - current_position.x, dy = y - current_position.y, dz = z - current_position.z;
+            current_position.x = x;
+            current_position.y = y;
+            current_position.z = z;
+            line_to_current_position(std::sqrt(dx * dx + dy * dy + dz * dz) / dt);
         }
-        swing.next_note();
         return true;
     }
 
@@ -172,39 +194,37 @@ namespace {
         }
 
         s.motors = motors;
-        switch (motors) {
-        case Motors::xy:
-        case Motors::x: {
-            // Centre du plateau (comme PrintForge), course bornée par les butées logicielles de la machine
-            const float cx = std::clamp(X_BED_SIZE / 2.f, soft_endstop.min.x, soft_endstop.max.x);
-            const float cy = std::clamp(Y_BED_SIZE / 2.f, soft_endstop.min.y, soft_endstop.max.y);
-            const float half_x = std::min(cx - soft_endstop.min.x, soft_endstop.max.x - cx) - edge_margin;
-            const float half_y = std::min(cy - soft_endstop.min.y, soft_endstop.max.y - cy) - edge_margin;
-            s.bound = std::min(bound_xy, motors == Motors::x ? std::min(half_x, half_y) : half_x);
-            s.full_steps_per_mm = full_steps_per_mm(X_AXIS);
-            s.max_speed = std::min(max_speed_xy, planner.settings.max_feedrate_mm_s[X_AXIS]);
-            if (s.bound < 2.f) {
-                return false;
-            }
-            do_blocking_move_to_xy(cx, cy, travel_speed_xy);
-            break;
+        s.steps_xy = full_steps_per_mm(X_AXIS);
+        s.steps_z = full_steps_per_mm(Z_AXIS);
+        s.max_speed_xy = std::min(max_speed_xy, planner.settings.max_feedrate_mm_s[X_AXIS]);
+        s.max_speed_z = std::min(max_speed_z, planner.settings.max_feedrate_mm_s[Z_AXIS]);
+
+        // Centre du plateau (comme PrintForge), courses bornées par les butées logicielles : |A|, |B| ≤ r donne
+        // |X|, |Y| ≤ r (un losange dans le carré)
+        s.centre.x = std::clamp(X_BED_SIZE / 2.f, soft_endstop.min.x, soft_endstop.max.x);
+        s.centre.y = std::clamp(Y_BED_SIZE / 2.f, soft_endstop.min.y, soft_endstop.max.y);
+        const float half_x = std::min(s.centre.x - soft_endstop.min.x, soft_endstop.max.x - s.centre.x) - edge_margin;
+        const float half_y = std::min(s.centre.y - soft_endstop.min.y, soft_endstop.max.y - s.centre.y) - edge_margin;
+        const float r = std::min({ bound_xy, half_x, half_y });
+        if (r < 2.f) {
+            return false;
         }
-        case Motors::z: {
-            // Le plateau descend (Z monte) d'abord : jamais plus près de la buse que la hauteur sûre
-            const float low = std::max(current_position.z, z_floor);
-            const float high = std::min(low + 2.f * bound_z, soft_endstop.max.z - edge_margin);
-            s.bound = (high - low) / 2.f;
-            s.full_steps_per_mm = full_steps_per_mm(Z_AXIS);
-            s.max_speed = std::min(max_speed_z, planner.settings.max_feedrate_mm_s[Z_AXIS]);
-            if (s.bound < 2.f) {
-                return false;
-            }
-            do_blocking_move_to_z(low + s.bound, travel_speed_z);
-            break;
+        s.motion[0] = s.motion[1] = { .bound = int32_t(r * 1000.f) };
+        s.motion[2] = {};
+        s.centre.z = std::max(current_position.z, z_floor);
+        if (motors == Motors::three) {
+            // La basse sur le plateau : il descend (Z monte) d'abord, jamais plus près de la buse que la hauteur sûre
+            const float high = std::min(s.centre.z + 2.f * bound_z, soft_endstop.max.z - edge_margin);
+            const float half = (high - s.centre.z) / 2.f;
+            if (half >= 2.f) {
+                s.centre.z += half;
+                s.motion[2].bound = int32_t(half * 1000.f);
+            } // sinon pas de place en Z : la basse se tait, la mélodie et la 2e voix jouent
         }
-        }
+        do_blocking_move_to_xy(s.centre.x, s.centre.y, travel_speed_xy);
+        do_blocking_move_to_z(s.centre.z, travel_speed_z);
         planner.synchronize();
-        return s.bound >= 2.f && !must_stop();
+        return !must_stop();
     }
 
 } // namespace
@@ -217,7 +237,7 @@ void play(uint8_t motors_override) {
         return;
     }
     uint8_t m = motors_override < motors_count ? motors_override : config_store().od3d_music_motors.get();
-    const Motors motors = m < motors_count ? Motors(m) : Motors::xy;
+    const Motors motors = m < motors_count ? Motors(m) : Motors::three;
 
     const auto name = config_store().od3d_music_file.get();
     if (name[0] == '\0' || memchr(name.data(), '\0', name.size()) == nullptr) {
@@ -249,8 +269,8 @@ void play(uint8_t motors_override) {
         last_status = Status::bad_file;
         return;
     }
-    Note note;
-    if (!reader.next(note)) {
+    Chord chord;
+    if (!reader.next(chord)) {
         last_status = Status::no_notes;
         return;
     }
@@ -291,19 +311,19 @@ void play(uint8_t motors_override) {
         return;
     }
 
-    Swing swing(int32_t(setup.bound * 1000.f));
-    uint32_t previous_end = note.start_us; // pas de silence avant la première note
+    Smoother smoother;
+    uint32_t previous_end = chord.start_us; // pas de silence avant le premier accord
     bool more = true;
     while (more) {
-        const uint32_t silence_ms = note.start_us > previous_end ? (note.start_us - previous_end) / 1000 : 0;
+        const uint32_t silence_ms = chord.start_us > previous_end ? (chord.start_us - previous_end) / 1000 : 0;
         if (silence_ms >= 1 && !rest(silence_ms)) {
             break;
         }
-        if (!play_note(setup, swing, note)) {
+        if (!play_chord(setup, smoother.next(chord))) {
             break;
         }
-        previous_end = note.end_us;
-        more = reader.next(note);
+        previous_end = chord.end_us;
+        more = reader.next(chord);
     }
     last_status = must_stop() ? Status::stopped : Status::done;
 }

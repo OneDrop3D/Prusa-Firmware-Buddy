@@ -37,7 +37,8 @@ Error Reader::open(Source &src) {
     last_tick = 0;
     std::memset(sounding, 0, sizeof(sounding));
     std::memset(struck, 0, sizeof(struck));
-    current = -1;
+    std::memset(current, 0, sizeof(current));
+    current_attack = 0;
     current_start = 0;
     finished = true;
 
@@ -245,7 +246,33 @@ uint32_t Reader::now_us() const {
     return t > UINT32_MAX ? UINT32_MAX : uint32_t(t);
 }
 
-bool Reader::next(Note &note) {
+void voices_of(const uint8_t *count, uint8_t (&keys)[voices]) {
+    int high = 0, second = 0, low = 0, n = 0;
+    for (int k = 127; k >= 1; --k) { // shortcut: la note 0 (do-1, 8 Hz, jamais écrite) sert de silence
+        if (count[k] > 0) {
+            if (n == 0) {
+                high = k;
+            } else if (n == 1) {
+                second = k;
+            }
+            low = k;
+            ++n;
+        }
+    }
+    keys[0] = uint8_t(high);
+    keys[1] = uint8_t(n >= 3 ? second : 0);
+    keys[2] = uint8_t(n >= 2 ? low : 0);
+}
+
+bool Reader::next(Chord &chord) {
+    // L'accord en cours, s'il sonne : la mélodie ne se tait que quand plus rien ne sonne
+    const auto emit = [&](uint32_t t) {
+        if (current[0] == 0 || t <= current_start) {
+            return false;
+        }
+        chord = { current_start, t, { current[0], current[1], current[2] }, current_attack };
+        return true;
+    };
     while (!finished) {
         // Prochain instant où une piste a un événement
         uint64_t tick = UINT64_MAX;
@@ -256,13 +283,7 @@ bool Reader::next(Note &note) {
         }
         if (tick == UINT64_MAX) {
             finished = true;
-            // Une note jamais relâchée s'arrête avec le morceau
-            if (current >= 0 && now_us() > current_start) {
-                note = { current_start, now_us(), uint8_t(current) };
-                current = -1;
-                return true;
-            }
-            return false;
+            return emit(now_us()); // une note jamais relâchée s'arrête avec le morceau
         }
 
         // Le temps avance au tempo d'avant cet instant
@@ -281,42 +302,62 @@ bool Reader::next(Note &note) {
             }
         }
 
-        // La plus aiguë de celles qui sonnent, frappes de cet instant comprises
-        int16_t high = -1;
-        for (int k = 127; k >= 0; --k) {
-            if (sounding[k] + struck[k] > 0) {
-                high = int16_t(k);
-                break;
-            }
-        }
-        const bool high_struck = high >= 0 && struck[high] > 0;
+        // Les voix de cet instant, frappes comprises ; une voix attaque si sa note change ou est refrappée
         for (int k = 0; k < 128; ++k) {
             sounding[k] = uint8_t(std::min(255, sounding[k] + struck[k]));
         }
+        uint8_t keys[voices];
+        voices_of(sounding, keys);
+        uint8_t attack = 0;
+        for (uint8_t v = 0; v < voices; ++v) {
+            if (keys[v] != 0 && (keys[v] != current[v] || struck[keys[v]] > 0)) {
+                attack |= uint8_t(1u << v);
+            }
+        }
         std::memset(struck, 0, sizeof(struck));
-
-        const bool change = (current >= 0 && high >= 0) ? (current != high || high_struck) : ((current >= 0) != (high >= 0));
-        if (!change) {
+        if (attack == 0 && std::memcmp(keys, current, voices) == 0) {
             continue;
         }
         const uint32_t t = now_us();
-        const bool emit = current >= 0 && t > current_start;
-        const Note ended { current_start, t, uint8_t(current < 0 ? 0 : current) };
-        current = high;
+        const bool emitted = emit(t);
+        std::memcpy(current, keys, voices);
+        current_attack = attack;
         current_start = t;
-        if (emit) {
-            note = ended;
+        if (emitted) {
             return true;
         }
     }
     return false;
 }
 
+Chord Smoother::next(const Chord &chord) {
+    Chord out = chord;
+    const bool glued = played.keys[0] != 0 && played.end_us == chord.start_us;
+    if (glued && chord.end_us - chord.start_us < min_chord_us) {
+        std::memcpy(out.keys, played.keys, voices); // trop court : les mêmes notes continuent
+        out.attack = 0;
+    } else {
+        out.attack = 0;
+        for (uint8_t v = 0; v < voices; ++v) {
+            const uint8_t bit = uint8_t(1u << v);
+            const uint8_t before = glued ? played.keys[v] : 0;
+            // Refrappée par le fichier : la même note qu'à l'accord lu juste avant, avec une attaque
+            const bool restruck = (chord.attack & bit) && chord.keys[v] == raw.keys[v];
+            if (chord.keys[v] != 0 && (chord.keys[v] != before || restruck)) {
+                out.attack |= bit;
+            }
+        }
+    }
+    raw = chord;
+    played = out;
+    return out;
+}
+
 float note_frequency(uint8_t key) {
     return 440.f * std::exp2((float(key) - 69.f) / 12.f);
 }
 
-float note_speed(uint8_t key, float full_steps_per_mm, float max_speed) {
+float note_speed(uint8_t key, float full_steps_per_mm, float max_speed, float min_speed) {
     if (!(full_steps_per_mm > 0.f) || !(max_speed > 0.f) || !std::isfinite(full_steps_per_mm)) {
         return 0.f;
     }
@@ -324,26 +365,49 @@ float note_speed(uint8_t key, float full_steps_per_mm, float max_speed) {
     while (v > max_speed) {
         v /= 2.f;
     }
+    while (v < min_speed && v * 2.f <= max_speed) {
+        v *= 2.f;
+    }
     return v;
 }
 
-int32_t Swing::step(int32_t &remaining_um, int32_t max_um) {
-    if (bound == 0 || max_um <= 0) {
-        remaining_um = 0; // aucune course possible : la note est sautée
-        return 0;
-    }
-    while (remaining_um > 0) {
-        const int32_t room = dir > 0 ? bound - pos : pos + bound;
-        if (room <= 0) {
-            dir = -dir;
+float chord_step(VoiceMotion (&m)[voices], const float (&speed)[voices], float remaining_s, float max_s, int32_t (&d)[voices]) {
+    float dt = std::min(remaining_s, max_s);
+    int32_t room[voices] = {};
+    int limit = -1; // la voix qui touche sa borne la première
+    bool active = false;
+    for (uint8_t v = 0; v < voices; ++v) {
+        d[v] = 0;
+        if (!(speed[v] > 0.f) || m[v].bound <= 0) {
             continue;
         }
-        const int32_t length = std::min({ remaining_um, room, max_um });
-        pos += dir * length;
-        remaining_um -= length;
-        return dir * length;
+        active = true;
+        const auto room_of = [&] { return m[v].dir > 0 ? m[v].bound - m[v].pos : m[v].pos + m[v].bound; };
+        room[v] = room_of();
+        if (room[v] <= 0) { // demi-tour à la borne
+            m[v].dir = int8_t(-m[v].dir);
+            room[v] = room_of();
+        }
+        if (const float t = float(room[v]) / speed[v]; t < dt) {
+            dt = t;
+            limit = v;
+        }
     }
-    return 0;
+    if (!active || !(dt > 0.f)) {
+        return 0.f;
+    }
+    for (uint8_t v = 0; v < voices; ++v) {
+        if (!(speed[v] > 0.f) || m[v].bound <= 0) {
+            continue;
+        }
+        int32_t length = v == limit ? room[v] : std::min<int32_t>(room[v], int32_t(std::lround(speed[v] * dt)));
+        if (room[v] - length <= 1) {
+            length = room[v]; // à 1 µm près, à la borne : deux voix égales (Mélodie : A et B) restent ensemble
+        }
+        d[v] = m[v].dir * length;
+        m[v].pos += d[v];
+    }
+    return dt;
 }
 
 } // namespace od3d::music

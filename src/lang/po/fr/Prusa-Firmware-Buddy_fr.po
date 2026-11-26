@@ -13155,3 +13155,19 @@ msgstr "Touchez un objet"
 #, c-format
 msgid "Cancel object %s? It will not be printed any more. This cannot be undone."
 msgstr "Annuler l'objet %s ? Il ne sera plus imprimé. C'est définitif."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Voices"
+msgstr "Voix"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "3 voices"
+msgstr "3 voix"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "2 voices"
+msgstr "2 voix"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Melody"
+msgstr "Mélodie"

@@ -152,7 +152,9 @@ FONTS = [
     Font(11, 18, 'regular', 'latin_and_cyrillic'),
     Font(11, 18, 'regular', 'latin_and_katakana'),
     Font(11, 19, 'bold', 'full'),
+    Font(11, 19, 'bold', 'latin_and_accents'),
     Font(13, 22, 'bold', 'full'),
+    Font(13, 22, 'bold', 'latin_and_accents'),
     Font(30, 53, 'bold', 'digits'),
 ]
 

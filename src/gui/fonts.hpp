@@ -44,9 +44,17 @@ inline constexpr const font_t &font_regular_9x16 = font_data::regular_9x16_latin
 inline constexpr const font_t &font_regular_11x18 = font_data::regular_11x18_latin_and_accents;
     #endif
 #else
+    // OneDrop3D (place) : sans le japonais ni l'ukrainien (TRANSLATIONS_LIST=fr), le jeu latin + accents de la MINI,
+    // 53 Ko de moins ; les versions de Prusa (toutes les langues) gardent le jeu complet
+    #if ENABLE_TRANSLATION_JA() || ENABLE_TRANSLATION_UK()
 inline constexpr const font_t &font_regular_9x16 = font_data::regular_9x16_full;
 inline constexpr const font_t &font_bold_11x19 = font_data::bold_11x19_full;
 inline constexpr const font_t &font_bold_13x22 = font_data::bold_13x22_full;
+    #else
+inline constexpr const font_t &font_regular_9x16 = font_data::regular_9x16_latin_and_accents;
+inline constexpr const font_t &font_bold_11x19 = font_data::bold_11x19_latin_and_accents;
+inline constexpr const font_t &font_bold_13x22 = font_data::bold_13x22_latin_and_accents;
+    #endif
 inline constexpr const font_t &font_bold_30x53 = font_data::bold_30x53_digits;
 #endif
 

@@ -58,6 +58,10 @@ extern const FontData regular_9x16_latin_and_accents_data;
 inline constexpr Font regular_9x16_latin_and_accents { 9, 16, &regular_9x16_latin_and_accents_data };
 extern const FontData regular_11x18_latin_and_accents_data;
 inline constexpr Font regular_11x18_latin_and_accents { 11, 18, &regular_11x18_latin_and_accents_data };
+extern const FontData bold_11x19_latin_and_accents_data;
+inline constexpr Font bold_11x19_latin_and_accents { 11, 19, &bold_11x19_latin_and_accents_data };
+extern const FontData bold_13x22_latin_and_accents_data;
+inline constexpr Font bold_13x22_latin_and_accents { 13, 22, &bold_13x22_latin_and_accents_data };
 
 extern const FontData regular_7x13_latin_and_katakana_data;
 inline constexpr Font regular_7x13_latin_and_katakana { 7, 13, &regular_7x13_latin_and_katakana_data };

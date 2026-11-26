@@ -30,7 +30,7 @@
 | **CORE One L INDX** | `coreonel_indx_release_boot_8.0.3_OD3D.<n>.bbf` | built and tested by CI for every release, not yet tried on a machine |
 | MK4, MK3.5, MK3.9, XL, MINI | — | not supported |
 
-- INDX versions have no MMU3: Prusa's tool changer takes its place.
+- INDX versions have no MMU3: Prusa's tool changer takes its place. Accelerometer measurements pick a head by themselves there, since the accelerometer sits in the head. OneDrop3D's load cell calibrations (assistant, per-spool PA, maximum flow) and OneDrop3D collision detection are made for the MMU3: the INDX keeps Prusa's own.
 - Accelerometer measurements (belts, input shaper…) need an accelerometer. A printer without one keeps every other feature.
 
 ## Screens

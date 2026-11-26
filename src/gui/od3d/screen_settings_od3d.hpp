@@ -25,6 +25,7 @@
 #include <option/has_mmu2.h>
 #include <option/has_switchable_auto_retract.h>
 #include <option/has_touch.h>
+#include <option/has_wastebin_fill_tracking.h>
 #if HAS_TOUCH()
     #include <MItem_touch.hpp>
 #endif
@@ -37,6 +38,9 @@ class ScreenSetPrinting final : public BasicScreenMenu<
                                     MI_STUCK_FILAMENT_DETECTION,
 #endif
                                     MI_GCODE_INTERRUPTS, MI_CRASH_DETECTION, MI_FAN_CHECK, MI_GCODE_VERIFY,
+#if HAS_WASTEBIN_FILL_TRACKING() // INDX : le nettoyeur de buse, à sa place chez Prusa (revue INDX du 26/11)
+                                    MI_WASTEBIN,
+#endif
 #if HAS_SWITCHABLE_AUTO_RETRACT()
                                     MI_AUTO_RETRACT_ENABLE,
 #endif

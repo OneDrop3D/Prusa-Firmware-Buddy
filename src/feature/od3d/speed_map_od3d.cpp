@@ -66,6 +66,7 @@ namespace {
         if (axes_need_homing()) {
             return Status::not_homed;
         }
+        accel::take_head(); // INDX : la tête dont l'accéléromètre mesure ; rien ailleurs
         const float z_floor = std::min(std::max(min_z, planner.max_printed_z + above_print), soft_endstop.max.z - 1.f);
         if (current_position.z < z_floor) {
             do_blocking_move_to_z(z_floor, travel_speed_z);

@@ -5,9 +5,11 @@
 #include "screen_files_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "sleep_gui_od3d.hpp"
-#include "value_editor_od3d.hpp"
+#include "menu_items_od3d.hpp"
 
 #include <algorithm>
+#include <array>
+#include <basic_screen_menu.hpp>
 #include <common/gcode/gcode_info.hpp>
 #include <common/gcode/gcode_info_scan.hpp>
 #include <common/marlin_server_shared.h>
@@ -18,6 +20,7 @@
 #include <ctime>
 #include <display.hpp>
 #include <display_helper.h>
+#include <feature/od3d/speed_mode_od3d.hpp>
 #include <feature/print_status_message/print_status_message_formatter_buddy.hpp>
 #include <feature/print_status_message/print_status_message_mgr.hpp>
 #include <gui/event/gui_event.hpp>
@@ -699,17 +702,50 @@ void ScreenPrinting::reprint() {
     marlin_client::print_start(GCodeInfo::getInstance().GetGcodeFilepath(), marlin_client::PreviewSkipIfAble::preview, marlin_client::ResetToolMapping::no);
 }
 
-void ScreenPrinting::on_speed() {
-    // Éditeur de valeur commun (value_editor_od3d.hpp), appliqué à chaque pas comme dans la maquette
-    static constexpr NumericInputConfig config = {
-        .min_value = 50,
-        .max_value = 200,
-        .step = 5,
-        .unit = Unit::percent,
+namespace {
+
+    /// Libellés des modes de vitesse (speed_mode_od3d.hpp), dans l'ordre de speed_mode::Mode
+    constexpr std::array<const char *, speed_mode::percents.size()> mode_labels {
+        N_("Quiet\n80%, quieter fans"),
+        N_("Normal\n100%"),
+        N_("Fast\n130%"),
+        N_("Very fast\n160%"),
+        N_("Ultra fast\n250%"),
     };
-    ValueEditor::exec(_("Speed"), marlin_vars().print_speed, config, [](float v) {
-        marlin_client::set_print_speed(static_cast<uint16_t>(v));
-    });
+
+    /// Un mode : sa vitesse tout de suite, et les ventilateurs bridés pour Silencieux seulement
+    template <speed_mode::Mode M>
+    class MI_SPEED_MODE final : public IWindowMenuItem {
+    public:
+        MI_SPEED_MODE()
+            : IWindowMenuItem(_(mode_labels[std::to_underlying(M)])) {}
+
+        void click(IWindowMenu &) override {
+            marlin_client::set_print_speed(speed_mode::percent(M));
+            speed_mode::quiet = (M == speed_mode::Mode::quiet);
+            Screens::Access()->close_screen();
+        }
+    };
+
+    /// « Vitesse » : les modes, puis le réglage à la main de Prusa (MI_SPEED, 10 à 300 % ; le nôtre s'arrêtait à 200)
+    class ScreenSpeedModes final : public BasicScreenMenu<MI_SPEED_MODE<speed_mode::Mode::quiet>, MI_SPEED_MODE<speed_mode::Mode::normal>,
+                                       MI_SPEED_MODE<speed_mode::Mode::fast>, MI_SPEED_MODE<speed_mode::Mode::faster>, MI_SPEED_MODE<speed_mode::Mode::fastest>, MI_SPEED> {
+    public:
+        ScreenSpeedModes()
+            : BasicScreenMenu(_("Speed")) {}
+    };
+
+} // namespace
+
+MI_SPEED_MODES::MI_SPEED_MODES()
+    : IWindowMenuItem(_("Speed\nModes, or set by hand"), &img::speed_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
+
+void MI_SPEED_MODES::click(IWindowMenu &) {
+    open_screen<ScreenSpeedModes>();
+}
+
+void ScreenPrinting::on_speed() {
+    open_screen<ScreenSpeedModes>(); // retour du 26/11 : des modes, et plus de 200 % à la main
 }
 
 void ScreenPrinting::on_live_z() {

@@ -180,6 +180,10 @@ add_executable(mmu_speed_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/mmu_speed_test.c
 target_include_directories(mmu_speed_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(mmu_speed_od3d_tests)
 
+add_executable(speed_mode_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/speed_mode_test.cpp)
+target_include_directories(speed_mode_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+add_catch_test(speed_mode_od3d_tests)
+
 add_executable(tip_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/tip_test.cpp)
 target_include_directories(tip_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
 add_catch_test(tip_od3d_tests)

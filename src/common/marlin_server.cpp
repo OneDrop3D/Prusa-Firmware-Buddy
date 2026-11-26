@@ -12,6 +12,7 @@
 #include <feature/od3d/lookahead_od3d.hpp> // OneDrop3D (F26)
 #include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
 #include <feature/od3d/mesh_memory_od3d.hpp> // OneDrop3D (F44)
+#include <feature/od3d/speed_mode_od3d.hpp> // OneDrop3D (retour du 26/11) : modes de vitesse
 #include <mapi/parking.hpp>
 #include <mapi/feedrates/standard_feedrates.hpp>
 #include "marlin_client_events.hpp"
@@ -1193,6 +1194,7 @@ static void cleanup_print(ResetToolMapping reset_tool_mapping = ResetToolMapping
 /// To be called when the printer goes from printing -> not printing end state (finished, aborted, ...)
 /// Executes all the print finishing touches
 void static finalize_print(bool finished) {
+    od3d::speed_mode::quiet = false; // OneDrop3D (retour du 26/11) : le mode Silencieux ne vaut que pour cette impression
 #if HAS_FILAMENT_TRACKER() && HAS_MMU2()
     od3d::spool_usage::on_print_end(); // OneDrop3D (F13) : poids des bobines et dernière impression
 #endif

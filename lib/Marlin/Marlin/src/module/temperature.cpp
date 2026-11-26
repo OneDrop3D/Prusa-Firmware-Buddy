@@ -76,6 +76,7 @@
 #endif
 
 #include <feature/print_status_message/print_status_message_guard.hpp>
+#include <feature/od3d/speed_mode_od3d.hpp> // OneDrop3D (retour du 26/11) : mode Silencieux
 #include <i18n.h>
 #include <option/has_chamber_api.h>
 #if HAS_CHAMBER_API()
@@ -493,7 +494,9 @@ void Temperature::manage_fans() {
     // takes effect once, end-to-end. Default is identity; NoTool -> DummyHotend -> identity, so this
     // is a no-op until a hotend installs a mapping.
     const Hotend &print_hotend = Hotend::for_tool(PhysicalToolIndex::currently_selected());
-    analogWrite(FAN0_PIN, print_hotend.config().print_fan_pwm_mapping(print_hotend, PWM255 { applied_print_fan_speed }).value);
+    // OneDrop3D (retour du 26/11) : mode Silencieux, ventilateur de pièce bridé (G-code, menu et ventilation anticipée)
+    const uint8_t print_fan_pwm = od3d::speed_mode::print_fan_pwm(applied_print_fan_speed, od3d::speed_mode::quiet.load(std::memory_order_relaxed));
+    analogWrite(FAN0_PIN, print_hotend.config().print_fan_pwm_mapping(print_hotend, PWM255 { print_fan_pwm }).value);
   #endif
   #if HAS_FAN1
     analogWrite(FAN1_PIN, applied_fan_speed[1]);

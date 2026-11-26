@@ -43,6 +43,7 @@
 #if HAS_CANCEL_OBJECT()
     #include <gui/screen/screen_cancel_objects.hpp>
 #endif
+#include <gui/od3d/menu_items_od3d.hpp> // OneDrop3D : Vitesse (modes)
 
 /*****************************************************************************/
 // parent alias
@@ -58,7 +59,7 @@ using ScreenMenuTune__ = ScreenMenu<EFooter::On, MI_RETURN,
 #if HAS_CANCEL_OBJECT()
     MI_CO_CANCEL_OBJECT,
 #endif
-    MI_SPEED,
+    od3d::MI_SPEED_MODES, // OneDrop3D (retour du 26/11) : modes de vitesse, puis MI_SPEED à la main (10 à 300 %)
     MI_NOZZLE_TARGET_TEMP,
     MI_HEATBED,
 #if HAS_CHAMBER_API()

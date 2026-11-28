@@ -4,11 +4,14 @@
 #include <config_store/store_instance.hpp>
 #include <cstring>
 #include <filament.hpp>
+#include <logging/log.hpp>
 #include <module/prusa/spool_join.hpp>
 #include <module/prusa/tool_mapper.hpp>
 #include <option/has_mmu2.h>
 #include <tool_index.hpp>
 #include <variant>
+
+LOG_COMPONENT_REF(MMU2);
 
 namespace od3d {
 
@@ -31,6 +34,12 @@ namespace {
         }
         const FilamentTypeParameters pa = ta.parameters(), pb = tb.parameters();
         return strcmp(pa.name.data(), pb.name.data()) == 0 && pa.color.has_value() && pb.color.has_value() && *pa.color == *pb.color;
+    }
+
+    /// Même matière, les deux connues (une règle manuelle peut changer de couleur, jamais de matière)
+    bool same_material(VirtualToolIndex a, VirtualToolIndex b) {
+        const FilamentType ta = FilamentType::for_tool(a), tb = FilamentType::for_tool(b);
+        return ta && tb && strcmp(ta.parameters().name.data(), tb.parameters().name.data()) == 0;
     }
 
     void apply_automatic_joins() {
@@ -74,6 +83,12 @@ void apply_persistent_spool_joins() {
         }
         const auto to = VirtualToolIndex::from_raw(target);
         if (used_by_print(spool_join.get_first_spool_1_from_chain(slot)) && !used_by_print(to)) {
+            // MAT-1 : une autre matière finirait la pièce à la température de la première (réglée quand les deux bobines
+            // étaient pareilles, l'emplacement a changé depuis)
+            if (!same_material(slot, to)) {
+                log_warning(MMU2, "Spool join %u -> %u skipped: other material", unsigned(slot.to_raw() + 1), unsigned(target + 1));
+                continue;
+            }
             spool_join.add_join(slot, to); // refuse seul les boucles, les doublons et les emplacements désactivés
         }
     }

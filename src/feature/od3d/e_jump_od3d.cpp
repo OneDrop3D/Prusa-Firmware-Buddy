@@ -258,7 +258,6 @@ const LastRun &last_run() {
 }
 
 void calibrate(uint8_t slot) {
-    stop_requested = false;
     st_slot = slot;
     st_step = 0;
     st_steps = 0;
@@ -266,7 +265,12 @@ void calibrate(uint8_t slot) {
     st_temperature = 0;
     st_error = Error::none;
     st_phase = Phase::preparing;
-    ScopeGuard count_run = [] { ++runs; }; // après l'état : l'interface lit l'état une fois runs changé
+    // Arrêt effacé à la fin, pas au départ (ECR-6) : un « Annuler » pendant que M2000 attend en file vaut pour cette
+    // mesure. Après l'état : l'interface lit l'état une fois runs changé
+    ScopeGuard count_run = [] {
+        stop_requested = false;
+        ++runs;
+    };
 
     if (marlin_server::is_printing() || !marlin_server::printer_idle()) {
         fail(Error::printing);

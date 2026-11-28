@@ -247,6 +247,7 @@
     #include <feature/od3d/pa_od3d.hpp> // OneDrop3D (F4)
     #include <feature/od3d/collision_od3d.hpp> // OneDrop3D (F38)
     #include <feature/od3d/measure_session_od3d.hpp> // OneDrop3D : séries de l'assistant de calibration
+    #include <feature/od3d/calib_assistant_od3d.hpp>
 #endif
 #if HAS_CHAMBER_API()
     #include <feature/od3d/chamber_climate_od3d.hpp> // OneDrop3D (F29)
@@ -2449,6 +2450,7 @@ static void _server_print_loop(void) {
         od3d::filament_memory::on_print_start(server.print_is_serial || media_position() == 0);
 #endif
 #if HAS_LOADCELL() && HAS_MMU2()
+        od3d::calib_assistant::on_print_start(); // OneDrop3D : une série de l'assistant en pause finit (CAL-2)
         od3d::pa::on_print_start(!server.print_is_serial); // OneDrop3D (F4) : et mesure automatique du PA (M1994 A)
         od3d::collision::on_print_start(); // OneDrop3D (F38) : chocs oubliés, accéléromètre vérifié (tête à l'arrêt)
 #endif

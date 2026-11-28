@@ -689,7 +689,9 @@ namespace {
             }
             break;
         case Test::mmu_speed:
-            mmu_speed::request_stop(); // entre deux cycles
+            if (mmu_speed::is_running()) {
+                mmu_speed::request_stop(); // entre deux cycles
+            }
             break;
         default:
             break; // assistants de Prusa (input shaper, phase stepping) : leur écran a son « Annuler »
@@ -825,7 +827,17 @@ void clean_done() {
     start(current);
 }
 
+void on_print_start() {
+    if (running) {
+        bed_full = false;
+        start(current); // impression en cours : start() passe les étapes restantes et finit la série
+    }
+}
+
 void level_bed(uint8_t slot) {
+    if (slot >= VirtualToolIndex::count) {
+        return; // CAL-3 : from_raw() hors limites est un écran bleu (M1989 L9 tapé à la main)
+    }
     const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
     if (!running || !session::in_series() || session::mesh_ready() || marlin_server::is_printing() || !type) {
         return;

@@ -318,7 +318,7 @@ void ScreenNozzleExpansion::update() {
     }
 
     const bool idle = !now_running && !pending && !marlin_client::is_printing();
-    action.enable(now_running || pending || !marlin_client::is_printing());
+    action.enable(now_running || pending || (!marlin_client::is_printing() && !calibration_assistant_active())); // ECR-2 : accéléromètre peut-être sur la buse
     prusa_button.enable(idle && slope != comp::prusa_slope_mm_per_c);
 }
 

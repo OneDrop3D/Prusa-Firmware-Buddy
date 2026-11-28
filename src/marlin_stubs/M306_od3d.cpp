@@ -29,7 +29,7 @@
  *         impression). Enregistrée.
  * - `P` `C` `R` `A` `F` `H` - Paramètres du modèle, comme Marlin : puissance de la cartouche, capacité thermique du
  *         bloc, réactivité de la sonde, pertes ventilateur arrêté, pertes en plus ventilateur à 100 %, capacité
- *         thermique du filament par mm. Enregistrés ; s'ils ne sont pas valables, la régulation repasse en PID.
+ *         thermique du filament par mm. Enregistrés ; s'ils ne sont pas valables, refusés sans rien changer.
  *
  * Sans paramètre : affiche les paramètres, l'état de la calibration et la régulation en service.
  * Les protections thermiques de Prusa (emballement, MINTEMP/MAXTEMP, consigne maximale, ventilateur du
@@ -67,9 +67,11 @@ void PrusaGcodeSuite::M306() {
         if (parser.seenval('H')) {
             p.filament_heat_capacity_permm = parser.value_float();
         }
-        mpc::set_params(p);
-        if (!mpc::is_valid(p)) {
-            SERIAL_ECHO_MSG("?MPC parameters out of range: PID control");
+        // MAT-4 : refusés sans rien enregistrer, la calibration et la régulation en service restent
+        if (mpc::is_valid(p)) {
+            mpc::set_params(p);
+        } else {
+            SERIAL_ECHO_MSG("?MPC parameters out of range: not saved");
         }
     }
 

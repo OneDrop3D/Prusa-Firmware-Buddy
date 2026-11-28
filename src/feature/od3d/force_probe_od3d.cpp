@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <cstdlib>
 #include <heap.h>
+#include <Marlin.h>
 
 namespace od3d::force_probe {
 
@@ -185,6 +186,9 @@ bool write_csv(FILE *file, float label) {
     for (size_t i = 0; i < t.size(); ++i) {
         if (csv_printf(file, "D,%.4f,%.4f,%.2f,%.2f\n", double(label), double(float(i) * step), double(force::x_mm(t[i])), double(force::force_g(t[i]))) < 0) {
             return false;
+        }
+        if (i % 64 == 63) {
+            idle(true); // CAL-1 : jusqu'à 1 000 lignes sur une clé lente : régulation et chien de garde servis
         }
     }
     return true;

@@ -23,6 +23,7 @@ namespace {
     constexpr float square[3] = { 141.42f, 141.42f, 100.0f };
     float measures[3] = { square[0], square[1], square[2] };
     uint8_t measures_revision = 0;
+    uint8_t entered = 0; ///< mesures saisies depuis le dernier « Appliquer » (bit par mesure) : ECR-10
 
     constexpr const char *length_labels[3] = { N_("Diagonal AC"), N_("Diagonal BD"), N_("Side AD") };
 
@@ -84,6 +85,7 @@ void MI_SKEW_LENGTH::click(IWindowMenu &menu) {
     const NumericInputConfig &config = which == 2 ? side_config : diagonal_config;
     if (const auto value = ValueEditor::exec(_(length_labels[which]), measures[which], config, nullptr, nullptr, ValueEditor::row(menu, *this))) {
         measures[which] = *value;
+        entered |= uint8_t(1u << which);
         ++measures_revision;
         InValidateExtension();
     }
@@ -113,6 +115,11 @@ MI_SKEW_APPLY::MI_SKEW_APPLY()
     : IWindowMenuItem(_("Apply correction"), &img::ok_color_16x16, enabled_unless_printing(), is_hidden_t::no) {}
 
 void MI_SKEW_APPLY::click(IWindowMenu &) {
+    // ECR-10 : sans saisie, le carré d'équerre de départ enregistrait +0,000° et l'assistant croyait la mesure faite
+    if (entered != 0b111) {
+        MsgBoxWarning(_("Enter AC, BD and AD measured on the test piece first."), Responses_Ok);
+        return;
+    }
     const skew::Result result = measured();
     // La pièce a été imprimée avec la correction actuelle : l'écart mesuré est le reste, il s'y ajoute
     // (deux cisaillements s'additionnent). Pour repartir de zéro : « Remettre à zéro », puis réimprimer.
@@ -131,6 +138,7 @@ void MI_SKEW_APPLY::click(IWindowMenu &) {
     // Mesures consommées : un 2e « Appliquer » ajoutait encore l'écart (REV-1). Revenues au carré d'équerre (écart
     // nul, testé dans skew_od3d_test.cpp), elles attendent la pièce réimprimée ; la boîte refermée les redessine.
     std::copy(std::begin(square), std::end(square), measures);
+    entered = 0;
     ++measures_revision;
     char angle[16];
     format_degrees(total, angle, sizeof(angle));

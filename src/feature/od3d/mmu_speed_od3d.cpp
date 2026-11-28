@@ -38,6 +38,7 @@ namespace {
 
     Result finish(Result result) {
         measurement.result = result;
+        stop_requested = false; // à la fin, pas au départ (ECR-6) : un arrêt demandé en file vaut pour cette mesure
         running = false;
         publish();
         return result;
@@ -116,9 +117,7 @@ void forget() {
 }
 
 void request_stop() {
-    if (running) {
-        stop_requested = true;
-    }
+    stop_requested = true;
 }
 
 Saved saved() {
@@ -131,7 +130,6 @@ void plan_saved() {
 
 Result measure(uint8_t slot) {
     measurement = Measurement { .result = Result::running, .slot = slot };
-    stop_requested = false;
     if (marlin_server::is_printing()) {
         return finish(Result::refused_printing);
     }

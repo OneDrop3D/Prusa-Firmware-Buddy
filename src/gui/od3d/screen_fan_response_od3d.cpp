@@ -15,11 +15,37 @@
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
+#include <option/has_input_shaper_calibration.h>
+#include <option/has_manual_belt_tuning.h>
 #include <window_msgbox.hpp>
+#if HAS_INPUT_SHAPER_CALIBRATION() && HAS_MANUAL_BELT_TUNING()
+    #include <feature/od3d/vibration_od3d.hpp>
+#endif
 
 namespace od3d {
 
 namespace {
+
+    /// M2001 V : les vibrations des ventilateurs (~1 min) suivent le temps de montée dans la même commande ; l'écran
+    /// reste occupé jusqu'à leur fin (ECR-4)
+    bool vibration_running() {
+#if HAS_INPUT_SHAPER_CALIBRATION() && HAS_MANUAL_BELT_TUNING()
+        return fan_vibration::is_running();
+#else
+        return false;
+#endif
+    }
+
+    /// Arrête la partie de M2001 qui tourne (un arrêt donné à l'autre resterait pour sa prochaine mesure)
+    void stop_running() {
+#if HAS_INPUT_SHAPER_CALIBRATION() && HAS_MANUAL_BELT_TUNING()
+        if (fan_vibration::is_running()) {
+            fan_vibration::request_stop();
+            return;
+        }
+#endif
+        fan_response::request_stop();
+    }
 
     // Géométrie (zone des éléments : y 46 à 274)
     constexpr Rect16 panel_rect = Rect16(style::margin, style::top, 464, 60);
@@ -204,7 +230,7 @@ void ScreenFanResponse::show_info() {
 }
 
 void ScreenFanResponse::update() {
-    const bool now_running = fan_response::is_running();
+    const bool now_running = fan_response::is_running() || vibration_running();
     if (pending && (now_running || fan_response::run_count() != runs_at_request)) {
         pending = false;
     }
@@ -253,9 +279,9 @@ void ScreenFanResponse::windowEvent(window_t *sender, GUI_event_t event, void *p
     case GUI_event_t::CHILD_CLICK: {
         const uint8_t tag = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(param));
         if (tag == tag_action) {
-            if (fan_response::is_running() || pending) {
+            if (fan_response::is_running() || vibration_running() || pending) {
                 if (confirm_stop_measure()) { // pendant une série de l'assistant : il passe à la suivante
-                    fan_response::request_stop();
+                    stop_running();
                 }
             } else {
                 start();

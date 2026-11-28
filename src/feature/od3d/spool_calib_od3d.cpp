@@ -149,7 +149,6 @@ namespace {
 
     /// Début d'une mesure : état remis à zéro
     void begin(Kind kind, uint8_t slot) {
-        stop_requested = false;
         st_kind = kind;
         st_slot = slot;
         st_step = 0;
@@ -378,7 +377,12 @@ const LastRun &last_run() {
 
 void measure_flow(const FlowRequest &rq) {
     begin(Kind::flow, rq.slot);
-    ScopeGuard count_run = [] { ++runs; }; // après l'état : l'interface lit l'état une fois runs changé
+    // Arrêt effacé à la fin, pas au départ (ECR-6) : un « Annuler » pendant que M1995 attend en file vaut pour cette
+    // mesure. Après l'état : l'interface lit l'état une fois runs changé
+    ScopeGuard count_run = [] {
+        stop_requested = false;
+        ++runs;
+    };
 
     const FilamentType type = check_slot(rq.slot);
     if (!type) {
@@ -488,7 +492,10 @@ void measure_flow(const FlowRequest &rq) {
 
 void measure_temperature(const TempRequest &rq) {
     begin(Kind::temperature, rq.slot);
-    ScopeGuard count_run = [] { ++runs; };
+    ScopeGuard count_run = [] {
+        stop_requested = false; // à la fin, comme F5 (ECR-6)
+        ++runs;
+    };
 
     const FilamentType type = check_slot(rq.slot);
     if (!type) {

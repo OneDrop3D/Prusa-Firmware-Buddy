@@ -368,7 +368,8 @@ void ScreenSpoolCalib::update() {
     const bool ours = running || pending;
     const bool busy = ours || pa_running;
     const bool printing = marlin_client::is_printing();
-    const bool can_measure = !busy && !printing && loaded(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+    // ECR-2 : pas pendant l'assistant, l'accéléromètre peut être sur la buse
+    const bool can_measure = !busy && !printing && !calibration_assistant_active() && loaded(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
     flow_button.enable(can_measure);
     temp_button.enable(can_measure);
     if (ours != second_cancels) {

@@ -158,4 +158,9 @@ void clean_done();
 /// entier palpé pour la série s'il ne l'est pas encore, avant que du filament pende de la buse
 void level_bed(uint8_t slot);
 
+/// Départ d'une impression (marlin_server) : une série encore là (en pause « Plateau plein », écran quitté sans
+/// « Annuler ») finit, étapes restantes passées ; sinon les M701/M702 de l'impression se gareraient à sa purge réservée
+/// et « Couleur correcte ? » serait sauté (CAL-2)
+void on_print_start();
+
 } // namespace od3d::calib_assistant

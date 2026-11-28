@@ -396,8 +396,9 @@ void ScreenPa::update() {
 
     const bool busy = running || pending;
     const bool printing = marlin_client::is_printing();
-    // Pas pendant une mesure du débit ou de la température (F5, F6) : elle passerait après
-    const bool can_measure = !busy && !calib::is_running() && !printing && reachable(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
+    // Pas pendant une mesure du débit ou de la température (F5, F6) : elle passerait après ; ni pendant l'assistant
+    // (ECR-2 : la buse chaufferait avec l'accéléromètre fixé dessus)
+    const bool can_measure = !busy && !calib::is_running() && !printing && !calibration_assistant_active() && reachable(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot));
     measure_button.enable(can_measure);
     if (busy != second_cancels) {
         second_cancels = busy; // libellé changé seulement quand il le faut : pas de redessin à chaque passage

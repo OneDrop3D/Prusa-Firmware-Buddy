@@ -419,6 +419,11 @@ namespace {
             MsgBoxWarning(_("Not while printing."), Responses_Ok);
             return;
         }
+        if (marlin_vars().is_processing.get()) {
+            // ECR-1 : la série attendrait derrière un G-code long (musique, MPC, chargement) sans pouvoir s'annuler avant
+            MsgBoxWarning(_("Printer is busy. Please try repeating the action later."), Responses_Ok);
+            return;
+        }
         flow.session = session | mask;
         flow.mask = mask;
         flow.skip_index = 0xff;
@@ -1482,6 +1487,11 @@ void ScreenCalibAssistant::update() {
         assistant::request_skip(p.index); // l'étape pas encore commencée (chargement) s'arrêtera dès son début
     }
     if (running_stage && (flow.cancelled || skipping)) {
+        if (flow.cancelled && p.running) {
+            // À chaque tour (ECR-1) : annulé avant le départ de M1989 R (Marlin occupé) ou pendant un chargement, la
+            // série l'apprend dès qu'elle tourne, la mesure dès qu'elle commence
+            assistant::request_cancel();
+        }
         abort_prusa_wizard(); // à chaque tour : une phase sans « Abandonner » passe vite
     }
 

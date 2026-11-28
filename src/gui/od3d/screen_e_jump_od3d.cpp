@@ -250,7 +250,8 @@ void ScreenEJump::update() {
         action.set(ours ? Button::Look::outline : Button::Look::primary, ours ? _("Cancel") : _("Start"), ours ? &img::cancel_16x16 : &img::print_16x16);
     }
     const bool printing = marlin_client::is_printing();
-    action.enable(ours || (!running && !printing && loaded(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot))));
+    // ECR-2 : pas pendant l'assistant, l'accéléromètre peut être sur la buse
+    action.enable(ours || (!running && !printing && !calibration_assistant_active() && loaded(slot) && FilamentType::for_tool(VirtualToolIndex::from_raw(slot))));
     clear.enable(!running && !pending && e_jump::record(slot).has_jump());
 
     // Un élément désactivé ne garde pas le focus (le retour de l'en-tête, premier élément, ferait quitter l'écran)

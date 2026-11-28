@@ -422,7 +422,7 @@ void ScreenMpcCalibration::update() {
     }
 
     const bool busy = st.running || pending;
-    start_button.enable(!busy && !marlin_client::is_printing());
+    start_button.enable(!busy && !marlin_client::is_printing() && !calibration_assistant_active()); // ECR-2 : accéléromètre peut-être sur la buse
     cancel_button.enable(busy);
 
     // Un élément désactivé ne garde pas le focus : il va à « Annuler » au lancement, à « Calibrer » à la fin, pas au

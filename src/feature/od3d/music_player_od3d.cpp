@@ -241,8 +241,12 @@ namespace {
 } // namespace
 
 void play(uint8_t motors_override) {
-    stop_requested = false;
-    ScopeGuard count_run = [] { ++runs; }; // après last_status : l'interface lit l'état une fois runs changé
+    // Arrêt effacé à la fin, pas au départ (ECR-6) : un « Arrêter » pendant que M1991 attend en file vaut pour ce
+    // morceau. Après last_status : l'interface lit l'état une fois runs changé
+    ScopeGuard count_run = [] {
+        stop_requested = false;
+        ++runs;
+    };
     if (marlin_server::is_printing() || !marlin_server::printer_idle()) {
         last_status = Status::printing;
         return;

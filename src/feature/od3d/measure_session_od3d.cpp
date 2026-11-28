@@ -345,6 +345,9 @@ float Session::smooth_time() const {
 Result Session::heat_bed(int16_t bed, int16_t nozzle_probe) {
     hotend().set_nozzle_target_temp(nozzle_probe); // la buse va à sa température de palpage pendant ce temps
     thermalManager.setTargetBed(bed);
+    if (bed <= 0) {
+        return Result::ok; // CAL-5 : matière sans plateau chauffé, rien à attendre (sinon 12 min puis échec)
+    }
     const uint32_t start = ticks_ms();
     std::optional<uint32_t> inside_since;
     while (true) {

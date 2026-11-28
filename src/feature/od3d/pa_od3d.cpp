@@ -391,15 +391,20 @@ namespace {
             }
             force_probe::stop();
             result = analyse_block(force_probe::trace(), force_probe::dt(), prof, wave);
-            if (csv) {
-                std::ignore = force_probe::write_csv(csv, k);
-            }
         }
 
         if (!lines.reversed(index) && !print_marks(session, lines, index, e_mm, z)) {
             return false;
         }
         session.retract();
+        if (csv) {
+            // CAL-1 : la trace (12 à 30 Ko) s'écrit buse rétractée et levée, sinon une goutte au bout de la ligne ; elle
+            // reste valable jusqu'au prochain force_probe::start()
+            if (!session.move_z(z + session::hop)) {
+                return false;
+            }
+            std::ignore = force_probe::write_csv(csv, k);
+        }
         return true;
     }
 
@@ -738,10 +743,15 @@ namespace {
 
 void calibrate(const Request &rq, bool load_tried) {
     followup = false;
-    if (!load_tried) {
-        stop_requested = false; // J1 : un « Annuler » pendant le chargement vaut pour cette suite
-    }
-    ScopeGuard count_run = [] { ++runs; }; // après l'état : l'interface lit l'état une fois runs changé
+    // Arrêt effacé à la fin, pas au départ (ECR-6) : un « Annuler » pendant que M1994 attend en file vaut pour cette
+    // mesure ; gardé pour la suite J1 en file derrière le chargement. Après l'état : l'interface lit l'état une fois
+    // runs changé
+    ScopeGuard count_run = [] {
+        if (!followup) {
+            stop_requested = false;
+        }
+        ++runs;
+    };
     begin(rq.slot);
     if (load_tried && before_load) {
         // Consignes remises comme avant le chargement de Prusa (il laisse la buse chaude) : la session les remettra à la fin
@@ -768,8 +778,8 @@ void calibrate(const Request &rq, bool load_tried) {
     }
     // En un clic : la bobine est chargée par le MMU si elle n'est pas dans la buse ; jamais avec un MMU en erreur
     const bool in_nozzle = loaded_slot() == rq.slot;
-    if (load_tried && stop_requested) {
-        fail(Error::stopped); // annulé pendant le chargement
+    if (stop_requested) {
+        fail(Error::stopped); // annulé en file ou pendant le chargement : rien n'est chargé ni chauffé
         return;
     }
     if (!in_nozzle && load_tried) {

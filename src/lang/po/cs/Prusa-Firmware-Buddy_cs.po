@@ -13724,3 +13724,23 @@ msgid ""
 msgstr ""
 "Hardware\n"
 "Dvířka, řemeny, input shaper"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Calibrate the docks and the tool offsets first: Control > Calibrations & "
+"Tests."
+msgstr ""
+"Nejprve zkalibrujte doky a offset nástrojů: Ovládání > Kalibrace a testy."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+#, c-format
+msgid "Accel. %d tests ~%d min"
+msgstr "Akcel. %d test. ~%d min"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Printer calibration\n"
+"Assistant, belts, chamber climate"
+msgstr ""
+"Kalibrace tiskárny\n"
+"Asistent, řemeny, klima komory"

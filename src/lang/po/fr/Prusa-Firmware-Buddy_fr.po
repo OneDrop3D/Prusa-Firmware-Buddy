@@ -13287,3 +13287,16 @@ msgstr "Déchargement de la tête %d"
 #: src/gui/screen_menu_settings.cpp
 msgid "Hardware\nDoor, belts, input shaper"
 msgstr "Matériel\nPorte, courroies, input shaper"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Calibrate the docks and the tool offsets first: Control > Calibrations & Tests."
+msgstr "Calibrez d'abord les docks et les décalages des outils : Contrôle > Calibrations & Tests."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+#, c-format
+msgid "Accel. %d tests ~%d min"
+msgstr "Accél. %d tests ~%d min"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Printer calibration\nAssistant, belts, chamber climate"
+msgstr "Calibrage de l'imprimante\nAssistant, courroies, climat chambre"

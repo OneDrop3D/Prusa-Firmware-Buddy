@@ -14050,3 +14050,24 @@ msgid ""
 msgstr ""
 "Hardware\n"
 "Tür, Riemen, Input Shaper"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Calibrate the docks and the tool offsets first: Control > Calibrations & "
+"Tests."
+msgstr ""
+"Kalibrieren Sie zuerst die Docks und die Werkzeug-Offsets: Steuerung > "
+"Kalibrierung & Tests."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+#, c-format
+msgid "Accel. %d tests ~%d min"
+msgstr "Beschl. %d Tests ~%d Min."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Printer calibration\n"
+"Assistant, belts, chamber climate"
+msgstr ""
+"Druckerkalibrierung\n"
+"Assistent, Riemen, Kammerklima"

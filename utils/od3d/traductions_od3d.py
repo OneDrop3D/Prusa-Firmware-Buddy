@@ -9,6 +9,8 @@ s'y affichent en anglais. Ce script :
   ajouter <langue> <traductions.json> <manquants.json>
                                      contrôle puis ajoute les traductions à la fin du .po de la langue
   etat                               nombre de textes manquants par langue (code de sortie 0)
+  controle                           formats printf et caractères de toutes les entrées des 6 .po (CI) : échoue
+                                     sur nos entrées (celles du .po fr absentes du .pot), signale celles de Prusa
 
 Contrôles : mêmes formats printf (%d, %s, %.1f…) dans le même ordre que l'anglais, que des caractères
 déjà dessinés par la police « latin + accents » (font.py la construit à partir des .po de ces langues :
@@ -38,12 +40,18 @@ def charger(langue):
 
 
 def caracteres_permis():
-    # Ceux de font.py (latin_and_accents_chars) : les .po des langues accentuées et l'ASCII imprimable
-    permis = set(chr(c) for c in range(0x20, 0x7f)) | set('°\n')
-    for langue in ['cs', 'de', 'es', 'fr', 'it', 'pl']:
-        for e in charger(langue):
-            permis.update(ch for ch in e.msgid + e.msgstr if ch.isprintable())
-    return permis
+    # Ceux que font.py sait dessiner : imprimables (une espace insécable n'a pas d'image : « ? » à l'écran) et dans les
+    # rangées des png de la police, U+0020 à U+024F (« ¯ » et « ȷ » y sont vides). Les guillemets “ ” „, « … » et les
+    # tirets – — n'y sont pas : la compilation échouerait (font.py, « no glyph »)
+    return {chr(c) for c in range(0x20, 0x250) if chr(c).isprintable()} - set('¯ȷ') | {'\n'}
+
+
+def formats(msgid, texte, c_format):
+    # Ce que formatted() lit dans l'ordre (vsnprintf, un paramètre à la fois) : le type de chaque conversion, sans
+    # drapeaux ni largeurs (« %1$s » reste « %$s » : FormatBuilder ne lit pas les positions). Un texte qui a un format
+    # passe par printf même sans « c-format » : « 80 % de » y lirait un %d
+    f = FORMAT if c_format or TEXTE.search(msgid) else TEXTE
+    return [re.sub(r'[-+ 0#.\d]', '', m) for m in f.findall(texte)]
 
 
 def place(e):
@@ -83,7 +91,7 @@ def verifier(langue, traductions, entrees):
             erreurs.append(f"{e['id']} : vide")
             continue
         f = FORMAT if e['c_format'] else TEXTE
-        if f.findall(s) != f.findall(e['msgid']):
+        if f.findall(s) != f.findall(e['msgid']) or formats(e['msgid'], s, e['c_format']) != formats(e['msgid'], e['msgid'], e['c_format']):
             erreurs.append(f"{e['id']} : formats {f.findall(s)} au lieu de {f.findall(e['msgid'])}")
         hors = sorted(set(ch for ch in s if ch not in permis))
         if hors:
@@ -111,6 +119,36 @@ def ajouter(langue, traductions, entrees):
     po.write_text(texte, encoding='utf-8')
 
 
+def controle():
+    # Un format déplacé fait lire un entier comme une adresse (écran bleu) ; un caractère sans image casse la compilation
+    pot = {e.msgid for e in polib.pofile(str(PO / 'Prusa-Firmware-Buddy.pot'))}
+    nos = {e.msgid for e in charger('fr')} - pot
+    permis = caracteres_permis()
+    erreurs = avis = 0
+    for langue in ['cs', 'de', 'es', 'fr', 'it', 'pl']:
+        for e in charger(langue):
+            if not e.msgstr or e.obsolete or e.fuzzy:  # msgfmt ne compile pas les « fuzzy »
+                continue
+            c = 'c-format' in e.flags
+            pb = []
+            if formats(e.msgid, e.msgstr, c) != formats(e.msgid, e.msgid, c):
+                pb.append(f'formats {formats(e.msgid, e.msgstr, c)} au lieu de {formats(e.msgid, e.msgid, c)}')
+            hors = sorted(set(e.msgstr) - permis)
+            if hors:
+                pb.append(f'caractères absents de la police {hors}')
+            ligne = '« ' + e.msgid.replace('\n', '\\n') + ' » → « ' + e.msgstr.replace('\n', '\\n') + ' »'
+            for p in pb:
+                if e.msgid in nos:
+                    erreurs += 1
+                    print(f'::error::{langue} : {p} : {ligne}')
+                else:
+                    avis += 1
+                    print(f'::warning::{langue} (texte de Prusa) : {p} : {ligne}')
+    print(f'{erreurs} erreurs dans nos textes, {avis} dans ceux de Prusa')
+    if erreurs:
+        sys.exit(1)
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -119,6 +157,8 @@ def main():
         for langue in LANGUES:
             print(f'{langue} : {len(manquants(langue))} textes OneDrop3D sans traduction')
         return
+    if cmd == 'controle':
+        return controle()
     langue = sys.argv[2]
     if cmd == 'manquants':
         Path(sys.argv[3]).write_text(json.dumps(manquants(langue), ensure_ascii=False, indent=1), encoding='utf-8')

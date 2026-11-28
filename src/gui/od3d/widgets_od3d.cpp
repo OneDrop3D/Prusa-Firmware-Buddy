@@ -656,7 +656,10 @@ void IconCard::draw_content(Rect16 body) {
     const int16_t x = t.Left() + t.Width() + 5;
     const uint16_t w = body.Left() + body.Width() - x;
     // Textes jusqu'au bord droit : leur fond s'arrête avant les coins arrondis
-    draw_text(layout::clear_of_corners(body, radius, Rect16(x, body.Top() + 7, w, height(Font::normal))), title, Font::normal, style::text_strong, fill());
+    const Rect16 title_rect = layout::clear_of_corners(body, radius, Rect16(x, body.Top() + 7, w, height(Font::normal)));
+    // En petit s'il ne tient pas en gras (« Steuerung », « Sterowanie » : 9 et 10 caractères pour 8)
+    const Font title_font = title.computeNumUtf8Chars() * width(Font::normal) <= title_rect.Width() ? Font::normal : Font::small;
+    draw_text(title_rect, title, title_font, style::text_strong, fill());
     draw_text(layout::clear_of_corners(body, radius, Rect16(x, body.Top() + 27, w, height(Font::small))), subtitle, Font::small, style::text_muted, fill());
 }
 
@@ -1046,11 +1049,13 @@ namespace {
 
     /// L'alerte tient-elle en entier dans rect (deux lignes à la police small) ?
     bool notice_fits(Rect16 rect) {
-        const char *second = strchr(notice_text.data(), '\n');
-        const size_t first_len = second ? size_t(second - notice_text.data()) : strlen(notice_text.data());
-        const size_t second_len = second ? strlen(second + 1) : 0;
-        // Octets, pas caractères : un accent compte double, l'alerte attend alors un titre plus large (sans danger)
-        return rect.Height() >= 2 * height(Font::small) && std::max(first_len, second_len) * width(Font::small) <= size_t(rect.Width());
+        // Caractères de la ligne la plus longue (UTF-8 : « č » compte pour un, pas deux)
+        size_t longest = 0, chars = 0;
+        for (const char *p = notice_text.data(); *p; ++p) {
+            chars = *p == '\n' ? 0 : chars + ((*p & 0xC0) != 0x80);
+            longest = std::max(longest, chars);
+        }
+        return rect.Height() >= 2 * height(Font::small) && longest * width(Font::small) <= size_t(rect.Width());
     }
 } // namespace
 
@@ -1241,14 +1246,16 @@ void TabBar::Button::unconditionalDraw() {
     const Rect16 r = GetRect();
     const Rect16 area(r.Left(), r.Top() + marker_h, r.Width(), r.Height() - marker_h); // la bande du repère est au Marker
     const Rect16 glyph(r.Left() + (r.Width() - icon.w) / 2, r.Top() + 6, icon.w, icon.h);
-    const Rect16 text(r.Left() + 10, r.Top() + 24, r.Width() - 20, height(Font::small));
+    // 11 caractères dans la pastille ; au-delà (« Einstellungen » : 13), toute la largeur de l'onglet, la pastille suit
+    const bool wide = label.computeNumUtf8Chars() * width(Font::small) > r.Width() - 20;
+    const Rect16 text = wide ? Rect16(r.Left() + 1, r.Top() + 24, r.Width() - 2, height(Font::small)) : Rect16(r.Left() + 10, r.Top() + 24, r.Width() - 20, height(Font::small));
     const Rect16 inner[] = { glyph, text };
     // Ciblé à la molette : une pastille plus claire dans la case (la barre n'a pas de marge). D'une passe : la barre
     // autour de la pastille, la pastille autour de l'icône et du libellé (avant : tout l'onglet uni, puis le reste)
     const Color bg = IsFocused() ? style::surface : style::tab_bar;
     const auto fill_bar = [](Rect16 g) { display::fill_rect(g, style::tab_bar); };
     if (IsFocused()) {
-        const Rect16 pill(r.Left() + 6, r.Top() + 4, r.Width() - 12, r.Height() - 5);
+        const Rect16 pill = wide ? Rect16(r.Left() + 1, r.Top() + 4, r.Width() - 2, r.Height() - 5) : Rect16(r.Left() + 6, r.Top() + 4, r.Width() - 12, r.Height() - 5);
         style::for_each_gap(area, std::span<const Rect16>(&pill, 1), fill_bar);
         draw_rounded_frame(pill, style::tab_bar, bg, bg, radius, 0, inner);
     } else {
@@ -1318,5 +1325,13 @@ TabBar::TabBar(window_t *parent, Tab active)
         { parent, Tab::workshop, active },
         { parent, Tab::settings, active },
     } {}
+
+void TabBar::hide() {
+    line.Hide();
+    for (Button &b : buttons) {
+        b.Hide();
+        b.Disable(); // caché, il recevait encore le toucher
+    }
+}
 
 } // namespace od3d

@@ -10000,10 +10000,6 @@ msgid "do nothing"
 msgstr "ne rien faire"
 
 #: src/gui/od3d/screen_temperatures_od3d.cpp
-msgid "target"
-msgstr "cible"
-
-#: src/gui/od3d/screen_temperatures_od3d.cpp
 msgid "no target"
 msgstr "sans cible"
 
@@ -10635,11 +10631,6 @@ msgstr "Les deux courroies sont dans la plage : rien à tourner."
 #, c-format
 msgid "A and B differ by more than %d Hz: check the gantry alignment."
 msgstr "A et B diffèrent de plus de %d Hz : vérifiez l'alignement du portique."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-#, c-format
-msgid "Both screws: %s %s turn, then measure again."
-msgstr "Les deux vis : %s de %s tour, puis mesurez à nouveau."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Let the nozzle cool below 50°C, then start again."
@@ -11659,10 +11650,6 @@ msgid "modified"
 msgstr "modifié"
 
 #: src/gui/od3d/screen_filament_presets_od3d.cpp
-msgid "chamber"
-msgstr "chambre"
-
-#: src/gui/od3d/screen_filament_presets_od3d.cpp
 msgid "My filaments\nYour own, order and visibility (Prusa)"
 msgstr "Mes filaments\nLes vôtres, ordre et affichage (Prusa)"
 
@@ -12577,14 +12564,6 @@ msgid "Moving to the measuring position..."
 msgstr "Déplacement à la position de mesure..."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
-msgstr "Les deux courroies dans la plage (%d/%d de suite) : ne touchez plus les vis, Fini arrête."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
-msgstr "Les deux vis : %s de %s tour. Remesurées toutes les ~10 s, Fini arrête."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Belt %c rings, the motor hums: normal. %d%%"
 msgstr "Courroie %c en vibration, le moteur bourdonne : normal. %d%%"
 
@@ -13191,3 +13170,87 @@ msgstr "Mélodie"
 #: src/gui/od3d/screen_skew_od3d.cpp
 msgid "Enter AC, BD and AD measured on the test piece first."
 msgstr "Saisissez d'abord AC, BD et AD mesurés sur la pièce de mesure."
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Mark ready"
+msgstr "Marquer prête"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Skip wait"
+msgstr "Passer l'attente"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Pausing"
+msgstr "Mise en pause"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resume printing"
+msgstr "Reprendre"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resuming"
+msgstr "Reprise"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Reheating"
+msgstr "Réchauffe"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Print again"
+msgstr "Imprimer à nouveau"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Printing time %s"
+msgstr "Temps impression %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Next change in %s"
+msgstr "Prochain changement dans %s"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Options"
+msgstr "Réglages"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both belts in range (%d/%d in a row): leave the screws."
+msgstr ""
+"Les deux courroies dans la plage (%d/%d de suite) : ne touchez plus les vis."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn. Measured again every ~10 s."
+msgstr "Les deux vis : serrez de %s tour. Remesurées toutes les ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn. Measured again every ~10 s."
+msgstr "Les deux vis : desserrez de %s tour. Remesurées toutes les ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn, then measure again."
+msgstr "Les deux vis : serrez de %s tour, puis mesurez à nouveau."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn, then measure again."
+msgstr "Les deux vis : desserrez de %s tour, puis mesurez à nouveau."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid "target %d°C"
+msgstr "cible %d°C"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid ", max %d°C"
+msgstr ", max %d°C"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+#, c-format
+msgid "chamber %d°C"
+msgstr "chambre %d°C"

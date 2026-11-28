@@ -267,11 +267,11 @@ void ScreenBelts::show_info() {
                 if (advice.verdict == belts::Verdict::misaligned) {
                     text = _("A and B differ by more than %d Hz: check the gantry alignment.").formatted(info_params, int(belts::targets().diff_limit));
                 } else if (advice.verdict == belts::Verdict::ok) {
-                    text = _("Both belts in range (%d/%d in a row): leave the screws, Done stops.").formatted(info_params, int(belts::live_in_range()), int(belts::live_ok_rounds));
+                    text = _("Both belts in range (%d/%d in a row): leave the screws.").formatted(info_params, int(belts::live_in_range()), int(belts::live_ok_rounds));
                 } else {
-                    (advice.turn_eighths > 0 ? _("tighten") : _("loosen")).copyToRAM(word.data(), word.size());
+                    // Une phrase par sens : l'ordre des mots change d'une langue à l'autre (le verbe à la fin en allemand)
                     belts::format_turns(advice.turn_eighths, turns.data(), turns.size());
-                    text = _("Both screws: %s %s turn. Measured again every ~10 s, Done stops.").formatted(info_params, word.data(), turns.data());
+                    text = (advice.turn_eighths > 0 ? _("Both screws: tighten %s turn. Measured again every ~10 s.") : _("Both screws: loosen %s turn. Measured again every ~10 s.")).formatted(info_params, turns.data());
                 }
                 break;
             }
@@ -305,10 +305,8 @@ void ScreenBelts::show_info() {
                 text = _("A and B differ by more than %d Hz: check the gantry alignment.").formatted(info_params, int(t.diff_limit));
                 break;
             case belts::Verdict::adjust:
-                // Textes « serrer » / « desserrer » de l'assistant de Prusa
-                (advice.turn_eighths > 0 ? _("tighten") : _("loosen")).copyToRAM(word.data(), word.size());
                 belts::format_turns(advice.turn_eighths, turns.data(), turns.size());
-                text = _("Both screws: %s %s turn, then measure again.").formatted(info_params, word.data(), turns.data());
+                text = (advice.turn_eighths > 0 ? _("Both screws: tighten %s turn, then measure again.") : _("Both screws: loosen %s turn, then measure again.")).formatted(info_params, turns.data());
                 break;
             }
             break;
@@ -384,7 +382,7 @@ void ScreenBelts::update() {
         }
         show_info();
         if (busy != was_busy) {
-            action.set(busy ? Button::Look::outline : Button::Look::primary, busy ? (live_requested ? _("Done") : _("Cancel")) : _("Start"), busy ? &img::cancel_16x16 : &img::print_16x16);
+            action.set(busy ? Button::Look::outline : Button::Look::primary, busy ? (live_requested ? _("Finish") : _("Cancel")) : _("Start"), busy ? &img::cancel_16x16 : &img::print_16x16);
         }
         // V-03 : la comparaison finie, tous ses pics, à confronter à l'appli de Prusa (aussi au bilan de l'assistant)
         if (full_done && belts::compared() == belts::compare_modes.size() && !HasDialog() && !calibration_series_running()) {

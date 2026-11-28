@@ -254,11 +254,8 @@ void HeaterCard::draw_content(Rect16 body) {
     // « cible 230 °C » puis l'état : stable (écart ≤ 1 °C), chauffe, refroidit
     char line[32];
     if (reading.target > 0) {
-        char word[16];
-        _("target").copyToRAM(word, sizeof(word));
-        snprintf(line, sizeof(line), "%s %d \xC2\xB0"
-                                     "C",
-            word, reading.target);
+        StringViewUtf8Parameters<8> params;
+        _("target %d°C").formatted(params, reading.target).copyToRAM(line, sizeof(line));
     } else {
         _("no target").copyToRAM(line, sizeof(line));
     }

@@ -23,10 +23,15 @@ jobs:
             echo "::error::Sur l'imprimante, fprintf écrit des champs vides à la place des décimales : utiliser od3d::force_probe::csv_printf"
             exit 1
           fi
+      - name: Formats printf et caractères des traductions
+        # Bloquant pour nos textes : formatted() lit les paramètres dans l'ordre des % du texte traduit (un %s à la place
+        # d'un %d : écran bleu), et un caractère sans image fait échouer font.py. Ceux de Prusa sont seulement signalés
+        run: |
+          pip install -q polib
+          python3 utils/od3d/traductions_od3d.py controle
       - name: Textes OneDrop3D traduits dans toutes les langues
         # Un texte sans traduction s'affiche en anglais dans cette langue : avertissement seulement
         run: |
-          pip install -q polib
           python3 utils/od3d/traductions_od3d.py etat | tee etat.txt
           if grep -qv ' : 0 ' etat.txt; then
             echo "::warning::Textes sans traduction : python3 utils/od3d/traductions_od3d.py manquants <langue> manquants.json, traduire, puis ajouter"

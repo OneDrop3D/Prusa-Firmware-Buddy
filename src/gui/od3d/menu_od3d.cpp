@@ -13,11 +13,13 @@
 #include <iterator>
 #include <i_window_menu_item.hpp>
 #include <img_resources.hpp>
+#include <language_eeprom.hpp>
 #include <option/has_mmu2.h>
 #include <raii/auto_restore.hpp>
 #include <screen_menu_filament.hpp>
 #include <screen_menu_filament_mmu.hpp>
 #include <screen_menu_settings.hpp>
+#include <translator.hpp>
 #include <WindowMenuItems.hpp>
 
 namespace window_menu_item_private {
@@ -266,7 +268,7 @@ void MenuHeader::show_back(bool show) {
 
 void MenuHeader::SetText(const string_view_utf8 &title) {
     title.copyToRAM(title_text.data(), title_text.size());
-    text::title_case(title_text.data());
+    text::title_case(title_text.data(), LangEEPROM::getInstance().getLanguage() == Translations::MakeLangCode("de"));
     // Coupé à sa place par le titre lui-même (« ... ») : 16 caractères en police normale à côté du retour, 19 sans
     header.set_title(string_view_utf8::MakeRAM(title_text.data()));
 }

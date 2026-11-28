@@ -81,7 +81,6 @@ private:
     TabBar tabs;
 
     StringViewUtf8Parameters<40> info_params;
-    std::array<char, 24> word {}; ///< « serrer » / « desserrer » traduit, paramètre du conseil
     std::array<char, 12> turns {}; ///< « 1 3/8 »
 
     bool pending = false; ///< M1992 envoyé, pas encore commencé

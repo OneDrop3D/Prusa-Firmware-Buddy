@@ -188,19 +188,15 @@ MI_CLIMATE_RECIPE::MI_CLIMATE_RECIPE(bool user, uint8_t list_index)
     const FilamentTypeParameters p = type.parameters();
     char target[24];
     if (p.chamber_target_temperature.has_value()) {
-        char word[16];
-        _("target").copyToRAM(word, sizeof(word));
-        snprintf(target, sizeof(target), "%s %d\xC2\xB0"
-                                         "C",
-            word, int(*p.chamber_target_temperature));
+        StringViewUtf8Parameters<8> params;
+        _("target %d°C").formatted(params, int(*p.chamber_target_temperature)).copyToRAM(target, sizeof(target));
     } else {
         _("no target").copyToRAM(target, sizeof(target));
     }
-    char max[16] = "";
+    char max[24] = "";
     if (p.chamber_max_temperature.has_value()) {
-        snprintf(max, sizeof(max), ", max %d\xC2\xB0"
-                                   "C",
-            int(*p.chamber_max_temperature));
+        StringViewUtf8Parameters<8> params;
+        _(", max %d°C").formatted(params, int(*p.chamber_max_temperature)).copyToRAM(max, sizeof(max));
     }
     char filter[16] = "";
     if (p.requires_filtration) {

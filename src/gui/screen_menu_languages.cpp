@@ -16,6 +16,7 @@ MI_LangBase::MI_LangBase(const char *label, const char *lang_code, const img::Re
 
 void MI_LangBase::click(IWindowMenu & /*window_menu*/) {
     LangEEPROM::getInstance().setLanguage(lang_code);
+    od3d::chrome::forget_all(); // OneDrop3D (interface G) : onglets et en-tête déjà à l'écran, dans l'ancienne langue
     Screens::Access()->close_screen();
 }
 
@@ -39,6 +40,7 @@ ScreenMenuLanguages::ScreenMenuLanguages(Context context)
         header.SetText(_("SELECT LANGUAGE"));
         Item<MI_RETURN>().hide();
         header.show_back(false); // OneDrop3D (interface G) : pas de retour non plus dans l'en-tête (ni balayage, ni appui long)
+        tabs.hide(); // ni d'onglets
         window_frame_t::ClrMenuTimeoutClose();
         window_frame_t::ClrOnSerialClose();
         break;

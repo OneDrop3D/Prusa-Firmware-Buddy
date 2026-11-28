@@ -122,11 +122,9 @@ MI_PRESET::MI_PRESET(uint8_t list_index)
     }
     char chamber[32] = "";
     if (p.chamber_target_temperature.has_value()) {
-        char word[16];
-        _("chamber").copyToRAM(word, sizeof(word));
-        snprintf(chamber, sizeof(chamber), " \xC2\xB7 %s %d\xC2\xB0"
-                                           "C",
-            word, int(*p.chamber_target_temperature));
+        StringViewUtf8Parameters<8> params;
+        strcpy(chamber, " \xC2\xB7 ");
+        _("chamber %d°C").formatted(params, int(*p.chamber_target_temperature)).copyToRAM(chamber + strlen(chamber), sizeof(chamber) - strlen(chamber));
     }
     snprintf(label.data(), label.size(), "%s%s\n%d/%d\xC2\xB0"
                                          "C%s",

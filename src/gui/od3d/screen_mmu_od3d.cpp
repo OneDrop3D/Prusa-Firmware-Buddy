@@ -233,7 +233,7 @@ ScreenMMU::ScreenMMU(std::index_sequence<I...>)
     , preload_all(this, shortcut_body(0), tag_preload_all, img::cycle_16x16, style::tile_motion, _("Preload"), _("All slots"))
     , motors(this, shortcut_body(1), tag_motors, img::move_16x16, style::tile_motion, _("Motors"), _("Open >"))
     , pressure_advance(this, shortcut_body(2), tag_pressure_advance, img::user_filament_16x16, style::tile_filament, _("Press. adv."), _("Open >"))
-    , settings(this, shortcut_body(3), tag_settings, img::settings_16x16, style::tile, _("Settings"), _("Open >"))
+    , settings(this, shortcut_body(3), tag_settings, img::settings_16x16, style::tile, _("Options"), _("Open >")) // « Einstellungen » : 13 caractères pour 11
     , info(this, shortcut_body(4), tag_info, img::info_16x16, style::tile, _("MMU info"), _("Open >"))
     , tabs(this, TabBar::Tab::workshop) {
     pressure_advance.set_enabled(pa_slot().has_value()); // F4 : l'écran du PA (« Mesurer » charge la bobine)

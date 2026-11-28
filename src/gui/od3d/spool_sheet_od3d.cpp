@@ -157,13 +157,13 @@ namespace {
                 const size_t len = strlen(status);
                 _("tip drift").copyToRAM(status + len, sizeof(status) - len);
             }
-            if (type) {
+            if (type && !tip_drift) { // l'alerte de la pointe prend la place des températures et du reste (35 caractères)
                 const FilamentTypeParameters p = type.parameters();
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · %d/%d\xC2\xB0", p.nozzle_temperature, p.heatbed_temperature);
             }
 #if HAS_MMU2()
-            if (const auto usage = spool_usage::report(index); usage && type) {
+            if (const auto usage = spool_usage::report(index); usage && type && !tip_drift) {
                 const size_t len = strlen(status);
                 snprintf(status + len, sizeof(status) - len, " · ~%d g", int(usage->remaining_g));
             }

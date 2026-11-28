@@ -10133,10 +10133,6 @@ msgid "do nothing"
 msgstr "nichts tun"
 
 #: src/gui/od3d/screen_temperatures_od3d.cpp
-msgid "target"
-msgstr "Soll"
-
-#: src/gui/od3d/screen_temperatures_od3d.cpp
 msgid "no target"
 msgstr "ohne Soll"
 
@@ -10808,11 +10804,6 @@ msgstr "Beide Riemen im Bereich: Schrauben nicht drehen."
 #, c-format
 msgid "A and B differ by more than %d Hz: check the gantry alignment."
 msgstr "A und B weichen um mehr als %d Hz ab: Portal-Ausrichtung prüfen."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-#, c-format
-msgid "Both screws: %s %s turn, then measure again."
-msgstr "Beide Schrauben: %s %s Drehung, dann erneut messen."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Let the nozzle cool below 50°C, then start again."
@@ -12109,10 +12100,6 @@ msgid "modified"
 msgstr "Geänd."
 
 #: src/gui/od3d/screen_filament_presets_od3d.cpp
-msgid "chamber"
-msgstr "Kammer"
-
-#: src/gui/od3d/screen_filament_presets_od3d.cpp
 msgid ""
 "My filaments\n"
 "Your own, order and visibility (Prusa)"
@@ -13202,16 +13189,6 @@ msgid "Moving to the measuring position..."
 msgstr "Fahre zur Messposition..."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
-msgstr ""
-"Beide Riemen im Bereich (%d/%d in Folge): Schrauben lassen, Fertig stoppt."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
-msgstr ""
-"Beide Schrauben: %s %s Drehung. Alle ~10 s neu gemessen, Fertig stoppt."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Belt %c rings, the motor hums: normal. %d%%"
 msgstr "Riemen %c schwingt, Motor brummt: normal. %d%%"
 
@@ -13949,3 +13926,86 @@ msgstr "Melodie"
 #: src/gui/od3d/screen_skew_od3d.cpp
 msgid "Enter AC, BD and AD measured on the test piece first."
 msgstr "Geben Sie zuerst AC, BD und AD vom Prüfteil ein."
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Mark ready"
+msgstr "Bereit setzen"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Skip wait"
+msgstr "Nicht warten"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Pausing"
+msgstr "Pausieren"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resume printing"
+msgstr "Weiter drucken"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resuming"
+msgstr "Weiter"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Reheating"
+msgstr "Aufheizen"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Print again"
+msgstr "Erneut drucken"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Printing time %s"
+msgstr "Druckzeit %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Next change in %s"
+msgstr "Nächster Wechsel in %s"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Options"
+msgstr "Optionen"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both belts in range (%d/%d in a row): leave the screws."
+msgstr "Beide Riemen im Bereich (%d/%d in Folge): Schrauben lassen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn. Measured again every ~10 s."
+msgstr "Beide Schrauben: um %s Drehung festziehen. Alle ~10 s neu gemessen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn. Measured again every ~10 s."
+msgstr "Beide Schrauben: um %s Drehung lösen. Alle ~10 s neu gemessen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn, then measure again."
+msgstr "Beide Schrauben: um %s Drehung festziehen, dann erneut messen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn, then measure again."
+msgstr "Beide Schrauben: um %s Drehung lösen, dann erneut messen."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid "target %d°C"
+msgstr "Soll %d°C"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid ", max %d°C"
+msgstr ", max. %d°C"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+#, c-format
+msgid "chamber %d°C"
+msgstr "Kammer %d°C"

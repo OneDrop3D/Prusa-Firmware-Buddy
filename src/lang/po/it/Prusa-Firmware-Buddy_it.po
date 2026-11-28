@@ -10050,10 +10050,6 @@ msgid "do nothing"
 msgstr "niente"
 
 #: src/gui/od3d/screen_temperatures_od3d.cpp
-msgid "target"
-msgstr "target"
-
-#: src/gui/od3d/screen_temperatures_od3d.cpp
 msgid "no target"
 msgstr "no target"
 
@@ -10722,11 +10718,6 @@ msgstr "Entrambe le cinghie sono nel range: non serve girare le viti."
 msgid "A and B differ by more than %d Hz: check the gantry alignment."
 msgstr ""
 "A e B differiscono di oltre %d Hz: controlla l'allineamento del gantry."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-#, c-format
-msgid "Both screws: %s %s turn, then measure again."
-msgstr "Entrambe le viti: %s di %s giro, poi misura di nuovo."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Let the nozzle cool below 50°C, then start again."
@@ -12016,10 +12007,6 @@ msgid "modified"
 msgstr "modif."
 
 #: src/gui/od3d/screen_filament_presets_od3d.cpp
-msgid "chamber"
-msgstr "camera"
-
-#: src/gui/od3d/screen_filament_presets_od3d.cpp
 msgid ""
 "My filaments\n"
 "Your own, order and visibility (Prusa)"
@@ -13112,16 +13099,6 @@ msgid "Moving to the measuring position..."
 msgstr "Spostamento in posizione di misura..."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
-msgstr ""
-"Entrambe le cinghie nel range (%d/%d di fila): non toccare le viti, Fatto "
-"ferma."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
-msgstr "Entrambe le viti: %s di %s giro. Rimisurate ogni ~10 s, Fatto ferma."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Belt %c rings, the motor hums: normal. %d%%"
 msgstr "Cinghia %c vibra, il motore ronza: normale. %d%%"
 
@@ -13811,7 +13788,7 @@ msgstr "Ancora da stampare"
 
 #: src/gui/od3d/screen_objects_od3d.cpp
 msgid "Place not known yet"
-msgstr "Posto non ancora noto"
+msgstr "Posizione ignota"
 
 #: src/gui/od3d/screen_objects_od3d.cpp
 msgid "Tap an object"
@@ -13858,3 +13835,86 @@ msgstr "Melodia"
 #: src/gui/od3d/screen_skew_od3d.cpp
 msgid "Enter AC, BD and AD measured on the test piece first."
 msgstr "Inserisci prima AC, BD e AD misurati sul pezzo di prova."
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Mark ready"
+msgstr "Segna pronta"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Skip wait"
+msgstr "Non attendere"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Pausing"
+msgstr "In pausa"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resume printing"
+msgstr "Riprendi"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resuming"
+msgstr "Ripresa"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Reheating"
+msgstr "Riscaldo"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Print again"
+msgstr "Ristampa"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Printing time %s"
+msgstr "Tempo di stampa %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Next change in %s"
+msgstr "Prossimo cambio tra %s"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Options"
+msgstr "Opzioni"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both belts in range (%d/%d in a row): leave the screws."
+msgstr "Entrambe le cinghie nel range (%d/%d di fila): non toccare le viti."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn. Measured again every ~10 s."
+msgstr "Entrambe le viti: stringi di %s giro. Rimisurate ogni ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn. Measured again every ~10 s."
+msgstr "Entrambe le viti: allenta di %s giro. Rimisurate ogni ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn, then measure again."
+msgstr "Entrambe le viti: stringi di %s giro, poi misura di nuovo."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn, then measure again."
+msgstr "Entrambe le viti: allenta di %s giro, poi misura di nuovo."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid "target %d°C"
+msgstr "target %d°C"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid ", max %d°C"
+msgstr ", max %d°C"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+#, c-format
+msgid "chamber %d°C"
+msgstr "camera %d°C"

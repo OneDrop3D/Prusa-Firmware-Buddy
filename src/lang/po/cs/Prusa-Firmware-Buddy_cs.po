@@ -9839,10 +9839,6 @@ msgid "do nothing"
 msgstr "nic nedělat"
 
 #: src/gui/od3d/screen_temperatures_od3d.cpp
-msgid "target"
-msgstr "cíl"
-
-#: src/gui/od3d/screen_temperatures_od3d.cpp
 msgid "no target"
 msgstr "bez cíle"
 
@@ -10507,11 +10503,6 @@ msgstr "Oba řemeny jsou v normě: šrouby není třeba otáčet."
 #, c-format
 msgid "A and B differ by more than %d Hz: check the gantry alignment."
 msgstr "A a B se liší o víc než %d Hz: zkontrolujte zarovnání portálu."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-#, c-format
-msgid "Both screws: %s %s turn, then measure again."
-msgstr "Oba šrouby: %s o %s otáčky, pak změřte znovu."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Let the nozzle cool below 50°C, then start again."
@@ -11666,7 +11657,8 @@ msgstr "Není co kalibrovat."
 msgid ""
 "Full calibration: %d tests, about %d min. Once started, the tests run by "
 "themselves."
-msgstr "Úplná kalibrace: %d testů, asi %d min. Po spuštění testy běží samy."
+msgstr ""
+"Úplná kalibrace: počet testů %d, asi %d min. Po spuštění testy běží samy."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid ""
@@ -11794,10 +11786,6 @@ msgstr ""
 #: src/gui/od3d/screen_filament_presets_od3d.cpp
 msgid "modified"
 msgstr "upraveno"
-
-#: src/gui/od3d/screen_filament_presets_od3d.cpp
-msgid "chamber"
-msgstr "komora"
 
 #: src/gui/od3d/screen_filament_presets_od3d.cpp
 msgid ""
@@ -12619,7 +12607,7 @@ msgstr "Posun: %.1f mm, běžně %.1f ± %.1f"
 #: src/gui/od3d/screen_mmu_speed_od3d.cpp
 #, c-format
 msgid "%.1f ± %.1f mm, %u changes"
-msgstr "%.1f ± %.1f mm, %u změn"
+msgstr "%.1f ± %.1f mm, změn: %u"
 
 #: src/gui/od3d/island_od3d.cpp
 msgid "MMU speed"
@@ -12686,8 +12674,8 @@ msgid ""
 "Accelerometer series, cold: %d tests, about %d min. Heating series: %d "
 "tests, about %d min. Touch a test to add or skip it."
 msgstr ""
-"Série s akcelerometrem, studená: %d testů, asi %d min. Série s ohřevem: %d "
-"testů, asi %d min. Klepnutím test přidáte nebo vynecháte."
+"Série s akcelerometrem, studená: počet testů %d, asi %d min. Série s "
+"ohřevem: počet testů %d, asi %d min. Klepnutím test přidáte nebo vynecháte."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Accelerometer"
@@ -12863,7 +12851,7 @@ msgstr ""
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "MMU not answering: %d tests postponed, still to do."
-msgstr "MMU neodpovídá: %d testů odloženo, zbývají."
+msgstr "MMU neodpovídá: počet odložených testů %d, zbývají."
 
 #: src/gui/od3d/accelerometer_guide_od3d.cpp
 msgid "Homing without the accelerometer, please wait..."
@@ -12880,14 +12868,6 @@ msgstr ""
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Moving to the measuring position..."
 msgstr "Přesun na měřicí pozici..."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
-msgstr "Oba řemeny v normě (%d/%d po sobě): šrouby nechte, Hotovo ukončí."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
-msgstr "Oba šrouby: %s o %s otáčky. Měří se každých ~10 s, Hotovo ukončí."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Belt %c rings, the motor hums: normal. %d%%"
@@ -13197,7 +13177,7 @@ msgstr "Kontrola filtru:"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Accel. %d tests ~%d min · Heating %d tests ~%d min"
-msgstr "Akcel. %d testů ~%d min · Ohřev %d testů ~%d min"
+msgstr "Akcel. %d test. ~%d min · Ohřev %d test. ~%d min"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Summary"
@@ -13229,7 +13209,7 @@ msgstr "Osa %c: filtr odstraní %d%% zvonění"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "New in this firmware: %d tests, ~%d min"
-msgstr "Nové ve firmwaru: %d testů, ~%d min"
+msgstr "Nové ve firmwaru: počet testů %d, ~%d min"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Fans:"
@@ -13401,7 +13381,7 @@ msgstr ""
 #: src/feature/od3d/pa_od3d.cpp
 #, c-format
 msgid "PA not measured: %d colors to calibrate, measure them on their sheets"
-msgstr "PA neměřeno: %d barev ke kalibraci, změřte je na jejich listech"
+msgstr "PA neměřeno: barev ke kalibraci: %d, změřte je na jejich listech"
 
 #: src/feature/od3d/pa_od3d.cpp
 #, c-format
@@ -13616,3 +13596,86 @@ msgstr "2 hlasy"
 #: src/gui/od3d/screen_music_od3d.cpp
 msgid "Melody"
 msgstr "Melodie"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Mark ready"
+msgstr "Připravit"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Skip wait"
+msgstr "Nečekat"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Pausing"
+msgstr "Pauzování"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resume printing"
+msgstr "Tisknout dál"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resuming"
+msgstr "Obnovuji"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Reheating"
+msgstr "Ohřev"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Print again"
+msgstr "Tisknout znovu"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Printing time %s"
+msgstr "Čas tisku %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Next change in %s"
+msgstr "Další výměna za %s"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Options"
+msgstr "Možnosti"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both belts in range (%d/%d in a row): leave the screws."
+msgstr "Oba řemeny v normě (%d/%d po sobě): šrouby nechte."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn. Measured again every ~10 s."
+msgstr "Oba šrouby: utáhněte o %s otáčky. Měří se každých ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn. Measured again every ~10 s."
+msgstr "Oba šrouby: povolte o %s otáčky. Měří se každých ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn, then measure again."
+msgstr "Oba šrouby: utáhněte o %s otáčky, pak změřte znovu."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn, then measure again."
+msgstr "Oba šrouby: povolte o %s otáčky, pak změřte znovu."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid "target %d°C"
+msgstr "cíl %d°C"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid ", max %d°C"
+msgstr ", max. %d°C"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+#, c-format
+msgid "chamber %d°C"
+msgstr "komora %d°C"

@@ -1,11 +1,14 @@
 /// @file
 #include "screen_printing_od3d.hpp"
 
+#include "atelier_od3d.hpp"
+
 #include "print_info_od3d.hpp"
 #include "screen_files_od3d.hpp"
 #include "screen_pa_od3d.hpp"
 #include "sleep_gui_od3d.hpp"
 #include "menu_items_od3d.hpp"
+#include "text_od3d.hpp"
 
 #include <algorithm>
 #include <array>
@@ -173,8 +176,19 @@ void PrintingButton::draw_content(Rect16 body) {
     const Rect16 top(body.Left() + 4, body.Top() + 12, body.Width() - 8, 16);
     const Color fg = face.active ? style::text : style::text_faint;
     if (face.value[0]) {
-        draw_text(top, face.text, Font::small, face.active ? style::text_muted : style::text_faint, fill(), Align_t::Center());
+        // 9 caractères au plus, « ... » compris (« Geschwindigkeit » : « Geschw... »)
+        const Rect16 caption_rect(body.Left() + 2, top.Top(), body.Width() - 4, top.Height());
+        std::array<char, 32> caption;
+        face.text.copyToRAM(caption.data(), caption.size());
+        text::ellipsize(caption.data(), caption_rect.Width() / width(Font::small));
+        draw_text(caption_rect, string_view_utf8::MakeRAM(caption.data()), Font::small, face.active ? style::text_muted : style::text_faint, fill(), Align_t::Center());
         draw_text(Rect16(top.Left(), body.Top() + 31, top.Width(), height(Font::normal)), string_view_utf8::MakeRAM(face.value.data()), Font::normal, fg, fill(), Align_t::Center());
+        return;
+    }
+    const Color label_fg = !face.active ? style::text_faint : (face.danger ? style::text_danger : style::text);
+    if (face.text.computeNumUtf8Chars() * width(Font::small) > top.Width()) {
+        // Plus de 8 caractères : deux lignes de 9 sans l'icône (« Mise en pause », « Ekran główny »)
+        draw_label(Rect16(body.Left() + 2, body.Top(), body.Width() - 4, body.Height()), face.text, nullptr, Font::small, label_fg, fill());
         return;
     }
     if (face.icon) {
@@ -184,7 +198,6 @@ void PrintingButton::draw_content(Rect16 body) {
     } else if (const Rect16 square(body.Left() + (body.Width() - 14) / 2, top.Top() + 1, 14, 14); face.danger && !noted(square)) {
         display::draw_rounded_rect(square, fill(), style::danger, 3, MIC_ALL_CORNERS);
     }
-    const Color label_fg = !face.active ? style::text_faint : (face.danger ? style::text_danger : style::text);
     draw_text(Rect16(top.Left(), body.Top() + 33, top.Width(), height(Font::small)), face.text, Font::small, label_fg, fill(), Align_t::Center());
 }
 
@@ -549,7 +562,7 @@ void ScreenPrinting::update_buttons() {
     live_z.show_value(_("Live Z"), value, state == PrintState::printing && vars.logical_curr_pos[2] <= 1.0f);
 
     if (state == PrintState::printed && waiting_for_connect_set_ready()) {
-        tune.show(&img::set_ready_16x16, nullptr, _("Set Ready"), true);
+        tune.show(&img::set_ready_16x16, nullptr, _("Mark ready"), true); // boutons de 2 lignes de 9 caractères
     } else {
         tune.show(&img::settings_16x16, nullptr, _("Adjust"), tunable);
     }
@@ -561,23 +574,23 @@ void ScreenPrinting::update_buttons() {
         pause.show(nullptr, pause_glyph, _("Pause"), true);
         break;
     case PrintState::skippable:
-        pause.show(&img::print_16x16, nullptr, _("Skip"), true);
+        pause.show(&img::print_16x16, nullptr, _("Skip wait"), true);
         break;
     case PrintState::pausing:
-        pause.show(nullptr, pause_glyph, _("Pausing..."), false);
+        pause.show(nullptr, pause_glyph, _("Pausing"), false);
         break;
     case PrintState::paused:
-        pause.show(&img::print_16x16, nullptr, _("Resume print"), vars.media_inserted);
+        pause.show(&img::print_16x16, nullptr, _("Resume printing"), vars.media_inserted);
         break;
     case PrintState::resuming:
-        pause.show(&img::print_16x16, nullptr, _("Resuming..."), false);
+        pause.show(&img::print_16x16, nullptr, _("Resuming"), false);
         break;
     case PrintState::reheating:
-        pause.show(&img::print_16x16, nullptr, _("Heating..."), false);
+        pause.show(&img::print_16x16, nullptr, _("Reheating"), false);
         break;
     case PrintState::stopped:
     case PrintState::printed:
-        pause.show(&img::print_16x16, nullptr, _("Reprint"), true);
+        pause.show(&img::print_16x16, nullptr, _("Print again"), true);
         break;
     case PrintState::aborting:
         pause.show(nullptr, pause_glyph, _("Pause"), false);
@@ -632,8 +645,8 @@ void ScreenPrinting::update_info() {
     StringBuilder line_sb(line_new);
     if (ended) {
         print_info::format_hm(vars.print_duration, time.data(), time.size());
-        line_sb.append_string_view(_("Printing time"));
-        line_sb.append_printf(" %s", time.data());
+        StringViewUtf8Parameters<12> time_params;
+        line_sb.append_string_view(_("Printing time %s").formatted(time_params, time.data()));
     } else {
         if (const uint32_t left = vars.time_to_end; left != marlin_server::TIME_TO_END_INVALID) {
             print_info::format_hm(left, time.data(), time.size());
@@ -673,8 +686,8 @@ void ScreenPrinting::update_info() {
     } else if (const uint32_t change = vars.time_to_pause; change != marlin_server::TIME_TO_END_INVALID && !ended) {
         print_info::format_hm(change, time.data(), time.size());
         StringBuilder sb(d.bottom);
-        sb.append_string_view(_("Next change in"));
-        sb.append_printf(" %s", time.data());
+        StringViewUtf8Parameters<12> time_params;
+        sb.append_string_view(_("Next change in %s").formatted(time_params, time.data()));
     } else {
         strlcpy(d.bottom.data(), GCodeInfo::getInstance().GetGcodeFilename(), d.bottom.size());
         if (char *ext = strrchr(d.bottom.data(), '.'); ext && ext != d.bottom.data()) {

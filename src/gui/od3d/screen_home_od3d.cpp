@@ -276,7 +276,9 @@ void FileCard::unconditionalDraw() {
     const string_view_utf8 line = state == State::file
         ? string_view_utf8::MakeRAM(name.data())
         : (state == State::no_file ? _("No printable file") : _("Insert a USB drive"));
-    draw_text(Rect16(x, card.Top() + 24, w, height(Font::normal)), line, Font::normal, state == State::file ? style::text_strong : style::text_muted, style::surface);
+    // En petit s'il ne tient pas en gras (« Aucun fichier imprimable » : 24 caractères pour 23)
+    const Font font = line.computeNumUtf8Chars() * width(Font::normal) <= w ? Font::normal : Font::small;
+    draw_text(Rect16(x, card.Top() + 24, w, height(Font::normal)), line, font, state == State::file ? style::text_strong : style::text_muted, style::surface);
 }
 
 void FileCard::load_step() {

@@ -9946,10 +9946,6 @@ msgid "do nothing"
 msgstr "nic nie rób"
 
 #: src/gui/od3d/screen_temperatures_od3d.cpp
-msgid "target"
-msgstr "cel"
-
-#: src/gui/od3d/screen_temperatures_od3d.cpp
 msgid "no target"
 msgstr "brak celu"
 
@@ -10614,11 +10610,6 @@ msgstr "Oba paski w normie: nie trzeba kręcić śrubami."
 #, c-format
 msgid "A and B differ by more than %d Hz: check the gantry alignment."
 msgstr "A i B różnią się o ponad %d Hz: sprawdź ustawienie bramy."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-#, c-format
-msgid "Both screws: %s %s turn, then measure again."
-msgstr "Obie śruby: %s o %s obrotu, potem zmierz ponownie."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Let the nozzle cool below 50°C, then start again."
@@ -11773,7 +11764,8 @@ msgid ""
 "Full calibration: %d tests, about %d min. Once started, the tests run by "
 "themselves."
 msgstr ""
-"Pełna kalibracja: %d testów, ok. %d min. Po starcie testy przebiegają same."
+"Pełna kalibracja: liczba testów %d, ok. %d min. Po starcie testy przebiegają"
+" same."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid ""
@@ -11901,10 +11893,6 @@ msgstr ""
 #: src/gui/od3d/screen_filament_presets_od3d.cpp
 msgid "modified"
 msgstr "zmien."
-
-#: src/gui/od3d/screen_filament_presets_od3d.cpp
-msgid "chamber"
-msgstr "komora"
 
 #: src/gui/od3d/screen_filament_presets_od3d.cpp
 msgid ""
@@ -12731,7 +12719,7 @@ msgstr "Dryf: %.1f mm, zwykle %.1f ± %.1f"
 #: src/gui/od3d/screen_mmu_speed_od3d.cpp
 #, c-format
 msgid "%.1f ± %.1f mm, %u changes"
-msgstr "%.1f ± %.1f mm, %u zmian"
+msgstr "%.1f ± %.1f mm, zmian: %u"
 
 #: src/gui/od3d/island_od3d.cpp
 msgid "MMU speed"
@@ -12798,8 +12786,8 @@ msgid ""
 "Accelerometer series, cold: %d tests, about %d min. Heating series: %d "
 "tests, about %d min. Touch a test to add or skip it."
 msgstr ""
-"Seria Akcelerometr, na zimno: %d testów, ok. %d min. Seria Grzanie: %d "
-"testów, ok. %d min. Dotknij testu, aby go dodać lub pominąć."
+"Seria Akcelerometr, na zimno: liczba testów %d, ok. %d min. Seria Grzanie: "
+"liczba testów %d, ok. %d min. Dotknij testu, aby go dodać lub pominąć."
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Accelerometer"
@@ -12976,7 +12964,7 @@ msgstr ""
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "MMU not answering: %d tests postponed, still to do."
-msgstr "MMU nie odpowiada: %d testów odłożonych, do zrobienia."
+msgstr "MMU nie odpowiada: odłożone testy: %d, do zrobienia."
 
 #: src/gui/od3d/accelerometer_guide_od3d.cpp
 msgid "Homing without the accelerometer, please wait..."
@@ -12993,14 +12981,6 @@ msgstr ""
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Moving to the measuring position..."
 msgstr "Ruch do pozycji pomiaru..."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
-msgstr "Oba paski w normie (%d/%d z rzędu): nie ruszaj śrub, Gotowe kończy."
-
-#: src/gui/od3d/screen_belts_od3d.cpp
-msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
-msgstr "Obie śruby: %s o %s obrotu. Pomiar co ~10 s, Gotowe kończy."
 
 #: src/gui/od3d/screen_belts_od3d.cpp
 msgid "Belt %c rings, the motor hums: normal. %d%%"
@@ -13310,7 +13290,7 @@ msgstr "Test filtra:"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Accel. %d tests ~%d min · Heating %d tests ~%d min"
-msgstr "Akcel. %d testów ~%d min · Grzanie %d testów ~%d min"
+msgstr "Akcel. %d test. ~%d min · Grzanie %d test. ~%d min"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Summary"
@@ -13342,7 +13322,7 @@ msgstr "Oś %c: filtr usuwa %d%% drgań"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "New in this firmware: %d tests, ~%d min"
-msgstr "Nowe w tym firmware: %d testów, ~%d min"
+msgstr "Nowe w tym firmware: liczba testów %d, ~%d min"
 
 #: src/gui/od3d/screen_calib_assistant_od3d.cpp
 msgid "Fans:"
@@ -13383,7 +13363,7 @@ msgid ""
 "%d hits seen"
 msgstr ""
 "Test kolizji\n"
-"%d uderzeń"
+"Uderzenia: %d"
 
 #: src/gui/od3d/widgets_od3d.cpp
 #, c-format
@@ -13514,7 +13494,7 @@ msgstr ""
 #: src/feature/od3d/pa_od3d.cpp
 #, c-format
 msgid "PA not measured: %d colors to calibrate, measure them on their sheets"
-msgstr "PA niezmierzone: %d kolorów do kalibracji, zmierz je na ich kartach"
+msgstr "PA niezmierzone: kolorów do kalibracji: %d, zmierz je na ich kartach"
 
 #: src/feature/od3d/pa_od3d.cpp
 #, c-format
@@ -13729,3 +13709,86 @@ msgstr "2 głosy"
 #: src/gui/od3d/screen_music_od3d.cpp
 msgid "Melody"
 msgstr "Melodia"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Mark ready"
+msgstr "Oznacz gotową"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Skip wait"
+msgstr "Nie czekaj"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Pausing"
+msgstr "Pauzuję"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resume printing"
+msgstr "Wznów druk"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resuming"
+msgstr "Wznawiam"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Reheating"
+msgstr "Grzanie"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Print again"
+msgstr "Drukuj ponownie"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Printing time %s"
+msgstr "Czas drukowania %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Next change in %s"
+msgstr "Następna zmiana za %s"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Options"
+msgstr "Opcje"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both belts in range (%d/%d in a row): leave the screws."
+msgstr "Oba paski w normie (%d/%d z rzędu): nie ruszaj śrub."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn. Measured again every ~10 s."
+msgstr "Obie śruby: dokręć o %s obrotu. Pomiar co ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn. Measured again every ~10 s."
+msgstr "Obie śruby: poluzuj o %s obrotu. Pomiar co ~10 s."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: tighten %s turn, then measure again."
+msgstr "Obie śruby: dokręć o %s obrotu, potem zmierz ponownie."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: loosen %s turn, then measure again."
+msgstr "Obie śruby: poluzuj o %s obrotu, potem zmierz ponownie."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid "target %d°C"
+msgstr "cel %d°C"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+#, c-format
+msgid ", max %d°C"
+msgstr ", maks. %d°C"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+#, c-format
+msgid "chamber %d°C"
+msgstr "komora %d°C"

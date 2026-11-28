@@ -481,7 +481,7 @@ void ValueRow::unconditionalDraw() {
     if (icon) {
         draw_icon({ int16_t(b.Left() + 12), int16_t(b.Top() + (b.Height() - icon->h) / 2) }, *icon, c.fill, enabled ? ropfn {} : ropfn { .shadow = is_shadowed::yes });
     }
-    const uint16_t value_w = strlen(value.data()) * width(Font::small);
+    const uint16_t value_w = string_view_utf8::MakeRAM(value.data()).computeNumUtf8Chars() * width(Font::small); // « Jiné » : 4 caractères, 5 octets
     const int16_t value_x = b.Left() + b.Width() - 12 - value_w;
     const int16_t label_x = b.Left() + 36;
     draw_text(Rect16(label_x, y, std::max(0, value_x - 6 - label_x), height(Font::small)), label, Font::small, c.fg, c.fill);

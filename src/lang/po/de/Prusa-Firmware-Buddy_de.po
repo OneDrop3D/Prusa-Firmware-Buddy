@@ -13945,3 +13945,7 @@ msgstr "2 Stimm."
 #: src/gui/od3d/screen_music_od3d.cpp
 msgid "Melody"
 msgstr "Melodie"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Enter AC, BD and AD measured on the test piece first."
+msgstr "Geben Sie zuerst AC, BD und AD vom Prüfteil ein."

@@ -30,9 +30,23 @@ inline void ellipsize(char *s, size_t n) {
     }
 }
 
+/// Minuscule d'une lettre de Latin-1 ou de Latin étendu-A (é, č, ł…), sur 2 octets comme sa capitale
+constexpr unsigned lower_latin(unsigned c) {
+    if (c >= 0xC0 && c <= 0xDE && c != 0xD7) {
+        return c + 0x20; // À–Þ (sauf ×)
+    }
+    // Latin étendu-A : la capitale puis sa minuscule, paires décalées par ĸ (U+0138) et ŉ (U+0149) ; İ (U+0130) à part
+    const bool capital = (c >= 0x100 && c <= 0x137 && c % 2 == 0 && c != 0x130)
+        || (c >= 0x139 && c <= 0x148 && c % 2 == 1)
+        || (c >= 0x14A && c <= 0x177 && c % 2 == 0)
+        || (c >= 0x179 && c <= 0x17E && c % 2 == 1);
+    return capital ? c + 1 : c;
+}
+
 /// Titres Prusa en capitales (« RÉGLAGES WI-FI ») → casse de la maquette G (« Réglages Wi-Fi »).
 /// Un titre qui a déjà une minuscule est laissé tel quel ; quelques sigles et marques gardent leur casse.
-inline void title_case(char *s) {
+/// nouns (allemand) : chaque mot garde sa capitale (« Sprache & Zeit »), sauf les petits mots et verbes de la liste.
+inline void title_case(char *s, bool nouns = false) {
     for (const char *p = s; *p; ++p) {
         if (*p >= 'a' && *p <= 'z') {
             return;
@@ -57,6 +71,12 @@ inline void title_case(char *s) {
         { "Z", "Z" },
         { "XY", "XY" },
     };
+    // Allemand : en minuscules malgré la capitale de chaque mot (articles, prépositions, verbes des titres de Prusa)
+    static constexpr const char *small_de[] = {
+        "DER", "DIE", "DAS", "DES", "DEM", "DEN", "UND", "ODER", "VON", "VOM", "MIT", "FÜR", "IM", "IN", "AM", "AN",
+        "AUF", "ZU", "ZUM", "ZUR", "AUS", "BEI", "NACH", "BEWEGEN", "WÄHLEN", "AUSWÄHLEN", "KALIBRIEREN", "ABBRECHEN",
+        "WECHSELN",
+    };
 
     bool first = true;
     for (char *word = s; *word;) {
@@ -71,20 +91,32 @@ inline void title_case(char *s) {
                 as_is = k[1];
             }
         }
+        bool keep_first = first;
+        if (nouns) {
+            keep_first = true;
+            for (const char *w : small_de) {
+                if (strlen(w) == len && strncmp(word, w, len) == 0) {
+                    keep_first = first;
+                }
+            }
+        }
         if (as_is) {
             memcpy(word, as_is, len);
         } else {
-            // La première lettre du titre reste en capitale (si elle est accentuée, i = 1 tombe sur son
-            // second octet, que rien ne modifie)
-            for (size_t i = first ? 1 : 0; i < len; ++i) {
+            // La première lettre reste en capitale (si elle est accentuée, i = 1 tombe sur son second octet, que rien ne
+            // modifie)
+            for (size_t i = keep_first ? 1 : 0; i < len; ++i) {
                 char &c = word[i];
+                if (nouns && i > 0 && word[i - 1] == '-') {
+                    continue; // « Z-Achse », « Erste-Schicht-Kalibrierung »
+                }
                 if (c >= 'A' && c <= 'Z') {
                     c = static_cast<char>(c - 'A' + 'a');
-                } else if (c == '\xC3' && i + 1 < len) {
-                    // Lettres accentuées de Latin-1 : U+00C0–U+00DE (sauf ×) → U+00E0–U+00FE
-                    if (const unsigned char n = static_cast<unsigned char>(word[i + 1]); n >= 0x80 && n <= 0x9E && n != 0x97) {
-                        word[i + 1] = static_cast<char>(n + 0x20);
-                    }
+                } else if ((c == '\xC3' || c == '\xC4' || c == '\xC5') && i + 1 < len) {
+                    // Lettre sur 2 octets : U+00C0–U+017F
+                    const unsigned l = lower_latin((static_cast<unsigned char>(c) & 0x1F) << 6 | (static_cast<unsigned char>(word[i + 1]) & 0x3F));
+                    c = static_cast<char>(0xC0 | l >> 6);
+                    word[i + 1] = static_cast<char>(0x80 | (l & 0x3F));
                     ++i;
                 }
             }

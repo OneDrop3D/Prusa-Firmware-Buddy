@@ -475,6 +475,10 @@ public:
 
     TabBar(window_t *parent, Tab active);
 
+    /// Cachée et inerte : au 1er démarrage, « Choisir la langue » et la configuration de l'imprimante ne mènent nulle part
+    /// ailleurs (« Accueil » fermait aussi les écrans de première mise en route empilés dessous)
+    void hide();
+
 private:
     class Button : public Card {
     public:

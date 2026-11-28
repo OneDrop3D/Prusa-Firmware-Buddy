@@ -1319,4 +1319,12 @@ TabBar::TabBar(window_t *parent, Tab active)
         { parent, Tab::settings, active },
     } {}
 
+void TabBar::hide() {
+    line.Hide();
+    for (Button &b : buttons) {
+        b.Hide();
+        b.Disable(); // caché, il recevait encore le toucher
+    }
+}
+
 } // namespace od3d

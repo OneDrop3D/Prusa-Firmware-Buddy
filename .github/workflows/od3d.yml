@@ -23,6 +23,14 @@ jobs:
             echo "::error::Sur l'imprimante, fprintf écrit des champs vides à la place des décimales : utiliser od3d::force_probe::csv_printf"
             exit 1
           fi
+      - name: Textes OneDrop3D traduits dans toutes les langues
+        # Un texte sans traduction s'affiche en anglais dans cette langue : avertissement seulement
+        run: |
+          pip install -q polib
+          python3 utils/od3d/traductions_od3d.py etat | tee etat.txt
+          if grep -qv ' : 0 ' etat.txt; then
+            echo "::warning::Textes sans traduction : python3 utils/od3d/traductions_od3d.py manquants <langue> manquants.json, traduire, puis ajouter"
+          fi
 
   firmware:
     # Une compilation par imprimante : CORE One (One+, One+ Gen2), CORE One L, et leurs variantes INDX
@@ -56,14 +64,15 @@ jobs:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
           CCACHE_MAXSIZE: 400M
         # Comme les versions publiées de Prusa (utils/holly/build-pr.jenkins, branches RELEASE-*) : sans les menus de développement.
-        # Français et anglais seulement. Le tag od3d-8.0.3.N donne la version « 8.0.3+<build>.OD3D.N », la forme des builds locaux de
+        # Anglais, tchèque, allemand, espagnol, français, italien et polonais : les langues de la police « latin + accents » (sans
+        # le japonais ni l'ukrainien, qui demanderaient 53 Ko de polices en plus) ; les .mo vont en flash externe. Le tag od3d-8.0.3.N donne la version « 8.0.3+<build>.OD3D.N », la forme des builds locaux de
         # Prusa (« +1035.LOCAL ») : envoyée à Prusa Connect (INFO, User-Agent-Version), elle se lit comme une version semver ET
         # PEP 440. « 8.0.3-OD3D.37 », sans numéro de build et avec une étiquette inconnue, faisait refuser les envois de PrusaSlicer
         # par Connect (retour du 24/11 : « The  does not support files transfer »). L'en-tête du .bbf garde « OD3D » (5 caractères).
         run: |
           build=$(git rev-list --count HEAD)  # le BUILD_NUMBER de cmake/ProjectVersion.cmake
           case "$GITHUB_REF_NAME" in od3d-*.*.*.*) n=".${GITHUB_REF_NAME##*.}" ;; *) n="" ;; esac
-          python utils/build.py --preset ${{ matrix.preset }} --build-type release --bootloader yes --version-suffix="+$build.OD3D$n" --version-suffix-short="-OD3D+$build" --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING=fr
+          python utils/build.py --preset ${{ matrix.preset }} --build-type release --bootloader yes --version-suffix="+$build.OD3D$n" --version-suffix-short="-OD3D+$build" --no-store-output -DDEVELOPMENT_ITEMS_ENABLED:BOOL=NO -DTRANSLATIONS_LIST:STRING='cs;de;es;fr;it;pl'
           # Celui de la CORE One garde son nom, « coreone_release_boot_8.0.3-OD3D.N.bbf ». Les autres ont « _OD3D » et pas
           # « -OD3D » : les versions publiées de OneDrop3D et PrintForge prennent le premier .bbf qui contient « -OD3D » et
           # ne doivent jamais proposer à une CORE One le firmware d'une CORE One L ou d'une INDX

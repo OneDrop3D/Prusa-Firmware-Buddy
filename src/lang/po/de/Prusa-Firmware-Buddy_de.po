@@ -9954,3 +9954,3994 @@ msgstr "bitte warten"
 #: src/gui/screen/selftest/screen_manual_belt_tuning.cpp:45
 msgid "tighten"
 msgstr "festziehen"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Printer calibration"
+msgstr "Kalibrierung"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Spool Join"
+msgstr "Spool Join"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+#, c-format
+msgid "Slot %i"
+msgstr "Slot %i"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Files"
+msgstr "Dateien"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Temperatures"
+msgstr "Temperaturen"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Workshop"
+msgstr "Atelier"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Turn on PrusaLink first: Settings > Network > PrusaLink."
+msgstr "Zuerst PrusaLink aktivieren: Einstellungen > Netzwerk > PrusaLink."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+#, c-format
+msgid ""
+"Type this code in PrintForge:\n"
+"\n"
+"%s\n"
+"\n"
+"Valid for 5 minutes."
+msgstr ""
+"Geben Sie diesen Code in PrintForge ein:\n"
+"\n"
+"%s\n"
+"\n"
+"5 Minuten gültig."
+
+#: src/gui/od3d/widgets_od3d.cpp
+msgid "Print files"
+msgstr "Drucken"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Print now"
+msgstr "Drucken"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Latest file"
+msgstr "Letzte Datei"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "No printable file"
+msgstr "Keine druckbare Datei"
+
+#: src/gui/od3d/screen_home_od3d.cpp
+msgid "Insert a USB drive"
+msgstr "USB-Stick einstecken"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Files · USB drive"
+msgstr "Dateien · USB-Stick"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Folder"
+msgstr "Ordner"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Before printing"
+msgstr "Vor dem Druck"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Map colours"
+msgstr "Farben zuordnen"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Adjust"
+msgstr "Ändern"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Stop print"
+msgstr "Stopp"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Resume print"
+msgstr "Fortsetzen"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "paused"
+msgstr "pausiert"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "stopped"
+msgstr "gestoppt"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "finished"
+msgstr "fertig"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "ends %s"
+msgstr "Ende %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "%s left"
+msgstr "Noch %s"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid "Now: slot %d"
+msgstr "Aktuell: Slot %d"
+
+#: src/gui/od3d/screen_menu_od3d.hpp
+msgid "Printer info"
+msgstr "Druckerinfo"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Nozzle temperature\n"
+"Compensates the nozzle growing when hot"
+msgstr ""
+"Düsentemperatur\n"
+"Gleicht die Dehnung der heißen Düse aus"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Spool join\n"
+"Empty spool: another one takes over"
+msgstr ""
+"Spool Join\n"
+"Spule leer: nächste übernimmt"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Pair PrintForge\n"
+"6-digit code to link PrintForge"
+msgstr ""
+"PrintForge koppeln\n"
+"6-stelliger Code zur Kopplung"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Nozzle expansion\n"
+"Fixes Z as the hot nozzle grows longer"
+msgstr ""
+"Düsendehnung\n"
+"Korrigiert Z, da sich die heiße Düse verlängert"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Current correction"
+msgstr "Aktuelle Korrektur"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Nozzle temp."
+msgstr "Düsentemp."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Automatic join\n"
+"Empty spool: another one takes over"
+msgstr ""
+"Auto-Join\n"
+"Spule leer: nächste übernimmt"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+#, c-format
+msgid "When %i runs out"
+msgstr "Wenn %i leer ist"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "do nothing"
+msgstr "nichts tun"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "target"
+msgstr "Soll"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "no target"
+msgstr "ohne Soll"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "stable"
+msgstr "stabil"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "heating"
+msgstr "heizt"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "cooling"
+msgstr "kühlt ab"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Part fan"
+msgstr "Lüfter"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Chamber fans"
+msgstr "Absaugung"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Filtration"
+msgstr "Filterung"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Preheat..."
+msgstr "Vorheizen..."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Presets"
+msgstr "Voreinst."
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "Cool down"
+msgstr "Abkühlen"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "black %s"
+msgstr "%s schwarz"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "white %s"
+msgstr "%s weiß"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "grey %s"
+msgstr "%s grau"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "red %s"
+msgstr "%s rot"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "orange %s"
+msgstr "%s orange"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "yellow %s"
+msgstr "%s gelb"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "green %s"
+msgstr "%s grün"
+
+#: src/gui/od3d/atelier_od3d.cpp
+#, c-format
+msgid "blue %s"
+msgstr "%s blau"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+#, c-format
+msgid "Slot %d · %s"
+msgstr "Slot %d · %s"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "In the nozzle"
+msgstr "In der Düse"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "In the MMU"
+msgstr "In der MMU"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Change spool"
+msgstr "Spule wechseln"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Material and colour"
+msgstr "Material und Farbe"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Spool usage"
+msgstr "Verbrauch"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Preload"
+msgstr "Vorladen"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Eject"
+msgstr "Auswurf"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Cut"
+msgstr "Kappen"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "PA: soon"
+msgstr "PA: bald"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Close"
+msgstr "Zu"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Insert a spool"
+msgstr "Spule einlegen"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Load to nozzle"
+msgstr "In Düse laden"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "All slots"
+msgstr "Alle"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Motors"
+msgstr "Motoren"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Open >"
+msgstr "Auf >"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Press. adv."
+msgstr "Press. Adv."
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "MMU info"
+msgstr "MMU-Info"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "MMU motors"
+msgstr "MMU-Motoren"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Pulley"
+msgstr "Rolle"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "soon: MMU firmware"
+msgstr "bald: MMU-Firmware"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Clean"
+msgstr "Reinigen"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Selector"
+msgstr "Selektor"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Idler"
+msgstr "Spannrolle"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Free"
+msgstr "Frei"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "parking"
+msgstr "Parken"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "position: %d"
+msgstr "Position: %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "idler free"
+msgstr "Rolle frei"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "pressed on %d"
+msgstr "gepresst %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "MMU settings"
+msgstr "MMU-Einstell."
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "1 · Remove"
+msgstr "1 · Weg"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "2 · Insert"
+msgstr "2 · Einlegen"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "3 · Choose"
+msgstr "3 · Wählen"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "New spool %d"
+msgstr "Neue Spule %d"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Spool weight tracking: soon"
+msgstr "Spulengewicht-Tracking: bald"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Cancel"
+msgstr "Abbruch"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Remove spool %d"
+msgstr "Spule %d entfernen"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid ""
+"The MMU pulled the filament out of input %d. Remove the spool, then press."
+msgstr ""
+"Die MMU hat das Filament aus Eingang %d gezogen. Spule entfernen, dann "
+"bestätigen."
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "It's done"
+msgstr "Erledigt"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Insert the new spool"
+msgstr "Neue Spule einlegen"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Push the filament into input %d: the MMU grabs it by itself."
+msgstr "Filament in Eingang %d schieben: Die MMU greift es selbst."
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Done · %s"
+msgstr "Fertig · %s"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Nozzle / bed"
+msgstr "Düse / Bett"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Remaining"
+msgstr "Rest"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Remaining weight and print history per spool: soon."
+msgstr "Restgewicht und Druckverlauf je Spule: bald."
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Loading slot %d"
+msgstr "Lade Slot %d"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Unloading slot %d"
+msgstr "Entlade Slot %d"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Preloading slot %d"
+msgstr "Lade Slot %d vor"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Preloading the MMU"
+msgstr "Lade MMU vor"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Ejecting slot %d"
+msgstr "Werfe Slot %d aus"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Cutting filament %d"
+msgstr "Schneide Filament %d"
+
+#: src/gui/MItem_menus.hpp src/gui/od3d/screen_move_od3d.cpp
+msgid "Move axes"
+msgstr "Achsen bewegen"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Extrude"
+msgstr "Extrud."
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Retract"
+msgstr "Einziehen"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "E cold"
+msgstr "E kalt"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Step"
+msgstr "Step"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "tap to go there"
+msgstr "Tippen: hinfahren"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Home all axes"
+msgstr "Alle Achsen homen"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Disable motors"
+msgstr "Motoren abschalten"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Not while printing."
+msgstr "Nicht während des Drucks."
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Axes not homed. Home them now?"
+msgstr "Achsen nicht gehomt. Jetzt homen?"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Nozzle too cold to extrude: heat it first."
+msgstr "Düse zu kalt zum Extrudieren: zuerst aufheizen."
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Home XYZ"
+msgstr "Home XYZ"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "Motors off"
+msgstr "Motoren aus"
+
+#: src/gui/od3d/screen_move_od3d.cpp
+msgid "MMU axes"
+msgstr "MMU-Achsen"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid ""
+"Pull the filament out of input %d at the back of the MMU, remove the spool, "
+"then press."
+msgstr ""
+"Filament aus Eingang %d an der Rückseite der MMU ziehen, Spule entfernen, "
+"dann bestätigen."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Automatic join\n"
+"Same material and colour, or the rules below"
+msgstr ""
+"Auto-Join\n"
+"Gleiches Material und Farbe, oder die Regeln unten"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "pressed on %d (free %d s)"
+msgstr "auf %d gepresst (frei %d s)"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid ""
+"XY squareness\n"
+"Fixes a frame that is not square"
+msgstr ""
+"XY-Rechtwinkligkeit\n"
+"Korrigiert unrechten Rahmen"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "XY squareness"
+msgstr "XY-Winkel"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid ""
+"Test piece\n"
+"Print a 100 mm square, then measure it"
+msgstr ""
+"Messteil\n"
+"100-mm-Quadrat drucken, dann messen"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid ""
+"Print a solid 100 x 100 x 3 mm square in the middle of the bed. Seen from "
+"the front: A front left, B back left, C back right, D front right. Measure "
+"AC, BD (diagonals) and AD (side) with a caliper."
+msgstr ""
+"Drucken Sie ein massives Quadrat von 100 x 100 x 3 mm in die Bettmitte. Von "
+"vorn gesehen: A vorne links, B hinten links, C hinten rechts, D vorne "
+"rechts. Messen Sie AC, BD (Diagonalen) und AD (Seite) mit einem "
+"Messschieber."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Diagonal AC"
+msgstr "Diagonale AC"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Diagonal BD"
+msgstr "Diagonale BD"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Side AD"
+msgstr "Seite AD"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Measured skew"
+msgstr "Gemessene Abw."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Apply correction"
+msgstr "Korrektur anwenden"
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Inconsistent measurements: check AC, BD and AD."
+msgstr "Inkonsistente Messwerte: AC, BD und AD prüfen."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Skew over 0.57°: adjust the frame and belts rather than correcting it."
+msgstr ""
+"Abweichung über 0,57°: Rahmen und Riemen besser einstellen als korrigieren."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+#, c-format
+msgid ""
+"XY correction saved: %s (measured skew added to the current one). Used for "
+"prints with bed leveling. Print the test piece again to check."
+msgstr ""
+"XY-Korrektur gespeichert: %s (gemessene Abweichung zur aktuellen addiert). "
+"Wird bei Drucken mit Bettnivellierung verwendet. Teil erneut drucken zur "
+"Kontrolle."
+
+#: src/gui/od3d/screen_skew_od3d.cpp
+msgid "Reset to zero"
+msgstr "Auf null setzen"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Motor music"
+msgstr "Motormusik"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "File"
+msgstr "Datei"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Playback"
+msgstr "Wiederg."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "X and Y"
+msgstr "X und Y"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "X only"
+msgstr "nur X"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Play"
+msgstr "Los"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "After print: on"
+msgstr "Nach Druck: an"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "After print: off"
+msgstr "Nach Druck: aus"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Starting..."
+msgstr "Starte..."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Playing..."
+msgstr "Wiedergabe läuft..."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Finished"
+msgstr "Fertig"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Stopped"
+msgstr "Gestoppt"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "File not found"
+msgstr "Datei nicht gefunden"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Unreadable MIDI file"
+msgstr "MIDI-Datei unlesbar"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "No notes to play"
+msgstr "Keine Noten"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "No room on this axis"
+msgstr "Zu wenig Weg"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "No .mid file"
+msgstr "Keine .mid-Datei"
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid "Spool %d is running low: about %d g left."
+msgstr "Spule %d fast leer: noch ca. %d g."
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+#, c-format
+msgid "Left %d g"
+msgstr "Rest %d g"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Other"
+msgstr "Sonst"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "New spool net weight"
+msgstr "Nettogewicht neue Spule"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Running low"
+msgstr "Fast leer"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Net weight (new)"
+msgstr "Nettogew. (neu)"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Low-spool alert"
+msgstr "Warnung Ende"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Full spool (100%)"
+msgstr "Volle Spule (100 %)"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Data from the NFC tag (OpenPrintTag)."
+msgstr "Daten vom NFC-Tag (OpenPrintTag)."
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Used since loaded: %d g"
+msgstr "Seit Einlegen: %d g"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+#, c-format
+msgid "Last print: %d g"
+msgstr "Letzter Druck: %d g"
+
+#: src/gui/od3d/screen_spool_od3d.cpp
+msgid "Set the net weight of the spool to start tracking it."
+msgstr "Nettogewicht der Spule festlegen, um sie zu verfolgen."
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %d g needed, about %d g left"
+msgstr "Slot %d: %d g nötig, noch ca. %d g"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "cleaning (stops in %d s)"
+msgstr "reinigt (Stopp in %d s)"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "choose a slot below"
+msgstr "Slot unten wählen"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+#, c-format
+msgid "pulley on slot %d"
+msgstr "Rolle auf Slot %d"
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Stop cleaning"
+msgstr "Stopp"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt tension"
+msgstr "Riemenspannung"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid ""
+"Belt tension\n"
+"Measured with the accelerometer"
+msgstr ""
+"Riemenspannung\n"
+"Gemessen mit dem Beschleunigungssensor"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt A"
+msgstr "Riemen A"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt B"
+msgstr "Riemen B"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "weak peak"
+msgstr "Peak flach"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "too low"
+msgstr "zu niedrig"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "in range"
+msgstr "passend"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "too high"
+msgstr "zu hoch"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Spectrum"
+msgstr "Spektrum"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Start"
+msgstr "Start"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Homing and moving to the measuring position..."
+msgstr "Homing und Anfahren der Messposition..."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Calibrating accelerometer... %d%%"
+msgstr "Kalibriere Beschl.sensor... %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Measuring belt %c... %d%%"
+msgstr "Messe Riemen %c... %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Attach the accelerometer to the extruder, then Start (about 1.5 min)."
+msgstr ""
+"Beschleunigungssensor am Extruder befestigen, dann Start (ca. 1,5 Min.)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid ""
+"No clear peak on belt %c: attach the accelerometer firmly and try again."
+msgstr ""
+"Kein klarer Peak bei Riemen %c: Sensor fest anbringen und erneut versuchen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both belts are in range: no need to turn the screws."
+msgstr "Beide Riemen im Bereich: Schrauben nicht drehen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "A and B differ by more than %d Hz: check the gantry alignment."
+msgstr "A und B weichen um mehr als %d Hz ab: Portal-Ausrichtung prüfen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#, c-format
+msgid "Both screws: %s %s turn, then measure again."
+msgstr "Beide Schrauben: %s %s Drehung, dann erneut messen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Let the nozzle cool below 50°C, then start again."
+msgstr "Düse unter 50°C abkühlen lassen, dann neu starten."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Accelerometer not responding."
+msgstr "Sensor antwortet nicht."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Homing failed."
+msgstr "Homing fehlgeschlagen."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Critical speeds"
+msgstr "Kritische Tempi"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid ""
+"Critical speeds\n"
+"Speeds that make the printer vibrate"
+msgstr ""
+"Kritische Tempi\n"
+"Tempi, die den Drucker vibrieren lassen"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "X axis"
+msgstr "X-Ach."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Y axis"
+msgstr "Y-Ach."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "No critical speed"
+msgstr "Kein kritisches Tempo"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+#, c-format
+msgid "Avoid: %s mm/s"
+msgstr "Meiden: %s mm/s"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+#, c-format
+msgid "Measuring %c axis... %d%%"
+msgstr "Messe Achse %c... %d%%"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid ""
+"Attach the accelerometer to the extruder, then Start (X and Y, about 3 min)."
+msgstr ""
+"Beschleunigungssensor am Extruder befestigen, dann Start (X und Y, ca. 3 "
+"Min.)."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Orange bars: speeds to avoid (strong vibration)."
+msgstr "Orange Balken: zu meidende Tempi (starke Vibration)."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "No speed stands out: no critical speed found."
+msgstr "Keine Geschwindigkeit sticht hervor: kein kritisches Tempo."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Pressure advance"
+msgstr "Pressure Advance"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Confidence %d/100"
+msgstr "Sicherheit %d/100"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Not measured"
+msgstr "Ungemessen"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "PA to measure"
+msgstr "PA messen"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "No force curve yet"
+msgstr "Noch keine Kurve"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Slot %d · PA"
+msgstr "Slot %d · PA"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Measure"
+msgstr "Messen"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Clear"
+msgstr "Leeren"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Printer PA: on"
+msgstr "Drucker-PA: an"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Printer PA: off"
+msgstr "Drucker-PA: aus"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "USB curves: on"
+msgstr "USB-Kurven: an"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "USB curves: off"
+msgstr "USB-Kurven: aus"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Heating the nozzle to %d°"
+msgstr "Heize Düse auf %d°"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Purging..."
+msgstr "Spülen..."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Measuring K = %s (%d/%d)"
+msgstr "Messe K = %s (%d/%d)"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Homing and moving..."
+msgstr "Homing und Fahrt..."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Measured: K = %s. Curves on the USB drive."
+msgstr "Gemessen: K = %s. Kurven auf dem USB-Stick."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Measured: K = %s"
+msgstr "Gemessen: K = %s"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "No room for the test."
+msgstr "Kein Platz für den Test."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "The nozzle did not heat up."
+msgstr "Düse hat nicht geheizt."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Measurement cancelled."
+msgstr "Messung abgebrochen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Force signal too weak: nothing saved."
+msgstr "Kraftsignal zu schwach: nichts gespeichert."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Force does not follow K: nothing saved."
+msgstr "Kraft folgt K nicht: nichts gespeichert."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "K out of range (%s): nothing saved."
+msgstr "K außerhalb (%s): nichts gespeichert."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Unsure result (K = %s): nothing saved."
+msgstr "Unsicher (K = %s): nichts gespeichert."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Invalid request."
+msgstr "Ungültige Anfrage."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Load this spool into the nozzle to measure it."
+msgstr "Spule in die Düse laden, um sie zu messen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Heats, then extrudes ~1 g at the bed front."
+msgstr "Heizt, extrudiert ~1 g vorn am Bett."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid ""
+"The nozzle heats up, then extrudes about 1 g of filament in the air above "
+"the front of the bed (2 to 3 min). Clear the bed. Start?"
+msgstr ""
+"Die Düse heizt auf und extrudiert ca. 1 g Filament in die Luft über dem "
+"vorderen Bettrand (2 bis 3 Min.). Bett freiräumen. Starten?"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: PA to measure (slicer value used)"
+msgstr "Slot %d: PA messen (Slicer-Wert genutzt)"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Printer PA wins\n"
+"Measured slot PA replaces the slicer's M572"
+msgstr ""
+"Drucker-PA hat Vorrang\n"
+"Gemessener PA ersetzt M572 des Slicers"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Nozzle temperature\n"
+"Expansion, PID or MPC control"
+msgstr ""
+"Düsentemperatur\n"
+"Dehnung, PID- oder MPC-Regelung"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid ""
+"Control\n"
+"PID (Prusa) or MPC, experimental"
+msgstr ""
+"Regelung\n"
+"PID (Prusa) oder MPC, experimentell"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid ""
+"Calibrate MPC model\n"
+"About 10 min, nozzle up to 200 °C"
+msgstr ""
+"MPC-Modell kalibrieren\n"
+"Ca. 10 Min., Düse bis 200 °C"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Calibrate the MPC model first."
+msgstr "Zuerst MPC-Modell kalibrieren."
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Calibration in progress."
+msgstr "Kalibrierung läuft."
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "MPC calibration"
+msgstr "MPC-Kalibr."
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Thermal model"
+msgstr "Thermisches Modell"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Cooling"
+msgstr "Abkühlung"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Free heating"
+msgstr "Freies Heizen"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Measuring losses (fan)"
+msgstr "Messe Verluste (Lüfter)"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Computing the model"
+msgstr "Berechne Modell"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+#, c-format
+msgid "In progress: %d %%"
+msgstr "Läuft: %d %%"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Model saved: MPC can now be chosen"
+msgstr "Modell gespeichert: MPC wählbar"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Keep the bed clear; the fan runs at times"
+msgstr "Bett freihalten; Lüfter läuft zeitweise"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Cancelled"
+msgstr "Abbruch"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Interrupted: nozzle target changed"
+msgstr "Unterbrochen: Düsen-Soll geändert"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "The nozzle does not cool down steadily"
+msgstr "Düse kühlt nicht gleichmäßig ab"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Calibration temperature not reached"
+msgstr "Kalibriertemperatur nicht erreicht"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Nozzle too hot: stopped"
+msgstr "Düse zu heiß: gestoppt"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "The temperature does not settle"
+msgstr "Temperatur stabilisiert sich nicht"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Inconsistent measurements, try again"
+msgstr "Inkonsistente Messwerte, erneut versuchen"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Chamber climate\n"
+"Material recipes, slow bed cool-down"
+msgstr ""
+"Kammerklima\n"
+"Materialrezepte, sanftes Bett-Abkühlen"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Material recipes\n"
+"Chamber ceiling or slow cool-down"
+msgstr ""
+"Materialrezepte\n"
+"Kammerlimit oder sanftes Abkühlen"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Slow cool-down\n"
+"Touch to stop it"
+msgstr ""
+"Sanftes Abkühlen\n"
+"Tippen zum Stoppen"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Stop the slow cool-down? The bed heater turns off."
+msgstr "Sanftes Abkühlen stoppen? Die Bettheizung geht aus."
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Step\n"
+"Bed drop at each step"
+msgstr ""
+"Stufe\n"
+"Bett-Absenkung je Stufe"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Step length\n"
+"Minutes between two steps"
+msgstr ""
+"Stufendauer\n"
+"Minuten zwischen zwei Stufen"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Down to\n"
+"Below it: bed off, cool-down over"
+msgstr ""
+"Bis\n"
+"Darunter: Bett aus, Ende"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Start now\n"
+"From the current bed temperature"
+msgstr ""
+"Jetzt starten\n"
+"Ab aktueller Betttemperatur"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "A nozzle is heating: the slow cool-down only drives a bed left alone."
+msgstr ""
+"Eine Düse heizt: Sanftes Abkühlen steuert nur ein allein gelassenes Bett."
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "The bed is already below the floor temperature."
+msgstr "Das Bett liegt schon unter der Endtemperatur."
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Chamber per filament\n"
+"Target, max, filtration (Prusa)"
+msgstr ""
+"Kammer je Filament\n"
+"Soll, Maximum, Filterung (Prusa)"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Chamber climate"
+msgstr "Kammerklima"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "Material recipes"
+msgstr "Materialrezepte"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "no recipe"
+msgstr "ohne"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "ceiling"
+msgstr "Limit"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "slow cool"
+msgstr "sanft"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid "both"
+msgstr "beides"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ", filter"
+msgstr ", Filter"
+
+#: src/gui/od3d/screen_temperatures_od3d.cpp
+msgid "slow cool-down"
+msgstr "sanft kühlen"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid ""
+"Retraction\n"
+"Pushed back exactly on return"
+msgstr ""
+"Retraction\n"
+"Bei Rückkehr exakt zurückgeschoben"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid "Clean resume"
+msgstr "Sauber fort."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Limit to measured flow\n"
+"Slows moves above the spool's max flow"
+msgstr ""
+"Auf gemessenen Fluss begrenzen\n"
+"Bremst über dem Max-Fluss der Spule"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Flow, temp."
+msgstr "Fluss, Temp."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Max flow"
+msgstr "Max-Fluss"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Min. temperature"
+msgstr "Min. Temperatur"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Limit: %s mm3/s"
+msgstr "Limit: %s mm3/s"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Force/flow"
+msgstr "Kraft/Fluss"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Force/temp."
+msgstr "Kraft/Temp."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Slot %d · Flow/temp"
+msgstr "Slot %d · Fluss/T"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Min. temp."
+msgstr "Min. Temp."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Flow limit: on"
+msgstr "Flusslimit: an"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Flow limit: off"
+msgstr "Flusslimit: aus"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Extruding %s mm3/s (%d/%d)"
+msgstr "Extrudiere %s mm3/s (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Extruding at %d° (%d/%d)"
+msgstr "Extrudiere bei %d° (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Nozzle down to %d° (%d/%d)"
+msgstr "Düse sinkt auf %d° (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Another measurement is running."
+msgstr "Andere Messung läuft."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Max flow measured: %s mm3/s"
+msgstr "Max-Fluss gemessen: %s mm3/s"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Min. temperature measured: %d°"
+msgstr "Min.-Temp. gemessen: %d°"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Too few steps: nothing saved."
+msgstr "Zu wenige Stufen: nichts gespeichert."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid ""
+"The nozzle heats up, then extrudes up to 1 g of filament at increasing flow "
+"above the front of the bed (1 to 2 min). Clear the bed. Start?"
+msgstr ""
+"Die Düse heizt auf und extrudiert bis zu 1 g Filament mit steigendem Fluss "
+"über dem vorderen Bettrand (1 bis 2 Min.). Bett freiräumen. Starten?"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid ""
+"The nozzle heats up, then cools down step by step while extruding a little "
+"filament above the front of the bed (3 to 6 min). Clear the bed. Start?"
+msgstr ""
+"Die Düse heizt auf und kühlt dann stufenweise ab, während sie etwas Filament"
+" über dem vorderen Bettrand extrudiert (3 bis 6 Min.). Bett freiräumen. "
+"Starten?"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid ""
+"Flow temperature\n"
+"Hotter before fast moves, MPC only"
+msgstr ""
+"Flusstemperatur\n"
+"Heißer vor schnellen Zügen, nur MPC"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid ""
+"Flow threshold\n"
+"The temperature rises above it"
+msgstr ""
+"Flussschwelle\n"
+"Darüber steigt die Temperatur"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Flow threshold"
+msgstr "Flussschwelle"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid ""
+"Maximum rise\n"
+"+1 °C per mm3/s above the threshold"
+msgstr ""
+"Max. Anstieg\n"
+"+1 °C je mm3/s über der Schwelle"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Maximum rise"
+msgstr "Max. Anstieg"
+
+#: src/gui/od3d/screen_mpc_od3d.cpp
+msgid "Current rise"
+msgstr "Akt. Anstieg"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Fan lead\n"
+"Part fan speeds up to 1 s early"
+msgstr ""
+"Lüfter-Vorlauf\n"
+"Lüfter dreht bis 1 s früher hoch"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Fan lead"
+msgstr "Lüfter-Vorlauf"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Chosen by eye"
+msgstr "Per Auge"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Best line"
+msgstr "Beste Linie"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Heating the bed..."
+msgstr "Heize Bett..."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Line %d/%d: K = %s"
+msgstr "Linie %d/%d: K = %s"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "The nozzle or the bed did not heat up."
+msgstr "Düse oder Bett hat nicht geheizt."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Bed probing failed."
+msgstr "Bett-Antasten fehlgeschlagen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Weak force: pick the best line by eye."
+msgstr "Schwache Kraft: beste Linie nach Sicht wählen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Force does not follow K: pick the best line."
+msgstr "Kraft folgt K nicht: beste Linie wählen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "K out of range (%s): pick the best line."
+msgstr "K außerhalb (%s): beste Linie wählen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Unsure (K = %s): pick the best line."
+msgstr "Unsicher (K = %s): beste Linie wählen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Prints one test line per K at the bed front."
+msgstr "Druckt je K eine Testlinie vorn am Bett."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid ""
+"Clean sheet in place, front of the bed free? The bed heats up, its front is "
+"probed, then one test line per K is printed there (6 to 10 min). Start?"
+msgstr ""
+"Saubere Platte eingelegt, Bettfront frei? Das Bett heizt, die Front wird "
+"angetastet, dann wird dort je K eine Testlinie gedruckt (6 bis 10 Min.). "
+"Starten?"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Slot %d · Best line"
+msgstr "Slot %d · Beste Linie"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid ""
+"Line 1 is at the front; count the ticks right of each line (long tick = 5). "
+"Pick the line with the most even width."
+msgstr ""
+"Linie 1 liegt vorn; Striche rechts jeder Linie zählen (langer Strich = 5). "
+"Linie mit der gleichmäßigsten Breite wählen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+#, c-format
+msgid "Save K = %s (line %d) for this spool?"
+msgstr "K = %s (Linie %d) für diese Spule speichern?"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Line at %s mm3/s (%d/%d)"
+msgstr "Linie bei %s mm3/s (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+#, c-format
+msgid "Line at %d° (%d/%d)"
+msgstr "Linie bei %d° (%d/%d)"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Prints test lines at the bed front."
+msgstr "Druckt Testlinien vorn am Bett."
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid ""
+"Clean sheet in place, front of the bed free? The bed heats up, its front is "
+"probed, then lines are printed there faster and faster (5 to 8 min). Start?"
+msgstr ""
+"Saubere Platte eingelegt, Bettfront frei? Das Bett heizt, die Front wird "
+"angetastet, dann werden dort immer schnellere Linien gedruckt (5 bis 8 "
+"Min.). Starten?"
+
+#: src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid ""
+"Clean sheet in place, front of the bed free? The bed heats up, its front is "
+"probed, then lines are printed there while the nozzle cools down step by "
+"step (8 to 12 min). Start?"
+msgstr ""
+"Saubere Platte eingelegt, Bettfront frei? Das Bett heizt, die Front wird "
+"angetastet, dann werden dort Linien gedruckt, während die Düse stufenweise "
+"abkühlt (8 bis 12 Min.). Starten?"
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid ""
+"The accelerometer does not answer. Attach it to the nozzle and plug it in, "
+"then Retry."
+msgstr ""
+"Der Beschleunigungssensor antwortet nicht. An der Düse befestigen und "
+"einstecken, dann Wiederholen."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Axis damping"
+msgstr "Achsdämpfung"
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Apply"
+msgstr "Anwenden"
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Prusa value"
+msgstr "Prusa-Wert"
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid ""
+"Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min)."
+msgstr ""
+"Beschleunigungssensor an der Düse befestigen, dann Start (X und Y, ca. 4 "
+"Min.)."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+#, c-format
+msgid "Input shaper damping now: X %s, Y %s (Prusa %s)."
+msgstr "Input-Shaper-Dämpfung jetzt: X %s, Y %s (Prusa %s)."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid ""
+"Axis damping\n"
+"Input shaper damping, measured"
+msgstr ""
+"Achsdämpfung\n"
+"Input-Shaper-Dämpfung, gemessen"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Stopped: leaving this screen stops the measurement."
+msgstr "Gestoppt: Verlassen des Bildschirms stoppt die Messung."
+
+#: src/gui/od3d/menu_od3d.cpp
+msgid "Knob: adjust, click: OK"
+msgstr "Drehen: einstellen, Klick: OK"
+
+#: src/gui/od3d/widgets_od3d.cpp
+msgid ""
+"Spool %d: %d g\n"
+"running low"
+msgstr ""
+"Spule %d: %d g\n"
+"fast leer"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Continue in background"
+msgstr "Im Hintergrund fortsetzen"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid ""
+"Collision guard\n"
+"Pause when the nozzle hits the part"
+msgstr ""
+"Kollisionsschutz\n"
+"Pause, wenn die Düse das Teil trifft"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid ""
+"Collision guard\n"
+"Load cell, during prints only"
+msgstr ""
+"Kollisionsschutz\n"
+"Wägezelle, nur während des Drucks"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid "Collision guard"
+msgstr "Kollisionsschutz"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid ""
+"Sensitivity\n"
+"Thresholds 600 / 400 / 250 g"
+msgstr ""
+"Empfindlichkeit\n"
+"Schwellen 600 / 400 / 250 g"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid ""
+"Action\n"
+"On repeated hits"
+msgstr ""
+"Aktion\n"
+"Bei Wiederholung"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid "Pause the print"
+msgstr "Druck pausieren"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid "Warn only"
+msgstr "Nur warnen"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid ""
+"Last hit\n"
+"Peak above the normal force"
+msgstr ""
+"Letzter Stoß\n"
+"Spitze über der Normalkraft"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid ""
+"Test with a cold nozzle\n"
+"Tap under the nozzle 3 times"
+msgstr ""
+"Test mit kalter Düse\n"
+"3-mal unter die Düse tippen"
+
+#: src/gui/od3d/screen_collision_od3d.cpp
+msgid ""
+"Bed lowered, nozzle cold: for 60 s, tap the nozzle tip upward 3 times, "
+"sharply, with a wooden stick. \"Last hit\" shows each force; the collision "
+"message then appears on the home screen."
+msgstr ""
+"Bett abgesenkt, Düse kalt: 60 s lang die Düsenspitze 3-mal kurz und kräftig "
+"mit einem Holzstäbchen nach oben tippen. \"Letzter Stoß\" zeigt jede Kraft; "
+"die Kollisionsmeldung erscheint dann auf dem Startbildschirm."
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "Slot %d PA measured: K = %s"
+msgstr "PA Slot %d gemessen: K = %s"
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "Slot %d PA not measured, slicer PA kept"
+msgstr "PA Slot %d nicht gemessen, Slicer-PA beibehalten"
+
+#: src/feature/od3d/pa_od3d.cpp
+msgid "PA not measured: MMU not ready"
+msgstr "PA ungemessen: MMU nicht bereit"
+
+#: src/feature/od3d/pa_od3d.cpp
+msgid "PA not measured: no print area in the G-code"
+msgstr "PA nicht gemessen: kein Druckbereich im G-code"
+
+#: src/feature/od3d/pa_od3d.cpp
+msgid "PA not measured: no room beside the print"
+msgstr "PA nicht gemessen: kein Platz neben dem Druck"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "MMU not ready."
+msgstr "MMU n. bereit."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Loads the spool, then prints test lines in front."
+msgstr "Lädt die Spule, druckt dann Testlinien vorn."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid ""
+"Clean sheet in place, front of the bed free? This spool is loaded into the "
+"nozzle, the bed heats up, its front is probed, then one test line per K is "
+"printed there (8 to 12 min). Start?"
+msgstr ""
+"Saubere Platte eingelegt, Bettfront frei? Diese Spule wird in die Düse "
+"geladen, das Bett heizt, die Front wird angetastet, dann wird dort je K eine"
+" Testlinie gedruckt (8 bis 12 Min.). Starten?"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Calibrate PA"
+msgstr "PA kalibrieren"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Automatic PA\n"
+"Short test before printing"
+msgstr ""
+"Automatisches PA\n"
+"Kurzer Test vor dem Druck"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "New spool"
+msgstr "Neue Spule"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Every print"
+msgstr "Jeder Druck"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Sleep mode\n"
+"Screen, lights, heaters, motors"
+msgstr ""
+"Ruhemodus\n"
+"Display, Licht, Heizung, Motoren"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Sleep mode"
+msgstr "Ruhemodus"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Sleep now"
+msgstr "Jetzt in Ruhemodus"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Not while printing or during an operation."
+msgstr "Nicht während Druck oder Vorgang."
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Immediately"
+msgstr "Sofort"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Automatic sleep\n"
+"After the delay without use"
+msgstr ""
+"Auto-Ruhemodus\n"
+"Nach der Zeit ohne Nutzung"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Delay\n"
+"Without touch, knob or job"
+msgstr ""
+"Zeit\n"
+"Ohne Touch, Drehknopf oder Job"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Screen off\n"
+"Backlight off, black screen"
+msgstr ""
+"Display aus\n"
+"Hintergrundlicht aus, schwarz"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Lights off\n"
+"Chamber, status bar and bed"
+msgstr ""
+"Licht aus\n"
+"Kammer, Statusleiste und Bett"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Heaters off\n"
+"Nozzle and bed, never while printing"
+msgstr ""
+"Heizung aus\n"
+"Düse und Bett, nie beim Drucken"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Heaters delay\n"
+"After falling asleep"
+msgstr ""
+"Heizungsverzug\n"
+"Nach dem Einschlafen"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Motors off\n"
+"X, Y and extruder: homing is lost"
+msgstr ""
+"Motoren aus\n"
+"X, Y und Extruder: Home geht verloren"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Fans off\n"
+"Chamber fans and filtration"
+msgstr ""
+"Lüfter aus\n"
+"Kammerlüfter und Filterung"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Flow"
+msgstr "Fluss"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Min temp"
+msgstr "T min"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Belts"
+msgstr "Riemen"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Speeds"
+msgstr "Tempi"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Damping"
+msgstr "Dämpf."
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Music"
+msgstr "Musik"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Hit test"
+msgstr "Stoßtest"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "probing"
+msgstr "Tasten"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "loading"
+msgstr "Laden"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "priming"
+msgstr "Spülen"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Wait"
+msgstr "Warten"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Spool not loaded: nothing measured."
+msgstr "Spule nicht geladen: nichts gemessen."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Compact"
+msgstr "Kompakt"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Large"
+msgstr "Groß"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid ""
+"Clean sheet in place, front of the bed free? The bed heats up while homing, "
+"its front is probed, then 4 to 8 short test lines are printed there (4 to 6 "
+"min). Start?"
+msgstr ""
+"Saubere Platte eingelegt, Bettfront frei? Das Bett heizt beim Homing, die "
+"Front wird angetastet, dann werden dort 4 bis 8 kurze Testlinien gedruckt (4"
+" bis 6 Min.). Starten?"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid ""
+"Clean sheet in place, front of the bed free? This spool is loaded into the "
+"nozzle while the bed heats up, its front is probed, then 4 to 8 short test "
+"lines are printed there (6 to 8 min). Start?"
+msgstr ""
+"Saubere Platte eingelegt, Bettfront frei? Diese Spule wird in die Düse "
+"geladen, während das Bett heizt, die Front wird angetastet, dann werden dort"
+" 4 bis 8 kurze Testlinien gedruckt (6 bis 8 Min.). Starten?"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid ""
+"Line 1 is at the front; lines follow the test order, not K (see each "
+"button). Pick the line with the most even width."
+msgstr ""
+"Linie 1 liegt vorn; die Linien folgen der Testreihenfolge, nicht K (siehe "
+"jede Taste). Linie mit der gleichmäßigsten Breite wählen."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Large PA pattern\n"
+"Manual: numbered lines, pick by eye"
+msgstr ""
+"Großes PA-Muster\n"
+"Manuell: nummerierte Linien, nach Sicht"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid ""
+"Prepare MMU USB update\n"
+"Printer stops talking to the MMU"
+msgstr ""
+"MMU-USB-Update vorbereiten\n"
+"Drucker spricht nicht mehr mit der MMU"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Turn the MMU on first (MMU settings)."
+msgstr "Zuerst die MMU aktivieren (MMU-Einstellungen)."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU USB update"
+msgstr "MMU-USB-Update"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid ""
+"The MMU stays powered and the printer no longer talks to it. Connect the MMU"
+" micro-USB to the computer and start the installation in PrintForge or "
+"PrusaSlicer."
+msgstr ""
+"Die MMU bleibt unter Strom, der Drucker spricht nicht mehr mit ihr. Micro-"
+"USB der MMU mit dem Computer verbinden und die Installation in PrintForge "
+"oder PrusaSlicer starten."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Finish"
+msgstr "Beenden"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Stopping the communication..."
+msgstr "Beende die Kommunikation..."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The MMU waits for the computer."
+msgstr "Die MMU wartet auf den Computer."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Installed:"
+msgstr "Installiert"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Restarting the MMU..."
+msgstr "Starte die MMU neu..."
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid ""
+"Measure automatically\n"
+"With a preloaded spool"
+msgstr ""
+"Automatisch messen\n"
+"Mit vorgeladener Spule"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid ""
+"Start the measurement\n"
+"About 1 minute, cold nozzle OK"
+msgstr ""
+"Messung starten\n"
+"Ca. 1 Minute, kalte Düse möglich"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Last measurement"
+msgstr "Letzte Messung"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Not measured yet"
+msgstr "Noch nicht gemessen"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Measuring..."
+msgstr "Messe..."
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: printing"
+msgstr "Abgelehnt: Druck läuft"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: MMU not ready"
+msgstr "Abgelehnt: MMU nicht bereit"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: extruder sensor inactive"
+msgstr "Abgelehnt: Extrudersensor inaktiv"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: filament in the extruder"
+msgstr "Abgelehnt: Filament im Extruder"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Refused: filament in the selector"
+msgstr "Abgelehnt: Filament im Selektor"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Tube under 341 mm: unchanged"
+msgstr "Tube unter 341 mm: unverändert"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Phase stepping"
+msgstr "Phase Stepping"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "XY skew"
+msgstr "XY-Winkel"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nothing to calibrate."
+msgstr "Nichts zu kalibrieren."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Full calibration: %d tests, about %d min. Once started, the tests run by "
+"themselves."
+msgstr ""
+"Volle Kalibrierung: %d Tests, ca. %d Min. Einmal gestartet, laufen die Tests"
+" selbstständig."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Do you have the accelerometer (input shaper kit)? It is clipped on the "
+"nozzle only during its tests."
+msgstr ""
+"Haben Sie den Beschleunigungssensor (Input-Shaper-Kit)? Er wird nur während "
+"seiner Tests an der Düse befestigt."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Nozzle %d°C: cooling below 40°C before attaching the accelerometer (fan on)."
+msgstr ""
+"Düse %d°C: Abkühlen unter 40°C vor dem Befestigen des Sensors (Lüfter an)."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nozzle %d°C. Homing, please wait."
+msgstr "Düse %d°C. Homing, bitte warten."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nozzle %d°C, below 40°C. Continue."
+msgstr "Düse %d°C, unter 40°C. Weiter."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"The accelerometer does not answer. Check it is attached and plugged in, then"
+" Continue."
+msgstr ""
+"Der Beschleunigungssensor antwortet nicht. Befestigung und Anschluss prüfen,"
+" dann Weiter."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Checking the accelerometer..."
+msgstr "Prüfe den Beschleunigungssensor..."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Home position lost. Remove the accelerometer, then Continue: the head homes "
+"again."
+msgstr ""
+"Home-Position verloren. Sensor entfernen, dann Weiter: Der Kopf fährt erneut"
+" Home."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Stopping..."
+msgstr "Stoppe..."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Step %d/%d: %s, slot %d. You may leave this screen: the pill shows the "
+"progress."
+msgstr ""
+"Schritt %d/%d: %s, Slot %d. Sie können den Bildschirm verlassen: Die "
+"Pastille zeigt den Fortschritt."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Step %d/%d: %s. You may leave this screen: the pill shows the progress."
+msgstr ""
+"Schritt %d/%d: %s. Sie können den Bildschirm verlassen: Die Pastille zeigt "
+"den Fortschritt."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Is the bed empty and clean? Each test prints in its own place on the bed."
+msgstr ""
+"Bett leer und sauber? Jeder Test druckt an eigener Stelle auf dem Bett."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"The bed is full of test prints. Remove them and put the clean sheet back, "
+"then Continue."
+msgstr ""
+"Das Bett ist voller Testdrucke. Entfernen und saubere Platte einlegen, dann "
+"Weiter."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Yes"
+msgstr "Ja"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "No"
+msgstr "Nein"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Calibration assistant\n"
+"All tests in a row, by themselves"
+msgstr ""
+"Kalibrierassistent\n"
+"Alle Tests hintereinander, selbstständig"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Accelerometer available\n"
+"Its tests are offered"
+msgstr ""
+"Beschl.-Sensor vorhanden\n"
+"Seine Tests werden angeboten"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Front PTFE"
+msgstr "Front-PTFE"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Stop purging"
+msgstr "Spülen stoppen"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Nozzle standby"
+msgstr "Düse Standby"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Chamber minimum"
+msgstr "Kammer min."
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Chamber maximum"
+msgstr "Kammer max."
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid ""
+"Filaments\n"
+"Temperatures of PLA, PETG... editable"
+msgstr ""
+"Filamente\n"
+"Temperaturen von PLA, PETG... änderbar"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "modified"
+msgstr "Geänd."
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "chamber"
+msgstr "Kammer"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid ""
+"My filaments\n"
+"Your own, order and visibility (Prusa)"
+msgstr ""
+"Meine Filamente\n"
+"Eigene, Reihenfolge und Sichtbarkeit (Prusa)"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Filaments"
+msgstr "Filamente"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid ""
+"Restore Prusa value\n"
+"One value or the whole preset"
+msgstr ""
+"Prusa-Wert wiederherstellen\n"
+"Ein Wert oder ganze Voreinstellung"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid ""
+"Whole preset\n"
+"All values back to Prusa's"
+msgstr ""
+"Ganze Voreinstellung\n"
+"Alle Werte wie bei Prusa"
+
+#: src/gui/od3d/screen_filament_presets_od3d.cpp
+msgid "Prusa values"
+msgstr "Prusa-Werte"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid ""
+"Printing\n"
+"Safety checks, runout, G-code"
+msgstr ""
+"Drucken\n"
+"Sicherheit, Filamentende, G-code"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid ""
+"Filament and MMU\n"
+"Sensors, MMU, cutter, OpenPrintTag"
+msgstr ""
+"Filament und MMU\n"
+"Sensoren, MMU, Messer, OpenPrintTag"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Filament and MMU"
+msgstr "Filament und MMU"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid ""
+"Chamber\n"
+"Filtration, lights, camera"
+msgstr ""
+"Kammer\n"
+"Filterung, Licht, Kamera"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid ""
+"Diagnostics\n"
+"Logs, crash dump, metrics (support)"
+msgstr ""
+"Diagnose\n"
+"Protokolle, Crash-Dump, Metriken (Support)"
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid "Diagnostics"
+msgstr "Diagnose"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"Printer info\n"
+"Version, statistics, sensors"
+msgstr ""
+"Druckerinfo\n"
+"Version, Statistik, Sensoren"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"Printhead\n"
+"Nozzle diameter and type, sock"
+msgstr ""
+"Druckkopf\n"
+"Düsendurchmesser und -typ, Socke"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"Hardware\n"
+"Door, belts, input shaper, MMU tube"
+msgstr ""
+"Hardware\n"
+"Tür, Riemen, Input Shaper, MMU-Tube"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"Interface\n"
+"Sounds, file order, touch, footer"
+msgstr ""
+"Oberfläche\n"
+"Töne, Dateireihenfolge, Touch, Fußzeile"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"Network\n"
+"Wi-Fi, PrusaLink, Prusa Connect"
+msgstr ""
+"Netzwerk\n"
+"WLAN, PrusaLink, Prusa Connect"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"Language and time\n"
+"Language, time zone, clock"
+msgstr ""
+"Sprache und Zeit\n"
+"Sprache, Zeitzone, Uhrformat"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"System\n"
+"Factory reset, settings file, diagnostics"
+msgstr ""
+"System\n"
+"Werkseinstellung, Einstell.-Datei, Diagnose"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Printer calibration\n"
+"Assistant, PA, MPC, chamber climate"
+msgstr ""
+"Druckerkalibrierung\n"
+"Assistent, PA, MPC, Kammerklima"
+
+#: src/gui/od3d/screen_climate_od3d.cpp
+msgid ""
+"Chamber per filament\n"
+"Target, min and max in Filaments"
+msgstr ""
+"Kammer je Filament\n"
+"Soll, Min. und Max. in Filamente"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid ""
+"Update the MMU via the front USB\n"
+"MMU micro-USB into the front port"
+msgstr ""
+"MMU über vorderes USB updaten\n"
+"MMU-Micro-USB an vorderen Port"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU via front USB"
+msgstr "MMU über USB vorn"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid ""
+"Remove the USB drive, then plug the micro-USB of the MMU board into the "
+"front USB port of the printer. The printer writes the MMU firmware it "
+"carries, then reads it back."
+msgstr ""
+"USB-Stick entfernen, dann das Micro-USB der MMU-Platine am vorderen USB-Port"
+" des Druckers anschließen. Der Drucker schreibt die mitgeführte MMU-Firmware"
+" und liest sie dann zurück."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Install"
+msgstr "Install."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Retry"
+msgstr "Nochmal"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Starting the MMU bootloader..."
+msgstr "Starte den MMU-Bootloader..."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Writing and reading back:"
+msgstr "Schreiben und Rücklesen:"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Verified. Unplug the cable, then Finish."
+msgstr "Geprüft. Kabel abziehen, dann Beenden."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU firmware missing in the printer."
+msgstr "MMU-Firmware im Drucker fehlt."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU disconnected."
+msgstr "MMU getrennt."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "No MMU seen: check the data cable, then Retry."
+msgstr "Keine MMU erkannt: Datenkabel prüfen, dann Nochmal."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Press the MMU reset button, next to its USB."
+msgstr "Reset-Taste der MMU neben dem USB drücken."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The MMU did not enter its bootloader."
+msgstr "Die MMU ging nicht in den Bootloader."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU bootloader not answering:"
+msgstr "MMU-Bootloader antwortet nicht:"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Command refused by the MMU:"
+msgstr "Befehl von der MMU abgelehnt:"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Not an MMU3 board: nothing written."
+msgstr "Keine MMU3-Platine: nichts geschrieben."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Read-back differs at"
+msgstr "Rücklesen weicht ab bei"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU connected, firmware to install:"
+msgstr "MMU verbunden, zu installierende Firmware:"
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "Remove the USB drive from the front port."
+msgstr "USB-Stick vom vorderen Port entfernen."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "MMU not seen? Tap Install, then its reset button."
+msgstr "MMU nicht erkannt? Installieren, dann ihr Reset."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+#, c-format
+msgid ""
+"Write MMU firmware %s from the printer? Do not unplug anything until it is "
+"verified."
+msgstr ""
+"MMU-Firmware %s vom Drucker schreiben? Nichts abziehen, bis die Prüfung "
+"fertig ist."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Stop the calibration series? The current measurement stops and the next ones"
+" are not done."
+msgstr ""
+"Kalibrierserie stoppen? Die laufende Messung stoppt, die nächsten entfallen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Stop this measurement? The assistant goes on with the next one."
+msgstr "Diese Messung stoppen? Der Assistent macht mit der nächsten weiter."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "calibrating %d%%"
+msgstr "kalibriere %d%%"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%c axis, %d Hz"
+msgstr "Ach. %c, %d Hz"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "computing %d%%"
+msgstr "rechne %d%%"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%c axis"
+msgstr "Ach. %c"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the silicone sock from the nozzle."
+msgstr "Silikonsocke von der Düse entfernen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Firmly attach the accelerometer to the extruder and plug it into the board, "
+"then Continue."
+msgstr ""
+"Beschleunigungssensor fest am Extruder befestigen und an die Platine "
+"anschließen, dann Weiter."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Step %d/%d: %s, %s. You may leave this screen: the pill shows the progress."
+msgstr ""
+"Schritt %d/%d: %s, %s. Sie können den Bildschirm verlassen: Die Pastille "
+"zeigt den Fortschritt."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Remove the accelerometer from the nozzle, then put the silicone sock back on"
+" it. The nozzle heats only after that."
+msgstr ""
+"Sensor von der Düse entfernen und die Silikonsocke wieder aufsetzen. Die "
+"Düse heizt erst danach."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the accelerometer from the nozzle."
+msgstr "Beschleunigungssensor von der Düse entfernen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "No numbers: the test did not finish."
+msgstr "Keine Zahlen: Der Test wurde nicht beendet."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Filters:"
+msgstr "Filter:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Before:"
+msgstr "Vorher:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Vibrations vs no filter (estimated):"
+msgstr "Vibrationen vs. ohne Filter (geschätzt):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Vibrations vs before (estimated):"
+msgstr "Vibrationen vs. vorher (geschätzt):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Motor vibrations (measured by Prusa):"
+msgstr "Motorvibrationen (von Prusa gemessen):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Belts:"
+msgstr "Riemen:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Target:"
+msgstr "Ziel:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Damping:"
+msgstr "Dämpfung:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Cycles to damp ringing to 5% (estimated):"
+msgstr "Zyklen bis Ringing auf 5 % (geschätzt):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Critical speeds:"
+msgstr "Kritische Tempi:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MPC model:"
+msgstr "MPC-Modell:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Front PTFE length:"
+msgstr "Länge Front-PTFE:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Measured:"
+msgstr "Gemessen:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "K per spool (before):"
+msgstr "K je Spule (vorher):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max flow per spool, mm3/s (before):"
+msgstr "Max-Fluss je Spule, mm3/s (vorher):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Min temperature per spool, °C (material):"
+msgstr "Min.-Temp. je Spule, °C (Material):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed. Touch a test for its numbers."
+msgstr "Fertig: %d OK, %d fehlgeschlagen. Test antippen für Zahlen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Vibrations"
+msgstr "Vibr."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "(estimated)"
+msgstr "(geschätz)"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "motors"
+msgstr "Motoren"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "belts"
+msgstr "Riemen"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "max flow"
+msgstr "Max-Fluss"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "%d h max"
+msgstr "max %d h"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Redo bed mesh\n"
+"Full probing at the next print"
+msgstr ""
+"Bettmesh neu\n"
+"Volles Antasten beim nächsten Druck"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"The saved bed mesh is cleared: the next print probes the whole print area."
+msgstr ""
+"Das gespeicherte Bettmesh ist gelöscht: Der nächste Druck tastet den ganzen "
+"Druckbereich an."
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Failed: sensor not reached within 1000 mm"
+msgstr "Fehler: Sensor nicht in 1000 mm erreicht"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Tube over 1000 mm (MMU max): unchanged"
+msgstr "Tube über 1000 mm (MMU-Max.): unverändert"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Failed: load interrupted (MMU error?)"
+msgstr "Fehler: Laden unterbrochen (MMU-Fehler?)"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Measured, but not applied by the MMU"
+msgstr "Gemessen, aber von MMU nicht übernommen"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid ""
+"The MMU pushes the spool of slot %d to the extruder, slowly after 341 mm "
+"(normal during the measurement), then unloads it. Is that spool preloaded?"
+msgstr ""
+"Die MMU schiebt die Spule von Slot %d zum Extruder, nach 341 mm langsam "
+"(normal bei der Messung), und entlädt sie dann. Ist diese Spule vorgeladen?"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Not applied: MMU %u mm, asked %u"
+msgstr "Nicht übern.: MMU %u mm, soll %u"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Saved %u mm (sensor at %u mm)"
+msgstr "Gespeichert %u mm (Sensor bei %u mm)"
+
+#: src/gui/menu_item/specific/menu_items_hw_mmu.cpp
+msgid ""
+"Front PTFE Length\n"
+"Not applied: MMU %u, asked %u"
+msgstr ""
+"Front-PTFE-Länge\n"
+"Nicht übern.: MMU %u, soll %u"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Rise time"
+msgstr "Anstiegszeit"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Part fan speed"
+msgstr "Lüfterdrehzahl"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "Part fan response"
+msgstr "Lüfterantwort"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+#, c-format
+msgid "Measuring the part fan... %d%%"
+msgstr "Messe Lüfter... %d%%"
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid ""
+"Part fan started at full speed, no filament or heating (about 8 s). Sets the"
+" fan lead."
+msgstr ""
+"Lüfter mit Vollgas gestartet, ohne Filament und Heizung (ca. 8 s). Stellt "
+"den Lüfter-Vorlauf ein."
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+#, c-format
+msgid "Fan lead set from the rise time (before: %s)."
+msgstr "Lüfter-Vorlauf aus der Anstiegszeit gesetzt (vorher: %s)."
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid "No fan speed read: fan lead unchanged."
+msgstr "Keine Drehzahl gelesen: Lüfter-Vorlauf unverändert."
+
+#: src/gui/od3d/screen_fan_response_od3d.cpp
+msgid ""
+"Part fan response\n"
+"Measured, sets the fan lead"
+msgstr ""
+"Lüfterantwort\n"
+"Gemessen, stellt den Lüfter-Vorlauf ein"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Part fan rise time:"
+msgstr "Lüfter-Anstieg:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fan lead applied:"
+msgstr "Lüfter-Vorlauf angewandt:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "part fan"
+msgstr "Lüfter"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "lead"
+msgstr "Vorl."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid ""
+"Saved for this nozzle: Z follows it from now on. The saved bed mesh is "
+"cleared."
+msgstr ""
+"Für diese Düse gespeichert: Z folgt ihr ab jetzt. Gespeichertes Bettmesh "
+"gelöscht."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Unload the filament first: the nozzle must be empty."
+msgstr "Zuerst Filament entladen: Die Düse muss leer sein."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Heating failed."
+msgstr "Heizen fehlgeschlagen."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Probing failed."
+msgstr "Antasten fehlgeschl."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Rejected: probes too far apart. Clean the nozzle tip and the bed."
+msgstr ""
+"Abgelehnt: Messpunkte zu weit gestreut. Düsenspitze und Bett reinigen."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Rejected: steps off the line. Retry with the printer warm."
+msgstr ""
+"Abgelehnt: Stufen abseits der Geraden. Mit warmem Drucker wiederholen."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Rejected: implausible slope. Nothing changed."
+msgstr "Abgelehnt: unplausible Steigung. Nichts geändert."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid ""
+"Empty nozzle, clear bed. Bed center probed at 170, 215, 260°C and back, "
+"about 15 min."
+msgstr ""
+"Düse leer, Bett frei. Bettmitte bei 170, 215, 260°C und zurück angetastet, "
+"ca. 15 Min."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Measured"
+msgstr "Gemessen"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Prusa model"
+msgstr "Prusa-Modell"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Saved"
+msgstr "Gespei."
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "At 250°C: %+.1f um"
+msgstr "Bei 250°C: %+.1f um"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Spread %.1f um"
+msgstr "Streuung %.1f um"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Hysteresis %.1f um"
+msgstr "Hysterese %.1f um"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "up"
+msgstr "hin"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "back"
+msgstr "Rück"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Nozzle expansion"
+msgstr "Düsendehnung"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "Bed to 60°C and steady, homing, nozzle cleaning... %d%%"
+msgstr "Bett auf 60°C und stabil, Homing, Düsenreinigung... %d%%"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "%d/%d: nozzle to %d°C, waiting until steady... %d%%"
+msgstr "%d/%d: Düse auf %d°C, warte auf Stabilität... %d%%"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid "%d/%d: probing at %d°C... %d%%"
+msgstr "%d/%d: Antasten bei %d°C... %d%%"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid ""
+"Unload the filament and clear the bed: the nozzle probes the bed center up "
+"to 260°C. Start?"
+msgstr ""
+"Filament entladen und Bett freiräumen: Die Düse tastet die Bettmitte bis "
+"260°C an. Starten?"
+
+#: src/gui/od3d/screen_nozzle_expansion_od3d.cpp
+msgid ""
+"Measure the expansion\n"
+"Probes the bed from 170 to 260°C"
+msgstr ""
+"Dehnung messen\n"
+"Tastet das Bett von 170 bis 260°C an"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Expansion"
+msgstr "Dehnung"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Expansion:"
+msgstr "Dehnung:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Measured slope:"
+msgstr "Gemess. Anstieg:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Prusa model:"
+msgstr "Prusa-Modell:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "At 250°C vs Prusa:"
+msgstr "Bei 250°C vs. Prusa:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Hysteresis:"
+msgstr "Hysterese:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "nozzle at 250°C"
+msgstr "Düse bei 250°C"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Safe jump"
+msgstr "Sprung"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Max filament accel."
+msgstr "Max. Filament-Beschl."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Line accel. (estimated)"
+msgstr "Linienbeschl. (geschätzt)"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Jump steps"
+msgstr "Sprungstufen"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Slot %d · Fil. accel."
+msgstr "Slot %d · Fil.-Beschl."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Extruder jump %s mm/s (%d/%d)"
+msgstr "Extrudersprung %s mm/s (%d/%d)"
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Safe jump saved: %s mm/s. Remove the purged filament."
+msgstr "Sicherer Sprung gespeichert: %s mm/s. Gespültes Filament entfernen."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid "Stalled from the first step: nothing saved. Check the extruder."
+msgstr "Ab der ersten Stufe blockiert: nichts gespeichert. Extruder prüfen."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid ""
+"Extruder jumps at the purge spot (~60 mm of filament, 1 min). Then filament "
+"accel. = jump / K. Line 0.45 x 0.2 mm."
+msgstr ""
+"Extrudersprünge an der Spülstelle (~60 mm Filament, 1 Min.). Dann Filament-"
+"Beschl. = Sprung / K. Linie 0,45 x 0,2 mm."
+
+#: src/gui/od3d/screen_e_jump_od3d.cpp
+msgid ""
+"Filament accel.\n"
+"Extruder jump, loaded spool"
+msgstr ""
+"Filament-Beschleunigung\n"
+"Extrudersprung, geladene Spule"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "Accel"
+msgstr "Beschl."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Filament accel."
+msgstr "Fil.-Beschl."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max filament accel. per spool, mm/s2 (before):"
+msgstr "Max. Filament-Beschl. je Spule, mm/s2 (vorher):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Line 0.45 x 0.2 mm, mm/s2 (estimated):"
+msgstr "Linie 0,45 x 0,2 mm, mm/s2 (geschätzt):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "filament accel."
+msgstr "Filament-Beschl."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "lines"
+msgstr "Linien"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Pulley speed"
+msgstr "Rollentempo"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Prusa %d mm/s"
+msgstr "Prusa %d mm/s"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Each change %+.1f s (measured)"
+msgstr "Je Wechsel %+.1f s (gemessen)"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "No faster speed passed"
+msgstr "Kein schnelleres Tempo bestanden"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Not measured: Prusa speed"
+msgstr "Nicht gemessen: Prusa-Tempo"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Cycle per speed, then the kept one (mm/s, s)"
+msgstr "Zyklus je Tempo, dann das gewählte (mm/s, s)"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Cycle %d/%d at %d mm/s. Stop: after this cycle."
+msgstr "Zyklus %d/%d bei %d mm/s. Stopp: nach diesem Zyklus."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Checking %d mm/s..."
+msgstr "Prüfe %d mm/s..."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid ""
+"Preload the spool, then Start: up to 7 cycles from 95 to 190 mm/s, 80% of "
+"the last clean level is kept (~4 min)."
+msgstr ""
+"Spule vorladen, dann Start: bis zu 7 Zyklen von 95 bis 190 mm/s, 80% der "
+"letzten fehlerfreien Stufe werden behalten (~4 Min.)."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Saved: %d mm/s, sent to the MMU at each start."
+msgstr "Gespeichert: %d mm/s, bei jedem Start an die MMU gesendet."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "No faster speed passed without error: Prusa speed kept."
+msgstr "Kein schnelleres Tempo ohne Fehler: Prusa-Tempo beibehalten."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Stopped: speed unchanged."
+msgstr "Gestoppt: Tempo unverändert."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Error at Prusa speed: speed unchanged. Is the spool preloaded?"
+msgstr "Fehler bei Prusa-Tempo: Tempo unverändert. Spule vorgeladen?"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "Error at the kept speed: back to Prusa speed."
+msgstr "Fehler beim gewählten Tempo: zurück zum Prusa-Tempo."
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid ""
+"The MMU loads the spool of slot %d to the extruder gears and unloads it, up "
+"to 7 times, faster each time. Is that spool preloaded?"
+msgstr ""
+"Die MMU lädt die Spule von Slot %d bis zu den Extrudergetriebe-Rädern und "
+"entlädt sie, bis zu 7-mal, jedes Mal schneller. Ist diese Spule vorgeladen?"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid ""
+"Pulley speed\n"
+"%d mm/s, measured"
+msgstr ""
+"Rollentempo\n"
+"%d mm/s, gemessen"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid ""
+"Pulley speed\n"
+"%d mm/s (Prusa), not measured"
+msgstr ""
+"Rollentempo\n"
+"%d mm/s (Prusa), nicht gemessen"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Filament tip, slot %d"
+msgstr "Filamentspitze, Slot %d"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid "No tool change in a print yet"
+msgstr "Noch kein Werkzeugwechsel im Druck"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "Drift: %.1f mm, usual %.1f ± %.1f"
+msgstr "Drift: %.1f mm, üblich %.1f ± %.1f"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+#, c-format
+msgid "%.1f ± %.1f mm, %u changes"
+msgstr "%.1f ± %.1f mm, %u Wechsel"
+
+#: src/gui/od3d/island_od3d.cpp
+msgid "MMU speed"
+msgstr "MMU-Tempo"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Pulley speed:"
+msgstr "Rollentempo:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "before"
+msgstr "vorher"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Load + unload cycle (measured):"
+msgstr "Laden + Entladen (gemessen):"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Last speed without error:"
+msgstr "Letztes Tempo ohne Fehler:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MMU change"
+msgstr "MMU-Wechsel"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MMU speed:"
+msgstr "MMU-Tempo:"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "tip drift"
+msgstr "Spitzendrift"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Reuse bed mesh by default\n"
+"Can be changed before each print"
+msgstr ""
+"Bettmesh standardmäßig wiederverwenden\n"
+"Vor jedem Druck änderbar"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Bed mesh"
+msgstr "Bettmesh"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Reused"
+msgstr "Wieder"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+msgid "Probed"
+msgstr "Neu"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Which spool?"
+msgstr "Welche Spule?"
+
+#: src/gui/od3d/screen_ptfe_od3d.cpp
+msgid "Spool preloaded in the MMU"
+msgstr "In der MMU vorgeladene Spule"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Accelerometer series, cold: %d tests, about %d min. Heating series: %d "
+"tests, about %d min. Touch a test to add or skip it."
+msgstr ""
+"Serie Beschleunigungssensor, kalt: %d Tests, ca. %d Min. Serie Heizen: %d "
+"Tests, ca. %d Min. Test antippen, um ihn hinzuzufügen oder zu überspringen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accelerometer"
+msgstr "Beschl.-Sensor"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "PA already measured, kept:"
+msgstr "PA bereits gemessen, behalten:"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Forget the measured values of this spool?"
+msgstr "Gemessene Werte dieser Spule vergessen?"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Nothing to calibrate. Touch a test to add it."
+msgstr "Nichts zu kalibrieren. Test antippen zum Hinzufügen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Skip this test"
+msgstr "Test auslassen"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Skipped: still to do next time."
+msgstr "Übersprungen: beim nächsten Mal nachholen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed, %d skipped. Touch a test for its numbers."
+msgstr ""
+"Fertig: %d OK, %d fehlgeschlagen, %d übersprungen. Test antippen für Zahlen."
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Bed heating to %d°C: %d°C"
+msgstr "Bett heizt auf %d°C: %d°C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle cleaning on the front strip"
+msgstr "Düsenreinigung am vorderen Streifen"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Probing the bed under the test lines"
+msgstr "Bett unter den Testlinien antasten"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle at %d°C, steady in %d s"
+msgstr "Düse bei %d°C, stabil in %d s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle cooling to %d°C: %d°C"
+msgstr "Düse kühlt auf %d°C: %d°C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Nozzle heating to %d°C: %d°C"
+msgstr "Düse heizt auf %d°C: %d°C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Purge line"
+msgstr "Spüllinie"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Bed at %d°C, letting it settle"
+msgstr "Bett bei %d°C, Stabilisierung abwarten"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Probe %d/%d of the bed center at %d°C"
+msgstr "Messpunkt %d/%d der Bettmitte bei %d°C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: %+d um at %d°C vs %d°C"
+msgstr "Gemessen: %+d um bei %d°C vs. %d°C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Accelerometer calibration"
+msgstr "Sensorkalibrierung"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Belt %c ringing at %d Hz: the motor hum is normal"
+msgstr "Riemen %c schwingt bei %d Hz: Motorbrummen ist normal"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: belt %c at %d.%d Hz"
+msgstr "Gemessen: Riemen %c bei %d.%d Hz"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Moving to the measuring position"
+msgstr "Fahre zur Messposition"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: vibrations measured at each speed"
+msgstr "Achse %c: Vibration bei jedem Tempo gemessen"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: sweep around the resonance"
+msgstr "Achse %c: Sweep um die Resonanz"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Fan cooling to find the room temperature: %d°C"
+msgstr "Lüfterkühlung zur Raumtemperatur: %d°C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Full-power heating to %d°C: %d°C"
+msgstr "Volle Heizleistung auf %d°C: %d°C"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Holding %d°C, fan off: heat losses"
+msgstr "%d°C halten, Lüfter aus: Wärmeverluste"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Holding %d°C, fan at 100%%: fan losses"
+msgstr "%d°C halten, Lüfter 100%%: Lüfterverluste"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Test line %d/%d, K = 0.%03d"
+msgstr "Testlinie %d/%d, K = 0.%03d"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Loading slot %d into the nozzle"
+msgstr "Lade Slot %d in die Düse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Line %d/%d at %d mm3/s, force measured"
+msgstr "Linie %d/%d bei %d mm3/s, Kraft gemessen"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Line %d/%d at %d°C, force measured"
+msgstr "Linie %d/%d bei %d°C, Kraft gemessen"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Extruder speed jump %d/%d: %d mm/s"
+msgstr "Extruder-Tempo-Sprung %d/%d: %d mm/s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "MMU load and unload %d/%d at %d mm/s"
+msgstr "MMU Laden und Entladen %d/%d bei %d mm/s"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "MMU pushes slot %d to the head sensor and back"
+msgstr "MMU schiebt Slot %d zum Kopfsensor und zurück"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Part fan off, then 100%%: spin-up timed"
+msgstr "Lüfter aus, dann 100%%: Hochlauf gemessen"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: rise time %d ms"
+msgstr "Gemessen: Anstiegszeit %d ms"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Unloading: this test needs an empty nozzle"
+msgstr "Entlade: Dieser Test braucht eine leere Düse"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Step %d/%d:"
+msgstr "Schritt %d/%d:"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "slot %d"
+msgstr "Slot %d"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "You may leave this screen: the pill shows the progress."
+msgstr ""
+"Sie können den Bildschirm verlassen: Die Pastille zeigt den Fortschritt."
+
+#: src/feature/od3d/nozzle_expansion_od3d.cpp
+msgid "Nozzle cleaning at %d°C on the front strip"
+msgstr "Düsenreinigung bei %d°C am vorderen Streifen"
+
+#: src/feature/od3d/nozzle_expansion_od3d.cpp
+msgid ""
+"Empty nozzle, clear bed. Center probed 170-260°C and back, cleaned on the "
+"way up, ~10 min."
+msgstr ""
+"Düse leer, Bett frei. Mitte 170-260°C hin und zurück angetastet, beim "
+"Aufheizen gereinigt, ca. 10 Min."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "MMU not answering: %d tests postponed, still to do."
+msgstr "MMU antwortet nicht: %d Tests verschoben, noch offen."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Homing without the accelerometer, please wait..."
+msgstr "Homing ohne Beschleunigungssensor, bitte warten..."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid ""
+"Start homes the printer first: accelerometer not on the nozzle yet (remove "
+"it if it is)."
+msgstr ""
+"Start fährt zuerst Home: Sensor noch nicht an der Düse (entfernen, falls "
+"dort)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Moving to the measuring position..."
+msgstr "Fahre zur Messposition..."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both belts in range (%d/%d in a row): leave the screws, Done stops."
+msgstr ""
+"Beide Riemen im Bereich (%d/%d in Folge): Schrauben lassen, Fertig stoppt."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Both screws: %s %s turn. Measured again every ~10 s, Done stops."
+msgstr ""
+"Beide Schrauben: %s %s Drehung. Alle ~10 s neu gemessen, Fertig stoppt."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belt %c rings, the motor hums: normal. %d%%"
+msgstr "Riemen %c schwingt, Motor brummt: normal. %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid ""
+"Belts out of range. Adjust them live? Both belts are measured again every "
+"~10 s while you turn both screws (Prusa guide: prusa.io/core-belt-"
+"calibration-tensioning)."
+msgstr ""
+"Riemen außerhalb des Bereichs. Live einstellen? Beide Riemen werden alle ~10"
+" s neu gemessen, während Sie beide Schrauben drehen (Prusa-Anleitung: "
+"prusa.io/core-belt-calibration-tensioning)."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid ""
+"Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, "
+"accelerometer still on, then Continue."
+msgstr ""
+"Riemen außerhalb: A %s Hz, B %s Hz (Ziel %d-%d Hz). Live einstellen, Sensor "
+"bleibt dran, dann Weiter."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Adjust live"
+msgstr "Live einstellen"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid ""
+"Inconclusive (belt %c): peak out of range, belt maybe too tight or too "
+"loose."
+msgstr ""
+"Unklar (Riemen %c): Peak außerhalb, Riemen evtl. zu stramm oder zu locker."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "inconclusive"
+msgstr "unklar"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Belts: inconclusive, peak out of range (too tight or too loose?)."
+msgstr "Riemen: unklar, Peak außerhalb (zu stramm oder zu locker?)."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid "The calibration assistant is using the MMU. Try again after this test."
+msgstr ""
+"Der Kalibrierassistent nutzt die MMU. Nach diesem Test erneut versuchen."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Measurement being validated: adjust with the Prusa app or the Prusa wizard "
+"(M961)."
+msgstr ""
+"Messung wird geprüft: mit der Prusa-App oder dem Prusa-Assistenten (M961) "
+"einstellen."
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Screen timing to USB\n"
+"Drawing times in OD3D_UI.CSV"
+msgstr ""
+"Display-Zeiten auf USB\n"
+"Zeichenzeiten in OD3D_UI.CSV"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid "Screen timings added to OD3D_UI.CSV on the USB drive."
+msgstr "Display-Zeiten zu OD3D_UI.CSV auf dem USB-Stick hinzugefügt."
+
+#: src/gui/od3d/screen_mmu_od3d.cpp
+msgid "Park"
+msgstr "Ruhe"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Head still: accelerometer noise"
+msgstr "Kopf still: Sensorrauschen"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: short moves at %d mm/s2, ringing after the stop"
+msgstr "Achse %c: kurze Züge bei %d mm/s2, Ringing nach dem Stopp"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Measured: axis %c up to %d mm/s2"
+msgstr "Gemessen: Achse %c bis %d mm/s2"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Print fan alone at %d%%: vibration at its speed"
+msgstr "Bauteillüfter allein bei %d%%: Vibration bei seiner Drehzahl"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Hotend fan alone at %d%%: vibration at its speed"
+msgstr "Hotend-Lüfter allein bei %d%%: Vibration bei seiner Drehzahl"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Chamber fan 1 alone at %d%%: vibration at its speed"
+msgstr "Kammerlüfter 1 allein bei %d%%: Vibration bei seiner Drehzahl"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Chamber fan 2 alone at %d%%: vibration at its speed"
+msgstr "Kammerlüfter 2 allein bei %d%%: Vibration bei seiner Drehzahl"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "All fans off, waiting for them to stop"
+msgstr "Alle Lüfter aus, warte auf Stillstand"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fans"
+msgstr "Lüfter"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max accel."
+msgstr "Max Beschl."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Max useful accel., mm/s2:"
+msgstr "Max. nutzbare Beschl., mm/s2:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "M201 before:"
+msgstr "M201 vorher:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "+: no rise up to the top level. --: in the noise, nothing to change."
+msgstr ""
+"+: kein Anstieg bis zur obersten Stufe. --: im Rauschen, nichts zu ändern."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "part"
+msgstr "Teil"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "hotend"
+msgstr "Hotend"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "chamber 1"
+msgstr "Kammer 1"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "chamber 2"
+msgstr "Kammer 2"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fan vibration at its speed:"
+msgstr "Lüftervibration bei ihrer Drehzahl:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "not measured, no accelerometer"
+msgstr "nicht gemessen, kein Beschl.-Sensor"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "not measured"
+msgstr "ungemessen"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "not picked up from the nozzle"
+msgstr "von der Düse nicht erfasst"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "now its reference"
+msgstr "jetzt ihre Referenz"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "vs reference: imbalance or wear?"
+msgstr "vs. Referenz: Unwucht oder Verschleiß?"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "vs reference"
+msgstr "vs. Referenz"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "max accel."
+msgstr "max Beschl."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"A fan vibrates much more than its reference: imbalance or wear? Touch Fans."
+msgstr ""
+"Ein Lüfter vibriert viel stärker als seine Referenz: Unwucht oder "
+"Verschleiß? Lüfter antippen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Max useful accel. X %d, Y %d mm/s2. Cap M201 there, prints included and "
+"after restart? Keep: no cap."
+msgstr ""
+"Max. nutzbare Beschl. X %d, Y %d mm/s2. M201 dort deckeln, auch bei Drucken "
+"und nach Neustart? Behalten: keine Deckelung."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "M201 cap in force, prints included:"
+msgstr "M201-Deckel aktiv, auch bei Drucken:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "none"
+msgstr "keine"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Remove the acceleration cap? Prints get their own M201 again."
+msgstr ""
+"Beschleunigungsdeckel entfernen? Drucke nutzen wieder ihr eigenes M201."
+
+#: src/gui/od3d/screen_mmu_usb_od3d.cpp
+msgid ""
+"The MMU bootloader did not answer. Unplug and replug its micro-USB, press "
+"its reset button, then Retry."
+msgstr ""
+"Der MMU-Bootloader antwortete nicht. Micro-USB abziehen und neu einstecken, "
+"Reset-Taste drücken, dann Nochmal."
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Delay\n"
+"Without touch, knob or job, 1 to 240 min"
+msgstr ""
+"Zeit\n"
+"Ohne Touch oder Job, 1 bis 240 Min."
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Sleep delay"
+msgstr "Ruhemodus-Zeit"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Heaters delay\n"
+"After falling asleep, 0: immediately"
+msgstr ""
+"Heizungsverzug\n"
+"Nach dem Einschlafen, 0: sofort"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid "Heaters delay"
+msgstr "Heizungsverzug"
+
+#: src/gui/od3d/screen_sleep_od3d.cpp
+msgid ""
+"Z motor hold\n"
+"Lower is quieter; Off: the bed may drop"
+msgstr ""
+"Z-Motor halten\n"
+"Niedriger ist leiser; Aus: Bett kann sinken"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accel. mount"
+msgstr "Sensorsitz"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Shaper check"
+msgstr "Shaper-Check"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"The accelerometer is clipped askew (tilt %d deg). Clip it flat on the "
+"nozzle."
+msgstr ""
+"Der Beschleunigungssensor sitzt schief (Neigung %d Grad). Flach an der Düse "
+"festklemmen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"The accelerometer moves on the nozzle: it barely follows the moves. Clip it "
+"firmly."
+msgstr ""
+"Der Beschleunigungssensor wackelt an der Düse: Er folgt den Bewegungen kaum."
+" Fest anklemmen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Axis %c: the filter removes only %d%% of the ringing. Redo the input shaper."
+msgstr ""
+"Achse %c: Der Filter entfernt nur %d%% des Ringings. Input Shaper "
+"wiederholen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "No input shaper filter set: do the input shaper first."
+msgstr "Kein Input-Shaper-Filter gesetzt: zuerst Input Shaper ausführen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Tilt:"
+msgstr "Neigung:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Share of the moved axis:"
+msgstr "Anteil der bewegten Achse:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Noise at rest:"
+msgstr "Ruherauschen:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Ringing removed by the filter:"
+msgstr "Vom Filter entferntes Ringing:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "--: no filter on this axis, or no ringing even without it."
+msgstr "--: kein Filter auf dieser Achse, oder auch ohne ihn kein Ringing."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Finished: %d OK, %d failed, %d skipped."
+msgstr "Fertig: %d OK, %d fehlgeschl., %d übersprungen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "filter removes"
+msgstr "Filter entfernt"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accelerometer:"
+msgstr "Beschl.-Sensor:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Filter check:"
+msgstr "Filter-Check:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Accel. %d tests ~%d min · Heating %d tests ~%d min"
+msgstr "Beschl. %d Tests ~%d Min. · Heizen %d Tests ~%d Min."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Summary"
+msgstr "Bilanz"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Head still: gravity and noise of the accelerometer"
+msgstr "Kopf still: Schwerkraft und Sensorrauschen"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: short moves, which accelerometer axis sees them"
+msgstr "Achse %c: kurze Züge, welche Sensorachse sie sieht"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Tilt %d deg, X %d%%, Y %d%%"
+msgstr "Neigung %d Grad, X %d%%, Y %d%%"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: short moves with its filter"
+msgstr "Achse %c: kurze Züge mit ihrem Filter"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: same moves without its filter"
+msgstr "Achse %c: gleiche Züge ohne ihren Filter"
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Axis %c: the filter removes %d%% of the ringing"
+msgstr "Achse %c: Der Filter entfernt %d%% des Ringings"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "New in this firmware: %d tests, ~%d min"
+msgstr "Neu in dieser Firmware: %d Tests, ~%d Min."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fans:"
+msgstr "Lüfter:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Part fan: no speed read at 100%% (%d RPM). Check that it spins and its "
+"cable."
+msgstr ""
+"Bauteillüfter: keine Drehzahl bei 100%% gelesen (%d RPM). Drehung und Kabel "
+"prüfen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Part fan rise time: stopped before the end."
+msgstr "Lüfter-Anstiegszeit: vor dem Ende gestoppt."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"Fan vibration: the accelerometer stopped answering or lost samples. Check "
+"its cable, then redo Fans."
+msgstr ""
+"Lüftervibration: Der Beschleunigungssensor antwortet nicht mehr oder verlor "
+"Messwerte. Kabel prüfen, dann Lüfter wiederholen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Fan vibration: stopped before the end."
+msgstr "Lüftervibration: vor dem Ende gestoppt."
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "No force: the nozzle did not touch the bed."
+msgstr "Keine Kraft: Die Düse hat das Bett nicht berührt."
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid ""
+"Collision test\n"
+"%d hits seen"
+msgstr ""
+"Kollisionstest\n"
+"%d Stöße"
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid ""
+"Hit X%d Y%d\n"
+"print paused"
+msgstr ""
+"Stoß X%d Y%d\n"
+"Druck pausiert"
+
+#: src/gui/od3d/widgets_od3d.cpp
+#, c-format
+msgid ""
+"Hit X%d Y%d\n"
+"print goes on"
+msgstr ""
+"Stoß X%d Y%d\n"
+"Druck läuft"
+
+#: src/gui/dialogs/DialogHandler.cpp
+msgid ""
+"Print\n"
+"finished"
+msgstr ""
+"Druck\n"
+"fertig"
+
+#: src/gui/dialogs/DialogHandler.cpp
+msgid ""
+"Print\n"
+"stopped"
+msgstr ""
+"Druck\n"
+"gestoppt"
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid ""
+"Attach the accelerometer to the extruder, then Start (X and Y, about 1 min)."
+msgstr ""
+"Beschleunigungssensor am Extruder befestigen, dann Start (X und Y, ca. 1 "
+"Min.)."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid ""
+"Orange bars: speeds to avoid. Measured up to %d mm/s, the limit of the "
+"accelerometer."
+msgstr ""
+"Orange Balken: zu meidende Tempi. Gemessen bis %d mm/s, der Grenze des "
+"Sensors."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "No critical speed up to %d mm/s, the limit of the accelerometer."
+msgstr "Kein kritisches Tempo bis %d mm/s, der Grenze des Sensors."
+
+#: src/feature/od3d/live_od3d.hpp
+msgid "Comparison %d/4: belt %c at %d Hz"
+msgstr "Vergleich %d/4: Riemen %c bei %d Hz"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Comparison %d/%d, belt %c: %d%%"
+msgstr "Vergleich %d/%d, Riemen %c: %d%%"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid ""
+"Attach the accelerometer to the extruder, then Start: 4 ways of measuring, "
+"about 5 min."
+msgstr ""
+"Beschleunigungssensor am Extruder befestigen, dann Start: 4 Messarten, ca. 5"
+" Min."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Peaks in Hz, to compare with the Prusa app:"
+msgstr "Peaks in Hz, zum Vergleich mit der Prusa-App:"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "After the stop (R):"
+msgstr "Nach dem Stopp (R):"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Prusa excitation (P):"
+msgstr "Prusa-Anregung (P):"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "2nd harmonic (I2):"
+msgstr "2. Harmonische (I2):"
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Usual measurement:"
+msgstr "Übliche Messung:"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "%d measured, not validated."
+msgstr "%d gemessen, nicht validiert."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "(not validated)"
+msgstr "(nicht valid.)"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+msgid "Remeasure PA"
+msgstr "PA neu messen"
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "Slot %d PA unsure (K = %s), slicer PA kept"
+msgstr "PA Slot %d unsicher (K = %s), Slicer-PA beibehalten"
+
+#: src/gui/od3d/screen_pa_od3d.cpp
+msgid "Unsure: slicer PA used"
+msgstr "Unsicher: Slicer-PA genutzt"
+
+#: src/gui/od3d/screen_pa_od3d.cpp src/gui/od3d/screen_spool_calib_od3d.cpp
+msgid "Flexible filament: not measured."
+msgstr "Flexibles Filament: nicht gemessen."
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %d° requested, measured minimum %d°"
+msgstr "Slot %d: %d° angefragt, gemessenes Minimum %d°"
+
+#: src/gui/od3d/screen_mmu_speed_od3d.cpp
+msgid ""
+"Preload the spool, then Start: up to 7 cycles from 95 to 120 mm/s, the level"
+" before the last clean one is kept (~4 min)."
+msgstr ""
+"Spule vorladen, dann Start: bis zu 7 Zyklen von 95 bis 120 mm/s, die Stufe "
+"vor der letzten fehlerfreien bleibt (~4 Min.)."
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "PA not measured: %d colors to calibrate, measure them on their sheets"
+msgstr ""
+"PA nicht gemessen: %d Farben zu kalibrieren, auf ihren Blättern messen"
+
+#: src/feature/od3d/pa_od3d.cpp
+#, c-format
+msgid "PA not measured: slot %d not on the 1st layer, see its sheet"
+msgstr "PA nicht gemessen: Slot %d nicht in der 1. Schicht, siehe sein Blatt"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Slot %d: %s in the file, %s spool"
+msgstr "Slot %d: %s in der Datei, Spule %s"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid ""
+"Clean resume\n"
+"Prime inside the infill first"
+msgstr ""
+"Sauberer Neustart\n"
+"Zuerst im Infill vorfüllen"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid ""
+"Clean resume\n"
+"After a pause, in the infill"
+msgstr ""
+"Sauberer Neustart\n"
+"Nach Pause, im Infill"
+
+#: src/gui/od3d/screen_resume_od3d.cpp
+msgid ""
+"Purge\n"
+"Small, inside the infill"
+msgstr ""
+"Spülen\n"
+"Klein, im Infill"
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid ""
+"The accelerometer in the printhead does not answer. Continue to try again, "
+"or Skip its tests."
+msgstr ""
+"Der Beschleunigungssensor im Druckkopf antwortet nicht. Weiter zum "
+"Wiederholen oder Tests überspringen."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+#, c-format
+msgid ""
+"Nozzle %d°C: cooling below 40°C before the accelerometer tests (fan on)."
+msgstr "Düse %d°C: Abkühlen unter 40°C vor den Sensortests (Lüfter an)."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+msgid "Home position lost. Continue: the head homes again."
+msgstr "Home-Position verloren. Weiter: Der Kopf fährt erneut Home."
+
+#: src/gui/od3d/screen_calib_assistant_od3d.cpp
+#, c-format
+msgid ""
+"Belts out of range: A %s Hz, B %s Hz (target %d-%d Hz). Adjust them live, "
+"then Continue."
+msgstr ""
+"Riemen außerhalb: A %s Hz, B %s Hz (Ziel %d-%d Hz). Live einstellen, dann "
+"Weiter."
+
+#: src/gui/od3d/screen_belts_od3d.cpp
+msgid "Start: 4 ways of measuring, about 5 min."
+msgstr "Start: 4 Messarten, ca. 5 Min."
+
+#: src/gui/od3d/screen_speed_map_od3d.cpp
+msgid "Start: X and Y, about 1 min."
+msgstr "Start: X und Y, ca. 1 Min."
+
+#: src/gui/od3d/screen_damping_od3d.cpp
+msgid "Start: X and Y, about 4 min."
+msgstr "Start: X und Y, ca. 4 Min."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "The accelerometer in the printhead does not answer. Retry?"
+msgstr "Der Beschleunigungssensor im Druckkopf antwortet nicht. Nochmal?"
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Homing, please wait..."
+msgstr "Homing, bitte warten..."
+
+#: src/gui/od3d/accelerometer_guide_od3d.cpp
+msgid "Start homes the printer first."
+msgstr "Start fährt zuerst Home."
+
+#: src/gui/od3d/screen_settings_od3d.cpp
+msgid ""
+"Filament\n"
+"Filament sensors"
+msgstr ""
+"Filament\n"
+"Filamentsensoren"
+
+#: src/gui/od3d/screen_belts_od3d.cpp src/gui/od3d/screen_mpc_od3d.cpp
+#: src/gui/od3d/screen_music_od3d.cpp src/gui/od3d/screen_pa_od3d.cpp
+msgid "Not enough memory, try again later."
+msgstr "Nicht genug Speicher, später erneut versuchen."
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+msgid "Stop the print"
+msgstr "Druck stoppen"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid ""
+"Speed\n"
+"Modes, or set by hand"
+msgstr ""
+"Tempo\n"
+"Modi, oder von Hand einstellen"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid ""
+"Quiet\n"
+"80%, quieter fans"
+msgstr ""
+"Leise\n"
+"80%, leisere Lüfter"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid ""
+"Normal\n"
+"100%"
+msgstr ""
+"Normal\n"
+"100%"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid ""
+"Fast\n"
+"130%"
+msgstr ""
+"Schnell\n"
+"130%"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid ""
+"Very fast\n"
+"160%"
+msgstr ""
+"Sehr schnell\n"
+"160%"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+msgid ""
+"Ultra fast\n"
+"250%"
+msgstr ""
+"Ultraschnell\n"
+"250%"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Cancel objects"
+msgstr "Objekte abbrechen"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Cancel this object"
+msgstr "Dieses Objekt abbr."
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Printing now"
+msgstr "Wird gedruckt"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Still to print"
+msgstr "Noch zu drucken"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Place not known yet"
+msgstr "Ort noch unbekannt"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+msgid "Tap an object"
+msgstr "Objekt antippen"
+
+#: src/gui/od3d/screen_objects_od3d.cpp
+#, c-format
+msgid ""
+"Cancel object %s? It will not be printed any more. This cannot be undone."
+msgstr ""
+"Objekt %s abbrechen? Es wird nicht mehr gedruckt. Nicht rückgängig zu "
+"machen."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Sound settings"
+msgstr "Soundeinstell."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Speed %d%%"
+msgstr "Tempo %d%%"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Pitch %+d"
+msgstr "Ton %+d"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Pitch (semitones)"
+msgstr "Tonhöhe (Halbtöne)"
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Not saved: the USB drive refused the file."
+msgstr "Nicht gespeichert: USB-Stick lehnt Datei ab."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "3 voices"
+msgstr "3 Stimm."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "2 voices"
+msgstr "2 Stimm."
+
+#: src/gui/od3d/screen_music_od3d.cpp
+msgid "Melody"
+msgstr "Melodie"

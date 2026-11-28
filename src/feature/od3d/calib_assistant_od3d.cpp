@@ -7,20 +7,28 @@
 #include "damping_od3d.hpp"
 #include "fan_response_od3d.hpp"
 #include "lookahead_od3d.hpp"
-#include "e_jump_od3d.hpp"
-#include "filament_memory_od3d.hpp"
 #include "live_od3d.hpp"
-#include "measure_session_od3d.hpp"
-#include "mpc_control_od3d.hpp"
-#include "mmu_speed_od3d.hpp"
-#include "mmu_usb_od3d.hpp"
-#include "mpc_od3d.hpp"
-#include "nozzle_expansion_od3d.hpp"
-#include "pa_od3d.hpp"
-#include "ptfe_od3d.hpp"
 #include "speed_map_od3d.hpp"
-#include "spool_calib_od3d.hpp"
 #include "vibration_od3d.hpp"
+#include <option/has_indx.h>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#include <option/has_toolchanger.h>
+#if HAS_LOADCELL() && HAS_MMU2() // série « Chauffe » (MPC, MMU, cellule de charge) : pas sur l'INDX
+    #include "e_jump_od3d.hpp"
+    #include "filament_memory_od3d.hpp"
+    #include "measure_session_od3d.hpp"
+    #include "mpc_control_od3d.hpp"
+    #include "mmu_speed_od3d.hpp"
+    #include "mmu_usb_od3d.hpp"
+    #include "mpc_od3d.hpp"
+    #include "nozzle_expansion_od3d.hpp"
+    #include "pa_od3d.hpp"
+    #include "ptfe_od3d.hpp"
+    #include "spool_calib_od3d.hpp"
+    #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
+    #include <feature/prusa/MMU2/mmu2_mk4.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -33,8 +41,6 @@
 #include <common/marlin_server.hpp>
 #include <common/marlin_vars.hpp>
 #include <config_store/store_instance.hpp>
-#include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
-#include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <filament.hpp>
 #include <i18n.h>
 #include <Marlin/src/gcode/gcode.h>
@@ -75,12 +81,31 @@ namespace {
     /// Résultat de Prusa avant son étape (input shaper, phase stepping) : remis si l'étape est annulée
     TestResult prusa_before = TestResult::unknown;
 
+#if HAS_LOADCELL() && HAS_MMU2()
     /// Chargement de la bobine avant le PA, F5, F6, M2000, ou déchargement avant le tube PTFE (mis en file d'injection,
     /// lu après le retour de M1989)
     char load_sequence[128];
+#endif
 
     bool cold() {
+#if HAS_TOOLCHANGER()
+        // IC-11 : la tête prise (une tête posée lit -1 °C) ; sans tête, toutes (celle que la série prendra garde sa
+        // consigne au dock)
+        const auto tool_cold = [](PhysicalToolIndex tool) {
+            return nozzle_cold(Temperature::degHotend(tool), Temperature::degTargetHotend(tool));
+        };
+        if (const auto tool = PhysicalToolIndex::currently_selected_opt()) {
+            return tool_cold(*tool);
+        }
+        for (const PhysicalToolIndex tool : PhysicalToolIndex::all()) {
+            if (!tool_cold(tool)) {
+                return false;
+            }
+        }
+        return true;
+#else
         return nozzle_cold(Temperature::degHotend(0), Temperature::degTargetHotend(0));
+#endif
     }
 
     uint32_t now() {
@@ -123,6 +148,7 @@ namespace {
             return speed_map::status() == speed_map::Status::done;
         case Test::damping:
             return damping::status() == damping::Status::done;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::mpc:
             return mpc::tune_status().phase == mpc::Phase::done;
         case Test::pa: {
@@ -131,11 +157,16 @@ namespace {
         }
         case Test::mmu_ptfe:
             return ptfe::status().result == ptfe::Result::saved;
+#endif
         case Test::fan_response: { // vibrations mesurées, ou refusées sans accéléromètre ni buse froide (accéléromètre passé :
                                    // le temps de montée suffit, le bilan dit « non mesurée »)
             const fan_vibration::Status v = fan_vibration::status();
+#if HAS_INDX()
+            return v == fan_vibration::Status::done; // pas de temps de montée (M2001, IC-7) : les vibrations seules
+#else
             return fan_response::status() == fan_response::Status::done
                 && (v == fan_vibration::Status::done || v == fan_vibration::Status::no_accelerometer || v == fan_vibration::Status::hot_nozzle);
+#endif
         }
         case Test::accel_limit:
             return accel_limit::status() == accel_limit::Status::done;
@@ -143,6 +174,7 @@ namespace {
             return accel_mount::passed();
         case Test::shaper_check: // un axe filtré au moins, aucun dont le filtre ne retire presque plus rien
             return shaper_check::passed();
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::nozzle_expansion:
             return nozzle_expansion::status() == nozzle_expansion::Status::saved;
         case Test::e_jump: {
@@ -157,6 +189,10 @@ namespace {
             const calib::Kind kind = s.test == Test::max_flow ? calib::Kind::flow : calib::Kind::temperature;
             return st.kind == kind && st.phase == calib::Phase::done && st.slot == s.slot;
         }
+#else
+        default: // INDX : série « Chauffe » absente
+            break;
+#endif
         case Test::skew:
         case Test::count:
             break;
@@ -181,12 +217,16 @@ namespace {
             break;
         case Test::fan_response:
             if (!after) {
+#if !HAS_INDX() // INDX : ni temps de montée ni avance (M2001, IC-7), les vibrations seules
                 std::copy(stored.v.begin(), stored.v.end(), n.begin()); // temps de montée de la fois d'avant
                 n[1] = int16_t(lookahead::fan_lead_ds());
+#endif
             } else {
+#if !HAS_INDX()
                 const fan_response::Result &r = fan_response::result();
                 n[0] = scaled(r.rise.rise_s, 1000.f);
                 n[1] = int16_t(r.lead_ds);
+#endif
                 const auto refs = fan_vibration::stored_references(); // écrites par M2001 V : gardées telles quelles
                 n[2] = refs[0];
                 n[3] = refs[1];
@@ -246,6 +286,7 @@ namespace {
                 n[0] = int16_t(n[1] + n[2]);
             }
             break;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::mpc:
             if (after || mpc::has_valid_calibration()) {
                 const mpc::Params &p = mpc::params();
@@ -307,12 +348,17 @@ namespace {
         case Test::e_jump: // F de l'emplacement avec son K : la mesure d'avant (ou 120 de Prusa), puis la nouvelle
             n[s.slot % n.size()] = scaled(e_jump::filament_accel_for(s.slot), 1.f);
             break;
+#else
+        default: // INDX : série « Chauffe » absente
+            break;
+#endif
         case Test::skew:
         case Test::count:
             break;
         }
     }
 
+#if HAS_LOADCELL() && HAS_MMU2()
     /// Consigne du plateau qu'attendra une étape qui imprime ou palpe : celle de la dilatation, sinon celle de la matière
     /// (M1994, M1995 et M1996 sans B, comme level_bed())
     int16_t bed_for(const Step &s) {
@@ -322,6 +368,7 @@ namespace {
         const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(s.slot));
         return std::clamp<int16_t>(type.parameters().heatbed_temperature, 0, session::max_bed_temperature);
     }
+#endif
 
     void add_result(Test test, Result r) {
         auto &slot = results[size_t(test)];
@@ -341,7 +388,9 @@ namespace {
                 }
             }
         }
+#if HAS_LOADCELL() && HAS_MMU2()
         session::series_end();
+#endif
         // Chauffe gardée d'un test au suivant pendant la série (measure_session_od3d.hpp) : coupée à la fin
         if (!marlin_server::is_printing()) {
             Temperature::disable_hotend();
@@ -356,11 +405,13 @@ namespace {
     bool enqueue(uint8_t i) {
         const Step &s = steps[i];
         live::clear(); // rien de l'étape d'avant à l'écran
+#if HAS_LOADCELL() && HAS_MMU2()
         if (s.test == Test::mmu_ptfe) {
             ptfe::forget(); // le bilan lit le résultat de cette mesure, jamais celui d'une mesure d'avant
         } else if (s.test == Test::mmu_speed) {
             mmu_speed::forget();
         }
+#endif
         char gcode[24];
         char marker[16];
         if (!step_gcode(s, gcode) || snprintf(marker, sizeof(marker), "M1989 N%u", unsigned(i)) <= 0) {
@@ -369,6 +420,7 @@ namespace {
         if (BUFSIZE - GCodeQueue::length < 2) {
             return false; // la file a été remplie d'ailleurs : l'étape échoue plutôt que de perdre le repère
         }
+#if HAS_LOADCELL() && HAS_MMU2()
         // PA, F5, F6, M2000 : bobine pas dans la buse : « Charger dans la buse » de Prusa d'abord (origine si besoin), par
         // la file d'injection qui passe avant ; pour un test qui imprime, au-dessus de la ligne de purge réservée sur le
         // plateau (calib_registry::load_gcode). Tube PTFE, vitesse de la poulie : le test de chargement de Prusa veut
@@ -401,13 +453,16 @@ namespace {
             }
             live::set(needs_unload ? N_("Unloading: this test needs an empty nozzle") : N_("Loading slot %d into the nozzle"), s.slot + 1);
         }
+#endif
         if (!marlin_server::enqueue_gcode_try(gcode) || !marlin_server::enqueue_gcode_try(marker)) {
             return false;
         }
+#if HAS_LOADCELL() && HAS_MMU2()
         // Le plateau chauffe pendant ce qui ne le mesure pas (chargement, tests du MMU à froid) pour l'étape qui l'attendra
         if (const auto j = bed_step(std::span<const Step>(steps.data(), size_t(step_count)), i, needs_load || needs_unload)) {
             thermalManager.setTargetBed(bed_for(steps[*j]));
         }
+#endif
         capture(s, before_numbers[size_t(s.test)], false);
         // Rien ne tourne avant le retour de M1989 : le résultat lu à la fin sera celui de cette étape, pas d'avant
         if (const auto r = prusa_result(s.test)) {
@@ -417,6 +472,7 @@ namespace {
         return true;
     }
 
+#if HAS_LOADCELL() && HAS_MMU2()
     /// L'étape a besoin du MMU maintenant : elle le pilote, charge par lui, ou doit vider la buse par lui
     bool needs_mmu(const Step &s) {
         return uses_mmu(entry(s.test), run_ctx) || (run_ctx.mmu && s.test == Test::nozzle_expansion && nozzle_expansion::filament_loaded());
@@ -426,6 +482,7 @@ namespace {
     bool mmu_available() {
         return MMU2::mmu2.Enabled() && !mmu_usb::active();
     }
+#endif
 
     /// Lance l'étape i, ou la suivante qui peut partir ; sinon fin de la série
     void start(uint8_t i) {
@@ -437,6 +494,7 @@ namespace {
                 }
                 break;
             }
+#if HAS_LOADCELL() && HAS_MMU2()
             // MMU indisponible (flash par l'USB avant...) : l'étape passe à la fin, les autres tournent ; toujours
             // indisponible à son tour : reportée (passée, reste à faire), jamais un échec
             if (needs_mmu(steps[i]) && !mmu_available()) {
@@ -449,6 +507,7 @@ namespace {
                 ++i;
                 continue;
             }
+#endif
             // Buse froide exigée (accéléromètre sur la buse) : refusée sans rien bouger
             if ((entry(steps[i].test).needs & cold_nozzle) && !cold()) {
                 add_result(steps[i].test, Result::failed);
@@ -458,10 +517,12 @@ namespace {
             if (enqueue(i)) {
                 return;
             }
+#if HAS_LOADCELL() && HAS_MMU2()
             if (session::series_full() && !cancel_requested) {
                 bed_full = true; // pas de place pour la purge de son chargement : M1989 C la relance, plateau nettoyé
                 return;
             }
+#endif
             add_result(steps[i].test, Result::failed);
             ++i;
         }
@@ -476,6 +537,7 @@ Context context() {
     Context ctx;
     ctx.accelerometer = accelerometer();
     ctx.accelerometer_clipped = HAS_ATTACHABLE_ACCELEROMETER();
+#if HAS_LOADCELL() && HAS_MMU2()
     ctx.mmu = config_store().mmu2_enabled.get();
     ctx.flow_limit = calib::flow_limit_enabled();
     ctx.mpc = config_store().od3d_mpc_enabled.get(); // M-16
@@ -497,6 +559,9 @@ Context context() {
         ctx.measured[size_t(Test::e_jump)] |= e_jump::record(i).has_jump() ? bit : 0;
     }
     ctx.order = spool_order(bed, nozzle, filament_memory::loaded_slot());
+#else
+    ctx.heated_tests = false; // INDX : série « Accéléromètre » seulement
+#endif
     return ctx;
 }
 
@@ -616,9 +681,11 @@ void recapture(Test test) {
     store_values(i, kept); // le « avant » de la fois suivante
 }
 
+#if HAS_LOADCELL() && HAS_MMU2()
 bool mmu_in_use() {
     return running && needs_mmu(steps[current % max_steps]);
 }
+#endif
 
 namespace {
     /// Arrête la mesure de l'étape en cours si elle tourne
@@ -640,6 +707,7 @@ namespace {
                 damping::request_stop();
             }
             break;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::nozzle_expansion:
             if (nozzle_expansion::is_running()) {
                 nozzle_expansion::request_stop();
@@ -661,6 +729,7 @@ namespace {
                 calib::request_stop();
             }
             break;
+#endif
         case Test::fan_response:
             if (fan_response::is_running()) {
                 fan_response::request_stop();
@@ -683,6 +752,7 @@ namespace {
                 shaper_check::request_stop();
             }
             break;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::e_jump:
             if (e_jump::is_running()) {
                 e_jump::request_stop();
@@ -693,6 +763,7 @@ namespace {
                 mmu_speed::request_stop(); // entre deux cycles
             }
             break;
+#endif
         default:
             break; // assistants de Prusa (input shaper, phase stepping) : leur écran a son « Annuler »
         }
@@ -749,6 +820,20 @@ void prepare() {
     }
     // Comme le début de M1959 : chauffe coupée et ventilateur à fond dès maintenant, origine, buse au centre
     Temperature::disable_hotend();
+#if HAS_TOOLCHANGER()
+    GcodeSuite::G28_no_parser(true, true, true, { .only_if_needed = true, .precise = false });
+    // INDX (IC-11) : une seule tête pour toute la série, prise ici comme M1959 (après la levée de Z, IC-6) ; les tests
+    // la gardent (accel::take_head ne reprend rien) ; puis le centre par le chemin du parcage de Prusa (IC-1)
+    if (!axes_need_homing() && !planner.draining()) {
+        do_blocking_move_to_z(Z_SIZE / 2);
+        if (accel::take_head()) {
+            if (!cold()) {
+                Temperature::set_print_fan_speed(255); // le ventilateur de la tête, sur la buse prise
+            }
+            std::ignore = accel::move_to(X_BED_SIZE / 2, Y_BED_SIZE / 2, 0.f); // vitesse : celle du parcage de Prusa
+        }
+    }
+#else
     if (Temperature::degHotend(0) >= cold_nozzle_max) {
         Temperature::set_print_fan_speed(255);
     }
@@ -756,6 +841,7 @@ void prepare() {
     if (!axes_need_homing() && !planner.draining()) {
         do_blocking_move_to(X_BED_SIZE / 2, Y_BED_SIZE / 2, Z_SIZE / 2);
     }
+#endif
 }
 
 void check() {
@@ -795,7 +881,9 @@ void run(uint32_t mask, uint32_t redo) {
     cancel_requested = false;
     skip_index = 0xff;
     bed_full = false;
+#if HAS_LOADCELL() && HAS_MMU2()
     session::series_begin(); // plateau vide et propre confirmé avant (Need::empty_bed)
+#endif
     running = true;
     start(0);
 }
@@ -806,11 +894,13 @@ void step_end(uint8_t index) {
     }
     const Step &s = steps[index];
     const bool ok = succeeded(s);
+#if HAS_LOADCELL() && HAS_MMU2()
     // Pas de place sur le plateau pour son motif : l'utilisateur nettoie, M1989 C relance cette étape
     if (!ok && session::series_full() && !cancel_requested && skip_index != index) {
         bed_full = true;
         return;
     }
+#endif
     if (ok) {
         capture(s, after_numbers[size_t(s.test)], true);
     }
@@ -823,7 +913,9 @@ void clean_done() {
         return;
     }
     bed_full = false;
+#if HAS_LOADCELL() && HAS_MMU2()
     session::series_begin(); // plateau nettoyé : place partout, palpé de nouveau (la plaque a été retirée)
+#endif
     start(current);
 }
 
@@ -834,7 +926,8 @@ void on_print_start() {
     }
 }
 
-void level_bed(uint8_t slot) {
+void level_bed([[maybe_unused]] uint8_t slot) {
+#if HAS_LOADCELL() && HAS_MMU2() // INDX : rien n'est imprimé ni palpé
     if (slot >= VirtualToolIndex::count) {
         return; // CAL-3 : from_raw() hors limites est un écran bleu (M1989 L9 tapé à la main)
     }
@@ -852,6 +945,7 @@ void level_bed(uint8_t slot) {
     if (s.home(probe) == session::Result::ok && s.heat_bed(bed, probe) == session::Result::ok) {
         std::ignore = s.level(session::printable_zone(), probe); // échec : le test palpera lui-même
     }
+#endif
 }
 
 } // namespace od3d::calib_assistant

@@ -43,12 +43,14 @@ endif()
 if(HAS_MANUAL_BELT_TUNING AND HAS_INPUT_SHAPER_CALIBRATION)
   # F14 : tension des courroies mesurée par l'accéléromètre (M1992) ; F22 : vitesses critiques (M1993) ; F33 :
   # amortissement des axes (M1997) ; ACC-1 : vérification commune de l'accéléromètre ; accélération max utile (M2004)
-  # et vibrations des ventilateurs (M2001 V)
+  # et vibrations des ventilateurs (M2001 V) ; assistant de calibration (M1989) : ces tests, puis cellule de charge et MPC
+  # (INDX : la série « Accéléromètre » seulement)
   target_sources(
     firmware
     PRIVATE accelerometer_od3d.cpp
             belt_tension_math_od3d.cpp
             belt_tension_od3d.cpp
+            calib_assistant_od3d.cpp
             damping_math_od3d.cpp
             damping_od3d.cpp
             speed_map_math_od3d.cpp
@@ -78,12 +80,4 @@ if(HAS_LOADCELL AND HAS_MMU2)
             e_jump_math_od3d.cpp
             e_jump_od3d.cpp
     )
-endif()
-if(HAS_MANUAL_BELT_TUNING
-   AND HAS_INPUT_SHAPER_CALIBRATION
-   AND HAS_LOADCELL
-   AND HAS_MMU2
-   )
-  # Assistant de calibration (M1989) : accéléromètre, puis cellule de charge et MPC
-  target_sources(firmware PRIVATE calib_assistant_od3d.cpp)
 endif()

@@ -121,7 +121,7 @@ namespace {
             return f;
         }
 #endif
-#if HAS_LOADCELL() && HAS_MMU2() // INDX : ni assistant ni mesures par emplacement
+#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION() // INDX : sa série « Accéléromètre »
         // L'assistant de calibration d'abord : ses étapes (PA, courroies...) sont montrées comme les siennes
         if (calibration_assistant_active()) {
             f.process = Process::calibration;
@@ -133,6 +133,8 @@ namespace {
             }
             return f;
         }
+#endif
+#if HAS_LOADCELL() && HAS_MMU2() // INDX : pas de mesures par emplacement
         if (pa::is_running()) {
             const pa::Status s = pa::status();
             f.process = Process::pa;
@@ -224,12 +226,14 @@ namespace {
             return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(f.slot);
         case Process::hit_test:
             return ScreenFactory::Screen<ScreenCollision>;
-        case Process::calibration:
-            return ScreenFactory::Screen<ScreenCalibAssistant>;
         case Process::nozzle_expansion:
             return ScreenFactory::Screen<ScreenNozzleExpansion>;
         case Process::e_jump:
             return ScreenFactory::ScreenWithArg<ScreenEJump>(f.slot);
+#endif
+#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION()
+        case Process::calibration:
+            return ScreenFactory::Screen<ScreenCalibAssistant>;
 #endif
 #if HAS_MMU2()
         case Process::mmu_usb:

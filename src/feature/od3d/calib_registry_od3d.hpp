@@ -175,6 +175,9 @@ struct Context {
     /// Accéléromètre fixé à la main le temps des tests (CORE One) ; false : il est dans la tête (CORE One L), sa pose
     /// (M2005) n'a pas de sens
     bool accelerometer_clipped = true;
+    /// Série « Chauffe » (Need::heated : MPC, MMU, cellule de charge par bobine, équerrage) compilée ; false : INDX,
+    /// seulement la série « Accéléromètre » (IC-11)
+    bool heated_tests = true;
 };
 
 /// La calibration a un sens sur cette imprimante (sans accéléromètre, ses tests ne sont pas proposés)

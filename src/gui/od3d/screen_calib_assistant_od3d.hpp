@@ -15,14 +15,14 @@
 #include <optional>
 #include <feature/od3d/calib_registry_od3d.hpp>
 #include <i_window_menu_item.hpp>
-#include <option/has_loadcell.h>
-#include <option/has_mmu2.h>
+#include <option/has_input_shaper_calibration.h>
+#include <option/has_manual_belt_tuning.h>
 #include <string_view_utf8.hpp>
 #include <WindowMenuSwitch.hpp>
 
 namespace od3d {
 
-#if HAS_LOADCELL() && HAS_MMU2()
+#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION()
 /// Au démarrage (guimain) : vrai si l'écran doit s'ouvrir, une seule fois par calib_registry::signature() — imprimante
 /// neuve ou premier démarrage d'un firmware dont une calibration est nouvelle ou a changé de version, et quelque chose
 /// à faire ; empilé avant les écrans de première mise en route de Prusa (ses tests d'abord sur une imprimante neuve)
@@ -47,8 +47,7 @@ void calibration_follow();
 /// suivante) ; vrai hors série
 bool confirm_stop_measure();
 #else
-// INDX : pas d'assistant (ses tests à la cellule de charge se font par emplacement du MMU) ; les écrans de mesure à
-// l'accéléromètre s'arrêtent sans question
+// Pas d'assistant : les écrans de mesure à l'accéléromètre s'arrêtent sans question
 inline bool calibration_prompt_at_boot() { return false; }
 inline bool calibration_assistant_active() { return false; }
 inline string_view_utf8 calibration_assistant_name() { return string_view_utf8::MakeNULLSTR(); }

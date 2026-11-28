@@ -50,12 +50,15 @@ if(HAS_MMU2)
     firmware PRIVATE screen_mmu_speed_od3d.cpp screen_mmu_usb_od3d.cpp screen_ptfe_od3d.cpp screen_spool_od3d.cpp
     )
 endif()
+if(HAS_MANUAL_BELT_TUNING AND HAS_INPUT_SHAPER_CALIBRATION)
+  # Assistant de calibration (feature/od3d/CMakeLists.txt) ; INDX : série « Accéléromètre » seulement
+  target_sources(firmware PRIVATE screen_calib_assistant_od3d.cpp)
+endif()
 if(HAS_LOADCELL AND HAS_MMU2)
-  # Mesures à la cellule de charge par emplacement du MMU (feature/od3d/CMakeLists.txt) et assistant de calibration
+  # Mesures à la cellule de charge par emplacement du MMU (feature/od3d/CMakeLists.txt)
   target_sources(
     firmware
-    PRIVATE screen_calib_assistant_od3d.cpp
-            screen_collision_od3d.cpp
+    PRIVATE screen_collision_od3d.cpp
             screen_e_jump_od3d.cpp
             screen_nozzle_expansion_od3d.cpp
             screen_pa_od3d.cpp

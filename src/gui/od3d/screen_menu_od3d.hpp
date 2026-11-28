@@ -187,11 +187,11 @@ public:
     void click(IWindowMenu &) override;
 };
 
-// Selon l'imprimante : l'INDX n'a ni MMU (mesures par emplacement, assistant, relais, MMU par l'USB) ni régulation MPC,
+// Selon l'imprimante : l'INDX n'a ni MMU (mesures par emplacement, relais, MMU par l'USB) ni régulation MPC,
 // compensation de dilatation ou équerrage ; l'accéléromètre de la CORE One L et de l'INDX est intégré (rien à demander) ;
-// le maillage gardé est celui de la CORE One (OD3D_MESH_MEMORY())
+// le maillage gardé est celui de la CORE One (OD3D_MESH_MEMORY()) ; l'assistant de l'INDX n'a que sa série « Accéléromètre »
 class ScreenMenuFeatures final : public BasicScreenMenu<
-#if HAS_LOADCELL() && HAS_MMU2()
+#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION()
                                      MI_CALIB_ASSISTANT,
     #if HAS_ATTACHABLE_ACCELEROMETER()
                                      MI_ACCELEROMETER,

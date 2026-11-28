@@ -537,7 +537,7 @@ struct CurrentStore
     StoreItem<od3d::sleep::Settings, od3d::sleep::Settings {}, ItemFlag::user_interface, journal::hash("OD3D Sleep Settings")> od3d_sleep;
     /// OneDrop3D (F39) : maintien du moteur Z en veille [% du courant de maintien], 0 = Z coupé (od3d::sleep::z_hold_levels)
     StoreItem<uint8_t, od3d::sleep::default_z_hold, ItemFlag::user_interface, journal::hash("OD3D Sleep Z Hold")> od3d_sleep_z_hold;
-#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION() && HAS_LOADCELL() && HAS_MMU2() // IF-24 : là où l'assistant est compilé
+#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION() // IF-24 : là où l'assistant est compilé (INDX compris : série « Accéléromètre »)
     /// OneDrop3D (assistant de calibration) : par calibration du registre (indice = od3d::calib_registry::Test), dernière
     /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible »
     StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::base_tests> od3d_calib_done;

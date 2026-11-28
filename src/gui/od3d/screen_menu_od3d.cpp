@@ -32,8 +32,8 @@ namespace nozzle_comp = buddy::nozzle_thermal_compensation;
 // ---- Calibrage de l'imprimante (« Fonctions OneDrop3D » avant le 25/11) ----
 
 MI_FEATURES::MI_FEATURES()
-    // INDX : ni assistant, ni PA, ni MPC (ScreenMenuFeatures)
-    : IWindowMenuItem(HAS_INDX() ? _("Printer calibration\nBelts, speeds, chamber climate") : _("Printer calibration\nAssistant, PA, MPC, chamber climate"),
+    // INDX : assistant (série « Accéléromètre »), ni PA ni MPC (ScreenMenuFeatures)
+    : IWindowMenuItem(HAS_INDX() ? _("Printer calibration\nAssistant, belts, chamber climate") : _("Printer calibration\nAssistant, PA, MPC, chamber climate"),
         &img::wizard_16x16, is_enabled_t::yes, is_hidden_t::no, expands_t::yes) {}
 
 void MI_FEATURES::click(IWindowMenu &) {

@@ -528,3 +528,38 @@ TEST_CASE("calib_registry: two series, cold with the accelerometer and heating")
         CHECK((heat & test_bit(steps[i].test)));
     }
 }
+
+TEST_CASE("calib_registry: INDX, only the accelerometer series (IC-11)") {
+    // context() de l'INDX : accéléromètre dans la tête, ni MMU, ni MPC, ni bobine, pas de série « Chauffe »
+    const Context indx { .accelerometer = Accelerometer::yes, .accelerometer_clipped = false, .heated_tests = false };
+    const Records none {};
+    const Test kept[] = { Test::belts, Test::phase_stepping, Test::input_shaper, Test::damping, Test::speed_map, Test::accel_limit, Test::shaper_check, Test::fan_response };
+    uint32_t expected = 0;
+    for (const Test t : kept) {
+        expected |= test_bit(t);
+    }
+    // Ni pose de l'accéléromètre, ni MPC, PTFE, poulie, dilatation, PA, débit, température min, saut d'extrusion, équerrage ;
+    // manuels compris : aucun
+    CHECK(select(indx, none, false) == expected);
+    CHECK(proposed(indx, none) == expected);
+    CHECK(proposed(indx, all_done()) == 0);
+    CHECK((expected & ~series_tests(false)) == 0);
+    for (const Test t : { Test::nozzle_expansion, Test::skew, Test::mpc, Test::e_jump, Test::mmu_speed }) {
+        CHECK_FALSE(applicable(entry(t), indx));
+    }
+    // La même série « Accéléromètre » que la CORE One L (accéléromètre dans la tête), rien de plus
+    Context l = full();
+    l.accelerometer_clipped = false;
+    CHECK((select(l, none, false) & series_tests(false)) == expected);
+
+    // Étapes dans l'ordre de la grille, une par test, ventilateurs (M2001 V) en dernier
+    std::array<Step, 32> steps;
+    const size_t n = build_steps(select(indx, none, false), indx, steps);
+    REQUIRE(n == std::size(kept));
+    for (size_t i = 0; i < n; ++i) {
+        CHECK(steps[i].test == kept[i]);
+    }
+    std::array<char, 16> gcode;
+    REQUIRE(step_gcode(steps[n - 1], gcode));
+    CHECK(std::string_view(gcode.data()) == "M2001 V");
+}

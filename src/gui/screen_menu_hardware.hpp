@@ -110,7 +110,7 @@ using ScreenMenuHardwareBase = BasicScreenMenu<
     // F46) et le phase stepping, accéléromètre posé et retiré. Les menus de Prusa restent après lui (audit X-14) : sur
     // CORE One, c'est le seul endroit pour couper le phase stepping ou revenir à ses valeurs d'origine si une valeur
     // écrite par l'assistant est mauvaise (HAS_PHASE_STEPPING_SELFTEST exclut COREONE).
-    #if HAS_LOADCELL() && HAS_MMU2() // pas d'assistant sur l'INDX
+    #if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION() // INDX : sa série « Accéléromètre »
     od3d::MI_CALIB_ASSISTANT,
     #endif
     MI_INPUT_SHAPER,

@@ -395,11 +395,9 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 2006: // OneDrop3D : vérification de l'input shaper
             PrusaGcodeSuite::M2006();
             break;
-    #if HAS_LOADCELL() && HAS_MMU2()
-        case 1989: // OneDrop3D : assistant de calibration
+        case 1989: // OneDrop3D : assistant de calibration (INDX : série « Accéléromètre »)
             PrusaGcodeSuite::M1989();
             break;
-    #endif
 #endif
 #if HAS_LOADCELL() && HAS_MMU2() // OneDrop3D : mesures par emplacement du MMU (pas sur l'INDX)
         case 1994: // OneDrop3D (F4)

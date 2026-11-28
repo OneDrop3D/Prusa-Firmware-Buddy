@@ -5,15 +5,29 @@
 #include "screen_belts_od3d.hpp"
 #include "screen_damping_od3d.hpp"
 #include "screen_fan_response_od3d.hpp"
-#include "screen_e_jump_od3d.hpp"
-#include "screen_mmu_speed_od3d.hpp"
-#include "screen_mpc_od3d.hpp"
-#include "screen_nozzle_expansion_od3d.hpp"
-#include "screen_pa_od3d.hpp"
-#include "screen_ptfe_od3d.hpp"
-#include "screen_skew_od3d.hpp"
 #include "screen_speed_map_od3d.hpp"
-#include "screen_spool_calib_od3d.hpp"
+#include <option/has_indx.h>
+#include <option/has_loadcell.h>
+#include <option/has_mmu2.h>
+#if HAS_LOADCELL() && HAS_MMU2() // série « Chauffe » : pas sur l'INDX
+    #include "screen_e_jump_od3d.hpp"
+    #include "screen_mmu_speed_od3d.hpp"
+    #include "screen_mpc_od3d.hpp"
+    #include "screen_nozzle_expansion_od3d.hpp"
+    #include "screen_pa_od3d.hpp"
+    #include "screen_ptfe_od3d.hpp"
+    #include "screen_skew_od3d.hpp"
+    #include "screen_spool_calib_od3d.hpp"
+    #include <feature/od3d/e_jump_od3d.hpp>
+    #include <feature/od3d/mmu_speed_od3d.hpp>
+    #include <feature/od3d/mpc_control_od3d.hpp>
+    #include <feature/od3d/nozzle_expansion_od3d.hpp>
+    #include <feature/od3d/pa_od3d.hpp>
+    #include <feature/od3d/spool_calib_od3d.hpp>
+#endif
+#if HAS_INDX()
+    #include <selftest_snake_config.hpp> // docks et décalages des outils du serpent de Prusa
+#endif
 
 #include <algorithm>
 #include <bit>
@@ -28,16 +42,10 @@
 #include <feature/od3d/belt_tension_od3d.hpp>
 #include <feature/od3d/calib_assistant_od3d.hpp>
 #include <feature/od3d/damping_od3d.hpp>
-#include <feature/od3d/e_jump_od3d.hpp>
 #include <feature/od3d/fan_response_od3d.hpp>
 #include <feature/od3d/live_od3d.hpp>
-#include <feature/od3d/mmu_speed_od3d.hpp>
-#include <feature/od3d/mpc_control_od3d.hpp>
-#include <feature/od3d/nozzle_expansion_od3d.hpp>
-#include <feature/od3d/pa_od3d.hpp>
 #include <feature/od3d/sleep_od3d.hpp>
 #include <feature/od3d/speed_map_od3d.hpp>
-#include <feature/od3d/spool_calib_od3d.hpp>
 #include <feature/od3d/vibration_od3d.hpp>
 #include <filament.hpp>
 #include <Marlin/src/feature/input_shaper/input_shaper_config.hpp>
@@ -133,7 +141,8 @@ namespace {
     Flow flow;
 
     uint32_t accel_tests() {
-        return calib_registry::needs_mask(calib_registry::accelerometer) & calib_registry::automatic_mask();
+        // INDX : les ventilateurs ne mesurent que leurs vibrations, par l'accéléromètre de la tête prise (M2001 V)
+        return (calib_registry::needs_mask(calib_registry::accelerometer) | (HAS_INDX() ? test_bit(Test::fan_response) : 0u)) & calib_registry::automatic_mask();
     }
 
     uint32_t bed_tests() {
@@ -326,6 +335,7 @@ namespace {
             return ScreenFactory::Screen<ScreenSpeedMap>;
         case Test::damping:
             return ScreenFactory::Screen<ScreenDamping>;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::nozzle_expansion:
             return ScreenFactory::Screen<ScreenNozzleExpansion>;
         case Test::mpc:
@@ -335,12 +345,15 @@ namespace {
         case Test::max_flow:
         case Test::min_temp:
             return ScreenFactory::ScreenWithArg<ScreenSpoolCalib>(s.slot);
-        case Test::fan_response:
-            return ScreenFactory::Screen<ScreenFanResponse>;
         case Test::e_jump:
             return ScreenFactory::ScreenWithArg<ScreenEJump>(s.slot);
         case Test::mmu_speed:
             return ScreenFactory::Screen<ScreenMmuSpeed>;
+#endif
+#if !HAS_INDX() // INDX : son écran mesure le temps de montée (refusé, IC-7) ; l'assistant montre les vibrations
+        case Test::fan_response:
+            return ScreenFactory::Screen<ScreenFanResponse>;
+#endif
         default:
             return {};
         }
@@ -424,6 +437,14 @@ namespace {
             MsgBoxWarning(_("Printer is busy. Please try repeating the action later."), Responses_Ok);
             return;
         }
+#if HAS_INDX()
+        // Une tête prise pour toute la série : docks et décalages des outils réussis d'abord (serpent de Prusa) ; rien ne bouge
+        if (SelftestSnake::get_test_result(SelftestSnake::Action::DockCalibration, AllTools {}) != TestResult::passed
+            || SelftestSnake::get_test_result(SelftestSnake::Action::ToolOffsetsCalibration, AllTools {}) != TestResult::passed) {
+            MsgBoxWarning(_("Calibrate the docks and the tool offsets first: Control > Calibrations & Tests."), Responses_Ok);
+            return;
+        }
+#endif
         flow.session = session | mask;
         flow.mask = mask;
         flow.skip_index = 0xff;
@@ -839,6 +860,7 @@ namespace {
                 w.add("%d", int(b[0]));
             }
             break;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::mpc: {
             const auto model = [&](const calib_registry::Numbers &n) {
                 w.add("P ");
@@ -865,7 +887,9 @@ namespace {
                 w.scaled(b[0], 1, " mm");
             }
             break;
+#endif
         case Test::fan_response: {
+#if !HAS_INDX() // INDX : ni temps de montée ni avance (M2001, IC-7), les vibrations seules
             const auto lead = [&](int16_t ds) {
                 if (ds == 0) {
                     w.text(N_("Off"));
@@ -886,6 +910,7 @@ namespace {
                     w.scaled(b[0], 1000, " s");
                 }
             }
+#endif
             fan_vibration_details(w);
             break;
         }
@@ -938,6 +963,7 @@ namespace {
             w.add("\n");
             w.text(N_("--: no filter on this axis, or no ringing even without it."));
             break;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::nozzle_expansion: {
             constexpr const char *unit = " um/\xC2\xB0""C";
             w.label(N_("Measured slope:"));
@@ -1018,6 +1044,10 @@ namespace {
             }
             break;
         }
+#else
+        default: // INDX : série « Chauffe » absente
+            break;
+#endif
         case Test::skew:
         case Test::count:
             break;
@@ -1148,6 +1178,7 @@ namespace {
             w.add("\n");
             w.add(line, later);
         }
+#if HAS_LOADCELL() && HAS_MMU2()
         // Dilatation de la buse : la raison d'un échec, comme le tube PTFE
         if ((flow.started & test_bit(Test::nozzle_expansion)) && assistant::result(Test::nozzle_expansion) == Result::failed) {
             w.label(N_("Expansion:"));
@@ -1183,6 +1214,7 @@ namespace {
             w.label(N_("Front PTFE length:"));
             w.text(ptfe_result_text(ptfe::status().result));
         }
+#endif
     }
 
     /// Avancement de la mesure de l'étape (les mêmes chiffres que son écran et la pastille), s'il est connu
@@ -1197,8 +1229,10 @@ namespace {
             return speed_map::is_running() ? std::optional<uint8_t>(speed_map::progress_percent()) : std::nullopt;
         case Test::damping:
             return damping::is_running() ? std::optional<uint8_t>(damping::progress_percent()) : std::nullopt;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::nozzle_expansion:
             return nozzle_expansion::is_running() ? std::optional<uint8_t>(nozzle_expansion::progress_percent()) : std::nullopt;
+#endif
         case Test::fan_response:
             if (fan_vibration::is_running()) {
                 return fan_vibration::progress_percent();
@@ -1210,6 +1244,7 @@ namespace {
             return accel_mount::is_running() ? std::optional<uint8_t>(accel_mount::progress_percent()) : std::nullopt;
         case Test::shaper_check:
             return shaper_check::is_running() ? std::optional<uint8_t>(shaper_check::progress_percent()) : std::nullopt;
+#if HAS_LOADCELL() && HAS_MMU2()
         case Test::mpc:
             if (const mpc::TuneStatus st = mpc::tune_status(); st.running) {
                 return st.progress;
@@ -1233,6 +1268,7 @@ namespace {
             return std::nullopt;
         case Test::mmu_speed:
             return mmu_speed::is_running() ? ratio(mmu_speed::last().step, mmu_speed::cycles) : std::nullopt;
+#endif
         default:
             return std::nullopt;
         }
@@ -1547,11 +1583,15 @@ void ScreenCalibAssistant::show() {
     case Stage::idle:
     case Stage::propose: {
         // Une ligne (retour du 24/11) : les deux séries et leur durée ; les K déjà mesurés sont au détail du PA
-        const uint32_t cold = flow.mask & cold_tests(), heat = flow.mask & heat_tests();
+        [[maybe_unused]] const uint32_t cold = flow.mask & cold_tests(), heat = flow.mask & heat_tests(); // INDX : pas de « heat »
         text = !flow.mask ? _("Nothing to calibrate. Touch a test to add it.")
             : flow.boot   ? _("New in this firmware: %d tests, ~%d min").formatted(info_params, std::popcount(flow.mask), int(calib_registry::minutes(flow.mask, ctx, redo_tests())))
+#if HAS_LOADCELL() && HAS_MMU2()
                           : _("Accel. %d tests ~%d min \xC2\xB7 Heating %d tests ~%d min")
                                 .formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx)), std::popcount(heat), int(calib_registry::minutes(heat, ctx, redo_tests())));
+#else
+                          : _("Accel. %d tests ~%d min").formatted(info_params, std::popcount(cold), int(calib_registry::minutes(cold, ctx))); // INDX : pas de série « Chauffe »
+#endif
         break;
     }
     case Stage::ask_accel:
@@ -1638,7 +1678,11 @@ void ScreenCalibAssistant::show() {
     case Stage::idle:
     case Stage::propose:
         // Deux séries lancées chacune par son bouton, avec ses tests cochés
+#if HAS_LOADCELL() && HAS_MMU2()
         s = { N_("Accelerometer"), N_("Heating"), N_("Close"), (flow.mask & cold_tests()) != 0, (flow.mask & heat_tests()) != 0 };
+#else
+        s = { N_("Accelerometer"), nullptr, N_("Close"), (flow.mask & cold_tests()) != 0 }; // INDX : pas de série « Chauffe »
+#endif
         break;
     case Stage::ask_accel:
         s = { N_("Yes"), N_("No"), N_("Cancel") };
@@ -1702,6 +1746,7 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
     if (tag < entries.size()) {
         const Entry &e = entries[tag];
         if (!e.automatic) {
+#if HAS_LOADCELL() && HAS_MMU2() // INDX : aucun test à la main (tous de la série « Chauffe »)
             // Tests à la main : l'écran de la mesure, lancée par l'utilisateur (accélération du filament N-04, avec la
             // première bobine ; vitesse de la poulie U-03), sinon la pièce imprimée à mesurer (équerrage)
             const uint8_t spools = assistant::context().spools;
@@ -1710,6 +1755,7 @@ void ScreenCalibAssistant::clicked(uint8_t tag) {
             } else {
                 open_screen<ScreenSkew>();
             }
+#endif
         } else if (flow.stage == Stage::propose) {
             flow.mask ^= test_bit(e.test); // cocher ou décocher (passer avant le lancement)
         } else if (flow.stage == Stage::summary && show_details(e.test)) {

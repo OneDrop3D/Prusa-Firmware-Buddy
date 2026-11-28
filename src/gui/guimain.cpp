@@ -158,7 +158,7 @@ void init_screens() {
     return;
 #endif
 
-#if HAS_OD3D_UI() && HAS_LOADCELL() && HAS_MMU2() // pas d'assistant sur l'INDX
+#if HAS_OD3D_UI() && HAS_LOADCELL() && HAS_MMU2() // INDX : pas de proposition au démarrage (assistant par le menu)
     // OneDrop3D : calibrations nouvelles ou changées par ce firmware, une seule fois ; empilé en premier, il s'ouvre
     // après les écrans de première mise en route de Prusa (sur une imprimante neuve, ses tests d'abord)
     if (od3d::calibration_prompt_at_boot()) {

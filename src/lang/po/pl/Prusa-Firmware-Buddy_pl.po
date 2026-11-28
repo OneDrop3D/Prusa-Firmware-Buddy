@@ -13796,3 +13796,44 @@ msgstr ", maks. %d°C"
 #, c-format
 msgid "chamber %d°C"
 msgstr "komora %d°C"
+
+#: src/gui/od3d/screen_menu_od3d.cpp
+msgid ""
+"Printer calibration\n"
+"Belts, speeds, chamber climate"
+msgstr ""
+"Kalibracja drukarki\n"
+"Paski, prędkości, klimat komory"
+
+#: src/gui/od3d/screen_printing_od3d.cpp
+#, c-format
+msgid "Now: head %d"
+msgstr "Teraz: narzędzie %d"
+
+#: src/gui/od3d/spool_sheet_od3d.cpp
+#, c-format
+msgid "Head %d · %s"
+msgstr "Narzędzie %d · %s"
+
+#: src/gui/od3d/screen_files_od3d.cpp
+#, c-format
+msgid "Head %d: %s in the file, %s spool"
+msgstr "Narzędzie %d: %s w pliku, szpula %s"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Loading head %d"
+msgstr "Ładowanie narzędzia %d"
+
+#: src/gui/od3d/screen_progress_od3d.cpp
+#, c-format
+msgid "Unloading head %d"
+msgstr "Rozładowanie narzędzia %d"
+
+#: src/gui/screen_menu_settings.cpp
+msgid ""
+"Hardware\n"
+"Door, belts, input shaper"
+msgstr ""
+"Sprzęt\n"
+"Drzwi, paski, input shaper"

@@ -142,8 +142,14 @@ void open_section() {
     open_screen<S>();
 }
 
-/// Menu du filament : celui du MMU s'il est actif, celui de Prusa sans MMU s'il est arrêté, rien pendant qu'il démarre
+/// Menu du filament : celui du MMU s'il est actif, celui de Prusa sans MMU s'il est arrêté, rien pendant qu'il démarre ;
+/// INDX : celui de Prusa (Charger tout, Décharger tout, Changer tout), après cleaner_ready()
 void open_filament_menu();
+
+/// INDX (IF-01) : la garde de l'accueil de Prusa avant un chargement ou un déchargement : nettoyeur de buse non calibré
+/// (la purge se place d'après sa calibration), « Calibrez d'abord le nettoyeur », Ok (rien) ou Ignorer (on continue) ;
+/// ailleurs, toujours vrai
+bool cleaner_ready();
 
 /// Fichiers de la clé USB (rien sans clé : le navigateur de Prusa se refermerait aussitôt)
 void open_files();
@@ -304,6 +310,14 @@ private:
     string_view_utf8 title;
     string_view_utf8 subtitle;
 };
+
+/// Buse montrée (en-tête, accueil, Températures, pastille) : celle de la tête prise. INDX sans tête prise (IF-03) : la
+/// case « sans outil » de Prusa n'est jamais mise à jour (0 °C) ; la plus chaude des têtes (style::hottest)
+struct Nozzle {
+    float temp; ///< °C, négative : pas de mesure (« --° »)
+    int16_t target;
+};
+Nozzle nozzle_shown();
 
 /// Températures actuelles en °C entiers (chambre sans capteur : -1), arrondies avec une hystérésis (style::held_degrees)
 /// commune à tous les écrans : l'en-tête ne change pas d'un écran à l'autre pour une oscillation de la mesure

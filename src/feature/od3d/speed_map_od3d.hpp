@@ -44,6 +44,7 @@ enum class Status : uint8_t {
     failed, ///< l'accéléromètre a cessé de répondre
     not_homed,
     no_room, ///< pas assez de course autour du centre
+    no_dock, ///< INDX, refusé sans bouger : aucune tête prise ni dock calibré (accel::head_available)
 };
 
 struct Map {

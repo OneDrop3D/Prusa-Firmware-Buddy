@@ -15,6 +15,7 @@ target_sources(
           screen_filament_presets_od3d.cpp
           screen_home_od3d.cpp
           screen_menu_od3d.cpp
+          screen_mmu_od3d.cpp
           screen_move_od3d.cpp
           screen_music_od3d.cpp
           screen_printing_od3d.cpp
@@ -43,10 +44,10 @@ if(NOT HAS_INDX)
   target_sources(firmware PRIVATE screen_mpc_od3d.cpp screen_skew_od3d.cpp)
 endif()
 if(HAS_MMU2)
-  # Écrans du MMU : emplacements, changement de bobine (M704/M705), tube PTFE, vitesse de la poulie, mise à jour USB
+  # Écrans du MMU : changement de bobine (M704/M705), tube PTFE, vitesse de la poulie, mise à jour USB (l'étagère de
+  # l'Atelier, screen_mmu_od3d.cpp, sert aussi à l'INDX : ses parties MMU y sont sous HAS_MMU2)
   target_sources(
-    firmware PRIVATE screen_mmu_od3d.cpp screen_mmu_speed_od3d.cpp screen_mmu_usb_od3d.cpp screen_ptfe_od3d.cpp
-                     screen_spool_od3d.cpp
+    firmware PRIVATE screen_mmu_speed_od3d.cpp screen_mmu_usb_od3d.cpp screen_ptfe_od3d.cpp screen_spool_od3d.cpp
     )
 endif()
 if(HAS_LOADCELL AND HAS_MMU2)

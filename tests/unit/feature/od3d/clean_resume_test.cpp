@@ -142,6 +142,25 @@ TEST_CASE("reprise : suivi des tracés de remplissage", "[od3d][resume]") {
         CHECK(t.current().count == 0);
     }
 
+    SECTION("changement de tête (INDX) : le remplissage d'une autre buse oublié, les couches gardées") {
+        layer(t, 0.2f, e);
+        layer(t, 0.4f, e);
+        t.set_feature(od3d::feature_marks::infill);
+        e = line(t, { 20, 100 }, { 60, 100 }, 0.4f, e);
+        e = line(t, { 60, 100 }, { 60, 140 }, 0.4f, e);
+        REQUIRE(t.current().count == 3);
+        t.forget_runs();
+        CHECK(t.current().count == 0);
+        CHECK(t.last().count == 0);
+        CHECK(t.layer_z() == 0.4f);
+        CHECK(t.prev_layer_z() == 0.2f);
+        InfillPlan p;
+        CHECK(plan_infill(on, t, 0.4f, 10, 9.2f, core_one, nullptr, p) == Refusal::no_infill); // la reprise de Prusa
+        // La nouvelle tête suit son propre remplissage
+        e = line(t, { 100, 100 }, { 140, 100 }, 0.4f, e);
+        CHECK(t.current().count == 2);
+    }
+
     SECTION("Z qui redescend (objets l'un après l'autre) : les couches repartent") {
         layer(t, 0.2f, e);
         layer(t, 5.0f, e);

@@ -797,8 +797,9 @@ void Pause::long_load_process([[maybe_unused]] Response response) {
 void Pause::purge_process([[maybe_unused]] Response response) {
     // Extrude filament to get into hotend
     // OneDrop3D (F43) : la purge s'arrête toujours (« Arrêter la purge ») : le filament est déjà chargé, l'arrêt ne
-    // finit que la purge (standard_purge_sequence), même pendant un chargement par le MMU ou un M600
-    setPhase(PhasesLoadUnload::Purging_stoppable);
+    // finit que la purge (standard_purge_sequence), même pendant un chargement par le MMU ou un M600.
+    // INDX (IF-21) : la purge du chargeur au nettoyeur (nozzle_cleaner_purge_sequence) ne lit aucune réponse : sans bouton
+    setPhase(HAS_INDX() ? PhasesLoadUnload::Purging_unstoppable : PhasesLoadUnload::Purging_stoppable);
 
     planner.synchronize(); // Finish any pending moves before starting the purge
 

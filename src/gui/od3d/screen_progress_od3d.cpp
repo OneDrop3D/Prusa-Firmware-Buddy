@@ -32,6 +32,8 @@
 #include <option/has_mmu2.h>
 #include <option/has_nozzle_cleaner.h>
 #include <option/has_side_fsensor.h>
+#include <option/has_toolchanger.h>
+#include <option/has_indx.h>
 #include <sound.hpp>
 #include <timing.h>
 
@@ -227,9 +229,9 @@ namespace {
     const char *request_title(Op op) {
         switch (op) {
         case Op::load:
-            return N_("Loading slot %d");
+            return HAS_TOOLCHANGER() ? N_("Loading head %d") : N_("Loading slot %d"); // INDX : têtes (IF-05)
         case Op::unload:
-            return N_("Unloading slot %d");
+            return HAS_TOOLCHANGER() ? N_("Unloading head %d") : N_("Unloading slot %d");
         case Op::preload:
             return N_("Preloading slot %d");
         case Op::preload_all:
@@ -320,6 +322,9 @@ namespace {
         case Phase::AwaitingFilament_unstoppable:
         case Phase::IsColor:
         case Phase::IsColorPurge:
+#if HAS_INDX()
+        case Phase::FilamentCalibrationFailed:
+#endif
             sound::play(SoundType::single_beep);
             break;
         default:
@@ -380,7 +385,9 @@ void ScreenLoadUnload::Body::draw_header(Rect16 r) const {
     char subtitle[24] = "";
     if (owner.request) {
         title = _(request_title(owner.request->op)).formatted(params, owner.request->slot + 1);
-        atelier::spool_name(subtitle, FilamentType::for_tool(VirtualToolIndex::from_raw(owner.request->slot)));
+        // IG-07 : une tête vide (INDX) n'a sa matière qu'à la fin du chargement : celle choisie au préchauffage de Prusa
+        const FilamentType type = FilamentType::for_tool(VirtualToolIndex::from_raw(owner.request->slot));
+        atelier::spool_name(subtitle, type || owner.request->op != Op::load ? type : filament::get_type_to_load());
     } else {
         title = _(mode_name(owner.mode));
         if (owner.mode == LoadUnloadMode::Load) {
@@ -571,6 +578,9 @@ namespace {
 #if HAS_ANFC()
         case Phase::OPT_UncommitedUsage:
 #endif
+#if HAS_INDX()
+        case Phase::FilamentCalibrationFailed:
+#endif
             return true;
         default:
             return false;
@@ -736,6 +746,15 @@ void ScreenLoadUnload::enter_phase() {
         kind = Kind::notice;
         break;
     }
+#endif
+#if HAS_INDX()
+    case Phase::FilamentCalibrationFailed:
+        // IF-07 : le titre et le texte de ScreenFilamentChange (Réessayer / Décharger), avec son bip
+        notice_title = N_("Filament Calibration Failed");
+        notice_text = N_("Make sure the filament is properly inserted.");
+        notice_type = std::to_underlying(ErrType::USER_ACTION);
+        kind = Kind::notice;
+        break;
 #endif
 #if HAS_ANFC()
     case Phase::OPT_UncommitedUsage:

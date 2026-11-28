@@ -27,7 +27,21 @@ constexpr bool gravity_plausible(float mean_x, float mean_y, float mean_z) {
 bool ready();
 
 /// INDX (revue du 26/11) : l'accéléromètre est celui de la tête active, lu par MODBUS ; sans tête, il ne répond pas.
-/// Après l'origine, une mesure prend une tête comme l'input shaper de Prusa (M1959) ; ailleurs, rien
-void take_head();
+/// Après l'origine et la levée de Z, une mesure prend une tête comme l'input shaper de Prusa (M1959) ; ailleurs, rien.
+/// false : la prise a échoué (la mesure s'arrête), sans l'écran rouge de mapi::ensure_tool_with_accelerometer_picked
+[[nodiscard]] bool take_head();
+
+/// Va en (x, y) à la hauteur actuelle. INDX (IC-1) : par le chemin du parcage de Prusa (sortie des docks en Y, puis
+/// autour du nettoyeur), jamais en diagonale depuis le bac ou un dock ; ailleurs en ligne droite à speed (mm/s,
+/// accéléromètre clipsé : la vitesse de l'assistant de Prusa). false : arrêt demandé ou pas d'origine
+bool move_to(float x, float y, float speed);
+
+/// Une tête peut mesurer : INDX, une tête prise ou un dock calibré (sinon rien à prendre : refus « calibrez d'abord les
+/// docks », avant tout mouvement) ; ailleurs, toujours
+bool head_available();
+
+/// La buse qui portera l'accéléromètre dépasse max_c (mesure ou consigne) : INDX, la tête prise (une tête posée lit
+/// -1 °C) ; sans tête, toutes (celle que la mesure prendra garde sa consigne au dock et chaufferait une fois prise)
+bool nozzle_hot(float max_c);
 
 } // namespace od3d::accel

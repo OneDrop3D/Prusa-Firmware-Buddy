@@ -66,10 +66,12 @@ namespace {
         if (axes_need_homing()) {
             return Status::not_homed;
         }
-        accel::take_head(); // INDX : la tête dont l'accéléromètre mesure ; rien ailleurs
         const float z_floor = std::min(std::max(min_z, planner.max_printed_z + above_print), soft_endstop.max.z - 1.f);
         if (current_position.z < z_floor) {
             do_blocking_move_to_z(z_floor, travel_speed_z);
+        }
+        if (!accel::take_head()) { // INDX : la tête dont l'accéléromètre mesure, prise Z levé ; rien ailleurs
+            return must_stop() ? Status::stopped : Status::failed;
         }
         g.centre.x = std::clamp(X_BED_SIZE / 2.f, soft_endstop.min.x, soft_endstop.max.x);
         g.centre.y = std::clamp(Y_BED_SIZE / 2.f, soft_endstop.min.y, soft_endstop.max.y);
@@ -78,9 +80,8 @@ namespace {
         if (g.bound[0] < 20.f || g.bound[1] < 20.f) {
             return Status::no_room;
         }
-        do_blocking_move_to_xy(g.centre.x, g.centre.y, travel_speed_xy);
-        planner.synchronize();
-        return must_stop() ? Status::stopped : Status::done;
+        // IC-1 : INDX, le chemin du parcage de Prusa
+        return accel::move_to(g.centre.x, g.centre.y, travel_speed_xy) && !must_stop() ? Status::done : Status::stopped;
     }
 
     /// Un passage à la vitesse v jusqu'à target (coordonnée logique de l'axe) ; échantillons comptés dans la partie à
@@ -163,11 +164,21 @@ namespace {
         if (stop_requested) {
             return Status::stopped;
         }
-        if (Temperature::degHotend(0) > max_nozzle_temperature || Temperature::degTargetHotend(0) > max_nozzle_temperature) {
+        if (accel::nozzle_hot(max_nozzle_temperature)) {
             return Status::hot_nozzle;
+        }
+        if (!accel::head_available()) {
+            return Status::no_dock;
         }
         if (!accel::ready()) { // ACC-1 : avant tout mouvement (et avant de changer les réglages de mouvement)
             return Status::no_accelerometer;
+        }
+
+        // IC-6 : la tête prise et le trajet au centre avec les réglages de Prusa (INDX : sortie du dock à sa vitesse),
+        // avant ceux de la mesure
+        Geometry g;
+        if (const Status s = prepare(g); s != Status::done) {
+            return s;
         }
 
         // Réglages de mouvement : mode furtif coupé (ses limites fausseraient les vitesses), vitesses et accélérations
@@ -192,11 +203,6 @@ namespace {
             s.travel_acceleration = std::min(s.travel_acceleration, accel);
             s.acceleration = std::min(s.acceleration, accel);
             planner.apply_settings(s); // les limites matérielles de Prusa s'appliquent encore
-        }
-
-        Geometry g;
-        if (const Status s = prepare(g); s != Status::done) {
-            return s;
         }
 
         PrusaAccelerometer accelerometer;

@@ -36,6 +36,7 @@ enum class Status : uint8_t {
     no_accelerometer, ///< refusé sans bouger : l'accéléromètre ne répond pas (ACC-1)
     failed, ///< l'accéléromètre a cessé de répondre
     not_homed, ///< M2004 : pas d'origine (jamais prise accéléromètre fixé)
+    no_dock, ///< INDX, refusé sans bouger : aucune tête prise ni dock calibré (accel::head_available)
 };
 
 inline constexpr float max_nozzle_temperature = 50.f;

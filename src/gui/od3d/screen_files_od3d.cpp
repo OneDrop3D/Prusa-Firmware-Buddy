@@ -22,6 +22,7 @@
 #include <feature/od3d/mesh_memory_od3d.hpp>
 #include <option/has_loadcell.h>
 #include <option/has_mmu2.h>
+#include <option/has_toolchanger.h>
 #if HAS_LOADCELL() && HAS_MMU2()
     #include <feature/od3d/pa_od3d.hpp>
     #include <feature/od3d/spool_calib_od3d.hpp>
@@ -1498,15 +1499,26 @@ void ScreenPreview::draw_column(Rect16 area) {
     // Une ligne par emplacement utilisé : bobine, « n · matière chargée », PA mesuré (F4), grammes du fichier (en
     // jaune s'ils dépassent le reste de la bobine, F13). P-09 : les morceaux relevés d'abord, le fond peint une fois
     // entre eux, puis chacun avec son fond
+    // INDX, plus de 5 têtes (IF-02) : deux colonnes de 4 lignes (bobine, « n · matière », grammes), sans celle du PA
     std::array<Rect16, 2 + 4 * print_info::max_tools> parts { name_rect, summary_rect };
+    const uint8_t used = uint8_t(std::popcount(info.used));
+    const uint16_t col_w = used > 5 ? w / 2 : w;
     size_t n = 2;
-    for (uint8_t t = 0, row = 0; t < print_info::max_tools; ++t) {
+    for (uint8_t t = 0, k = 0; t < print_info::max_tools; ++t) {
         if (info.is_used(t)) {
-            const int16_t y = style::top + 42 + 19 * row++;
-            parts[n++] = Rect16(info_x, y, 16, 16);
-            parts[n++] = Rect16(info_x + 22, y, 100, height(Font::small));
-            parts[n++] = Rect16(info_x + 124, y, 56, height(Font::small));
-            parts[n++] = Rect16(info_x + 182, y, w - 182, height(Font::small));
+            const print_info::RowPlace at = print_info::row_place(k++, used);
+            const int16_t x = info_x + at.col * col_w, y = style::top + 42 + 19 * at.row;
+            parts[n++] = Rect16(x, y, 16, 16);
+            if (used > 5) {
+                // 121 px : « 7 PETG » (6 caractères de 9 px), puis « 123g » à droite
+                parts[n++] = Rect16(x + 20, y, 54, height(Font::small));
+                parts[n++] = Rect16(); // pas de PA sur l'INDX
+                parts[n++] = Rect16(x + 76, y, col_w - 78, height(Font::small));
+            } else {
+                parts[n++] = Rect16(x + 22, y, 100, height(Font::small));
+                parts[n++] = Rect16(x + 124, y, 56, height(Font::small));
+                parts[n++] = Rect16(x + 182, y, w - 182, height(Font::small));
+            }
         }
     }
     style::for_each_gap(area, std::span<const Rect16>(parts.data(), n), [](Rect16 gap) {
@@ -1526,7 +1538,11 @@ void ScreenPreview::draw_column(Rect16 area) {
         const uint8_t s = slot_of(info, t);
         const Slot slot = Slot::read(s);
         draw_spool({ parts[i].Left(), parts[i].Top() }, slot.look, 16, style::screen);
-        snprintf(text.data(), text.size(), "%d%s%s", s + 1, dot, slot.material.data());
+        if (used > 5) {
+            snprintf(text.data(), text.size(), "%d %s", s + 1, slot.material.data()); // deux colonnes : « 7 PLA »
+        } else {
+            snprintf(text.data(), text.size(), "%d%s%s", s + 1, dot, slot.material.data());
+        }
         draw_text(parts[i + 1], string_view_utf8::MakeRAM(text.data()), Font::small, style::text_strong, style::screen);
         // PA : la valeur mesurée ; « PA ? » en jaune si le PA de l'imprimante prime et qu'il manque (sinon le
         // trancheur décide : rien)
@@ -1543,14 +1559,16 @@ void ScreenPreview::draw_column(Rect16 area) {
 #else
         text[0] = '\0';
 #endif
-        draw_text(parts[i + 2], string_view_utf8::MakeRAM(text.data()), Font::small, pa_color, style::screen);
+        if (!parts[i + 2].IsEmpty()) {
+            draw_text(parts[i + 2], string_view_utf8::MakeRAM(text.data()), Font::small, pa_color, style::screen);
+        }
 #if HAS_MMU2() // F13 : poids des bobines du MMU
         const auto usage = spool_usage::report(s);
         const bool too_little = usage && slot.look.filament && spool_usage::not_enough(info.grams[t], usage->remaining_g);
 #else
         constexpr bool too_little = false;
 #endif
-        snprintf(text.data(), text.size(), "%.0f g", double(info.grams[t]));
+        snprintf(text.data(), text.size(), used > 5 ? "%.0fg" : "%.0f g", double(info.grams[t]));
         draw_text(parts[i + 3], string_view_utf8::MakeRAM(text.data()), Font::small, too_little ? style::warning : style::text_muted, style::screen, Align_t::RightCenter());
         i += 4;
     }
@@ -1602,7 +1620,8 @@ void ScreenPreview::draw_alerts(Rect16 area) {
     }
     if (mismatch >= 0) {
         // La matière de la bobine posée sur l'emplacement, pas ce qui est dans la buse (« chargé » se lisait ainsi, 25/11)
-        warnings[count++] = _("Slot %d: %s in the file, %s spool").formatted(mismatch_params, slot_of(info, mismatch) + 1, info.types[mismatch].data(), mismatch_slot.material.data());
+        warnings[count++] = (HAS_TOOLCHANGER() ? _("Head %d: %s in the file, %s spool") : _("Slot %d: %s in the file, %s spool")) // INDX : têtes (IF-05)
+                                .formatted(mismatch_params, slot_of(info, mismatch) + 1, info.types[mismatch].data(), mismatch_slot.material.data());
     }
 #if HAS_LOADCELL() && HAS_MMU2()
     if (too_cold >= 0) {

@@ -6,20 +6,63 @@
 #include <Marlin/src/Marlin.h>
 #include <Marlin/src/module/planner.h>
 #include <Marlin/src/module/prusa/accelerometer.h>
-#include <mapi/motion.hpp>
+#include <Marlin/src/module/motion.h>
+#include <Marlin/src/module/temperature.h>
+#include <mapi/parking.hpp>
 #include <timing.h>
+#include <tool_index.hpp>
 
 #include <option/has_remote_accelerometer.h>
 #include <option/has_toolchanger.h>
 #if HAS_REMOTE_ACCELEROMETER() && HAS_TOOLCHANGER()
-    #include <tool_index.hpp>
+    #include <Marlin/src/module/prusa/toolchanger.h>
     #include <variant>
 #endif
 
 namespace od3d::accel {
 
-void take_head() {
-    mapi::ensure_tool_with_accelerometer_picked();
+bool take_head() {
+#if HAS_REMOTE_ACCELEROMETER() && HAS_TOOLCHANGER()
+    // Comme mapi::ensure_tool_with_accelerometer_picked (la première tête au dock calibré, sans levée : Z est déjà
+    // monté), mais un échec arrête la mesure au lieu d'un écran rouge
+    if (!PhysicalToolIndex::currently_selected_opt()) {
+        return prusa_toolchanger.pick_any_tool(tool_return_t::no_return, {}, tool_change_lift_t::no_lift, false);
+    }
+#endif
+    return true;
+}
+
+bool move_to(float x, float y, [[maybe_unused]] float speed) {
+#if HAS_TOOLCHANGER()
+    return mapi::park({ .x = x, .y = y });
+#else
+    do_blocking_move_to_xy(x, y, speed);
+    return !planner.draining();
+#endif
+}
+
+bool head_available() {
+#if HAS_REMOTE_ACCELEROMETER() && HAS_TOOLCHANGER()
+    // pick_any_tool ne prend que les têtes au dock calibré (is_tool_enabled) : sans aucune, Prusa ferait un écran rouge
+    return PhysicalToolIndex::currently_selected_opt().has_value() || prusa_toolchanger.get_num_enabled_tools() > 0;
+#else
+    return true;
+#endif
+}
+
+bool nozzle_hot(float max_c) {
+    const auto hot = [max_c](PhysicalToolIndex tool) {
+        return Temperature::degHotend(tool) > max_c || Temperature::degTargetHotend(tool) > max_c;
+    };
+    if (const auto tool = PhysicalToolIndex::currently_selected_opt()) {
+        return hot(*tool);
+    }
+    for (const PhysicalToolIndex tool : PhysicalToolIndex::all()) {
+        if (hot(tool)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool ready() {

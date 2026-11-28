@@ -11,6 +11,7 @@
 #include <feature/chamber/chamber.hpp>
 #include <feature/safety_timer/safety_timer.hpp>
 #include <filament.hpp>
+#include <gcode_info.hpp>
 #include <marlin_server.hpp>
 #include <module/temperature.h>
 #include <timing.h>
@@ -29,7 +30,7 @@ namespace {
     int16_t print_bed_target = 0; ///< consigne la plus haute du plateau pendant l'impression
     /// Plafond posé une fois pour cette impression : ensuite la consigne choisie à l'écran est respectée, « Arrêt »
     /// compris (retour du 24/11 : « dans une impression on peut pas gérer la température de la chambre »).
-    /// shortcut: le maximum de la première matière ; à reposer au changement de matière si un mélange le demande
+    /// Plusieurs matières : le plus bas de leurs plafonds (IF-23)
     bool print_ceiling_done = false;
 
     // Lus par l'interface
@@ -87,20 +88,26 @@ namespace {
         }
         const Recipe recipe = recipe_for(type);
         print_wants_soft_cooldown |= has_soft_cooldown(recipe);
-        if (!has_ceiling(recipe)) {
-            return;
-        }
 
         // Pas pendant une pause (minuteur de sécurité actif) : poser une cible de chambre relancerait les buses
-        if (marlin_vars().print_state != marlin_server::State::Printing || buddy::safety_timer().is_active()) {
+        if (print_ceiling_done || marlin_vars().print_state != marlin_server::State::Printing || buddy::safety_timer().is_active()) {
             return;
+        }
+        // IF-23 : plusieurs outils (INDX, MMU) : le plus bas des plafonds des outils de l'impression ; un G-code sans
+        // liste d'outils : l'outil en cours
+        std::optional<uint8_t> max_c;
+        bool listed = false;
+        GCodeInfo::getInstance().for_each_used_extruder([&](GcodeToolIndex, VirtualToolIndex tool, const GCodeInfo::ExtruderInfo &) {
+            listed = true;
+            if (const FilamentType t = FilamentType::for_tool_heuristic(tool)) {
+                max_c = lower_ceiling(max_c, recipe_for(t), t.parameters().chamber_max_temperature);
+            }
+        });
+        if (!listed) {
+            max_c = lower_ceiling(std::nullopt, recipe, type.parameters().chamber_max_temperature);
         }
         auto &chamber = buddy::chamber();
-        const auto max_c = type.parameters().chamber_max_temperature;
-        if (print_ceiling_done) {
-            return;
-        }
-        if (const auto target = ceiling_target(recipe, max_c, chamber.target_temperature().has_value(), chamber.capabilities().cooling)) {
+        if (const auto target = ceiling_target(Recipe::ceiling, max_c, chamber.target_temperature().has_value(), chamber.capabilities().cooling)) {
             chamber.set_target_temperature(buddy::Temperature(*target));
             print_ceiling_done = true;
         }

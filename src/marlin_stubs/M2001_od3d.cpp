@@ -2,8 +2,10 @@
 /// OneDrop3D (N3, « Réponse du ventilateur ») : M2001, temps de montée du ventilateur pièce.
 #include "PrusaGcodeSuite.hpp"
 
+#include <core/serial.h>
 #include <feature/od3d/fan_response_od3d.hpp>
 #include <gcode/parser.h>
+#include <option/has_indx.h>
 #include <option/has_input_shaper_calibration.h>
 #include <option/has_manual_belt_tuning.h>
 #if HAS_INPUT_SHAPER_CALIBRATION() && HAS_MANUAL_BELT_TUNING()
@@ -35,7 +37,13 @@
  * pendant une impression ; s'arrête depuis l'écran.
  */
 void PrusaGcodeSuite::M2001() {
+#if HAS_INDX()
+    // IC-7 : le ventilateur pièce est sur la tête et son tachymètre n'est pas lu ici (fanctl_instances.cpp) : refusé
+    // plutôt qu'un « pas de signal » après 8 s de ventilateur ; la ventilation anticipée (F26) se règle à la main
+    SERIAL_ERROR_MSG("M2001: part fan rise time not measurable on INDX");
+#else
     od3d::fan_response::run();
+#endif
 #if HAS_INPUT_SHAPER_CALIBRATION() && HAS_MANUAL_BELT_TUNING()
     if (parser.seen('V') && od3d::fan_response::status() != od3d::fan_response::Status::stopped) {
         od3d::fan_vibration::run();

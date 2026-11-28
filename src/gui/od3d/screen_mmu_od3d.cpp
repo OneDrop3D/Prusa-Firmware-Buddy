@@ -4,20 +4,22 @@
 #include "menu_items_od3d.hpp"
 #include "menu_od3d.hpp"
 
-#include "screen_pa_od3d.hpp"
 #include "spool_sheet_od3d.hpp"
 
 #include <common/marlin_vars.hpp>
 #include <cstdio>
 #include <display.hpp>
-#include <feature/od3d/spool_usage_od3d.hpp>
-#include <feature/prusa/MMU2/mmu2_mk4.h>
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <marlin_client.hpp>
 #include <timing.h>
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <iterator>
+#include <option/has_mmu2.h>
+#if HAS_MMU2() // INDX (IG-03) : l'étagère seule, sans les écrans du MMU
+    #include "screen_pa_od3d.hpp"
+    #include <feature/prusa/MMU2/mmu2_mk4.h>
+#endif
 
 namespace od3d {
 
@@ -90,12 +92,13 @@ namespace {
     PickRequest pick_request;
 
     enum ShelfTag : uint8_t {
-        // 0 à 4 : les bobines
-        tag_preload_all = 5,
+        // 0 à count - 1 : les bobines (MMU3 : 5, INDX : 8 têtes)
+        tag_preload_all = VirtualToolIndex::count,
         tag_motors,
         tag_pressure_advance,
         tag_settings,
         tag_info,
+        tag_filament, ///< INDX : le menu Filament de Prusa
     };
 
     bool mmu_ready() {
@@ -103,6 +106,7 @@ namespace {
         return state != MMU2::xState::Connecting && state != MMU2::xState::Bootloader;
     }
 
+#if HAS_MMU2()
     /// Emplacement de la tuile « Press. adv. » (F4) : celui de la buse, sinon le premier qui a une matière
     std::optional<uint8_t> pa_slot() {
         if (const auto tool = VirtualToolIndex::currently_selected_opt()) {
@@ -115,6 +119,7 @@ namespace {
         }
         return std::nullopt;
     }
+#endif
 
     /// Un élément désactivé ne garde pas le focus : le premier élément actif le prend (le retour de l'en-tête)
     void keep_focus(window_frame_t &screen) {
@@ -230,13 +235,20 @@ ScreenMMU::ScreenMMU(std::index_sequence<I...>)
     // Sans MMU, l'étagère de l'onglet Atelier n'a que la bobine de la buse
     , header(this, atelier::mmu_enabled() ? string_view_utf8::MakeCPUFLASH("MMU") : _("Workshop"), true)
     , spools { ShelfSpool(this, I, atelier::visible_tools())... }
+#if HAS_MMU2()
     , preload_all(this, shortcut_body(0), tag_preload_all, img::cycle_16x16, style::tile_motion, _("Preload"), _("All slots"))
     , motors(this, shortcut_body(1), tag_motors, img::move_16x16, style::tile_motion, _("Motors"), _("Open >"))
     , pressure_advance(this, shortcut_body(2), tag_pressure_advance, img::user_filament_16x16, style::tile_filament, _("Press. adv."), _("Open >"))
     , settings(this, shortcut_body(3), tag_settings, img::settings_16x16, style::tile, _("Options"), _("Open >")) // « Einstellungen » : 13 caractères pour 11
     , info(this, shortcut_body(4), tag_info, img::info_16x16, style::tile, _("MMU info"), _("Open >"))
+#else
+    // INDX : Charger tout, Décharger tout, Changer tout, les têtes une à une (menu de Prusa)
+    , filament(this, shortcut_body(0), tag_filament, img::spool_16x16, style::tile_filament, _("Filament"), _("Open >"))
+#endif
     , tabs(this, TabBar::Tab::workshop) {
+#if HAS_MMU2()
     pressure_advance.set_enabled(pa_slot().has_value()); // F4 : l'écran du PA (« Mesurer » charge la bobine)
+#endif
     update();
 
     // Focus de départ : l'emplacement chargé, sinon la première bobine utilisable
@@ -263,8 +275,10 @@ void ScreenMMU::update() {
     for (ShelfSpool &spool : spools) {
         spool.update(ready);
     }
+#if HAS_MMU2()
     preload_all.enable(atelier::mmu_active() && atelier::can_run() && !atelier::filament_in_nozzle());
     pressure_advance.enable(pa_slot().has_value());
+#endif
     keep_focus(*this);
 }
 
@@ -287,6 +301,7 @@ void ScreenMMU::windowEvent(window_t *sender, GUI_event_t event, void *param) {
             return;
         }
         switch (tag) {
+#if HAS_MMU2()
         case tag_preload_all:
             atelier::run(Op::preload_all, 0);
             break;
@@ -304,6 +319,11 @@ void ScreenMMU::windowEvent(window_t *sender, GUI_event_t event, void *param) {
         case tag_info:
             open_screen<ScreenMenuMMUInfo>();
             break;
+#else
+        case tag_filament:
+            open_filament_menu(); // la garde du nettoyeur (IF-01) avant
+            break;
+#endif
         default:
             break;
         }
@@ -373,6 +393,7 @@ void ScreenSlotPick::windowEvent(window_t *sender, GUI_event_t event, void *para
     Screen::windowEvent(sender, event, param);
 }
 
+#if HAS_MMU2() // les moteurs, les réglages et les infos du MMU
 // ---- Moteurs ----
 
 namespace {
@@ -679,5 +700,6 @@ MI_MMU_AXES::MI_MMU_AXES()
 void MI_MMU_AXES::click(IWindowMenu &) {
     open_screen<ScreenMMUMotors>();
 }
+#endif
 
 } // namespace od3d

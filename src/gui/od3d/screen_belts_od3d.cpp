@@ -332,6 +332,9 @@ void ScreenBelts::show_info() {
         case Status::no_memory:
             text = _("Not enough memory, try again later.");
             break;
+        case Status::no_dock:
+            text = _("Please calibrate the docks first."); // texte de Prusa (INDX)
+            break;
         }
     }
     info.SetText(text);

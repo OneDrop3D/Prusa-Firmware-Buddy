@@ -5,6 +5,8 @@
 /// impression en un clic, .ini du Wi-Fi, NFC, état du MMU.
 #pragma once
 
+#include <option/has_mmu2.h>
+
 #include "thumbnail_od3d.hpp"
 #include "widgets_od3d.hpp"
 
@@ -121,7 +123,9 @@ private:
 
     Header header;
     SpoolCard spools[VirtualToolIndex::count]; ///< une par outil possible ; celles des outils absents sont cachées
-    IconButton mmu;
+#if HAS_MMU2()
+    IconButton mmu; ///< l'étagère ; INDX : la bande entière aux têtes (IG-08), l'étagère par l'onglet Atelier
+#endif
     FileCard file;
     PrintButton print;
     IconCard files;

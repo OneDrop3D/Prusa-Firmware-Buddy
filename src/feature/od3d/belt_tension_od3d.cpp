@@ -143,16 +143,16 @@ namespace {
         if (must_stop() || axes_need_homing()) {
             return false;
         }
-        accel::take_head(); // INDX : la tête dont l'accéléromètre mesure ; rien ailleurs
         const float z_floor = std::min(std::max(min_z, planner.max_printed_z + above_print), soft_endstop.max.z - 1.f);
         if (current_position.z < z_floor) {
             do_blocking_move_to_z(z_floor, travel_speed_z);
         }
+        if (!accel::take_head()) { // INDX : la tête dont l'accéléromètre mesure, prise Z levé ; rien ailleurs
+            return false;
+        }
         const float x = std::clamp<float>(manual_belt_tuning::calib_position_x, soft_endstop.min.x, soft_endstop.max.x);
         const float y = std::clamp<float>(manual_belt_tuning::calib_position_y, soft_endstop.min.y, soft_endstop.max.y);
-        do_blocking_move_to_xy(x, y, travel_speed_xy);
-        planner.synchronize();
-        return !must_stop();
+        return accel::move_to(x, y, travel_speed_xy) && !must_stop(); // IC-1 : INDX, le chemin du parcage de Prusa
     }
 
     void set_progress(uint8_t belt_index, float point_progress) {
@@ -313,8 +313,11 @@ namespace {
         if (stop_requested) {
             return Status::stopped;
         }
-        if (Temperature::degHotend(0) > max_nozzle_temperature || Temperature::degTargetHotend(0) > max_nozzle_temperature) {
+        if (accel::nozzle_hot(max_nozzle_temperature)) {
             return Status::hot_nozzle;
+        }
+        if (!accel::head_available()) {
+            return Status::no_dock;
         }
         if (!accel::ready()) { // ACC-1 : avant tout mouvement
             return Status::no_accelerometer;

@@ -23,6 +23,10 @@
 #include <option/has_chamber_api.h>
 #include <option/has_chamber_filtration_api.h>
 #include <option/xbuddy_extension_variant.h>
+#include <option/has_toolchanger.h>
+#if HAS_TOOLCHANGER()
+    #include <screen_menu_temperature_and_fans.hpp>
+#endif
 #include <screen/filament/screen_filament_management_list.hpp>
 #include <timing.h>
 #include <tool_index.hpp>
@@ -67,7 +71,10 @@ namespace {
     void edit_nozzle() {
         const auto tool = PhysicalToolIndex::currently_selected_opt();
         if (!tool) {
-            return; // pas d'outil actif : comme le menu Prusa, rien à régler
+#if HAS_TOOLCHANGER()
+            open_screen<ScreenMenuTemperatureAndFans>(); // IF-03 : INDX sans tête prise, le menu de Prusa règle chaque tête
+#endif
+            return; // pas d'outil actif : comme le menu Prusa, rien à régler ici
         }
         NumericInputConfig config = numeric_input_config::nozzle_temperature(*tool);
         config.step = 5;
@@ -224,7 +231,7 @@ HeaterCard::Reading HeaterCard::read(Heater heater) {
     switch (heater) {
     case Heater::nozzle:
         r.current = Temps::read().nozzle; // l'arrondi à hystérésis de l'en-tête : les mêmes chiffres, sans sautiller
-        r.target = marlin_vars().active_hotend().target_nozzle.get();
+        r.target = nozzle_shown().target; // INDX sans tête prise : la tête montrée par Temps::read()
         break;
     case Heater::bed:
         r.current = Temps::read().bed;

@@ -450,13 +450,15 @@ struct CurrentStore
     StoreItemArray<uint16_t, uint16_t(0), ItemFlag::calibrations, journal::hash("OD3D Nozzle Expansion"), 4, 4> od3d_nozzle_expansion;
 #endif
 
-#if HAS_SPOOL_JOIN()
+#if HAS_SPOOL_JOIN() && HAS_MMU2() // IF-24 : INDX, relais de Prusa seulement (spool_join_od3d.cpp : MMU)
     /// OneDrop3D (F3) : relais de bobine permanents, « emplacement n vide → emplacement k » (0xff : aucun)
     StoreItem<bool, true, ItemFlag::features, journal::hash("OD3D Spool Join")> od3d_spool_join;
     StoreItemArray<uint8_t, uint8_t(0xff), ItemFlag::features, journal::hash("OD3D Spool Join Target"), 16, VirtualToolIndex::count> od3d_spool_join_target;
 #endif
+#if ENABLED(OD3D_SKEW_CORRECTION_XY) // IF-24 : pas sur l'INDX (M1988 de Prusa)
     /// OneDrop3D (F15) : facteur d'équerrage XY (M852 I), 0 = aucune correction ; appliqué au démarrage
     StoreItem<float, 0.0f, ItemFlag::calibrations, journal::hash("OD3D Skew XY")> od3d_skew_xy;
+#endif
     /// OneDrop3D (F18) : musique des moteurs. Fichier .mid choisi (nom court 8.3, à la racine de la clé), moteurs
     /// (0 : X et Y, 1 : X seul, 2 : Z) et lecture à la fin de chaque impression réussie (coupée par défaut)
     StoreItem<std::array<char, 13>, std::array<char, 13> {}, ItemFlag::features, journal::hash("OD3D Music File")> od3d_music_file;
@@ -492,10 +494,12 @@ struct CurrentStore
     /// de bobine ; accélération max du filament = saut / K
     StoreItemArray<od3d::e_jump::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D E Jump"), 8, VirtualToolIndex::count> od3d_e_jump;
 #endif
+#if ENABLED(OD3D_MPCTEMP) // IF-24 : pas sur l'INDX (modèle thermique de Prusa)
     /// OneDrop3D (F7) : régulation de la buse, false = PID de Prusa (par défaut), true = MPC (seulement avec une
     /// calibration valable) ; paramètres du modèle MPC (M306 T ou M306 P C R A F H), non valables tant que non calibrés
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D MPC Enabled")> od3d_mpc_enabled;
     StoreItem<od3d::mpc::Params, od3d::mpc::Params {}, ItemFlag::calibrations, journal::hash("OD3D MPC Model")> od3d_mpc_params;
+#endif
     /// OneDrop3D (F29) : recettes du climat de la chambre par matière (chamber_climate_math_od3d.hpp : bit n plafond,
     /// bit n + moitié descente douce ; préréglages par PresetFilamentType, filaments de l'utilisateur par indice),
     /// toutes coupées par défaut ; paliers de la descente douce du plateau (°C, minutes, seuil °C)
@@ -512,27 +516,33 @@ struct CurrentStore
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Clean Resume Enabled")> od3d_clean_resume;
     StoreItem<uint8_t, 10, ItemFlag::features, journal::hash("OD3D Clean Resume Purge")> od3d_clean_resume_purge;
     StoreItem<uint8_t, 8, ItemFlag::features, journal::hash("OD3D Clean Resume Retract")> od3d_clean_resume_retract;
+#if ENABLED(OD3D_MPCTEMP)
     /// OneDrop3D (F8) : température selon le débit, seulement avec le MPC (coupée par défaut) ; seuil [mm³/s] et
     /// hausse maximale [°C]
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Flow Temp Enabled")> od3d_flow_temp_enabled;
     StoreItem<uint8_t, od3d::mpc::default_flow_threshold, ItemFlag::features, journal::hash("OD3D Flow Temp Threshold")> od3d_flow_temp_threshold;
     StoreItem<uint8_t, od3d::mpc::default_flow_max_boost, ItemFlag::features, journal::hash("OD3D Flow Temp Max Boost")> od3d_flow_temp_max_boost;
+#endif
     /// OneDrop3D (F26) : avance du ventilateur pièce [dixièmes de seconde], 0 (par défaut) = comme Prusa
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Fan Lead")> od3d_fan_lead;
+#if HAS_LOADCELL() && HAS_MMU2() // IF-24 : collision_od3d.cpp ; jamais sur l'INDX (IC-10)
     /// OneDrop3D (F38) : sécurité collision par la cellule de charge (coupée par défaut) ; sensibilité (0 faible,
     /// 1 normale, 2 élevée) ; action (0 mettre en pause, 1 prévenir seulement)
     StoreItem<bool, false, ItemFlag::features, journal::hash("OD3D Collision Enabled")> od3d_collision_enabled;
     StoreItem<uint8_t, 1, ItemFlag::features, journal::hash("OD3D Collision Sensitivity")> od3d_collision_sensitivity;
     StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("OD3D Collision Action")> od3d_collision_action;
+#endif
     /// OneDrop3D (F39) : mode veille (od3d::sleep::Settings : actif, délai, écran, lumières, chauffes et leur délai,
     /// moteurs, ventilateurs), à la place de l'atténuation des lumières de Prusa
     StoreItem<od3d::sleep::Settings, od3d::sleep::Settings {}, ItemFlag::user_interface, journal::hash("OD3D Sleep Settings")> od3d_sleep;
     /// OneDrop3D (F39) : maintien du moteur Z en veille [% du courant de maintien], 0 = Z coupé (od3d::sleep::z_hold_levels)
     StoreItem<uint8_t, od3d::sleep::default_z_hold, ItemFlag::user_interface, journal::hash("OD3D Sleep Z Hold")> od3d_sleep_z_hold;
+#if HAS_MANUAL_BELT_TUNING() && HAS_INPUT_SHAPER_CALIBRATION() && HAS_LOADCELL() && HAS_MMU2() // IF-24 : là où l'assistant est compilé
     /// OneDrop3D (assistant de calibration) : par calibration du registre (indice = od3d::calib_registry::Test), dernière
     /// version menée à bien, dernier résultat et sa date ; « Accéléromètre disponible »
     StoreItemArray<od3d::calib_registry::Record, AnyDefaultConstructor {}, ItemFlag::calibrations, journal::hash("OD3D Calib Done"), 16, od3d::calib_registry::base_tests> od3d_calib_done;
     StoreItem<od3d::calib_registry::Accelerometer, od3d::calib_registry::Accelerometer::unknown, ItemFlag::features, journal::hash("OD3D Accelerometer")> od3d_accelerometer;
+#endif
 #if HAS_MMU2() // INDX : pas de MMU, et sans eux son config_store déborde (2 597 o pour 2 550)
     /// OneDrop3D (F43) : emplacement chargé jusqu'à la buse, sa matière et la date (filament_memory_od3d.hpp), repris
     /// au démarrage du MMU si les capteurs sont d'accord

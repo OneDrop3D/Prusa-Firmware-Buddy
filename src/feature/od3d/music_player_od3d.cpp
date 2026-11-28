@@ -13,6 +13,7 @@
 #include <config_store/store_instance.hpp>
 #include <cstdlib>
 #include <heap.h>
+#include <mapi/parking.hpp>
 #include <new>
 #include <Marlin.h>
 #include <gcode/gcode.h>
@@ -232,10 +233,8 @@ namespace {
                 s.motion[2].bound = int32_t(half * 1000.f);
             } // sinon pas de place en Z : la basse se tait, la mélodie et la 2e voix jouent
         }
-        do_blocking_move_to_xy(s.centre.x, s.centre.y, travel_speed_xy);
-        do_blocking_move_to_z(s.centre.z, travel_speed_z);
-        planner.synchronize();
-        return !must_stop();
+        // IC-1 : le parcage de Prusa (INDX : sortie du bac en Y, autour de la brosse ; Z monté avant le trajet)
+        return mapi::park({ .x = s.centre.x, .y = s.centre.y, .z = s.centre.z }) && !must_stop();
     }
 
 } // namespace

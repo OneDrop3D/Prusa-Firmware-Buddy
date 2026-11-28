@@ -212,6 +212,9 @@ void ScreenSpeedMap::show_info() {
         case Status::no_room:
             text = _("No room on this axis");
             break;
+        case Status::no_dock:
+            text = _("Please calibrate the docks first."); // texte de Prusa (INDX)
+            break;
         }
     }
     info.SetText(text);

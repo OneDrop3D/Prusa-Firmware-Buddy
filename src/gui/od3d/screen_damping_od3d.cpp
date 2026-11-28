@@ -237,6 +237,9 @@ void ScreenDamping::show_info() {
         case Status::not_homed: // perdue depuis : jamais refaite accéléromètre fixé
             text = shown_homing ? _(shown_homing) : (HAS_ATTACHABLE_ACCELEROMETER() ? _("Attach the accelerometer to the nozzle, then Start (X and Y, about 4 min).") : _("Start: X and Y, about 4 min."));
             break;
+        case Status::no_dock:
+            text = _("Please calibrate the docks first."); // texte de Prusa (INDX)
+            break;
         }
     }
     info.SetText(text);

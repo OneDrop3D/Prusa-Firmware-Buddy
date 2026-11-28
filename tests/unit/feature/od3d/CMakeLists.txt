@@ -17,7 +17,9 @@ add_executable(
   print_info_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/print_info_test.cpp
                         ${CMAKE_SOURCE_DIR}/src/gui/od3d/print_info_od3d.cpp
   )
-target_include_directories(print_info_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(
+  print_info_od3d_tests PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/indx_option
+  )
 add_catch_test(print_info_od3d_tests)
 
 add_executable(object_map_od3d_tests ${CMAKE_CURRENT_SOURCE_DIR}/object_map_test.cpp)

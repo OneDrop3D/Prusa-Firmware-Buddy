@@ -89,6 +89,11 @@ public:
     void set_object(int16_t object) { current_.object = object; }
     /// Tout oublié (départ d'impression), sur place
     void reset();
+    /// Suites oubliées, hauteurs de couche gardées (changement de tête : le remplissage d'une autre buse)
+    void forget_runs() {
+        current_.clear();
+        last_.clear();
+    }
 
     /// Z des deux dernières couches imprimées (mouvements qui extrudent dans le plan) ; NAN : pas encore
     float layer_z() const { return layer_z_; }

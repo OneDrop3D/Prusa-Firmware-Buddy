@@ -54,6 +54,7 @@ enum class Status : uint8_t {
     failed, ///< la mesure a échoué en cours de route (accéléromètre)
     not_homed, ///< pas d'origine : refusé (jamais prise accéléromètre fixé)
     no_memory, ///< refusé sans bouger : pas la place sur le tas
+    no_dock, ///< INDX, refusé sans bouger : aucune tête prise ni dock calibré (accel::head_available)
 };
 
 /// Étape en cours, pour l'interface

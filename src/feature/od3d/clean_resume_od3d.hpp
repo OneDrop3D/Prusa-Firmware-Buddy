@@ -32,6 +32,10 @@ void on_print_start();
 /// M2011 S<n>, rendu par la lecture du fichier à la place d'un « ;TYPE:… » (feature_marks_od3d.hpp)
 void set_feature(uint8_t feature);
 
+/// Changement de tête (INDX, tool_change.cpp) : le remplissage gardé est celui d'une autre buse (diamètre, matière,
+/// débit par mm) : oublié ; les hauteurs de couche restent
+void on_tool_change();
+
 /// G0/G1 traité (G0_G1.cpp), positions natives avant et après ; rien si l'option est coupée
 void on_print_move(float x0, float y0, float z0, float e0, float x1, float y1, float z1, float e1);
 

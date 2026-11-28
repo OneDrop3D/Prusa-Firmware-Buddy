@@ -8,6 +8,7 @@
 #include <config_store/store_instance.hpp>
 #include <mapi/feedrates/standard_feedrates.hpp>
 #include <mapi/motion.hpp>
+#include <mapi/parking.hpp>
 #include <Marlin.h>
 #include <module/motion.h>
 #include <module/planner.h>
@@ -74,6 +75,10 @@ void set_feature(uint8_t feature) {
     tracker.set_feature(feature);
 }
 
+void on_tool_change() {
+    tracker.forget_runs();
+}
+
 void on_print_move(float x0, float y0, float z0, float e0, float x1, float y1, float z1, float e1) {
     if (!feature_marks::enabled.load(std::memory_order_relaxed)) {
         return;
@@ -106,7 +111,10 @@ void before_unpark(float resume_z, float resume_e) {
     if (planner.draining()) {
         return;
     }
-    do_blocking_move_to_xy(plan.purge.x, plan.purge.y, NOZZLE_PARK_XY_FEEDRATE);
+    // IF-20 : le chemin du parcage de Prusa (INDX : hors du bac en Y, puis autour de la brosse), pas une diagonale
+    if (!mapi::park({ .x = plan.purge.x, .y = plan.purge.y })) {
+        return;
+    }
 
     // 2. Descente sur le remplissage, filament toujours rétracté
     do_blocking_move_to_z(plan.z, NOZZLE_PARK_Z_FEEDRATE);

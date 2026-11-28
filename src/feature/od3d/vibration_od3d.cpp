@@ -48,8 +48,11 @@ namespace {
         if (stop) {
             return Status::stopped;
         }
-        if (Temperature::degHotend(0) > max_nozzle_temperature || Temperature::degTargetHotend(0) > max_nozzle_temperature) {
+        if (accel::nozzle_hot(max_nozzle_temperature)) {
             return Status::hot_nozzle;
+        }
+        if (!accel::head_available()) {
+            return Status::no_dock;
         }
         if (!accel::ready()) {
             return Status::no_accelerometer;
@@ -139,14 +142,16 @@ namespace {
         if (must_stop() || axes_need_homing()) {
             return false;
         }
-        accel::take_head(); // INDX : la tête dont l'accéléromètre mesure ; rien ailleurs
         const float z = std::min(std::max({ min_z, float(Z_SIZE) / 2.f, planner.max_printed_z + above_print }), soft_endstop.max.z - 1.f);
         if (current_position.z < z) {
             do_blocking_move_to_z(z, travel_speed_z);
         }
-        do_blocking_move_to_xy(std::clamp(X_BED_SIZE / 2.f, soft_endstop.min.x, soft_endstop.max.x), std::clamp(Y_BED_SIZE / 2.f, soft_endstop.min.y, soft_endstop.max.y), travel_speed_xy);
-        planner.synchronize();
-        return !must_stop();
+        if (!accel::take_head()) { // INDX : la tête dont l'accéléromètre mesure, prise Z levé ; rien ailleurs
+            return false;
+        }
+        // IC-1 : INDX, le chemin du parcage de Prusa
+        return accel::move_to(std::clamp(X_BED_SIZE / 2.f, soft_endstop.min.x, soft_endstop.max.x), std::clamp(Y_BED_SIZE / 2.f, soft_endstop.min.y, soft_endstop.max.y), travel_speed_xy)
+            && !must_stop();
     }
 
     /// Résidu (variance, m²/s⁴) dans la fenêtre qui suit la fin du mouvement en cours (au repos : tout de suite)

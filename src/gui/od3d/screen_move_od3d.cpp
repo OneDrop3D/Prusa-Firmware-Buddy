@@ -14,6 +14,7 @@
 #include <i18n.h>
 #include <img_resources.hpp>
 #include <marlin_client.hpp>
+#include <option/has_indx.h>
 #include <utils/string_builder.hpp>
 #include <window_msgbox.hpp>
 
@@ -225,7 +226,13 @@ namespace {
                 return; // Z sans origine : le plateau pourrait toucher la buse, on propose la prise d'origine
             }
         } else if (!known(_BV(axis))) {
+#if HAS_INDX()
+            // IG-04 : sans origine, Y est inconnu et X peut heurter une tête au dock (M1990 refusé) : prise d'origine
+            (void)homed(_BV(X_AXIS) | _BV(Y_AXIS));
+            return;
+#else
             gcode = free_gcodes[axis]; // X ou Y sans origine : arrêt au contact d'un bord
+#endif
         }
         // Comme le menu Prusa : le pas d'E par défaut pousse un peu moins que demandé, compensé ici seulement
         gcode.parameter = axis == E_AXIS ? mm * CALIBRATED_AXIS_STEPS_PER_UNIT_E0 / get_steps_per_unit_e() : mm;
@@ -244,6 +251,9 @@ namespace {
     void step_diagonal() {
         if (!not_printing()) {
             return;
+        }
+        if (HAS_INDX() && !homed(_BV(X_AXIS) | _BV(Y_AXIS))) {
+            return; // IG-04 : pas de diagonale sans origine près des docks
         }
         const bool x_known = known(_BV(X_AXIS)), y_known = known(_BV(Y_AXIS));
         if (x_known == y_known) {

@@ -29,6 +29,10 @@
 #include <option/has_toolchanger.h>
 #if HAS_TOOLCHANGER()
   #include <module/prusa/toolchanger.h>
+  #include <option/has_pause.h>
+  #if HAS_PAUSE()
+    #include <feature/od3d/clean_resume_od3d.hpp> // OneDrop3D (F30)
+  #endif
 #endif
 
 #include <option/has_mmu2.h>
@@ -81,7 +85,14 @@ bool tool_change(const std::variant<VirtualToolIndex, PhysicalToolIndex, NoTool>
       [](PhysicalToolIndex physical_tool) -> MaybePhysical { return physical_tool; },
       [](NoTool) -> MaybePhysical { return NoTool{}; }
     );
-    return prusa_toolchanger.tool_change(maybe_physical, return_type, current_position.xyz(), z_lift, z_return);
+    const auto before = PhysicalToolIndex::currently_selected_opt();
+    const bool changed = prusa_toolchanger.tool_change(maybe_physical, return_type, current_position.xyz(), z_lift, z_return);
+    #if HAS_PAUSE()
+      if (PhysicalToolIndex::currently_selected_opt() != before) {
+        od3d::clean_resume::on_tool_change(); // OneDrop3D (F30) : la reprise ne trace pas sur le remplissage d'une autre tête
+      }
+    #endif
+    return changed;
 
   #else
     #error Not implemented

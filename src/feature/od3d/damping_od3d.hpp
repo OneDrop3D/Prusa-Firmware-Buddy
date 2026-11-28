@@ -30,6 +30,7 @@ enum class Status : uint8_t {
     no_accelerometer, ///< refusé sans bouger : l'accéléromètre ne répond pas (ACC-1)
     failed, ///< l'accéléromètre a cessé de répondre pendant la mesure
     not_homed,
+    no_dock, ///< INDX, refusé sans bouger : aucune tête prise ni dock calibré (accel::head_available)
 };
 
 struct Measurement {

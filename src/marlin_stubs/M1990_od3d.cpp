@@ -3,7 +3,9 @@
 #include "PrusaGcodeSuite.hpp"
 
 #include <algorithm>
+#include <core/serial.h>
 #include <gcode/parser.h>
+#include <option/has_indx.h>
 #include <module/motion.h>
 #include <module/planner.h>
 
@@ -26,6 +28,12 @@
  * charge. 50 mm au plus par axe et par commande.
  */
 void PrusaGcodeSuite::M1990() {
+#if HAS_INDX()
+    // IC-3 : sous Y_DOCK_PARKING_MIN_SAFE_POS, un mouvement en X peut abîmer les buses (Configuration_COREONE.h) ; sans
+    // origine, Y est inconnu : refusé, l'écran propose la prise d'origine
+    SERIAL_ERROR_MSG("M1990: refused on INDX, home X and Y first");
+    return;
+#endif
     constexpr float max_distance = 50.f;
     constexpr std::pair<AxisEnum, char> axes[] = { { X_AXIS, 'X' }, { Y_AXIS, 'Y' } };
     for (const auto &[axis, letter] : axes) {

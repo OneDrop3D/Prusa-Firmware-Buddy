@@ -825,7 +825,9 @@ void prepare() {
     // INDX (IC-11) : une seule tête pour toute la série, prise ici comme M1959 (après la levée de Z, IC-6) ; les tests
     // la gardent (accel::take_head ne reprend rien) ; puis le centre par le chemin du parcage de Prusa (IC-1)
     if (!axes_need_homing() && !planner.draining()) {
-        do_blocking_move_to_z(Z_SIZE / 2);
+        if (current_position.z < Z_SIZE / 2) {
+            do_blocking_move_to_z(Z_SIZE / 2); // jamais plus près d'une pièce restée sur le plateau
+        }
         if (accel::take_head()) {
             if (!cold()) {
                 Temperature::set_print_fan_speed(255); // le ventilateur de la tête, sur la buse prise

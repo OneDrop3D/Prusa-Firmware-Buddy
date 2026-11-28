@@ -41,6 +41,7 @@
 #include <option/has_tool_mapping.h>
 #include <screen_menu_tune.hpp>
 #include <time_tools.hpp>
+#include <option/has_toolchanger.h>
 #include <tool_index.hpp>
 #include <utils/string_builder.hpp>
 #include <window_msgbox.hpp>
@@ -364,7 +365,7 @@ void PrintInfo::unconditionalDraw() {
         const spool::Disc disc(data.look, d);
         draw_pixels(Rect16(x, r.Top(), text_dx, top_rect.Height()), [&](int px, int py) { return disc.pixel(px, py - 2, style::screen); });
         StringViewUtf8Parameters<4> params;
-        draw_text(Rect16(x + text_dx, r.Top(), w - text_dx, height(Font::small)), _("Now: slot %d").formatted(params, data.slot + 1), Font::small, style::text_muted, style::screen);
+        draw_text(Rect16(x + text_dx, r.Top(), w - text_dx, height(Font::small)), (HAS_TOOLCHANGER() ? _("Now: head %d") : _("Now: slot %d")).formatted(params, data.slot + 1), Font::small, style::text_muted, style::screen);
         render_text_align(Rect16(x + text_dx, r.Top() + 16, w - text_dx, top_rect.Height() - 16), string_view_utf8::MakeRAM(data.material.data()), Font::small, style::screen, style::text_strong, {}, text_flags(Align_t::LeftTop()));
     } else {
         display::fill_rect(top_rect, style::screen);
@@ -645,8 +646,8 @@ void ScreenPrinting::update_info() {
     }
 
     // Bobine chargée dans la buse
-    for (uint8_t i = 0; i < print_info::max_tools; ++i) {
-        // INDX : chaque tête garde son filament ; celle qui imprime est la tête en service
+    for (uint8_t i = 0; i < VirtualToolIndex::count; ++i) {
+        // INDX : chaque tête garde son filament ; celle qui imprime est la tête en service (IF-02 : les 8)
         if (const Slot slot = Slot::read(i); slot.loaded && (HAS_MMU2() || VirtualToolIndex::currently_selected_opt() == VirtualToolIndex::from_raw(i))) {
             d.slot = i;
             d.look = slot.look;

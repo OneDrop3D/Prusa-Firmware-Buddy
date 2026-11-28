@@ -286,4 +286,10 @@ inline int16_t held_degrees(float t, int16_t shown) {
     return std::abs(t - shown) < 0.7f ? shown : static_cast<int16_t>(std::lround(t));
 }
 
+/// INDX sans tête prise (IF-03) : la buse à montrer parmi les mesures des têtes, la plus chaude (la première à égalité).
+/// Une tête posée lit -1 °C : toutes posées, la première, montrée « --° »
+inline size_t hottest(std::span<const float> temps) {
+    return temps.empty() ? 0 : size_t(std::max_element(temps.begin(), temps.end()) - temps.begin());
+}
+
 } // namespace od3d::style

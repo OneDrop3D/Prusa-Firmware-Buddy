@@ -24,6 +24,12 @@
 #include <feature/prusa/MMU2/mmu2_state.h>
 #include <option/has_loadcell.h>
 #include <option/has_mmu2.h>
+#include <option/has_toolchanger.h>
+#include <option/has_indx.h>
+#if HAS_INDX()
+    #include <config_store/store_instance.hpp>
+    #include <selftest_result.hpp>
+#endif
 #if HAS_MMU2()
     #include <feature/od3d/filament_memory_od3d.hpp>
     #include <feature/od3d/spool_usage_od3d.hpp>
@@ -276,9 +282,21 @@ bool draw_whole(window_frame_t &frame, window_t *first, window_t *last, void (*o
 
 // ---- Navigation ----
 
+bool cleaner_ready() {
+#if HAS_INDX()
+    // Comme FilamentBtn_cb (screen_home.cpp), que notre accueil remplace
+    if (config_store().selftest_result_nozzle_cleaner_calibration.get() != TestResult::passed) {
+        return MsgBoxWarning(_("Please calibrate nozzle cleaner first before loading/unloading filaments."), { Response::Ok, Response::Ignore }) == Response::Ignore;
+    }
+#endif
+    return true;
+}
+
 void open_filament_menu() {
 #if !HAS_MMU2()
-    open_screen<ScreenMenuFilament>(); // INDX : le menu de Prusa, par tête
+    if (cleaner_ready()) {
+        open_screen<ScreenMenuFilament>(); // INDX : le menu de Prusa, par tête
+    }
 #else
     switch (MMU2::xState(marlin_vars().mmu2_state.get())) {
     case MMU2::xState::Active:
@@ -660,9 +678,25 @@ void IconCard::draw_content(Rect16 body) {
     draw_text(layout::clear_of_corners(body, radius, Rect16(x, body.Top() + 27, w, height(Font::small))), subtitle, Font::small, style::text_muted, fill());
 }
 
+Nozzle nozzle_shown() {
+    auto &vars = marlin_vars();
+#if HAS_TOOLCHANGER()
+    if (!PhysicalToolIndex::currently_selected_opt()) {
+        std::array<float, PhysicalToolIndex::count> temps;
+        for (const PhysicalToolIndex tool : PhysicalToolIndex::all()) {
+            temps[tool.to_raw()] = vars.hotend(tool).temp_nozzle.get();
+        }
+        auto &h = vars.hotend(PhysicalToolIndex::from_raw(uint8_t(style::hottest(temps))));
+        return { h.temp_nozzle.get(), h.target_nozzle.get() };
+    }
+#endif
+    auto &h = vars.active_hotend();
+    return { h.temp_nozzle.get(), h.target_nozzle.get() };
+}
+
 Temps Temps::read() {
     static Temps held; // ce qui est à l'écran : en-tête de chaque écran, carte de l'accueil, écran Températures
-    held.nozzle = style::held_degrees(marlin_vars().active_hotend().temp_nozzle.get(), held.nozzle);
+    held.nozzle = style::held_degrees(nozzle_shown().temp, held.nozzle);
     held.bed = style::held_degrees(marlin_vars().temp_bed.get(), held.bed);
 #if HAS_CHAMBER_API()
     const auto chamber = buddy::chamber().current_temperature();
@@ -1163,11 +1197,7 @@ namespace {
         open_print_tab(); // l'écran Impression pendant une impression, sinon les fichiers
     }
     void tab_workshop() {
-#if HAS_MMU2()
-        open_section<ScreenMMU>();
-#else
-        open_section<ScreenMenuFilament>(); // INDX : pas d'atelier G ; le menu du filament de Prusa, par tête
-#endif
+        open_section<ScreenMMU>(); // l'étagère ; INDX (IG-03) : une carte par tête, et le menu Filament de Prusa
     }
     void tab_settings() {
         open_section<ScreenMenuSettings>();

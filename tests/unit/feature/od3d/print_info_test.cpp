@@ -39,10 +39,37 @@ TEST_CASE("métadonnées : grammes, outils utilisés, matières") {
     CHECK(std::string(info.types[3].data()) == "TPU");
     CHECK(info.seconds == 3900);
 
-    // Plus d'outils que d'emplacements : le reste est ignoré
+    // Plus d'outils que l'imprimante n'en a (ces tests : INDX, 8 têtes) : le reste est ignoré
+    static_assert(max_tools == 8);
     FileInfo many;
-    parse_metadata(many, "filament used [g]", "1, 1, 1, 1, 1, 1, 1");
-    CHECK(many.used == 0b11111);
+    parse_metadata(many, "filament used [g]", "1, 1, 1, 1, 1, 1, 1, 1, 1");
+    CHECK(many.used == 0xff);
+    CHECK(many.given == max_tools);
+}
+
+TEST_CASE("métadonnées : INDX à 8 têtes, les têtes 6 à 8 comptent (IF-02)") {
+    FileInfo info;
+    parse_metadata(info, "filament used [g]", "1.0, 0, 0, 0, 0, 2.5, 0, 4.0");
+    parse_metadata(info, "filament_type", "PLA;PLA;PLA;PLA;PLA;PETG;PLA;PVA");
+    parse_metadata(info, "temperature", "215,215,215,215,215,240,215,220");
+    CHECK(info.used == 0b10100001);
+    CHECK(info.is_used(5));
+    CHECK(info.is_used(7));
+    CHECK(info.total_grams() > 7.49f);
+    CHECK(info.total_grams() < 7.51f);
+    CHECK(std::string(info.types[5].data()) == "PETG");
+    CHECK(std::string(info.types[7].data()) == "PVA");
+    CHECK(info.nozzle[7] == 220);
+}
+
+TEST_CASE("Avant l'impression : 5 lignes, puis deux colonnes de 4 (IF-02)") {
+    for (uint8_t k = 0; k < 5; ++k) {
+        CHECK(row_place(k, 5) == RowPlace { 0, k }); // jusqu'à 5 outils : une colonne, comme avant
+    }
+    CHECK(row_place(0, 6) == RowPlace { 0, 0 });
+    CHECK(row_place(3, 6) == RowPlace { 0, 3 });
+    CHECK(row_place(4, 6) == RowPlace { 1, 0 });
+    CHECK(row_place(7, 8) == RowPlace { 1, 3 }); // la 8e tête : en bas à droite, 4 lignes au plus
 }
 
 TEST_CASE("métadonnées : température de buse par outil (F6)") {

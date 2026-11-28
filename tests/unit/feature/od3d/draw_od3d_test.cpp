@@ -597,3 +597,13 @@ TEST_CASE("températures : l'arrondi ne bouge qu'au-delà de 0,7 °C d'écart") 
     CHECK(style::held_degrees(23.4f, 0) == 23); // première mesure
     CHECK(style::held_degrees(-1.0f, 23) == -1); // plus de mesure
 }
+
+TEST_CASE("températures : INDX sans tête prise, la buse la plus chaude") {
+    const float docked[] = { -1, -1, -1 }; // toutes au dock : la première, « --° »
+    CHECK(style::hottest(docked) == 0);
+    const float one_hot[] = { -1, -1, 215.f, 60.f, -1 }; // la tête 3 vient d'être posée, encore lue
+    CHECK(style::hottest(one_hot) == 2);
+    const float tie[] = { 40.f, 40.f };
+    CHECK(style::hottest(tie) == 0);
+    CHECK(style::hottest({}) == 0);
+}

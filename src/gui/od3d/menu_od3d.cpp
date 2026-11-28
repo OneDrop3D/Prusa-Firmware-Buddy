@@ -352,7 +352,7 @@ TabBar::Tab section_tab() {
 #if HAS_MMU2()
     if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMMU>() || n.creator.is_screen<ScreenMenuFilamentMMU>() || n.creator.is_screen<ScreenMenuFilament>(); })) {
 #else
-    if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMenuFilament>(); })) { // INDX : l'onglet Atelier
+    if (on_stack([](const screen_node &n) { return n.creator.is_screen<ScreenMMU>() || n.creator.is_screen<ScreenMenuFilament>(); })) { // INDX : l'étagère
 #endif
         return TabBar::Tab::workshop;
     }

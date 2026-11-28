@@ -13,6 +13,13 @@ std::optional<uint8_t> ceiling_target(Recipe recipe, std::optional<uint8_t> mate
     return material_max_c;
 }
 
+std::optional<uint8_t> lower_ceiling(std::optional<uint8_t> so_far, Recipe recipe, std::optional<uint8_t> material_max_c) {
+    if (!has_ceiling(recipe) || !material_max_c.has_value() || *material_max_c == 0) {
+        return so_far;
+    }
+    return so_far.has_value() ? std::min(*so_far, *material_max_c) : *material_max_c;
+}
+
 CooldownParams CooldownParams::clamped() const {
     return CooldownParams {
         .step_c = std::clamp(step_c, step_min, step_max),

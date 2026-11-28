@@ -73,6 +73,10 @@ constexpr Word recipe_set(Word word, uint8_t index, Recipe r) {
 /// prime toujours, et M191 n'attend jamais une cible que l'on aurait changée.
 std::optional<uint8_t> ceiling_target(Recipe recipe, std::optional<uint8_t> material_max_c, bool chamber_has_target, bool can_cool);
 
+/// Plusieurs outils (INDX, MMU) : le plafond de la chambre est le plus bas des maxima des matières à plafond utilisées
+/// (la plus fragile : PLA avec PETG, plafond du PLA). Ajoute la matière (recette, maximum) à so_far ; nullopt : aucune
+std::optional<uint8_t> lower_ceiling(std::optional<uint8_t> so_far, Recipe recipe, std::optional<uint8_t> material_max_c);
+
 // ---- Descente douce ----
 
 struct CooldownParams {

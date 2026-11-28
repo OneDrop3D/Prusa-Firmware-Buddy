@@ -526,9 +526,9 @@ Face face() {
     }
 
     // Toujours suivie (même pendant une impression), pour que la cible déjà atteinte ne rallume pas la pastille après
-    auto &hotend = vars.active_hotend();
-    in.nozzle = static_cast<int16_t>(std::lround(hotend.temp_nozzle.get()));
-    in.nozzle_target = hotend.target_nozzle.get();
+    const Nozzle nozzle = nozzle_shown(); // INDX sans tête prise : celle de l'en-tête (IF-03)
+    in.nozzle = static_cast<int16_t>(std::lround(nozzle.temp));
+    in.nozzle_target = nozzle.target;
     in.nozzle_heating = preheat_latch.update(in.nozzle, in.nozzle_target);
     in.on_temperatures_screen = Screens::Access()->IsScreenOpened<ScreenTemperatures>();
 

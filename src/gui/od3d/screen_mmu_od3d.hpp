@@ -11,6 +11,7 @@
 #include <gui/od3d/screen_mmu_speed_od3d.hpp>
 #include <gui/od3d/screen_ptfe_od3d.hpp>
 #include <MItem_mmu.hpp>
+#include <option/has_mmu2.h>
 #include <tool_index.hpp>
 #include <utility>
 
@@ -49,7 +50,8 @@ private:
 };
 
 /// Étagère de l'onglet Atelier : une bobine par outil lu à l'exécution (MMU3 : 5 ; sans MMU : 1 ; INDX : 3 à 8, sur deux
-/// rangées au-delà de 5), puis les raccourcis
+/// rangées au-delà de 5), puis les raccourcis (INDX, IG-03 : le menu Filament de Prusa, Charger tout, Décharger tout,
+/// Changer tout)
 class ScreenMMU final : public Screen {
 public:
     ScreenMMU();
@@ -65,11 +67,15 @@ private:
 
     Header header;
     ShelfSpool spools[VirtualToolIndex::count];
+#if HAS_MMU2()
     Shortcut preload_all;
     Shortcut motors;
     Shortcut pressure_advance;
     Shortcut settings;
     Shortcut info;
+#else
+    Shortcut filament;
+#endif
     TabBar tabs;
 };
 

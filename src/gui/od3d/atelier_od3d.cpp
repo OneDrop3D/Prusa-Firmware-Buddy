@@ -311,6 +311,9 @@ namespace atelier {
     } // namespace
 
     bool run(Op op, uint8_t slot) {
+        if ((op == Op::load || op == Op::unload) && !cleaner_ready()) {
+            return false; // INDX (IF-01) : nettoyeur non calibré, « Ok » : rien
+        }
         ArrayStringBuilder<MAX_CMD_SIZE> gcode;
         // P : emplacement du MMU. INDX : M701 et M702 ignorent P et prennent la tête active ; T désigne la tête
         constexpr char tool_letter = HAS_MMU2() ? 'P' : 'T';

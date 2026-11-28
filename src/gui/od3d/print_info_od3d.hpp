@@ -6,12 +6,16 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <option/has_toolchanger.h>
 #include <string_view>
 #include <utility>
 
 namespace od3d::print_info {
 
-inline constexpr uint8_t max_tools = 5; ///< emplacements du MMU3
+/// Têtes de l'INDX (IF-02 : jusqu'à 8), emplacements du MMU3 ; 5 ailleurs : chaque outil de plus coûte 14 o par fichier
+/// du cache de la grille
+inline constexpr uint8_t max_tools = HAS_TOOLCHANGER() ? 8 : 5;
+static_assert(max_tools <= 8, "used et given sur 8 bits");
 
 /// Ce que l'écran montre d'un G-code, lu dans ses métadonnées (comme GCodeInfo::parse_comment)
 struct FileInfo {
@@ -41,6 +45,17 @@ void format_hm(uint32_t seconds, char *buf, size_t size);
 /// Retrait du bord gauche (et du droit) d'un rectangle arrondi de hauteur h et de rayon r à la ligne y,
 /// même règle que display::draw_rounded_rect (dedans si dx² + dy² < r²)
 int corner_inset(int y, int h, int r);
+
+/// « Avant l'impression » : place de la k-ième ligne parmi used outils utilisés. Cinq lignes tiennent au-dessus du
+/// bandeau d'alertes ; au-delà (INDX 6 à 8 têtes), deux colonnes de quatre
+struct RowPlace {
+    uint8_t col;
+    uint8_t row;
+    constexpr bool operator==(const RowPlace &) const = default;
+};
+constexpr RowPlace row_place(uint8_t k, uint8_t used) {
+    return used > 5 ? RowPlace { uint8_t(k / 4), uint8_t(k % 4) } : RowPlace { 0, k };
+}
 
 /// Frise de progression de l'écran Impression (w × h) : ce que montre le pixel (x, y) à percent %
 enum class StripPart : uint8_t {

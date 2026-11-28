@@ -48,8 +48,9 @@ namespace {
 
     // Géométrie de l'accueil (SPEC_G.md §3.1), sous l'en-tête de 40 px. Retour du 22/11 : aperçu du dernier fichier plus
     // haut et plus large (UI-8) ; la bande des bobines passe à 56 px et les cartes du bas à 48 px pour lui faire place.
-    // La bande prend une rangée jusqu'à 5 bobines, deux au-delà (INDX 8 têtes : 2 × 4).
-    constexpr Rect16 spool_area = { style::margin, style::top, 390, 56 };
+    // La bande prend une rangée jusqu'à 5 bobines, deux au-delà (INDX 8 têtes : 2 × 4). INDX (IG-08) : sans le bouton du
+    // MMU à droite, toute la largeur (2 × 4 têtes : cartes de 112 px au lieu de 97)
+    constexpr Rect16 spool_area = { style::margin, style::top, HAS_MMU2() ? 390 : 464, 56 };
     constexpr uint8_t spool_gap = 5;
     constexpr Rect16 spool_body(uint8_t i, uint8_t tools) {
         return layout::spool_cell(spool_area, tools, spool_gap, i < tools ? i : 0); // cachées : à la place de la 1re
@@ -70,8 +71,12 @@ namespace {
     static_assert(thumb_rect.Width() == 187 && thumb_rect.Height() == 103 && thumb_rect.Width() <= ScaledQoiReader::max_width);
     static_assert(style::with_ring(spool_body(0, 5)).Bottom() < file_rect.Top() && file_rect.Bottom() < style::with_ring(files_body).Top());
     static_assert(style::inside(style::content, style::with_ring(spool_body(0, 5))) && style::inside(style::content, style::with_ring(mmu_body)));
+#if HAS_MMU2()
     static_assert(spool_body(4, 5) == Rect16(324, style::top, 74, 56), "5 bobines du MMU : les colonnes de la maquette");
     static_assert(spool_area.Right() + 1 + 5 == mmu_body.Left() && mmu_body.Right() + 1 == style::screen_w - style::margin);
+#else
+    static_assert(spool_area.Right() + 1 == style::screen_w - style::margin);
+#endif
     static_assert(style::inside(file_rect, style::with_ring(print_body)) && style::inside(file_rect, thumb_rect));
     static_assert(style::with_ring(print_body).Top() > file_rect.Top() + 24 + 19 && name_chars >= 20, "« Imprimer » sous le nom, qui garde 20 caractères");
     static_assert(style::inside(style::content, style::with_ring(files_body)) && style::inside(style::content, style::with_ring(control_body)));
@@ -115,7 +120,7 @@ namespace {
     constexpr bool spool_cards_fit(uint8_t tools) {
         for (uint8_t i = 0; i < tools; ++i) {
             const Rect16 card = style::with_ring(spool_body(i, tools));
-            if (!style::inside(style::content, card) || layout::overlap(card, style::with_ring(mmu_body)) || layout::overlap(card, file_rect)
+            if (!style::inside(style::content, card) || (HAS_MMU2() && layout::overlap(card, style::with_ring(mmu_body))) || layout::overlap(card, file_rect)
                 || !layout::spool_parts_fit(spool_body(i, tools), style::radius, tools == 1)) {
                 return false;
             }
@@ -344,11 +349,9 @@ ScreenHome::ScreenHome(std::index_sequence<I...>)
     : Screen(false)
     , header(this, _("Home"), false)
     , spools { SpoolCard(this, I, atelier::visible_tools())... }
-    // L'étagère de l'onglet Atelier ; « MMU > » seulement avec un MMU activé (sans lui, l'icône seule)
+    // L'étagère de l'onglet Atelier ; « MMU > » seulement avec un MMU activé (sans lui, l'icône seule). INDX : l'onglet
 #if HAS_MMU2()
     , mmu(this, style::with_ring(mmu_body), open_screen<ScreenMMU>, img::settings_16x16, atelier::mmu_enabled() ? string_view_utf8::MakeCPUFLASH("MMU >") : string_view_utf8 {})
-#else
-    , mmu(this, style::with_ring(mmu_body), open_filament_menu, img::settings_16x16, string_view_utf8 {}) // INDX : menu du filament de Prusa, par tête
 #endif
     , file(this)
     , print(this, file)
@@ -417,7 +420,9 @@ void ScreenHome::update_spools() {
     for (SpoolCard &spool : spools) {
         spool.update(mmu_ready);
     }
+#if HAS_MMU2()
     mmu.set_enabled(mmu_ready);
+#endif
     // Un élément désactivé ne doit pas garder le focus (comme le bouton Filament de l'accueil Prusa)
     if (window_t *focused = get_focused_child_window(); focused && !focused->IsEnabled()) {
         temps.SetFocus();

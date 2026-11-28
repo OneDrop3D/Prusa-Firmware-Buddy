@@ -6,6 +6,7 @@
 #include <leds/side_strip_handler.hpp>
 #include <indx_head/leds.hpp>
 #include <config_store/store_instance.hpp>
+#include <feature/od3d/sleep_od3d.hpp> // OneDrop3D (F39)
 #include <utils/color.hpp>
 #include <utils/enum_array.hpp>
 
@@ -67,6 +68,12 @@ namespace {
         }
 
         const auto animation = leds::StatusLedsHandler::instance().current_animation();
+
+        // OneDrop3D (F39, IF-04) : la veille remplace l'atténuation de la chambre (side_strip_handler.cpp) ; les têtes
+        // s'éteignent avec elle, sauf une alerte
+        if (od3d::sleep::lights_off() && !is_alert(animation)) {
+            return {};
+        }
 
         // Follow the chamber light: share its two brightness levels and dim on the same inactivity.
         auto &chamber = leds::SideStripHandler::instance();

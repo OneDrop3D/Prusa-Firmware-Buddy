@@ -48,6 +48,25 @@ TEST_CASE("climat : plafond de la chambre", "[od3d][climate]") {
     CHECK_FALSE(ceiling_target(Recipe::none, 38, false, true).has_value());
 }
 
+TEST_CASE("climat : plafond de plusieurs outils, le plus bas", "[od3d][climate]") {
+    // INDX : PETG (45 °C) sur la tête 1, PLA (38 °C) sur la tête 2, ASA sans plafond sur la tête 3
+    std::optional<uint8_t> c;
+    c = lower_ceiling(c, Recipe::ceiling, 45);
+    CHECK(c == std::optional<uint8_t>(45));
+    c = lower_ceiling(c, Recipe::both, 38);
+    CHECK(c == std::optional<uint8_t>(38));
+    c = lower_ceiling(c, Recipe::soft_cooldown, 30); // sans plafond : ignorée, même plus basse
+    CHECK(c == std::optional<uint8_t>(38));
+    c = lower_ceiling(c, Recipe::ceiling, 50); // plus haute : ne relève pas
+    CHECK(c == std::optional<uint8_t>(38));
+    // Matière sans maximum, ou maximum 0 : ignorée ; aucune matière à plafond : rien
+    CHECK(lower_ceiling(std::nullopt, Recipe::ceiling, std::nullopt) == std::nullopt);
+    CHECK(lower_ceiling(std::nullopt, Recipe::ceiling, 0) == std::nullopt);
+    CHECK(lower_ceiling(std::nullopt, Recipe::none, 38) == std::nullopt);
+    // Le résultat passe par la même règle que pour un outil
+    CHECK(ceiling_target(Recipe::ceiling, c, false, true) == std::optional<uint8_t>(38));
+}
+
 TEST_CASE("climat : réglages ramenés dans leurs plages", "[od3d][climate]") {
     const CooldownParams p = CooldownParams { .step_c = 0, .interval_min = 99, .floor_c = 200 }.clamped();
     CHECK(p.step_c == CooldownParams::step_min);

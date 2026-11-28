@@ -140,7 +140,8 @@ namespace {
             char name[24];
             atelier::spool_name(name, type);
             StringViewUtf8Parameters<32> params;
-            draw_text(name_rect, _("Slot %d · %s").formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
+            // INDX (IF-05) : des têtes, pas des emplacements du MMU
+            draw_text(name_rect, (HAS_TOOLCHANGER() ? _("Head %d · %s") : _("Slot %d · %s")).formatted(params, index + 1, name), Font::normal, style::text_strong, style::surface);
 
             // État, l'alerte de la pointe (F10, en jaune ; détail dans Atelier › Infos du MMU), la température de la
             // matière, puis le reste (F13 ou étiquette OpenPrintTag)

@@ -18,7 +18,7 @@ ScreenMenuSettings::ScreenMenuSettings()
     // OneDrop3D (interface G) : une ligne d'explication sous chaque sous-menu de Prusa
     Item<od3d::MI_PRINTER_INFO>().SetLabel(_("Printer info\nVersion, statistics, sensors"));
     Item<MI_TOOLHEAD_SETTINGS>().SetLabel(_("Printhead\nNozzle diameter and type, sock"));
-    Item<MI_HARDWARE>().SetLabel(_("Hardware\nDoor, belts, input shaper, MMU tube"));
+    Item<MI_HARDWARE>().SetLabel(HAS_MMU2() ? _("Hardware\nDoor, belts, input shaper, MMU tube") : _("Hardware\nDoor, belts, input shaper")); // INDX : pas de MMU (IF-05)
     Item<MI_USER_INTERFACE>().SetLabel(_("Interface\nSounds, file order, touch, footer"));
     Item<MI_NETWORK>().SetLabel(_("Network\nWi-Fi, PrusaLink, Prusa Connect"));
     Item<MI_LANG_AND_TIME>().SetLabel(_("Language and time\nLanguage, time zone, clock"));

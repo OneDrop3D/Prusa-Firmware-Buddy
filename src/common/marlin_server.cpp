@@ -2438,8 +2438,8 @@ static void _server_print_loop(void) {
 
         server.print_is_serial = (server.print_state == State::SerialPrintInit);
         server.was_print_time_saved = false;
-#if HAS_SPOOL_JOIN()
-        od3d::apply_persistent_spool_joins(); // OneDrop3D (F3)
+#if HAS_SPOOL_JOIN() && HAS_MMU2()
+        od3d::apply_persistent_spool_joins(); // OneDrop3D (F3) : relais entre emplacements du MMU
 #endif
 #if HAS_FILAMENT_TRACKER() && HAS_MMU2()
         od3d::spool_usage::on_print_start(); // OneDrop3D (F13)

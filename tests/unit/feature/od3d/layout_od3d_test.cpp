@@ -173,4 +173,8 @@ TEST_CASE("od3d layout: card content stays off the rounded corners") {
     fits(Rect16(8, 46, 74, 56), false, 7);
     fits(Rect16(8, 46, 93, 26), false, 6);
     fits(Rect16(8, 77, 93, 25), false, 6);
+    // INDX sans le bouton du MMU (IG-08) : la bande de 464 px, 3 têtes de 151 px et 2 × 4 de 112 px
+    fits(Rect16(8, 46, 151, 56), false, 8);
+    fits(Rect16(8, 77, 112, 25), false, 6);
+    CHECK(layout::spool_cell(Rect16(8, 46, 464, 56), 8, 5, 7).Width() >= 112);
 }

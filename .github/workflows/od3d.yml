@@ -42,9 +42,19 @@ jobs:
         with:
           path: .dependencies
           key: deps-${{ hashFiles('utils/bootstrap.py') }}
+      - uses: actions/cache@v4
+        # ccache (cmake/CCache.cmake le prend s'il est installé) : seuls les fichiers changés sont recompilés. Une branche lit le
+        # cache de sa dernière CI, sinon celui d'od3d/main (règle de GitHub) : ne plus annuler la CI d'od3d/main
+        with:
+          path: .ccache
+          key: ccache-${{ matrix.preset }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.preset }}-
       - run: pip install requests
-      - run: sudo apt-get install -y gettext  # msgfmt, pour les traductions
+      - run: sudo apt-get install -y gettext ccache  # msgfmt, pour les traductions
       - name: Compiler ${{ matrix.preset }}_release_boot
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_MAXSIZE: 400M
         # Comme les versions publiées de Prusa (utils/holly/build-pr.jenkins, branches RELEASE-*) : sans les menus de développement.
         # Français et anglais seulement. Le tag od3d-8.0.3.N donne la version « 8.0.3+<build>.OD3D.N », la forme des builds locaux de
         # Prusa (« +1035.LOCAL ») : envoyée à Prusa Connect (INFO, User-Agent-Version), elle se lit comme une version semver ET
@@ -62,6 +72,7 @@ jobs:
           sep=$([ "${{ matrix.preset }}" = coreone ] && echo "-" || echo "_")
           mv "${bbf[0]}" "build/products/${{ matrix.preset }}_release_boot_$(cat version.txt)${sep}OD3D$n.bbf"
           ls -l build/products/*.bbf
+          ccache --print-stats | grep -vP '\t0$' | grep -iE 'hit|miss|uncacheable|unsupported|called_for|could_not|preprocessor|compiler_produced' || true
       - name: Toutes les erreurs de compilation
         # ninja s'arrête à la 1re erreur : on reprend sans s'arrêter pour les voir toutes en une fois
         if: failure()
@@ -102,13 +113,23 @@ jobs:
         with:
           path: .dependencies
           key: deps-${{ hashFiles('utils/bootstrap.py') }}
+      - uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-tests-${{ github.sha }}
+          restore-keys: ccache-tests-
       - run: pip install -r requirements.txt  # build_tests.py n'utilise pas le venv de build.py
       - run: python utils/bootstrap.py  # les tests lisent aussi .dependencies (SDK ESP)
-      - run: sudo apt-get install -y gettext  # msgfmt, pour les tests de traduction
+      - run: sudo apt-get install -y gettext ccache  # msgfmt, pour les tests de traduction
       - name: Tests unitaires de Prusa
         env:
           CTEST_OUTPUT_ON_FAILURE: '1'  # détail des assertions d'un test qui échoue
-        run: python utils/build_tests.py --run
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_MAXSIZE: 400M
+        # ctest en parallèle (4 cœurs) : 1 253 tests, 107 s l'un après l'autre
+        run: |
+          python utils/build_tests.py --run -- -j4
+          ccache --print-stats | grep -vP '\t0$' | grep -iE 'hit|miss|uncacheable|unsupported|called_for|could_not|preprocessor|compiler_produced' || true
 
   release:
     if: startsWith(github.ref, 'refs/tags/od3d-')

@@ -72,7 +72,7 @@ jobs:
           sep=$([ "${{ matrix.preset }}" = coreone ] && echo "-" || echo "_")
           mv "${bbf[0]}" "build/products/${{ matrix.preset }}_release_boot_$(cat version.txt)${sep}OD3D$n.bbf"
           ls -l build/products/*.bbf
-          ccache -s | head -8
+          ccache --print-stats | grep -vP '\t0$' | grep -iE 'hit|miss|uncacheable|unsupported|called_for|could_not|preprocessor|compiler_produced' || true
       - name: Toutes les erreurs de compilation
         # ninja s'arrête à la 1re erreur : on reprend sans s'arrêter pour les voir toutes en une fois
         if: failure()
@@ -129,7 +129,7 @@ jobs:
         # ctest en parallèle (4 cœurs) : 1 253 tests, 107 s l'un après l'autre
         run: |
           python utils/build_tests.py --run -- -j4
-          ccache -s | head -8
+          ccache --print-stats | grep -vP '\t0$' | grep -iE 'hit|miss|uncacheable|unsupported|called_for|could_not|preprocessor|compiler_produced' || true
 
   release:
     if: startsWith(github.ref, 'refs/tags/od3d-')

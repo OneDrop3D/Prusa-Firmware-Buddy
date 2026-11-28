@@ -57,7 +57,9 @@ def cmd_dump_pofiles(args):
         logger.warning('no translations found')
         return 1
     # get list of keys
-    keys = list(entry.msgid for entry in list(translations.values())[0])
+    # OneDrop3D : nos textes sont à la fin des .po de certaines langues seulement (pas ja ni uk) ; le premier .po lu
+    # dépend de l'ordre du système de fichiers (iterdir) : les clés sont celles du plus court, communes à toutes
+    keys = list(entry.msgid for entry in min(translations.values(), key=len))
     # output the keys.txt file
     open(args.output_dir / 'keys.txt',
          'w').writelines(k.replace('\n', '\\n') + '\n' for k in keys)

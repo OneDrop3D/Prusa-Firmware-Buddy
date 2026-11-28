@@ -38,6 +38,16 @@ struct od3d_config_store_used_limit {
     static_assert(used < limit, "config_store plein : voir used et limit ci-dessus");
 };
 template struct od3d_config_store_used_limit<sizeof(CurrentStore) + aggregate_arity<CurrentStore>() * sizeof(journal::Backend::ItemHeader), (BANK_SIZE / 100) * 75>;
+// Et à chaque compilation, la place prise et la limite dans le journal (avertissement de GCC, qui écrit les paramètres
+// du modèle : « used = …, limit = … ») : la place libre de chaque imprimante se lit dans le journal de la CI
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic warning "-Wdeprecated-declarations"
+template <size_t used, size_t limit>
+[[deprecated("place du config_store (used, limit)")]] constexpr bool od3d_config_store_place() {
+    return true;
+}
+static_assert(od3d_config_store_place<sizeof(CurrentStore) + aggregate_arity<CurrentStore>() * sizeof(journal::Backend::ItemHeader), (BANK_SIZE / 100) * 75>());
+    #pragma GCC diagnostic pop
 static_assert(journal::has_unique_items<config_store_ns::CurrentStore>(), "Just added items are causing collisions with reserved backend IDs");
 static_assert(aggregate_arity<config_store_ns::CurrentStore>() > 10, "Config store sanity check failed");
 static_assert(
